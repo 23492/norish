@@ -17,7 +17,8 @@
   },
   "item": {
     "unnamedItem": "Unbenannter Eintrag",
-    "fromRecipes": "Aus {count, plural, one {# Rezept} other {# Rezepten}}"
+    "fromRecipes": "Aus {count, plural, one {# Rezept} other {# Rezepten}}",
+    "items": "{count, plural, one {# Eintrag} other {# Einträge}}"
   },
   "store": {
     "unsorted": "Unsortiert",

@@ -1,27 +1,33 @@
-import type { GroceryDto, RecurringGroceryDto } from "@/types";
+import type { GroceryGroup } from "@/lib/grocery-grouping";
 import type {
   DragStartEvent,
   DragOverEvent,
   DragEndEvent,
   CollisionDetection,
 } from "@dnd-kit/core";
-import type { ItemsState, ContainerId, DndGroceryProviderProps } from "./types";
+import type {
+  GroupItemsState,
+  ContainerId,
+  DndGroupedGroceryProviderProps,
+} from "@/components/groceries/dnd/types";
 
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { arrayMove } from "@dnd-kit/sortable";
 
-import { UNSORTED_CONTAINER } from "./types";
-import { buildItemsState, findContainerForItem, containerIdToStoreId } from "./utils";
-import { createMultiContainerCollisionDetection } from "./collision-detection";
+import { UNSORTED_CONTAINER } from "@/components/groceries/dnd/types";
+import {
+  buildGroupItemsState,
+  findContainerForGroup,
+  containerIdToStoreId,
+} from "@/components/groceries/dnd/utils";
+import { createMultiContainerCollisionDetection } from "@/components/groceries/dnd/collision-detection";
 
-interface UseGroceryDndResult {
+interface UseGroupedGroceryDndResult {
   // State
-  activeId: string | null;
-  activeGrocery: GroceryDto | null;
-  activeRecurringGrocery: RecurringGroceryDto | null;
-  activeRecipeName: string | null;
+  activeGroupKey: string | null;
+  activeGroup: GroceryGroup | null;
   overContainerId: ContainerId | null;
-  items: ItemsState;
+  groupItems: GroupItemsState;
 
   // Collision detection
   collisionDetection: CollisionDetection;
@@ -33,64 +39,81 @@ interface UseGroceryDndResult {
   handleDragCancel: () => void;
 
   // Helpers
-  getItemsForContainer: (containerId: ContainerId) => string[];
+  getGroupKeysForContainer: (containerId: ContainerId) => string[];
 }
 
-export function useGroceryDnd({
-  groceries,
+export function useGroupedGroceryDnd({
   stores,
-  recurringGroceries,
-  onReorderInStore,
-  getRecipeNameForGrocery,
-}: Omit<DndGroceryProviderProps, "children">): UseGroceryDndResult {
+  groupedGroceries,
+  onReorderGroups,
+}: Omit<
+  DndGroupedGroceryProviderProps,
+  "children" | "recurringGroceries"
+>): UseGroupedGroceryDndResult {
   // =============================================================================
   // State
   // =============================================================================
 
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeGroupKey, setActiveGroupKey] = useState<string | null>(null);
   const [overContainerId, setOverContainerId] = useState<ContainerId | null>(null);
 
-  // Items state: container ID -> array of grocery IDs
+  // Group items state: container ID -> array of group keys
   // This updates during drag to reflect visual state
-  const [items, setItems] = useState<ItemsState>(() => buildItemsState(groceries, stores));
+  const [groupItems, setGroupItems] = useState<GroupItemsState>(() =>
+    buildGroupItemsState(groupedGroceries, stores)
+  );
 
-  // Clone of items at drag start - used for cancel recovery
-  const clonedItems = useRef<ItemsState | null>(null);
+  // Clone of groupItems at drag start - used for cancel recovery
+  const clonedGroupItems = useRef<GroupItemsState | null>(null);
 
   // Refs for stable collision detection (from reference implementation)
   const lastOverId = useRef<string | null>(null);
   const recentlyMovedToNewContainer = useRef(false);
 
+  // Build a map of groupKey -> GroceryGroup for quick lookup
+  const groupMap = useMemo(() => {
+    const map = new Map<string, GroceryGroup>();
+
+    for (const groups of groupedGroceries.values()) {
+      for (const group of groups) {
+        map.set(group.groupKey, group);
+      }
+    }
+
+    return map;
+  }, [groupedGroceries]);
+
   // Container IDs for reference
   const _containerIds = useMemo(() => [UNSORTED_CONTAINER, ...stores.map((s) => s.id)], [stores]);
 
   // =============================================================================
-  // Sync items state when groceries/stores change from external source
+  // Sync groupItems state when groupedGroceries/stores change from external source
   // =============================================================================
 
-  const prevGroceriesRef = useRef<GroceryDto[]>(groceries);
+  const prevGroupedGroceriesRef = useRef<Map<string | null, GroceryGroup[]>>(groupedGroceries);
 
-  // Only rebuild if we're not actively dragging and groceries changed
-  if (!activeId && groceries !== prevGroceriesRef.current) {
-    prevGroceriesRef.current = groceries;
-    const newItems = buildItemsState(groceries, stores);
+  // Only rebuild if we're not actively dragging and groupedGroceries changed
+  if (!activeGroupKey && groupedGroceries !== prevGroupedGroceriesRef.current) {
+    prevGroupedGroceriesRef.current = groupedGroceries;
+    const newGroupItems = buildGroupItemsState(groupedGroceries, stores);
     const itemsChanged =
-      JSON.stringify(Object.keys(newItems).sort()) !== JSON.stringify(Object.keys(items).sort()) ||
-      Object.keys(newItems).some(
-        (key) => JSON.stringify(newItems[key]) !== JSON.stringify(items[key])
+      JSON.stringify(Object.keys(newGroupItems).sort()) !==
+        JSON.stringify(Object.keys(groupItems).sort()) ||
+      Object.keys(newGroupItems).some(
+        (key) => JSON.stringify(newGroupItems[key]) !== JSON.stringify(groupItems[key])
       );
 
     if (itemsChanged) {
-      setItems(newItems);
+      setGroupItems(newGroupItems);
     }
   }
 
-  // Reset recentlyMovedToNewContainer after items state settles
+  // Reset recentlyMovedToNewContainer after groupItems state settles
   useEffect(() => {
     requestAnimationFrame(() => {
       recentlyMovedToNewContainer.current = false;
     });
-  }, [items]);
+  }, [groupItems]);
 
   // =============================================================================
   // Collision Detection
@@ -99,58 +122,46 @@ export function useGroceryDnd({
   const collisionDetection = useMemo(
     () =>
       createMultiContainerCollisionDetection(
-        items,
-        activeId,
+        groupItems,
+        activeGroupKey,
         lastOverId,
         recentlyMovedToNewContainer
       ),
-    [items, activeId]
+    [groupItems, activeGroupKey]
   );
 
   // =============================================================================
-  // Active Item Derivations
+  // Active Group Derivation
   // =============================================================================
 
-  const activeGrocery = useMemo(() => {
-    if (!activeId) return null;
+  const activeGroup = useMemo(() => {
+    if (!activeGroupKey) return null;
 
-    return groceries.find((g) => g.id === activeId) ?? null;
-  }, [activeId, groceries]);
-
-  const activeRecurringGrocery = useMemo(() => {
-    if (!activeGrocery?.recurringGroceryId) return null;
-
-    return recurringGroceries.find((r) => r.id === activeGrocery.recurringGroceryId) ?? null;
-  }, [activeGrocery, recurringGroceries]);
-
-  const activeRecipeName = useMemo(() => {
-    if (!activeGrocery || !getRecipeNameForGrocery) return null;
-
-    return getRecipeNameForGrocery(activeGrocery);
-  }, [activeGrocery, getRecipeNameForGrocery]);
+    return groupMap.get(activeGroupKey) ?? null;
+  }, [activeGroupKey, groupMap]);
 
   // =============================================================================
   // Helper Functions
   // =============================================================================
 
-  const getItemsForContainer = useCallback(
+  const getGroupKeysForContainer = useCallback(
     (containerId: ContainerId): string[] => {
-      return items[containerId] ?? [];
+      return groupItems[containerId] ?? [];
     },
-    [items]
+    [groupItems]
   );
 
   const findContainer = useCallback(
     (id: string): ContainerId | undefined => {
       // Check if id is a container itself
-      if (id in items) {
+      if (id in groupItems) {
         return id;
       }
 
-      // Find which container has this item
-      return Object.keys(items).find((key) => items[key].includes(id));
+      // Find which container has this group
+      return Object.keys(groupItems).find((key) => groupItems[key].includes(id));
     },
-    [items]
+    [groupItems]
   );
 
   // =============================================================================
@@ -159,17 +170,17 @@ export function useGroceryDnd({
 
   const handleDragStart = useCallback(
     ({ active }: DragStartEvent) => {
-      const id = active.id as string;
+      const groupKey = active.id as string;
 
-      setActiveId(id);
-      // Clone current items for cancel recovery
-      clonedItems.current = JSON.parse(JSON.stringify(items));
+      setActiveGroupKey(groupKey);
+      // Clone current groupItems for cancel recovery
+      clonedGroupItems.current = JSON.parse(JSON.stringify(groupItems));
 
-      const containerId = findContainerForItem(id, items);
+      const containerId = findContainerForGroup(groupKey, groupItems);
 
       setOverContainerId(containerId);
     },
-    [items]
+    [groupItems]
   );
 
   const handleDragOver = useCallback(
@@ -191,7 +202,7 @@ export function useGroceryDnd({
 
       // Cross-container move
       if (activeContainer !== overContainer) {
-        setItems((prevItems) => {
+        setGroupItems((prevItems) => {
           const activeItems = prevItems[activeContainer];
           const overItems = prevItems[overContainer];
           const overIndex = overItems.indexOf(overId as string);
@@ -218,7 +229,7 @@ export function useGroceryDnd({
 
           return {
             ...prevItems,
-            [activeContainer]: prevItems[activeContainer].filter((item) => item !== active.id),
+            [activeContainer]: prevItems[activeContainer].filter((key) => key !== active.id),
             [overContainer]: [
               ...prevItems[overContainer].slice(0, newIndex),
               activeItems[activeIndex],
@@ -228,7 +239,7 @@ export function useGroceryDnd({
         });
       } else {
         // Same container reorder during drag
-        setItems((prevItems) => {
+        setGroupItems((prevItems) => {
           const activeIndex = prevItems[activeContainer].indexOf(active.id as string);
           const overIndex = prevItems[overContainer].indexOf(overId as string);
 
@@ -248,13 +259,13 @@ export function useGroceryDnd({
 
   const handleDragEnd = useCallback(
     ({ active, over }: DragEndEvent) => {
-      const originalItems = clonedItems.current;
+      const originalGroupItems = clonedGroupItems.current;
       const currentContainer = findContainer(active.id as string);
 
       if (!currentContainer) {
-        setActiveId(null);
+        setActiveGroupKey(null);
         setOverContainerId(null);
-        clonedItems.current = null;
+        clonedGroupItems.current = null;
 
         return;
       }
@@ -263,81 +274,85 @@ export function useGroceryDnd({
 
       if (overId == null) {
         // No valid drop - restore original
-        if (originalItems) {
-          setItems(originalItems);
+        if (originalGroupItems) {
+          setGroupItems(originalGroupItems);
         }
-        setActiveId(null);
+        setActiveGroupKey(null);
         setOverContainerId(null);
-        clonedItems.current = null;
+        clonedGroupItems.current = null;
 
         return;
       }
 
-      // Build updates for backend based on current items state
-      // (all reordering was already done in handleDragOver)
-      if (originalItems) {
-        const originalContainer = findContainerForItem(active.id as string, originalItems);
+      // Build updates for backend based on current groupItems state
+      // Each group contains multiple groceries - we need to update sortOrder for ALL of them
+      if (originalGroupItems) {
+        const originalContainer = findContainerForGroup(active.id as string, originalGroupItems);
         const wasCrossContainerMove = originalContainer !== currentContainer;
+        const newStoreId = wasCrossContainerMove
+          ? containerIdToStoreId(currentContainer)
+          : undefined;
 
         const updates: { id: string; sortOrder: number; storeId?: string | null }[] = [];
 
-        // Update original container if item moved out
+        // Calculate the base sortOrder for each group position
+        // Each group's items will be assigned sequential sortOrders starting from that base
+        let sortOrderBase = 0;
+
+        // Process all containers that were affected
+        const containersToProcess = new Set<ContainerId>();
+
+        containersToProcess.add(currentContainer);
         if (wasCrossContainerMove && originalContainer) {
-          const currentOriginalItems = items[originalContainer] ?? [];
-
-          currentOriginalItems.forEach((id, index) => {
-            updates.push({ id, sortOrder: index });
-          });
+          containersToProcess.add(originalContainer);
         }
 
-        // Update destination container with current positions
-        const finalItems = items[currentContainer];
+        for (const containerId of containersToProcess) {
+          const groupKeys = groupItems[containerId] ?? [];
 
-        finalItems.forEach((id, index) => {
-          const update: { id: string; sortOrder: number; storeId?: string | null } = {
-            id,
-            sortOrder: index,
-          };
+          sortOrderBase = 0;
 
-          if (id === active.id && wasCrossContainerMove) {
-            update.storeId = containerIdToStoreId(currentContainer);
-          }
-          updates.push(update);
-        });
+          for (const groupKey of groupKeys) {
+            const group = groupMap.get(groupKey);
 
-        // Deduplicate (prefer entries with storeId set)
-        const updateMap = new Map<
-          string,
-          { id: string; sortOrder: number; storeId?: string | null }
-        >();
+            if (!group) continue;
 
-        for (const update of updates) {
-          const existing = updateMap.get(update.id);
+            // Update all groceries in this group with sequential sortOrders
+            for (const source of group.sources) {
+              const update: { id: string; sortOrder: number; storeId?: string | null } = {
+                id: source.grocery.id,
+                sortOrder: sortOrderBase++,
+              };
 
-          if (!existing || update.storeId !== undefined) {
-            updateMap.set(update.id, update);
+              // If this is the moved group and it was a cross-container move, update storeId
+              if (groupKey === active.id && wasCrossContainerMove) {
+                update.storeId = newStoreId ?? null;
+              }
+
+              updates.push(update);
+            }
           }
         }
 
-        if (updateMap.size > 0) {
-          onReorderInStore(Array.from(updateMap.values()));
+        if (updates.length > 0) {
+          onReorderGroups(updates);
         }
       }
 
-      setActiveId(null);
+      setActiveGroupKey(null);
       setOverContainerId(null);
-      clonedItems.current = null;
+      clonedGroupItems.current = null;
     },
-    [findContainer, items, onReorderInStore]
+    [findContainer, groupItems, groupMap, onReorderGroups]
   );
 
   const handleDragCancel = useCallback(() => {
-    if (clonedItems.current) {
-      setItems(clonedItems.current);
+    if (clonedGroupItems.current) {
+      setGroupItems(clonedGroupItems.current);
     }
-    setActiveId(null);
+    setActiveGroupKey(null);
     setOverContainerId(null);
-    clonedItems.current = null;
+    clonedGroupItems.current = null;
   }, []);
 
   // =============================================================================
@@ -345,17 +360,15 @@ export function useGroceryDnd({
   // =============================================================================
 
   return {
-    activeId,
-    activeGrocery,
-    activeRecurringGrocery,
-    activeRecipeName,
+    activeGroupKey,
+    activeGroup,
     overContainerId,
-    items,
+    groupItems,
     collisionDetection,
     handleDragStart,
     handleDragOver,
     handleDragEnd,
     handleDragCancel,
-    getItemsForContainer,
+    getGroupKeysForContainer,
   };
 }

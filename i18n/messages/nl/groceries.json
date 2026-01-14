@@ -17,7 +17,8 @@
   },
   "item": {
     "unnamedItem": "Naamloos item",
-    "fromRecipes": "Uit {count, plural, one {# recept} other {# recepten}}"
+    "fromRecipes": "Uit {count, plural, one {# recept} other {# recepten}}",
+    "items": "{count, plural, one {# item} other {# items}}"
   },
   "store": {
     "unsorted": "Ongeordend",

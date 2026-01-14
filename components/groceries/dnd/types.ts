@@ -1,5 +1,5 @@
 import type { GroceryDto, StoreDto, RecurringGroceryDto } from "@/types";
-import type { UniqueIdentifier } from "@dnd-kit/core";
+import type { GroceryGroup } from "@/lib/grocery-grouping";
 
 // =============================================================================
 // Constants
@@ -11,7 +11,7 @@ import type { UniqueIdentifier } from "@dnd-kit/core";
 export const UNSORTED_CONTAINER = "unsorted" as const;
 
 // =============================================================================
-// Types
+// Individual Grocery DnD Types
 // =============================================================================
 
 /**
@@ -70,85 +70,56 @@ export interface DndGroceryProviderProps {
 }
 
 // =============================================================================
-// Helper Functions
+// Grouped Grocery DnD Types
 // =============================================================================
 
 /**
- * Get the container ID for a grocery item.
- * Maps null storeId to UNSORTED_CONTAINER.
+ * Maps container IDs to arrays of group keys.
+ * This represents the current visual order of groups during drag operations.
+ *
+ * Example:
+ * {
+ *   'unsorted': ['unsorted|chicken|g', 'unsorted|onion|count'],
+ *   'store-abc-123': ['store-abc-123|milk|ml', 'store-abc-123|eggs|count']
+ * }
  */
-export function getContainerIdForGrocery(grocery: GroceryDto): ContainerId {
-  return grocery.storeId ?? UNSORTED_CONTAINER;
+export type GroupItemsState = Record<ContainerId, string[]>;
+
+/**
+ * Context value provided by DndGroupedGroceryProvider.
+ */
+export interface DndGroupedGroceryContextValue {
+  /** Group key of the currently dragged group, or null if not dragging */
+  activeGroupKey: string | null;
+
+  /** The GroceryGroup being dragged, or null if not dragging */
+  activeGroup: GroceryGroup | null;
+
+  /** Current container ID the dragged group is over */
+  overContainerId: ContainerId | null;
+
+  /**
+   * Current group items state - container ID to array of group keys.
+   * This updates during drag to reflect visual state.
+   */
+  groupItems: GroupItemsState;
+
+  /**
+   * Get the ordered group keys for a specific container.
+   * Returns keys in the current drag-adjusted order.
+   */
+  getGroupKeysForContainer: (containerId: ContainerId) => string[];
 }
 
 /**
- * Convert a container ID to a storeId for database operations.
- * Maps UNSORTED_CONTAINER back to null.
+ * Props for the DndGroupedGroceryProvider component.
  */
-export function containerIdToStoreId(containerId: ContainerId): string | null {
-  return containerId === UNSORTED_CONTAINER ? null : containerId;
-}
-
-/**
- * Check if an ID is a container ID (store or unsorted) vs a grocery item ID.
- */
-export function isContainerId(id: UniqueIdentifier, stores: StoreDto[]): boolean {
-  if (id === UNSORTED_CONTAINER) return true;
-
-  return stores.some((s) => s.id === id);
-}
-
-/**
- * Find which container an item belongs to.
- */
-export function findContainerForItem(
-  itemId: UniqueIdentifier,
-  items: ItemsState
-): ContainerId | null {
-  for (const [containerId, itemIds] of Object.entries(items)) {
-    if (itemIds.includes(itemId as string)) {
-      return containerId;
-    }
-  }
-
-  return null;
-}
-
-/**
- * Build initial items state from groceries.
- * Only includes active (not done) items, sorted by sortOrder.
- */
-export function buildItemsState(groceries: GroceryDto[], stores: StoreDto[]): ItemsState {
-  const items: ItemsState = {
-    [UNSORTED_CONTAINER]: [],
-  };
-
-  // Initialize all store containers
-  for (const store of stores) {
-    items[store.id] = [];
-  }
-
-  // Group active groceries by container
-  const activeGroceries = groceries.filter((g) => !g.isDone);
-
-  for (const grocery of activeGroceries) {
-    const containerId = getContainerIdForGrocery(grocery);
-
-    if (!items[containerId]) {
-      items[containerId] = [];
-    }
-    items[containerId].push(grocery.id);
-  }
-
-  // Sort each container by sortOrder
-  for (const containerId of Object.keys(items)) {
-    items[containerId].sort((aId, bId) => {
-      const a = groceries.find((g) => g.id === aId);
-      const b = groceries.find((g) => g.id === bId);
-
-      return (a?.sortOrder ?? 0) - (b?.sortOrder ?? 0);
-    });
-  }
-
-  return items;
+export interface DndGroupedGroceryProviderProps {
+  children: React.ReactNode;
+  stores: StoreDto[];
+  recurringGroceries: RecurringGroceryDto[];
+  /** Map of storeId -> GroceryGroup[] from groupGroceriesByIngredient */
+  groupedGroceries: Map<string | null, GroceryGroup[]>;
+  /** Called when groups are reordered - updates all groceries in the moved groups */
+  onReorderGroups: (updates: { id: string; sortOrder: number; storeId?: string | null }[]) => void;
 }

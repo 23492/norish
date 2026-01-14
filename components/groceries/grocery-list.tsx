@@ -9,7 +9,7 @@ import { useTranslations } from "next-intl";
 
 import { StoreSection } from "./store-section";
 import { GroupedStoreSection } from "./grouped-store-section";
-import { DndGroceryProvider } from "./dnd";
+import { DndGroceryProvider, DndGroupedGroceryProvider } from "./dnd";
 import { groupGroceriesByIngredient } from "@/lib/grocery-grouping";
 import { useUnitsQuery } from "@/hooks/config/use-units-query";
 
@@ -127,67 +127,75 @@ export function GroceryList({
     );
   }
 
-  // Grouped mode - no DnD support (reordering not available in grouped view)
-  // TODO: Implement group-aware DnD that moves all items in a group together
+  // Grouped mode - with group-aware DnD
   if (groupSimilarIngredients && ingredientGroups && onToggleGroup) {
     // Sort stores by sortOrder for grouped view
     const sortedStores = stores.slice().sort((a, b) => a.sortOrder - b.sortOrder);
 
     return (
-      <div className="flex flex-col gap-3 p-1">
-        {/* Unsorted section */}
-        <motion.div
-          key="unsorted"
-          layout
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
-          initial={{ opacity: 0, scale: 0.95 }}
-          transition={{ type: "spring", stiffness: 500, damping: 35 }}
-        >
-          <GroupedStoreSection
-            groceries={unsortedGroceries}
-            groups={ingredientGroups.get(null) ?? []}
-            recurringGroceries={recurringGroceries}
-            store={null}
-            onDelete={onDelete}
-            onDeleteDone={() => onDeleteDoneInStore?.(null)}
-            onEdit={onEdit}
-            onMarkAllDone={() => onMarkAllDoneInStore?.(null)}
-            onToggle={onToggle}
-            onToggleGroup={onToggleGroup}
-          />
-        </motion.div>
+      <DndGroupedGroceryProvider
+        groupedGroceries={ingredientGroups}
+        recurringGroceries={recurringGroceries}
+        stores={stores}
+        onReorderGroups={onReorderInStore ?? (() => {})}
+      >
+        <div className="flex flex-col gap-3 p-1">
+          {/* Unsorted section */}
+          <motion.div
+            key="unsorted"
+            layout
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            initial={{ opacity: 0, scale: 0.95 }}
+            transition={{ type: "spring", stiffness: 500, damping: 35 }}
+          >
+            <GroupedStoreSection
+              allGroups={ingredientGroups}
+              groceries={unsortedGroceries}
+              groups={ingredientGroups.get(null) ?? []}
+              recurringGroceries={recurringGroceries}
+              store={null}
+              onDelete={onDelete}
+              onDeleteDone={() => onDeleteDoneInStore?.(null)}
+              onEdit={onEdit}
+              onMarkAllDone={() => onMarkAllDoneInStore?.(null)}
+              onToggle={onToggle}
+              onToggleGroup={onToggleGroup}
+            />
+          </motion.div>
 
-        {/* Store sections */}
-        {sortedStores.map((store) => {
-          const storeGroceries = groupedGroceries.get(store.id) ?? [];
-          const storeGroups = ingredientGroups.get(store.id) ?? [];
+          {/* Store sections */}
+          {sortedStores.map((store) => {
+            const storeGroceries = groupedGroceries.get(store.id) ?? [];
+            const storeGroups = ingredientGroups.get(store.id) ?? [];
 
-          return (
-            <motion.div
-              key={store.id}
-              layout
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              initial={{ opacity: 0, scale: 0.95 }}
-              transition={{ type: "spring", stiffness: 500, damping: 35 }}
-            >
-              <GroupedStoreSection
-                groceries={storeGroceries}
-                groups={storeGroups}
-                recurringGroceries={recurringGroceries}
-                store={store}
-                onDelete={onDelete}
-                onDeleteDone={() => onDeleteDoneInStore?.(store.id)}
-                onEdit={onEdit}
-                onMarkAllDone={() => onMarkAllDoneInStore?.(store.id)}
-                onToggle={onToggle}
-                onToggleGroup={onToggleGroup}
-              />
-            </motion.div>
-          );
-        })}
-      </div>
+            return (
+              <motion.div
+                key={store.id}
+                layout
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                initial={{ opacity: 0, scale: 0.95 }}
+                transition={{ type: "spring", stiffness: 500, damping: 35 }}
+              >
+                <GroupedStoreSection
+                  allGroups={ingredientGroups}
+                  groceries={storeGroceries}
+                  groups={storeGroups}
+                  recurringGroceries={recurringGroceries}
+                  store={store}
+                  onDelete={onDelete}
+                  onDeleteDone={() => onDeleteDoneInStore?.(store.id)}
+                  onEdit={onEdit}
+                  onMarkAllDone={() => onMarkAllDoneInStore?.(store.id)}
+                  onToggle={onToggle}
+                  onToggleGroup={onToggleGroup}
+                />
+              </motion.div>
+            );
+          })}
+        </div>
+      </DndGroupedGroceryProvider>
     );
   }
 
