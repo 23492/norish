@@ -6,7 +6,23 @@ import type {
 } from "@/types";
 
 import { and, eq, inArray, sql } from "drizzle-orm";
+import Fuse, { type IFuseOptions } from "fuse.js";
 import z from "zod";
+
+// Fuse.js configuration for ingredient name fuzzy matching
+// threshold: 0 = exact match, 1 = match anything
+// 0.4 is a good balance for ingredient names like "milk" matching "whole milk"
+const FUZZY_THRESHOLD = 0.4;
+
+const FUSE_OPTIONS: IFuseOptions<IngredientStorePreferenceDto> = {
+  keys: ["normalizedName"],
+  threshold: FUZZY_THRESHOLD,
+  minMatchCharLength: 2,
+  ignoreLocation: true,
+  ignoreFieldNorm: true, // Critical for short strings like ingredient names
+  includeScore: true,
+  shouldSort: true,
+};
 
 import { db } from "@/server/db/drizzle";
 import { stores, ingredientStorePreferences, groceries } from "@/server/db/schema";
@@ -237,6 +253,26 @@ export async function listIngredientStorePreferences(
   return parsed.data;
 }
 
+/**
+ * Get all ingredient store preferences for multiple users (household-level)
+ */
+export async function listIngredientStorePreferencesForUsers(
+  userIds: string[]
+): Promise<IngredientStorePreferenceDto[]> {
+  if (!userIds.length) return [];
+
+  const rows = await db
+    .select()
+    .from(ingredientStorePreferences)
+    .where(inArray(ingredientStorePreferences.userId, userIds));
+
+  const parsed = z.array(IngredientStorePreferenceSelectSchema).safeParse(rows);
+
+  if (!parsed.success) throw new Error("Failed to parse ingredient store preferences");
+
+  return parsed.data;
+}
+
 export async function upsertIngredientStorePreference(
   userId: string,
   normalizedName: string,
@@ -282,4 +318,106 @@ export async function deleteIngredientStorePreference(
  */
 export function normalizeIngredientName(name: string): string {
   return name.toLowerCase().trim().replace(/\s+/g, " ");
+}
+
+/**
+ * Result type for fuzzy preference matching
+ */
+export interface FuzzyPreferenceMatch {
+  preference: IngredientStorePreferenceDto;
+  score: number; // 0 = perfect match, higher = worse match
+  isExactMatch: boolean;
+  isCurrentUser: boolean;
+}
+
+/**
+ * Find the best matching store preference using fuzzy matching across household.
+ *
+ * Priority order:
+ * 1. Current user exact match
+ * 2. Other household member exact match
+ * 3. Current user fuzzy match (best score)
+ * 4. Other household member fuzzy match (best score)
+ *
+ * @param currentUserId - The ID of the user making the request
+ * @param userIds - All household member IDs (including current user)
+ * @param searchName - The ingredient name to search for (will be normalized)
+ * @returns The best matching preference or null if no match above threshold
+ */
+export async function findBestIngredientStorePreference(
+  currentUserId: string,
+  userIds: string[],
+  searchName: string
+): Promise<FuzzyPreferenceMatch | null> {
+  if (!userIds.length || !searchName.trim()) return null;
+
+  const normalizedSearch = normalizeIngredientName(searchName);
+
+  // Get all preferences for household members
+  const allPreferences = await listIngredientStorePreferencesForUsers(userIds);
+
+  if (allPreferences.length === 0) return null;
+
+  // Step 1: Check for exact matches first (prioritize current user)
+  const currentUserExact = allPreferences.find(
+    (p) => p.userId === currentUserId && p.normalizedName === normalizedSearch
+  );
+
+  if (currentUserExact) {
+    return {
+      preference: currentUserExact,
+      score: 0,
+      isExactMatch: true,
+      isCurrentUser: true,
+    };
+  }
+
+  const otherUserExact = allPreferences.find(
+    (p) => p.userId !== currentUserId && p.normalizedName === normalizedSearch
+  );
+
+  if (otherUserExact) {
+    return {
+      preference: otherUserExact,
+      score: 0,
+      isExactMatch: true,
+      isCurrentUser: false,
+    };
+  }
+
+  // Step 2: No exact match, use fuzzy matching
+  const fuse = new Fuse(allPreferences, FUSE_OPTIONS);
+  const results = fuse.search(normalizedSearch);
+
+  if (results.length === 0) return null;
+
+  // Separate results by current user vs others
+  const currentUserMatches = results.filter((r) => r.item.userId === currentUserId);
+  const otherUserMatches = results.filter((r) => r.item.userId !== currentUserId);
+
+  // Prioritize current user's fuzzy match
+  if (currentUserMatches.length > 0) {
+    const best = currentUserMatches[0];
+
+    return {
+      preference: best.item,
+      score: best.score ?? 1,
+      isExactMatch: false,
+      isCurrentUser: true,
+    };
+  }
+
+  // Fall back to best household member match
+  if (otherUserMatches.length > 0) {
+    const best = otherUserMatches[0];
+
+    return {
+      preference: best.item,
+      score: best.score ?? 1,
+      isExactMatch: false,
+      isCurrentUser: false,
+    };
+  }
+
+  return null;
 }

@@ -31,7 +31,7 @@ import {
   upsertIngredientStorePreference,
   normalizeIngredientName,
   getStoreOwnerId,
-  getIngredientStorePreference,
+  findBestIngredientStorePreference,
 } from "@/server/db/repositories/stores";
 import { assertHouseholdAccess } from "@/server/auth/permissions";
 import { parseIngredientWithDefaults } from "@/lib/helpers";
@@ -153,14 +153,17 @@ const create = authedProcedure
         // Create new grocery
         const id = crypto.randomUUID();
 
-        // Use provided storeId, or lookup from preferences
+        // Use provided storeId, or lookup from household preferences with fuzzy matching
         let storeId: string | null = grocery.storeId ?? null;
 
         if (!storeId && grocery.name) {
-          const normalized = normalizeIngredientName(grocery.name);
-          const preference = await getIngredientStorePreference(ctx.user.id, normalized);
+          const match = await findBestIngredientStorePreference(
+            ctx.user.id,
+            ctx.userIds,
+            grocery.name
+          );
 
-          storeId = preference?.storeId ?? null;
+          storeId = match?.preference.storeId ?? null;
         }
 
         groceriesToCreate.push({
