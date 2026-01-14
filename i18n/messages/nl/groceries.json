@@ -6,7 +6,9 @@
     "viewByStore": "Per Winkel",
     "viewByRecipe": "Per Recept",
     "viewMode": "Weergave",
-    "manageStores": "Winkels beheren"
+    "manageStores": "Winkels beheren",
+    "storeViewOptions": "Winkelweergave opties",
+    "groupIngredients": "Groepeer ingrediënten"
   },
   "empty": {
     "title": "Je boodschappenlijst wacht op je",
@@ -14,7 +16,8 @@
     "manual": "Handmatige items"
   },
   "item": {
-    "unnamedItem": "Naamloos item"
+    "unnamedItem": "Naamloos item",
+    "fromRecipes": "Uit {count, plural, one {# recept} other {# recepten}}"
   },
   "store": {
     "unsorted": "Ongeordend",

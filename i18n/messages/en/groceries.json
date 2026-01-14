@@ -6,7 +6,9 @@
     "viewByStore": "By Store",
     "viewByRecipe": "By Recipe",
     "viewMode": "View Mode",
-    "manageStores": "Manage Stores"
+    "manageStores": "Manage Stores",
+    "storeViewOptions": "Store View Options",
+    "groupIngredients": "Group ingredients"
   },
   "empty": {
     "title": "Your grocery list awaits",
@@ -14,7 +16,8 @@
     "manual": "Manual Items"
   },
   "item": {
-    "unnamedItem": "Unnamed item"
+    "unnamedItem": "Unnamed item",
+    "fromRecipes": "From {count, plural, one {# recipe} other {# recipes}}"
   },
   "store": {
     "unsorted": "Unsorted",

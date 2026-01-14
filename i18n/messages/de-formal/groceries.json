@@ -6,7 +6,9 @@
     "viewByStore": "Nach Geschäft",
     "viewByRecipe": "Nach Rezept",
     "viewMode": "Ansicht",
-    "manageStores": "Geschäfte verwalten"
+    "manageStores": "Geschäfte verwalten",
+    "storeViewOptions": "Optionen Geschäftsansicht",
+    "groupIngredients": "Zutaten gruppieren"
   },
   "empty": {
     "title": "Ihre Einkaufsliste wartet",
@@ -14,7 +16,8 @@
     "manual": "Manuelle Einträge"
   },
   "item": {
-    "unnamedItem": "Unbenannter Eintrag"
+    "unnamedItem": "Unbenannter Eintrag",
+    "fromRecipes": "Aus {count, plural, one {# Rezept} other {# Rezepten}}"
   },
   "store": {
     "unsorted": "Unsortiert",

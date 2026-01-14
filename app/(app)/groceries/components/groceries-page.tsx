@@ -10,6 +10,7 @@ import {
   DropdownMenu,
   DropdownItem,
   DropdownSection,
+  Switch,
 } from "@heroui/react";
 import {
   PlusIcon,
@@ -60,12 +61,18 @@ export function GroceriesPage() {
     setEditingGrocery,
     viewMode,
     setViewMode,
+    groupSimilarIngredients,
+    setGroupSimilarIngredients,
   } = useGroceriesUIContext();
 
   const t = useTranslations("groceries.page");
 
   const handleToggle = (id: string, isDone: boolean) => {
     toggleGroceries([id], isDone);
+  };
+
+  const handleToggleGroup = (ids: string[], isDone: boolean) => {
+    toggleGroceries(ids, isDone);
   };
 
   const handleEdit = (grocery: GroceryDto) => {
@@ -168,6 +175,27 @@ export function GroceriesPage() {
                     {t("viewByRecipe")}
                   </DropdownItem>
                 </DropdownSection>
+                <DropdownSection
+                  className={viewMode !== "store" ? "hidden" : undefined}
+                  showDivider
+                  title={t("storeViewOptions")}
+                >
+                  <DropdownItem
+                    key="group-similar"
+                    closeOnSelect={false}
+                    endContent={
+                      <Switch
+                        aria-label={t("groupIngredients")}
+                        isSelected={groupSimilarIngredients}
+                        size="sm"
+                        onValueChange={setGroupSimilarIngredients}
+                      />
+                    }
+                    onPress={() => setGroupSimilarIngredients(!groupSimilarIngredients)}
+                  >
+                    {t("groupIngredients")}
+                  </DropdownItem>
+                </DropdownSection>
                 <DropdownSection>
                   <DropdownItem
                     key="manage-stores"
@@ -190,6 +218,7 @@ export function GroceriesPage() {
             <GroceryList
               getRecipeNameForGrocery={getRecipeNameForGrocery}
               groceries={groceries}
+              groupSimilarIngredients={groupSimilarIngredients}
               recurringGroceries={recurringGroceries}
               stores={stores}
               onDelete={handleDelete}
@@ -198,6 +227,7 @@ export function GroceriesPage() {
               onMarkAllDoneInStore={markAllDoneInStore}
               onReorderInStore={reorderGroceriesInStore}
               onToggle={handleToggle}
+              onToggleGroup={handleToggleGroup}
             />
           ) : (
             <GroceryListByRecipe

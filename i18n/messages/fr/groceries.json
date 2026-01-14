@@ -5,8 +5,19 @@
     "addItems": "Ajouter des articles",
     "viewByStore": "Par magasin",
     "viewByRecipe": "Par recette",
-    "viewMode": "Mode d’affichage",
-    "manageStores": "Gérer les magasins"
+    "viewMode": "Mode d'affichage",
+    "manageStores": "Gérer les magasins",
+    "storeViewOptions": "Options d'affichage par magasin",
+    "groupIngredients": "Grouper les ingrédients"
+  },
+  "empty": {
+    "title": "Votre liste de courses vous attend",
+    "description": "Ajoutez des articles en utilisant le bouton « Ajouter un article » ci‑dessus pour commencer.",
+    "manual": "Articles manuels"
+  },
+  "item": {
+    "unnamedItem": "Article sans nom",
+    "fromRecipes": "De {count, plural, one {# recette} other {# recettes}}"
   },
   "empty": {
     "title": "Votre liste de courses vous attend",

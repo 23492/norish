@@ -5,4 +5,6 @@ export { GroceryList } from "./grocery-list";
 export { GroceryListByRecipe } from "./grocery-list-by-recipe";
 export { DynamicHeroIcon, STORE_ICON_NAMES, isValidIconName } from "./dynamic-hero-icon";
 export { STORE_COLORS, STORE_COLOR_OPTIONS, getStoreColorClasses } from "./store-colors";
+export { GroupedGroceryItem } from "./grouped-grocery-item";
+export { GroupedStoreSection } from "./grouped-store-section";
 export * from "./stores";

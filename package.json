@@ -53,6 +53,7 @@
     "drizzle-orm": "0.45.1",
     "drizzle-zod": "0.8.3",
     "fraction.js": "^5.3.4",
+    "fuse.js": "^7.1.0",
     "heic-convert": "^2.1.0",
     "html-entities": "^2.6.0",
     "ioredis": "^5.9.1",

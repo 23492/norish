@@ -8,13 +8,18 @@ import { ShoppingCartIcon } from "@heroicons/react/24/outline";
 import { useTranslations } from "next-intl";
 
 import { StoreSection } from "./store-section";
+import { GroupedStoreSection } from "./grouped-store-section";
 import { DndGroceryProvider } from "./dnd";
+import { groupGroceriesByIngredient } from "@/lib/grocery-grouping";
+import { useUnitsQuery } from "@/hooks/config/use-units-query";
 
 interface GroceryListProps {
   groceries: GroceryDto[];
   stores: StoreDto[];
   recurringGroceries: RecurringGroceryDto[];
   onToggle: (id: string, isDone: boolean) => void;
+  /** Toggle multiple groceries at once (for grouped mode) */
+  onToggleGroup?: (ids: string[], isDone: boolean) => void;
   onEdit: (grocery: GroceryDto) => void;
   onDelete: (id: string) => void;
   /** Called on drop - commits reorder (and optional store change) to backend */
@@ -24,6 +29,8 @@ interface GroceryListProps {
   onMarkAllDoneInStore?: (storeId: string | null) => void;
   onDeleteDoneInStore?: (storeId: string | null) => void;
   getRecipeNameForGrocery?: (grocery: GroceryDto) => string | null;
+  /** Whether to group similar ingredients together */
+  groupSimilarIngredients?: boolean;
 }
 
 export function GroceryList({
@@ -31,14 +38,17 @@ export function GroceryList({
   stores,
   recurringGroceries,
   onToggle,
+  onToggleGroup,
   onEdit,
   onDelete,
   onReorderInStore,
   onMarkAllDoneInStore,
   onDeleteDoneInStore,
   getRecipeNameForGrocery,
+  groupSimilarIngredients = false,
 }: GroceryListProps) {
   const t = useTranslations("groceries.empty");
+  const { units: customUnits } = useUnitsQuery();
 
   // Group groceries by storeId
   const groupedGroceries = useMemo(() => {
@@ -81,6 +91,16 @@ export function GroceryList({
       }));
   }, [stores, groupedGroceries]);
 
+  // Compute grouped groceries by ingredient (for grouped mode)
+  const ingredientGroups = useMemo(() => {
+    if (!groupSimilarIngredients) return null;
+    return groupGroceriesByIngredient(
+      groceries,
+      getRecipeNameForGrocery ?? (() => null),
+      customUnits
+    );
+  }, [groupSimilarIngredients, groceries, getRecipeNameForGrocery, customUnits]);
+
   // Check if there are any groceries at all
   const hasGroceries = groceries.length > 0;
   const hasStores = stores.length > 0;
@@ -107,6 +127,71 @@ export function GroceryList({
     );
   }
 
+  // Grouped mode - no DnD support (reordering not available in grouped view)
+  // TODO: Implement group-aware DnD that moves all items in a group together
+  if (groupSimilarIngredients && ingredientGroups && onToggleGroup) {
+    // Sort stores by sortOrder for grouped view
+    const sortedStores = stores.slice().sort((a, b) => a.sortOrder - b.sortOrder);
+
+    return (
+      <div className="flex flex-col gap-3 p-1">
+        {/* Unsorted section */}
+        <motion.div
+          key="unsorted"
+          layout
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          initial={{ opacity: 0, scale: 0.95 }}
+          transition={{ type: "spring", stiffness: 500, damping: 35 }}
+        >
+          <GroupedStoreSection
+            groceries={unsortedGroceries}
+            groups={ingredientGroups.get(null) ?? []}
+            recurringGroceries={recurringGroceries}
+            store={null}
+            onDelete={onDelete}
+            onDeleteDone={() => onDeleteDoneInStore?.(null)}
+            onEdit={onEdit}
+            onMarkAllDone={() => onMarkAllDoneInStore?.(null)}
+            onToggle={onToggle}
+            onToggleGroup={onToggleGroup}
+          />
+        </motion.div>
+
+        {/* Store sections */}
+        {sortedStores.map((store) => {
+          const storeGroceries = groupedGroceries.get(store.id) ?? [];
+          const storeGroups = ingredientGroups.get(store.id) ?? [];
+
+          return (
+            <motion.div
+              key={store.id}
+              layout
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              initial={{ opacity: 0, scale: 0.95 }}
+              transition={{ type: "spring", stiffness: 500, damping: 35 }}
+            >
+              <GroupedStoreSection
+                groceries={storeGroceries}
+                groups={storeGroups}
+                recurringGroceries={recurringGroceries}
+                store={store}
+                onDelete={onDelete}
+                onDeleteDone={() => onDeleteDoneInStore?.(store.id)}
+                onEdit={onEdit}
+                onMarkAllDone={() => onMarkAllDoneInStore?.(store.id)}
+                onToggle={onToggle}
+                onToggleGroup={onToggleGroup}
+              />
+            </motion.div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // Normal mode - with DnD
   return (
     <DndGroceryProvider
       getRecipeNameForGrocery={getRecipeNameForGrocery}

@@ -20,10 +20,16 @@ import { useLocalStorage } from "@/hooks/use-local-storage";
 export type GroceryViewMode = "store" | "recipe";
 
 const GROCERY_VIEW_MODE_KEY = "norish:grocery-view-mode";
+const GROCERY_GROUP_SIMILAR_KEY = "norish:grocery-group-similar";
 
 // Validation function defined outside component to prevent re-renders
 function validateViewMode(data: unknown): GroceryViewMode | null {
   return data === "store" || data === "recipe" ? data : null;
+}
+
+// Validation function for group similar toggle
+function validateGroupSimilar(data: unknown): boolean | null {
+  return typeof data === "boolean" ? data : null;
 }
 
 // =============================================================================
@@ -90,6 +96,9 @@ type UICtx = {
   // View mode
   viewMode: GroceryViewMode;
   setViewMode: (mode: GroceryViewMode) => void;
+  // Group similar ingredients (only applicable in store view)
+  groupSimilarIngredients: boolean;
+  setGroupSimilarIngredients: (enabled: boolean) => void;
 };
 
 const GroceriesUIContext = createContext<UICtx | null>(null);
@@ -118,6 +127,13 @@ export function GroceriesContextProvider({ children }: { children: ReactNode }) 
     GROCERY_VIEW_MODE_KEY,
     "store",
     validateViewMode
+  );
+
+  // Group similar ingredients toggle (only for store view)
+  const [groupSimilarIngredients, setGroupSimilarIngredients] = useLocalStorage<boolean>(
+    GROCERY_GROUP_SIMILAR_KEY,
+    false,
+    validateGroupSimilar
   );
 
   const openRecurrencePanel = useCallback((groceryId: string) => {
@@ -190,6 +206,8 @@ export function GroceriesContextProvider({ children }: { children: ReactNode }) 
       setEditingGrocery,
       viewMode,
       setViewMode,
+      groupSimilarIngredients,
+      setGroupSimilarIngredients,
     }),
     [
       recurrencePanelOpen,
@@ -200,6 +218,8 @@ export function GroceriesContextProvider({ children }: { children: ReactNode }) 
       editingGrocery,
       viewMode,
       setViewMode,
+      groupSimilarIngredients,
+      setGroupSimilarIngredients,
     ]
   );
 
