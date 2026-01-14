@@ -583,6 +583,7 @@ export async function deleteRecipeImagesDir(recipeId: string): Promise<void> {
 
     if (!exists) {
       log.debug({ recipeId, recipeDir }, "Recipe images directory does not exist, skipping");
+
       return;
     }
 

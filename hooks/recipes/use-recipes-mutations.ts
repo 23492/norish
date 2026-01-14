@@ -3,11 +3,11 @@
 import type { FullRecipeInsertDTO, FullRecipeUpdateDTO, MeasurementSystem } from "@/types";
 
 import { useMutation } from "@tanstack/react-query";
+import { addToast } from "@heroui/react";
 
 import { useRecipesQuery } from "./use-recipes-query";
 
 import { useTRPC } from "@/app/providers/trpc-provider";
-import { addToast } from "@heroui/react";
 
 export type RecipesMutationsResult = {
   /** Import a recipe from URL. Fire-and-forget. */
@@ -81,7 +81,7 @@ export function useRecipesMutations(): RecipesMutationsResult {
           });
 
           invalidate();
-        }
+        },
       }
     );
   };
@@ -98,7 +98,7 @@ export function useRecipesMutations(): RecipesMutationsResult {
         });
 
         invalidate();
-      }
+      },
     });
   };
 
@@ -116,7 +116,7 @@ export function useRecipesMutations(): RecipesMutationsResult {
           });
 
           invalidate();
-        }
+        },
       }
     );
   };
@@ -135,7 +135,7 @@ export function useRecipesMutations(): RecipesMutationsResult {
           });
 
           invalidate();
-        }
+        },
       }
     );
   };
@@ -171,7 +171,7 @@ export function useRecipesMutations(): RecipesMutationsResult {
         });
 
         invalidate();
-      }
+      },
     });
   };
 
@@ -192,7 +192,7 @@ export function useRecipesMutations(): RecipesMutationsResult {
           });
 
           invalidate();
-        }
+        },
       }
     );
   };
@@ -214,7 +214,7 @@ export function useRecipesMutations(): RecipesMutationsResult {
           });
 
           invalidate();
-        }
+        },
       }
     );
   };

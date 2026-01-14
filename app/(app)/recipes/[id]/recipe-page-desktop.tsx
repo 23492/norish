@@ -66,9 +66,9 @@ export default function RecipePageDesktop() {
       </div>
 
       {/* Main content grid: 2 columns */}
-      <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
         {/* LEFT column: Info card + Ingredients card (stacked) */}
-        <div className="md:col-span-1 lg:col-span-2 flex flex-col gap-6">
+        <div className="flex flex-col gap-6 md:col-span-1 lg:col-span-2">
           {/* Info Card */}
           <Card className="bg-content1 rounded-2xl shadow-md">
             <CardBody className="space-y-4 p-6">
@@ -153,7 +153,7 @@ export default function RecipePageDesktop() {
           {/* Ingredients Card (separate) */}
           <Card className="bg-content1 rounded-2xl shadow-md">
             <CardBody className="space-y-4 p-6">
-              <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+              <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-center">
                 <h2 className="text-lg font-semibold">{t("ingredients")}</h2>
                 <div className="flex flex-wrap items-center gap-2">
                   <AmountDisplayToggle />
@@ -173,16 +173,12 @@ export default function RecipePageDesktop() {
           <NutritionCard />
         </div>
 
-          {/* RIGHT column: Image + Steps (stacked) */}
-        <div className="md:col-span-1 lg:col-span-3 flex flex-col gap-6">
+        {/* RIGHT column: Image + Steps (stacked) */}
+        <div className="flex flex-col gap-6 md:col-span-1 lg:col-span-3">
           {/* Hero image/video carousel - wrapped to match Card styling */}
           <div className="relative overflow-hidden rounded-2xl shadow-md">
             <DoubleTapContainer onDoubleTap={handleToggleFavorite}>
-              <MediaCarousel
-                className="min-h-[400px]"
-                items={mediaItems}
-                rounded={false}
-              />
+              <MediaCarousel className="min-h-[400px]" items={mediaItems} rounded={false} />
             </DoubleTapContainer>
 
             {/* Heart button - top right (always visible) */}

@@ -32,12 +32,14 @@ export default function VideoPlayer({ src, duration, poster, className = "" }: V
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
+
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
   // Autoplay observer
   useEffect(() => {
     const video = videoRef.current;
+
     if (!video) return;
 
     const observer = new IntersectionObserver(
@@ -72,6 +74,7 @@ export default function VideoPlayer({ src, duration, poster, className = "" }: V
     if (videoRef.current) {
       const current = videoRef.current.currentTime;
       const total = videoRef.current.duration || duration || 0;
+
       setCurrentTime(current);
       if (total > 0) {
         setProgress((current / total) * 100);
@@ -109,11 +112,12 @@ export default function VideoPlayer({ src, duration, poster, className = "" }: V
     setShowControls(true);
     // Hide controls after 2.5 seconds of no interaction
     const timer = setTimeout(() => setShowControls(false), 2500);
+
     return () => clearTimeout(timer);
   };
 
   // Tap to play/pause
-  const handleTap = (e: React.MouseEvent | React.TouchEvent) => {
+  const handleTap = (_e: React.MouseEvent | React.TouchEvent) => {
     togglePlay();
   };
 
@@ -121,24 +125,39 @@ export default function VideoPlayer({ src, duration, poster, className = "" }: V
     <div
       ref={containerRef}
       className={`group relative aspect-[9/16] overflow-hidden bg-black sm:aspect-video ${className}`}
+      role="button"
+      tabIndex={0}
+      onClick={handleTap}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          togglePlay();
+        }
+      }}
       onMouseEnter={() => setShowControls(true)}
       onMouseLeave={() => setShowControls(false)}
       onTouchStart={handleTouchStart}
-      onClick={handleTap}
     >
       <video
         ref={videoRef}
-        src={src}
-        poster={poster}
-        className="h-full w-full object-cover"
-        playsInline
         loop
+        playsInline
+        className="h-full w-full object-cover"
         muted={isMuted}
-        onTimeUpdate={handleTimeUpdate}
+        poster={poster}
+        src={src}
         onLoadedData={handleLoadedData}
-        onWaiting={() => setIsLoading(true)}
         onPlaying={() => setIsLoading(false)}
-      />
+        onTimeUpdate={handleTimeUpdate}
+        onWaiting={() => setIsLoading(true)}
+      >
+        <track
+          default={false}
+          kind="captions"
+          label="English"
+          src="data:text/vtt;base64,V0VCVlRVCg=="
+        />
+      </video>
 
       {/* Loading Skeleton */}
       {isLoading && (
@@ -151,19 +170,19 @@ export default function VideoPlayer({ src, duration, poster, className = "" }: V
       <AnimatePresence>
         {(showControls || !isPlaying) && (
           <motion.div
-            initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
             className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60"
+            exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }}
           >
             {/* Center: Play/Pause Big Icon */}
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
               {!isPlaying && (
                 <motion.div
-                  initial={{ scale: 0.5, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0.5, opacity: 0 }}
                   className="rounded-full bg-black/40 p-4 backdrop-blur-sm"
+                  exit={{ scale: 0.5, opacity: 0 }}
+                  initial={{ scale: 0.5, opacity: 0 }}
                 >
                   <PlayIcon className="h-8 w-8 text-white" />
                 </motion.div>
@@ -176,10 +195,10 @@ export default function VideoPlayer({ src, duration, poster, className = "" }: V
                 <div className="flex items-center gap-2">
                   <Button
                     isIconOnly
-                    size="sm"
-                    variant="light"
                     aria-label={isMuted ? t("unmute") : t("mute")}
                     className="rounded-full text-white/90 backdrop-blur-md hover:bg-white/20 hover:text-white"
+                    size="sm"
+                    variant="light"
                     onPress={toggleMute}
                   >
                     {isMuted ? (
@@ -195,7 +214,13 @@ export default function VideoPlayer({ src, duration, poster, className = "" }: V
 
               {/* Progress Bar */}
               <div
+                aria-label="Video Progress"
+                aria-valuemax={100}
+                aria-valuemin={0}
+                aria-valuenow={progress}
                 className="group/progress relative h-1 w-full cursor-pointer overflow-hidden rounded-full bg-white/30"
+                role="slider"
+                tabIndex={0}
                 onClick={(e) => {
                   e.stopPropagation();
                   if (!videoRef.current) return;
@@ -203,13 +228,31 @@ export default function VideoPlayer({ src, duration, poster, className = "" }: V
                   const x = e.clientX - rect.left;
                   const percent = x / rect.width;
                   const newTime = percent * (duration || videoRef.current.duration || 0);
+
+                  videoRef.current.currentTime = newTime;
+                }}
+                onKeyDown={(e) => {
+                  if (!videoRef.current) return;
+                  const total = videoRef.current.duration || duration || 0;
+                  const current = videoRef.current.currentTime;
+                  let newTime = current;
+
+                  if (e.key === "ArrowRight") {
+                    newTime = Math.min(total, current + 5);
+                  } else if (e.key === "ArrowLeft") {
+                    newTime = Math.max(0, current - 5);
+                  } else {
+                    return;
+                  }
+
+                  e.preventDefault();
                   videoRef.current.currentTime = newTime;
                 }}
               >
                 <motion.div
                   className="absolute top-0 left-0 h-full rounded-full bg-white"
-                  style={{ width: `${progress}%` }}
                   layoutId="progress"
+                  style={{ width: `${progress}%` }}
                 />
                 <div className="absolute inset-0 bg-white/0 transition-colors group-hover/progress:bg-white/10" />
               </div>

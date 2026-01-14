@@ -21,6 +21,7 @@ function formatInlineSourceBreakdown(sources: GroupedGrocerySource[]): string {
     .map((source) => {
       const name = source.recipeName ?? "Manual";
       const amount = formatSourceAmount(source.grocery);
+
       return amount ? `${name} (${amount})` : name;
     })
     .join(", ");
@@ -64,6 +65,7 @@ function GroupedGroceryItemComponent({
   const handleGroupToggle = useCallback(
     (checked: boolean) => {
       const ids = group.sources.map((s) => s.grocery.id);
+
       onToggleGroup(ids, checked);
     },
     [group.sources, onToggleGroup]
@@ -281,7 +283,7 @@ function SourceItem({ source, recurringGroceries, onToggle, onEdit }: SourceItem
 
         {/* Recurring pill if applicable */}
         {recurringGrocery && (
-          <RecurrencePill className="mt-0.5" recurringGrocery={recurringGrocery} subtle />
+          <RecurrencePill subtle className="mt-0.5" recurringGrocery={recurringGrocery} />
         )}
       </button>
     </div>

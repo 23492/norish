@@ -31,10 +31,12 @@ export function normalizeUnitForGrouping(unit: string | null, customUnits?: Unit
   if (!unit) return "";
 
   const trimmed = unit.trim();
+
   if (!trimmed) return "";
 
   try {
     const parsed = parseIngredientWithDefaults(`1 ${trimmed} item`, customUnits);
+
     if (parsed[0]?.unitOfMeasureID) {
       return parsed[0].unitOfMeasureID;
     }
@@ -77,6 +79,7 @@ export function groupGroceriesByIngredient(
 
   for (const grocery of groceries) {
     const storeId = grocery.storeId;
+
     if (!storeGroceries.has(storeId)) {
       storeGroceries.set(storeId, []);
     }
@@ -91,6 +94,7 @@ export function groupGroceriesByIngredient(
 
     for (const grocery of storeItems) {
       const normalizedName = normalizeIngredientNameForGrouping(grocery.name);
+
       if (!normalizedName) continue;
 
       if (!nameGroups.has(normalizedName)) {
@@ -151,6 +155,7 @@ export function groupGroceriesByIngredient(
     groups.sort((a, b) => {
       const aOrder = a.sources[0]?.grocery.sortOrder ?? 0;
       const bOrder = b.sources[0]?.grocery.sortOrder ?? 0;
+
       return aOrder - bOrder;
     });
 
@@ -187,6 +192,7 @@ export function formatGroupedAmount(amount: number | null, unit: string | null):
 
   if (unit) {
     const needsSpace = unit.length > 2;
+
     return needsSpace ? `${formattedAmount} ${unit}` : `${formattedAmount}${unit}`;
   }
 
@@ -201,6 +207,7 @@ export function formatSourceAmount(grocery: GroceryDto): string {
 
   if (grocery.unit) {
     const needsSpace = grocery.unit.length > 2;
+
     return needsSpace ? `${formattedAmount} ${grocery.unit}` : `${formattedAmount}${grocery.unit}`;
   }
 

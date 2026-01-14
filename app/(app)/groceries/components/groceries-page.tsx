@@ -176,8 +176,8 @@ export function GroceriesPage() {
                   </DropdownItem>
                 </DropdownSection>
                 <DropdownSection
-                  className={viewMode !== "store" ? "hidden" : undefined}
                   showDivider
+                  className={viewMode !== "store" ? "hidden" : undefined}
                   title={t("storeViewOptions")}
                 >
                   <DropdownItem

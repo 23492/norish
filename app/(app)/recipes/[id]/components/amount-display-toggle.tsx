@@ -22,7 +22,7 @@ export default function AmountDisplayToggle() {
   // Don't render anything until hydrated to avoid flash
   if (!isHydrated) {
     return (
-      <Button isIconOnly className="bg-content2" isDisabled size="sm" variant="flat">
+      <Button isDisabled isIconOnly className="bg-content2" size="sm" variant="flat">
         <span className="text-xs font-medium">½</span>
       </Button>
     );

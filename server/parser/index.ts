@@ -1,3 +1,5 @@
+import { fetchViaPlaywright } from "./fetch";
+
 import { FullRecipeInsertDTO } from "@/types/dto/recipe";
 import { tryExtractRecipeFromJsonLd, extractRecipeNodesFromJsonLd } from "@/server/parser/jsonld";
 import { tryExtractRecipeFromMicrodata } from "@/server/parser/microdata";
@@ -10,7 +12,6 @@ import {
 } from "@/config/server-config-loader";
 import { isVideoUrl } from "@/server/helpers";
 import { parserLogger as log } from "@/server/logger";
-import { fetchViaPlaywright } from "./fetch";
 
 export interface ParseRecipeResult {
   recipe: FullRecipeInsertDTO;
@@ -48,6 +49,7 @@ async function tryExtractWithAI(
     if (requireAI) {
       throw new Error("AI-only import requested but AI is not enabled.");
     }
+
     return null;
   }
 
@@ -57,6 +59,7 @@ async function tryExtractWithAI(
   if (result.success) return result.data;
 
   log.warn({ url, error: result.error, code: result.code }, "AI extraction failed");
+
   return null;
 }
 
@@ -78,10 +81,12 @@ async function extractWithAIPreference(
     const jsonLdInput = JSON.stringify(jsonLdNodes, null, 2);
 
     const fromJsonLd = await tryExtractWithAI(jsonLdInput, recipeId, url, allergies, requireAI);
+
     if (fromJsonLd) return fromJsonLd;
   }
 
   log.info({ url }, "AI: using full HTML as input");
+
   return tryExtractWithAI(html, recipeId, url, allergies, requireAI);
 }
 
@@ -95,9 +100,11 @@ async function tryStructuredParsers(
   recipeId: string
 ): Promise<FullRecipeInsertDTO | null> {
   const jsonLdParsed = await tryExtractRecipeFromJsonLd(url, html, recipeId);
+
   if (hasValidRecipeData(jsonLdParsed)) return jsonLdParsed;
 
   const microParsed = await tryExtractRecipeFromMicrodata(url, html, recipeId);
+
   if (hasValidRecipeData(microParsed)) return microParsed;
 
   return null;
@@ -122,6 +129,7 @@ async function tryHandleVideoUrl(
   try {
     const { processVideoRecipe } = await import("@/server/video/processor");
     const recipe = await processVideoRecipe(url, recipeId, allergies);
+
     return { recipe, usedAI: true };
   } catch (error: unknown) {
     log.error({ err: error }, "Video processing failed");
@@ -136,9 +144,11 @@ export async function parseRecipeFromUrl(
   forceAI?: boolean
 ): Promise<ParseRecipeResult> {
   const videoResult = await tryHandleVideoUrl(url, recipeId, allergies);
+
   if (videoResult) return videoResult;
 
   const html = await fetchViaPlaywright(url);
+
   if (!html) throw new Error("Cannot fetch recipe page.");
 
   if (!(await isPageLikelyRecipe(html))) {
@@ -149,14 +159,18 @@ export async function parseRecipeFromUrl(
 
   if (useAIOnly) {
     const recipe = await extractWithAIPreference(html, recipeId, url, allergies, true);
+
     if (!recipe) throw new Error("AI extraction failed");
+
     return { recipe, usedAI: true };
   }
 
   const structured = await tryStructuredParsers(url, html, recipeId);
+
   if (structured) return { recipe: structured, usedAI: false };
 
   const recipe = await extractWithAIPreference(html, recipeId, url, allergies, false);
+
   if (recipe) return { recipe, usedAI: true };
 
   log.error({ url }, "All extraction methods failed");

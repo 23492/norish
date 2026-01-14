@@ -89,6 +89,7 @@ export default function MediaCarousel({
     return [...items].sort((a, b) => {
       if (a.order !== b.order) return a.order - b.order;
       if (a.type !== b.type) return a.type === "video" ? -1 : 1;
+
       return 0;
     });
   }, [items]);
@@ -142,6 +143,7 @@ export default function MediaCarousel({
       // Find the index of this image in the lightboxImages array
       // We need to match by src (or id if available, but src is reliable here)
       const imgIndex = lightboxImages.findIndex((img) => img.src === item.src);
+
       if (imgIndex !== -1) {
         setLightboxIndex(imgIndex);
         setLightboxOpen(true);
@@ -188,6 +190,7 @@ export default function MediaCarousel({
   // Case 1: Single item (no carousel controls)
   if (sortedItems.length === 1) {
     const item = sortedItems[0];
+
     return (
       <>
         <div
@@ -195,15 +198,23 @@ export default function MediaCarousel({
         >
           {item.type === "video" ? (
             <VideoPlayer
-              src={item.src}
-              poster={item.thumbnail || undefined}
-              duration={item.duration}
               className="h-full w-full"
+              duration={item.duration}
+              poster={item.thumbnail || undefined}
+              src={item.src}
             />
           ) : (
             <div
               className="group relative h-full w-full cursor-pointer"
+              role="button"
+              tabIndex={0}
               onClick={() => handleItemClick(item)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  handleItemClick(item);
+                }
+              }}
             >
               <NextImage
                 fill
@@ -250,15 +261,23 @@ export default function MediaCarousel({
           >
             {sortedItems[currentIndex].type === "video" ? (
               <VideoPlayer
-                src={sortedItems[currentIndex].src}
-                poster={sortedItems[currentIndex].thumbnail || undefined}
-                duration={sortedItems[currentIndex].duration}
                 className="h-full w-full"
+                duration={sortedItems[currentIndex].duration}
+                poster={sortedItems[currentIndex].thumbnail || undefined}
+                src={sortedItems[currentIndex].src}
               />
             ) : (
               <div
                 className="relative h-full w-full cursor-pointer"
+                role="button"
+                tabIndex={0}
                 onClick={() => handleItemClick(sortedItems[currentIndex])}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    handleItemClick(sortedItems[currentIndex]);
+                  }
+                }}
               >
                 <NextImage
                   fill
@@ -299,6 +318,7 @@ export default function MediaCarousel({
           {sortedItems.map((item, idx) => (
             <button
               key={`${item.id || idx}`}
+              aria-label={`Go to slide ${idx + 1}`}
               className={`h-2 rounded-full transition-all ${
                 idx === currentIndex ? "w-4 bg-white" : "w-2 bg-white/50 hover:bg-white/80"
               }`}
@@ -307,7 +327,6 @@ export default function MediaCarousel({
                 setDirection(idx > currentIndex ? 1 : -1);
                 setCurrentIndex(idx);
               }}
-              aria-label={`Go to slide ${idx + 1}`}
             />
           ))}
         </div>

@@ -6,6 +6,7 @@ import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 import { AnimatePresence, motion } from "motion/react";
 import NextImage from "next/image";
 import { useTranslations } from "next-intl";
+
 import ImageLightbox from "./image-lightbox";
 
 export interface CarouselImage {
