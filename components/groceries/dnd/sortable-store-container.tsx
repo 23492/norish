@@ -28,11 +28,7 @@ interface SortableStoreContainerProps {
   headerBgClass?: string;
 }
 
-/**
- * Wraps a store section to make it a droppable container with sortable items.
- * Uses useSortable (not useDroppable) so the entire container including header
- * is properly detected during drag operations.
- */
+/** Wraps a store section as a droppable container. Uses useSortable for proper drag detection. */
 export function SortableStoreContainer({
   storeId,
   children,
@@ -47,13 +43,7 @@ export function SortableStoreContainer({
 
   // Use useSortable for containers (like reference implementation)
   // This makes the whole container (including header) a valid drop target
-  const {
-    active,
-    over,
-    setNodeRef,
-    transition,
-    transform: _transform,
-  } = useSortable({
+  const { active, over, setNodeRef, transition } = useSortable({
     id: containerId,
     data: {
       type: "container",

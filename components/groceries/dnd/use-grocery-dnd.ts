@@ -10,7 +10,6 @@ import type { ItemsState, ContainerId, DndGroceryProviderProps } from "./types";
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { arrayMove } from "@dnd-kit/sortable";
 
-import { UNSORTED_CONTAINER } from "./types";
 import { buildItemsState, findContainerForItem, containerIdToStoreId } from "./utils";
 import { createMultiContainerCollisionDetection } from "./collision-detection";
 
@@ -43,34 +42,16 @@ export function useGroceryDnd({
   onReorderInStore,
   getRecipeNameForGrocery,
 }: Omit<DndGroceryProviderProps, "children">): UseGroceryDndResult {
-  // =============================================================================
-  // State
-  // =============================================================================
-
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overContainerId, setOverContainerId] = useState<ContainerId | null>(null);
-
-  // Items state: container ID -> array of grocery IDs
-  // This updates during drag to reflect visual state
   const [items, setItems] = useState<ItemsState>(() => buildItemsState(groceries, stores));
-
-  // Clone of items at drag start - used for cancel recovery
   const clonedItems = useRef<ItemsState | null>(null);
-
-  // Refs for stable collision detection (from reference implementation)
   const lastOverId = useRef<string | null>(null);
   const recentlyMovedToNewContainer = useRef(false);
 
-  // Container IDs for reference
-  const _containerIds = useMemo(() => [UNSORTED_CONTAINER, ...stores.map((s) => s.id)], [stores]);
-
-  // =============================================================================
-  // Sync items state when groceries/stores change from external source
-  // =============================================================================
-
   const prevGroceriesRef = useRef<GroceryDto[]>(groceries);
 
-  // Only rebuild if we're not actively dragging and groceries changed
+  // Sync items state when groceries/stores change from external source
   if (!activeId && groceries !== prevGroceriesRef.current) {
     prevGroceriesRef.current = groceries;
     const newItems = buildItemsState(groceries, stores);
@@ -85,16 +66,11 @@ export function useGroceryDnd({
     }
   }
 
-  // Reset recentlyMovedToNewContainer after items state settles
   useEffect(() => {
     requestAnimationFrame(() => {
       recentlyMovedToNewContainer.current = false;
     });
   }, [items]);
-
-  // =============================================================================
-  // Collision Detection
-  // =============================================================================
 
   const collisionDetection = useMemo(
     () =>
@@ -106,10 +82,6 @@ export function useGroceryDnd({
       ),
     [items, activeId]
   );
-
-  // =============================================================================
-  // Active Item Derivations
-  // =============================================================================
 
   const activeGrocery = useMemo(() => {
     if (!activeId) return null;
@@ -129,10 +101,6 @@ export function useGroceryDnd({
     return getRecipeNameForGrocery(activeGrocery);
   }, [activeGrocery, getRecipeNameForGrocery]);
 
-  // =============================================================================
-  // Helper Functions
-  // =============================================================================
-
   const getItemsForContainer = useCallback(
     (containerId: ContainerId): string[] => {
       return items[containerId] ?? [];
@@ -142,29 +110,19 @@ export function useGroceryDnd({
 
   const findContainer = useCallback(
     (id: string): ContainerId | undefined => {
-      // Check if id is a container itself
-      if (id in items) {
-        return id;
-      }
+      if (id in items) return id;
 
-      // Find which container has this item
       return Object.keys(items).find((key) => items[key].includes(id));
     },
     [items]
   );
-
-  // =============================================================================
-  // Drag Handlers
-  // =============================================================================
 
   const handleDragStart = useCallback(
     ({ active }: DragStartEvent) => {
       const id = active.id as string;
 
       setActiveId(id);
-      // Clone current items for cancel recovery
       clonedItems.current = JSON.parse(JSON.stringify(items));
-
       const containerId = findContainerForItem(id, items);
 
       setOverContainerId(containerId);
@@ -176,20 +134,15 @@ export function useGroceryDnd({
     ({ active, over }: DragOverEvent) => {
       const overId = over?.id;
 
-      if (overId == null || active.id === overId) {
-        return;
-      }
+      if (overId == null || active.id === overId) return;
 
       const overContainer = findContainer(overId as string);
       const activeContainer = findContainer(active.id as string);
 
-      if (!overContainer || !activeContainer) {
-        return;
-      }
+      if (!overContainer || !activeContainer) return;
 
       setOverContainerId(overContainer);
 
-      // Cross-container move
       if (activeContainer !== overContainer) {
         setItems((prevItems) => {
           const activeItems = prevItems[activeContainer];
@@ -199,16 +152,13 @@ export function useGroceryDnd({
 
           let newIndex: number;
 
-          // If dropping on container itself (not on an item)
           if (overId in prevItems) {
             newIndex = overItems.length;
           } else {
-            // Determine if we're above or below the item we're hovering over
             const isBelowOverItem =
               over &&
               active.rect.current.translated &&
               active.rect.current.translated.top > over.rect.top + over.rect.height;
-
             const modifier = isBelowOverItem ? 1 : 0;
 
             newIndex = overIndex >= 0 ? overIndex + modifier : overItems.length;
@@ -227,7 +177,6 @@ export function useGroceryDnd({
           };
         });
       } else {
-        // Same container reorder during drag
         setItems((prevItems) => {
           const activeIndex = prevItems[activeContainer].indexOf(active.id as string);
           const overIndex = prevItems[overContainer].indexOf(overId as string);
@@ -339,10 +288,6 @@ export function useGroceryDnd({
     setOverContainerId(null);
     clonedItems.current = null;
   }, []);
-
-  // =============================================================================
-  // Return
-  // =============================================================================
 
   return {
     activeId,

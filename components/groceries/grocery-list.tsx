@@ -10,6 +10,7 @@ import { useTranslations } from "next-intl";
 import { StoreSection } from "./store-section";
 import { GroupedStoreSection } from "./grouped-store-section";
 import { DndGroceryProvider, DndGroupedGroceryProvider } from "./dnd";
+
 import { groupGroceriesByIngredient } from "@/lib/grocery-grouping";
 import { useUnitsQuery } from "@/hooks/config/use-units-query";
 
@@ -94,6 +95,7 @@ export function GroceryList({
   // Compute grouped groceries by ingredient (for grouped mode)
   const ingredientGroups = useMemo(() => {
     if (!groupSimilarIngredients) return null;
+
     return groupGroceriesByIngredient(
       groceries,
       getRecipeNameForGrocery ?? (() => null),
@@ -135,7 +137,6 @@ export function GroceryList({
     return (
       <DndGroupedGroceryProvider
         groupedGroceries={ingredientGroups}
-        recurringGroceries={recurringGroceries}
         stores={stores}
         onReorderGroups={onReorderInStore ?? (() => {})}
       >

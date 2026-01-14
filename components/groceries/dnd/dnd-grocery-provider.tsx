@@ -18,10 +18,6 @@ import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { GroceryDragOverlay } from "./grocery-drag-overlay";
 import { useGroceryDnd } from "./use-grocery-dnd";
 
-// =============================================================================
-// Context
-// =============================================================================
-
 const DndGroceryContext = createContext<DndGroceryContextValue | null>(null);
 
 export function useDndGroceryContext(): DndGroceryContextValue {
@@ -32,10 +28,6 @@ export function useDndGroceryContext(): DndGroceryContextValue {
   return ctx;
 }
 
-// =============================================================================
-// Provider Component
-// =============================================================================
-
 export function DndGroceryProvider({
   children,
   groceries,
@@ -44,10 +36,6 @@ export function DndGroceryProvider({
   onReorderInStore,
   getRecipeNameForGrocery,
 }: DndGroceryProviderProps) {
-  // =============================================================================
-  // Sensors Configuration
-  // =============================================================================
-
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -64,10 +52,6 @@ export function DndGroceryProvider({
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
-
-  // =============================================================================
-  // DnD Hook
-  // =============================================================================
 
   const {
     activeId,
@@ -90,10 +74,6 @@ export function DndGroceryProvider({
     getRecipeNameForGrocery,
   });
 
-  // =============================================================================
-  // Context Value
-  // =============================================================================
-
   const contextValue = useMemo<DndGroceryContextValue>(
     () => ({
       activeId,
@@ -104,10 +84,6 @@ export function DndGroceryProvider({
     }),
     [activeId, activeGrocery, overContainerId, items, getItemsForContainer]
   );
-
-  // =============================================================================
-  // Render
-  // =============================================================================
 
   return (
     <DndGroceryContext.Provider value={contextValue}>

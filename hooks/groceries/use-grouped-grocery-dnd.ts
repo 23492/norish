@@ -14,7 +14,6 @@ import type {
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { arrayMove } from "@dnd-kit/sortable";
 
-import { UNSORTED_CONTAINER } from "@/components/groceries/dnd/types";
 import {
   buildGroupItemsState,
   findContainerForGroup,
@@ -46,14 +45,7 @@ export function useGroupedGroceryDnd({
   stores,
   groupedGroceries,
   onReorderGroups,
-}: Omit<
-  DndGroupedGroceryProviderProps,
-  "children" | "recurringGroceries"
->): UseGroupedGroceryDndResult {
-  // =============================================================================
-  // State
-  // =============================================================================
-
+}: Omit<DndGroupedGroceryProviderProps, "children">): UseGroupedGroceryDndResult {
   const [activeGroupKey, setActiveGroupKey] = useState<string | null>(null);
   const [overContainerId, setOverContainerId] = useState<ContainerId | null>(null);
 
@@ -83,13 +75,7 @@ export function useGroupedGroceryDnd({
     return map;
   }, [groupedGroceries]);
 
-  // Container IDs for reference
-  const _containerIds = useMemo(() => [UNSORTED_CONTAINER, ...stores.map((s) => s.id)], [stores]);
-
-  // =============================================================================
-  // Sync groupItems state when groupedGroceries/stores change from external source
-  // =============================================================================
-
+  // Sync groupItems when groupedGroceries/stores change externally
   const prevGroupedGroceriesRef = useRef<Map<string | null, GroceryGroup[]>>(groupedGroceries);
 
   // Only rebuild if we're not actively dragging and groupedGroceries changed
@@ -115,10 +101,6 @@ export function useGroupedGroceryDnd({
     });
   }, [groupItems]);
 
-  // =============================================================================
-  // Collision Detection
-  // =============================================================================
-
   const collisionDetection = useMemo(
     () =>
       createMultiContainerCollisionDetection(
@@ -130,19 +112,11 @@ export function useGroupedGroceryDnd({
     [groupItems, activeGroupKey]
   );
 
-  // =============================================================================
-  // Active Group Derivation
-  // =============================================================================
-
   const activeGroup = useMemo(() => {
     if (!activeGroupKey) return null;
 
     return groupMap.get(activeGroupKey) ?? null;
   }, [activeGroupKey, groupMap]);
-
-  // =============================================================================
-  // Helper Functions
-  // =============================================================================
 
   const getGroupKeysForContainer = useCallback(
     (containerId: ContainerId): string[] => {
@@ -163,10 +137,6 @@ export function useGroupedGroceryDnd({
     },
     [groupItems]
   );
-
-  // =============================================================================
-  // Drag Handlers
-  // =============================================================================
 
   const handleDragStart = useCallback(
     ({ active }: DragStartEvent) => {
@@ -354,10 +324,6 @@ export function useGroupedGroceryDnd({
     setOverContainerId(null);
     clonedGroupItems.current = null;
   }, []);
-
-  // =============================================================================
-  // Return
-  // =============================================================================
 
   return {
     activeGroupKey,

@@ -5,14 +5,8 @@ import type { ItemsState } from "./types";
 import { closestCenter, pointerWithin, rectIntersection, getFirstCollision } from "@dnd-kit/core";
 
 /**
- * Custom collision detection strategy optimized for multiple containers.
- *
- * Based on dnd-kit official multi-container example.
- *
- * Strategy:
- * - First, find any droppable containers intersecting with the pointer
- * - If there are none, find intersecting containers with the active draggable
- * - If there are no intersecting containers, return the last matched intersection
+ * Custom collision detection for multiple containers (based on dnd-kit example).
+ * Strategy: pointer intersection -> rect intersection -> last known position.
  */
 export function createMultiContainerCollisionDetection(
   items: ItemsState,

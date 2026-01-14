@@ -12,15 +12,7 @@ interface SortableGroceryItemProps {
   children: ReactNode;
 }
 
-/**
- * Wraps a grocery item to make it sortable with dnd-kit.
- * Provides a drag handle and applies transform/transition for smooth animations.
- *
- * When dragging:
- * - The original item shows at 50% opacity as a "ghost" placeholder
- * - The DragOverlay shows the actual dragged item following the cursor
- * - Other items shift via CSS transforms to make room
- */
+/** Wraps a grocery item with dnd-kit sortable. Shows ghost placeholder while dragging. */
 export function SortableGroceryItem({ grocery, children }: SortableGroceryItemProps) {
   const {
     setNodeRef,
@@ -34,9 +26,6 @@ export function SortableGroceryItem({ grocery, children }: SortableGroceryItemPr
     id: grocery.id,
   });
 
-  // Style matches reference implementation:
-  // - When dragging, show at 50% opacity as ghost/placeholder
-  // - Transform and transition handle the shifting animation
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,

@@ -5,38 +5,24 @@ import type { ContainerId, ItemsState, GroupItemsState } from "./types";
 
 import { UNSORTED_CONTAINER } from "./types";
 
-// =============================================================================
-// Individual Grocery Helpers
-// =============================================================================
-
-/**
- * Get the container ID for a grocery item.
- * Maps null storeId to UNSORTED_CONTAINER.
- */
+/** Maps grocery.storeId to container ID (null → UNSORTED_CONTAINER) */
 export function getContainerIdForGrocery(grocery: GroceryDto): ContainerId {
   return grocery.storeId ?? UNSORTED_CONTAINER;
 }
 
-/**
- * Convert a container ID to a storeId for database operations.
- * Maps UNSORTED_CONTAINER back to null.
- */
+/** Converts container ID back to storeId (UNSORTED_CONTAINER → null) */
 export function containerIdToStoreId(containerId: ContainerId): string | null {
   return containerId === UNSORTED_CONTAINER ? null : containerId;
 }
 
-/**
- * Check if an ID is a container ID (store or unsorted) vs a grocery item ID.
- */
+/** Check if an ID is a container (store or unsorted) vs a grocery item */
 export function isContainerId(id: UniqueIdentifier, stores: StoreDto[]): boolean {
   if (id === UNSORTED_CONTAINER) return true;
 
   return stores.some((s) => s.id === id);
 }
 
-/**
- * Find which container an item belongs to.
- */
+/** Find which container an item belongs to */
 export function findContainerForItem(
   itemId: UniqueIdentifier,
   items: ItemsState
@@ -50,10 +36,7 @@ export function findContainerForItem(
   return null;
 }
 
-/**
- * Build initial items state from groceries.
- * Only includes active (not done) items, sorted by sortOrder.
- */
+/** Build initial items state from groceries (active items only, sorted by sortOrder) */
 export function buildItemsState(groceries: GroceryDto[], stores: StoreDto[]): ItemsState {
   const items: ItemsState = {
     [UNSORTED_CONTAINER]: [],
@@ -89,14 +72,7 @@ export function buildItemsState(groceries: GroceryDto[], stores: StoreDto[]): It
   return items;
 }
 
-// =============================================================================
-// Grouped Grocery Helpers
-// =============================================================================
-
-/**
- * Build initial group items state from grouped groceries.
- * Only includes groups that are not all done.
- */
+/** Build initial group items state (groups not all done) */
 export function buildGroupItemsState(
   groupedGroceries: Map<string | null, GroceryGroup[]>,
   stores: StoreDto[]
@@ -129,9 +105,7 @@ export function buildGroupItemsState(
   return items;
 }
 
-/**
- * Find which container a group belongs to based on its groupKey.
- */
+/** Find which container a group belongs to */
 export function findContainerForGroup(
   groupKey: string,
   groupItems: GroupItemsState

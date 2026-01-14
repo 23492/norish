@@ -28,11 +28,7 @@ interface SortableGroupedStoreContainerProps {
   headerBgClass?: string;
 }
 
-/**
- * Wraps a store section in grouped mode to make it a droppable container with sortable groups.
- * Uses useSortable (not useDroppable) so the entire container including header
- * is properly detected during drag operations.
- */
+/** Wraps a grouped store section as a droppable container. Uses useSortable for proper drag detection. */
 export function SortableGroupedStoreContainer({
   storeId,
   children,
@@ -48,13 +44,7 @@ export function SortableGroupedStoreContainer({
 
   // Use useSortable for containers (like reference implementation)
   // This makes the whole container (including header) a valid drop target
-  const {
-    active,
-    over,
-    setNodeRef,
-    transition,
-    transform: _transform,
-  } = useSortable({
+  const { active, over, setNodeRef, transition } = useSortable({
     id: containerId,
     data: {
       type: "container",

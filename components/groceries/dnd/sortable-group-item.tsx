@@ -12,15 +12,7 @@ interface SortableGroupItemProps {
   children: ReactNode;
 }
 
-/**
- * Wraps a grouped grocery item to make it sortable with dnd-kit.
- * Provides a drag handle and applies transform/transition for smooth animations.
- *
- * When dragging:
- * - The original group shows at 50% opacity as a "ghost" placeholder
- * - The DragOverlay shows the actual dragged group following the cursor
- * - Other groups shift via CSS transforms to make room
- */
+/** Wraps a grouped grocery item with dnd-kit sortable. Shows ghost placeholder while dragging. */
 export function SortableGroupItem({ group, children }: SortableGroupItemProps) {
   const {
     setNodeRef,
@@ -38,19 +30,13 @@ export function SortableGroupItem({ group, children }: SortableGroupItemProps) {
     },
   });
 
-  // Style matches reference implementation:
-  // - When dragging, show at 50% opacity as ghost/placeholder
-  // - Transform and transition handle the shifting animation
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
   };
 
-  // Drag handle position depends on header row height:
-  // - Single-source groups: min-h-14 (56px) → center at 28px → top-7
-  // - Multi-source groups: min-h-[72px] (72px) → center at 36px → top-9
-  // Using fixed offset prevents handle from moving when group expands.
+  // Drag handle offset: single-source (56px header) vs multi-source (72px header)
   const isSingleItem = group.sources.length === 1;
   const handleTopClass = isSingleItem ? "top-7" : "top-9";
 

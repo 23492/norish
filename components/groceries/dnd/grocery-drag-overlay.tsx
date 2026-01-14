@@ -14,10 +14,7 @@ interface GroceryDragOverlayProps {
   recipeName?: string | null;
 }
 
-/**
- * Renders the grocery item in the DragOverlay.
- * This is what the user sees following their cursor during drag.
- */
+/** Renders the grocery item following the cursor during drag. */
 export function GroceryDragOverlay({
   grocery,
   recurringGrocery,
@@ -25,24 +22,22 @@ export function GroceryDragOverlay({
 }: GroceryDragOverlayProps) {
   const t = useTranslations("groceries.item");
   const hasSubtitle = Boolean(recurringGrocery || recipeName);
+  const containerClass =
+    "bg-content1 ring-primary/20 flex items-center gap-3 rounded-lg px-4 py-3 shadow-xl ring-2";
+  const iconWrapClass = "text-default-400 flex h-8 w-8 items-center justify-center";
+  const contentClass = "flex min-w-0 flex-1 flex-col items-start gap-0.5";
+  const rowClass = "flex w-full items-baseline gap-1.5";
 
   return (
-    <div
-      className="bg-content1 ring-primary/20 flex items-center gap-3 rounded-lg px-4 py-3 shadow-xl ring-2"
-      style={{ minHeight: hasSubtitle ? 72 : 56 }}
-    >
-      {/* Drag handle visual (non-functional in overlay) */}
-      <div className="text-default-400 flex h-8 w-8 items-center justify-center">
+    <div className={containerClass} style={{ minHeight: hasSubtitle ? 72 : 56 }}>
+      <div className={iconWrapClass}>
         <Bars3Icon className="h-5 w-5" />
       </div>
 
-      {/* Checkbox visual (non-functional in overlay) */}
       <Checkbox isDisabled isSelected={grocery.isDone} radius="full" size="lg" />
 
-      {/* Content */}
-      <div className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
-        {/* Main row: amount/unit + name */}
-        <div className="flex w-full items-baseline gap-1.5">
+      <div className={contentClass}>
+        <div className={rowClass}>
           {(grocery.amount || grocery.unit) && (
             <span
               className={`shrink-0 font-medium ${
@@ -61,12 +56,10 @@ export function GroceryDragOverlay({
           </span>
         </div>
 
-        {/* Recipe name indicator */}
         {recipeName && !recurringGrocery && (
           <span className="text-default-400 mt-0.5 truncate text-xs">{recipeName}</span>
         )}
 
-        {/* Recurring pill */}
         {recurringGrocery && (
           <RecurrencePill className="mt-0.5" recurringGrocery={recurringGrocery} />
         )}

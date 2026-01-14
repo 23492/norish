@@ -16,11 +16,8 @@ import {
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 
 import { GroupDragOverlay } from "./group-drag-overlay";
-import { useGroupedGroceryDnd } from "@/hooks/groceries/use-grouped-grocery-dnd";
 
-// =============================================================================
-// Context
-// =============================================================================
+import { useGroupedGroceryDnd } from "@/hooks/groceries/use-grouped-grocery-dnd";
 
 const DndGroupedGroceryContext = createContext<DndGroupedGroceryContextValue | null>(null);
 
@@ -33,21 +30,12 @@ export function useDndGroupedGroceryContext(): DndGroupedGroceryContextValue {
   return ctx;
 }
 
-// =============================================================================
-// Provider Component
-// =============================================================================
-
 export function DndGroupedGroceryProvider({
   children,
   stores,
-  recurringGroceries,
   groupedGroceries,
   onReorderGroups,
 }: DndGroupedGroceryProviderProps) {
-  // =============================================================================
-  // Sensors Configuration
-  // =============================================================================
-
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -64,10 +52,6 @@ export function DndGroupedGroceryProvider({
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
-
-  // =============================================================================
-  // DnD Hook
-  // =============================================================================
 
   const {
     activeGroupKey,
@@ -86,10 +70,6 @@ export function DndGroupedGroceryProvider({
     onReorderGroups,
   });
 
-  // =============================================================================
-  // Context Value
-  // =============================================================================
-
   const contextValue = useMemo<DndGroupedGroceryContextValue>(
     () => ({
       activeGroupKey,
@@ -100,10 +80,6 @@ export function DndGroupedGroceryProvider({
     }),
     [activeGroupKey, activeGroup, overContainerId, groupItems, getGroupKeysForContainer]
   );
-
-  // =============================================================================
-  // Render
-  // =============================================================================
 
   return (
     <DndGroupedGroceryContext.Provider value={contextValue}>
@@ -123,9 +99,7 @@ export function DndGroupedGroceryProvider({
         {children}
 
         <DragOverlay dropAnimation={{ duration: 200, easing: "ease" }}>
-          {activeGroup ? (
-            <GroupDragOverlay group={activeGroup} recurringGroceries={recurringGroceries} />
-          ) : null}
+          {activeGroup ? <GroupDragOverlay group={activeGroup} /> : null}
         </DragOverlay>
       </DndContext>
     </DndGroupedGroceryContext.Provider>
