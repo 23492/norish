@@ -173,5 +173,12 @@
     "batchImportedDescription": "{count} recepten geïmporteerd uit archief",
     "view": "Bekijk",
     "open": "Open"
+  },
+  "tags": {
+    "panel": {
+      "editTitle": "Tag bewerken",
+      "editPlaceholder": "Voer tagnaam in...",
+      "duplicateTag": "Deze tag bestaat al"
+    }
   }
 }

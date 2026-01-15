@@ -195,3 +195,79 @@ export async function getRecipeTagNamesTx(tx: any, recipeId: string): Promise<st
 
   return rows.map((r: { name: string }) => r.name);
 }
+
+/**
+ * Update a tag's name. Returns the updated tag or null if not found.
+ * If the new name conflicts with an existing tag (case-insensitive), merge them.
+ */
+export async function updateTagName(
+  oldName: string,
+  newName: string
+): Promise<{ merged: boolean; newName: string } | null> {
+  const cleanedOld = stripHtmlTags(oldName);
+  const cleanedNew = ensureNonEmptyName(newName);
+
+  if (cleanedOld.toLowerCase() === cleanedNew.toLowerCase()) {
+    // Same name (case-insensitive), just update the casing
+    await db
+      .update(tags)
+      .set({ name: cleanedNew })
+      .where(eq(sql`lower(${tags.name})`, cleanedOld.toLowerCase()));
+
+    return { merged: false, newName: cleanedNew };
+  }
+
+  return await db.transaction(async (tx) => {
+    // Find the old tag
+    const oldTag = await tx
+      .select()
+      .from(tags)
+      .where(eq(sql`lower(${tags.name})`, cleanedOld.toLowerCase()))
+      .limit(1)
+      .then((rows) => rows[0]);
+
+    if (!oldTag) return null;
+
+    // Check if target name already exists
+    const existingTag = await tx
+      .select()
+      .from(tags)
+      .where(eq(sql`lower(${tags.name})`, cleanedNew.toLowerCase()))
+      .limit(1)
+      .then((rows) => rows[0]);
+
+    if (existingTag) {
+      // Merge: update all recipe_tags to point to existing tag, delete old tag
+      await tx
+        .update(recipeTags)
+        .set({ tagId: existingTag.id })
+        .where(eq(recipeTags.tagId, oldTag.id));
+
+      await tx.delete(tags).where(eq(tags.id, oldTag.id));
+
+      return { merged: true, newName: existingTag.name };
+    } else {
+      // Simple rename
+      await tx.update(tags).set({ name: cleanedNew }).where(eq(tags.id, oldTag.id));
+
+      return { merged: false, newName: cleanedNew };
+    }
+  });
+}
+
+/**
+ * Remove a tag from a specific recipe (not globally).
+ */
+export async function removeTagFromRecipe(recipeId: string, tagName: string): Promise<boolean> {
+  const cleaned = stripHtmlTags(tagName);
+
+  const tag = await findTagByName(cleaned);
+
+  if (!tag) return false;
+
+  const result = await db
+    .delete(recipeTags)
+    .where(sql`${recipeTags.recipeId} = ${recipeId} AND ${recipeTags.tagId} = ${tag.id}`);
+
+  return (result.rowCount ?? 0) > 0;
+}

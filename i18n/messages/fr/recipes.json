@@ -168,10 +168,18 @@
     "imported": "Recette importée",
     "converted": "Mesures converties",
     "convertedDescription": "Recette convertie en unités {system}",
-    "failed": "Échec de l’opération",
+    "failed": "Échec de l'opération",
     "batchImported": "Recettes importées",
-    "batchImportedDescription": "{count} recettes importées depuis l’archive",
+    "batchImportedDescription": "{count} recettes importées depuis l'archive",
     "view": "Voir",
     "open": "Ouvrir"
+  },
+  "tags": {
+    "panel": {
+      "editTitle": "Modifier le tag",
+      "editPlaceholder": "Entrez le nom du tag...",
+      "duplicateTag": "Ce tag existe déjà"
+    }
   }
+}
 }

@@ -22,16 +22,16 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { motion, AnimatePresence } from "motion/react";
-import { XMarkIcon } from "@heroicons/react/16/solid";
 
 import { useTagsQuery } from "@/hooks/config";
+import EditTagPanel from "@/components/Panel/consumers/edit-tag-panel";
 
 interface SortableTagItemProps {
   tag: string;
-  onRemove: (tag: string) => void;
+  onEdit: (tag: string) => void;
 }
 
-function SortableTagItem({ tag, onRemove }: SortableTagItemProps) {
+function SortableTagItem({ tag, onEdit }: SortableTagItemProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: tag,
   });
@@ -43,28 +43,24 @@ function SortableTagItem({ tag, onRemove }: SortableTagItemProps) {
   };
 
   return (
-    <div
+    <button
       ref={setNodeRef}
       className="bg-primary/10 text-primary hover:bg-primary/20 inline-flex cursor-grab touch-none items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors active:cursor-grabbing"
       style={style}
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onEdit(tag);
+      }}
+      onPointerDown={(e) => {
+        // Allow drag to start, but also allow click
+        // The PointerSensor distance constraint handles this
+      }}
       {...attributes}
       {...listeners}
     >
       <span>{tag}</span>
-
-      {/* Remove button */}
-      <button
-        className="flex h-4 w-4 items-center justify-center rounded-full opacity-50 transition-opacity hover:opacity-100"
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          onRemove(tag);
-        }}
-        onPointerDown={(e) => e.stopPropagation()}
-      >
-        <XMarkIcon className="h-3 w-3" />
-      </button>
-    </div>
+    </button>
   );
 }
 
@@ -83,6 +79,7 @@ export default function TagInput({
 }: TagInputProps) {
   const [rawInput, setRawInput] = useState("");
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [editingTag, setEditingTag] = useState<string | null>(null);
   const { tags: allTags } = useTagsQuery();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -274,7 +271,7 @@ export default function TagInput({
           <SortableContext items={value} strategy={horizontalListSortingStrategy}>
             {/* Selected tags - sortable */}
             {value.map((tag) => (
-              <SortableTagItem key={tag} tag={tag} onRemove={handleRemoveTag} />
+              <SortableTagItem key={tag} tag={tag} onEdit={setEditingTag} />
             ))}
           </SortableContext>
 
@@ -348,6 +345,32 @@ export default function TagInput({
             ))}
           </AnimatePresence>
         </div>
+      )}
+
+      {/* Edit Tag Panel */}
+      {editingTag && (
+        <EditTagPanel
+          existingTags={value}
+          open={!!editingTag}
+          tag={editingTag}
+          onDelete={() => {
+            handleRemoveTag(editingTag);
+            setEditingTag(null);
+          }}
+          onOpenChange={(open) => !open && setEditingTag(null)}
+          onSave={(newName) => {
+            // Replace the old tag with the new name in the value array
+            const index = value.findIndex((t) => t.toLowerCase() === editingTag.toLowerCase());
+
+            if (index !== -1) {
+              const newValue = [...value];
+
+              newValue[index] = newName;
+              onChange(newValue);
+            }
+            setEditingTag(null);
+          }}
+        />
       )}
     </div>
   );

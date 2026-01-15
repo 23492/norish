@@ -176,5 +176,12 @@
     "batchImportedDescription": "{count} recipes imported from archive",
     "view": "View",
     "open": "Open"
+  },
+  "tags": {
+    "panel": {
+      "editTitle": "Edit Tag",
+      "editPlaceholder": "Enter tag name...",
+      "duplicateTag": "This tag already exists"
+    }
   }
 }

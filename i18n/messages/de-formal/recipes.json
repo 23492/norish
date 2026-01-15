@@ -173,5 +173,12 @@
     "batchImportedDescription": "{count} Rezepte aus Archiv importiert",
     "view": "Anzeigen",
     "open": "Öffnen"
+  },
+  "tags": {
+    "panel": {
+      "editTitle": "Tag bearbeiten",
+      "editPlaceholder": "Tag-Namen eingeben...",
+      "duplicateTag": "Dieser Tag existiert bereits"
+    }
   }
 }
