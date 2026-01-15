@@ -100,6 +100,12 @@ export const MobileNav = () => {
                           : "text-default-600 hover:text-foreground hover:bg-default-100/70"
                       }`}
                       href={item.href}
+                      onClick={(e) => {
+                        if (item.href === "/" && pathname === "/") {
+                          e.preventDefault();
+                          window.scrollTo({ top: 0, behavior: "smooth" });
+                        }
+                      }}
                     >
                       <Icon className="h-5 w-5" />
                       <span className="leading-none">

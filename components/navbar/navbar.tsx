@@ -51,7 +51,17 @@ export const Navbar = () => {
           {/* Left */}
           <NavbarContent justify="start">
             <NavbarBrand className="max-w-fit gap-3">
-              <NextLink aria-label="Go to home" className="flex items-center" href="/">
+              <NextLink
+                aria-label="Go to home"
+                className="flex items-center"
+                href="/"
+                onClick={(e) => {
+                  if (pathname === "/") {
+                    e.preventDefault();
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }
+                }}
+              >
                 <Image priority alt="Norish logo" height={30} src={logo} width={120} />
               </NextLink>
             </NavbarBrand>
