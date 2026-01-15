@@ -108,7 +108,10 @@
     "addImage": "Ajouter une image",
     "uploading": "Téléversement...",
     "uploadFailed": "Échec du téléversement",
-    "dragToReorder": "Glissez les images pour réorganiser"
+    "dragToReorder": "Glissez les images pour réorganiser",
+    "maxImagesReached": "Maximum {max} images autorisées",
+    "maxVideosReached": "Maximum {max} vidéos autorisées",
+    "invalidFileType": "Type de fichier invalide"
   },
   "carousel": {
     "noImageAvailable": "Aucune image disponible",

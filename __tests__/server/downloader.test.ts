@@ -1,5 +1,6 @@
+// @vitest-environment node
 import fs from "fs/promises";
-import * as path from "path";
+import path from "node:path";
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 

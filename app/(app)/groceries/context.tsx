@@ -132,7 +132,7 @@ export function GroceriesContextProvider({ children }: { children: ReactNode }) 
   // Group similar ingredients toggle (only for store view)
   const [groupSimilarIngredients, setGroupSimilarIngredients] = useLocalStorage<boolean>(
     GROCERY_GROUP_SIMILAR_KEY,
-    false,
+    true,
     validateGroupSimilar
   );
 

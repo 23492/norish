@@ -2,6 +2,8 @@
  * Auto-Tagger Tests
  *
  * Tests for AI-based recipe auto-tagging functionality.
+ *
+ * @vitest-environment node
  */
 import { generateText } from "ai";
 import { beforeEach, describe, expect, it, vi } from "vitest";

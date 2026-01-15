@@ -3,6 +3,8 @@
  *
  * Tests for buildAutoTaggingPrompt function that constructs
  * prompts for AI-based recipe tagging.
+ *
+ * @vitest-environment node
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { initTRPC } from "@trpc/server";
 import superjson from "superjson";
