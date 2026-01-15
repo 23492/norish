@@ -33,31 +33,43 @@ interface RecipeMedia {
 
 /**
  * Builds MediaItem array from recipe videos/images for use with MediaCarousel.
- * Videos come first (using their order), then images, with legacy recipe.image as fallback.
+ * Items are sorted by their order field to maintain user-defined positioning.
  */
 export function buildMediaItems(recipe: RecipeMedia): MediaItem[] {
-  return [
-    // Videos first (order from DB, typically 0)
-    ...(recipe.videos ?? []).map((vid) => ({
-      type: "video" as const,
-      src: vid.video,
-      thumbnail: vid.thumbnail,
-      duration: vid.duration,
-      order: vid.order,
-      id: vid.id,
-    })),
-    // Then images (start at order after videos)
-    ...(recipe.images ?? []).map((img, idx) => ({
-      type: "image" as const,
-      src: img.image,
-      order: (recipe.videos?.length ?? 0) + idx,
-      id: img.id,
-    })),
-    // Fallback to legacy recipe.image if no images array
-    ...(recipe.images?.length === 0 && recipe.image
-      ? [{ type: "image" as const, src: recipe.image, order: 999 }]
-      : []),
-  ];
+  const items: MediaItem[] = [];
+
+  // Add videos with their order
+  if (recipe.videos) {
+    for (const vid of recipe.videos) {
+      items.push({
+        type: "video" as const,
+        src: vid.video,
+        thumbnail: vid.thumbnail,
+        duration: vid.duration,
+        order: vid.order,
+        id: vid.id,
+      });
+    }
+  }
+
+  // Add images with their order
+  if (recipe.images) {
+    for (const img of recipe.images) {
+      items.push({
+        type: "image" as const,
+        src: img.image,
+        order: img.order ?? 0,
+        id: img.id,
+      });
+    }
+  }
+
+  // Fallback to legacy recipe.image if no images array
+  if ((!recipe.images || recipe.images.length === 0) && recipe.image) {
+    items.push({ type: "image" as const, src: recipe.image, order: 999 });
+  }
+
+  return items;
 }
 
 export interface MediaCarouselProps {

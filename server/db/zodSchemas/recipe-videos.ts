@@ -3,6 +3,9 @@ import { z } from "zod";
 
 import { recipeVideos } from "@/server/db/schema";
 
+/** Maximum number of videos allowed per recipe */
+export const MAX_RECIPE_VIDEOS = 5;
+
 export const RecipeVideoSelectSchema = createSelectSchema(recipeVideos);
 export const RecipeVideoInsertSchema = createInsertSchema(recipeVideos).omit({
   id: true,

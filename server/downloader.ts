@@ -862,3 +862,136 @@ export function getVideoMimeType(filePath: string): string {
 
   return videoMimeFromExt(ext);
 }
+
+/**
+ * Valid video extensions for uploaded videos
+ */
+const ALLOWED_VIDEO_EXTS = new Set([".mp4", ".webm", ".mov", ".m4v"]);
+
+/**
+ * Detect video extension from buffer magic bytes
+ */
+function extFromVideoBuffer(buf: Buffer): string | undefined {
+  if (buf.length < 12) return undefined;
+
+  // MP4/M4V/MOV (ftyp box)
+  if (
+    buf.length >= 12 &&
+    buf[4] === 0x66 &&
+    buf[5] === 0x74 &&
+    buf[6] === 0x79 &&
+    buf[7] === 0x70
+  ) {
+    const brand = buf.slice(8, 12).toString("ascii");
+    // Common MP4 brands
+    if (
+      brand === "isom" ||
+      brand === "iso2" ||
+      brand === "mp41" ||
+      brand === "mp42" ||
+      brand === "avc1" ||
+      brand === "M4V " ||
+      brand === "M4VP"
+    ) {
+      return ".mp4";
+    }
+    // QuickTime
+    if (brand === "qt  " || brand === "moov") {
+      return ".mov";
+    }
+    // Default to mp4 for ftyp containers
+    return ".mp4";
+  }
+
+  // WebM (EBML header)
+  if (buf[0] === 0x1a && buf[1] === 0x45 && buf[2] === 0xdf && buf[3] === 0xa3) {
+    return ".webm";
+  }
+
+  return undefined;
+}
+
+/**
+ * Save video bytes to recipe directory.
+ * Path: uploads/recipes/{recipeId}/video-{timestamp}.{ext}
+ * URL: /recipes/{recipeId}/video-{timestamp}.{ext}
+ */
+export async function saveVideoBytes(
+  bytes: Buffer,
+  recipeId: string,
+  originalExt?: string,
+  duration?: number
+): Promise<SavedVideo> {
+  const recipeDir = path.join(RECIPES_BASE_DIR, recipeId);
+
+  await ensureDir(recipeDir);
+
+  // Validate buffer size
+  if (bytes.length > SERVER_CONFIG.MAX_VIDEO_FILE_SIZE) {
+    throw new Error(
+      `Video too large: ${bytes.length} bytes (max: ${SERVER_CONFIG.MAX_VIDEO_FILE_SIZE})`
+    );
+  }
+
+  // Detect extension from magic bytes or use provided
+  let ext = extFromVideoBuffer(bytes);
+  if (!ext && originalExt) {
+    const normalizedExt = originalExt.startsWith(".")
+      ? originalExt.toLowerCase()
+      : `.${originalExt.toLowerCase()}`;
+    if (ALLOWED_VIDEO_EXTS.has(normalizedExt)) {
+      ext = normalizedExt;
+    }
+  }
+  if (!ext) {
+    ext = ".mp4"; // Default to mp4
+  }
+
+  const timestamp = Date.now();
+  const fileName = `video-${timestamp}${ext}`;
+  const filePath = path.join(recipeDir, fileName);
+
+  await fs.writeFile(filePath, bytes);
+
+  log.info({ recipeId, fileName, size: bytes.length }, "Video bytes saved");
+
+  return {
+    video: `/recipes/${recipeId}/${fileName}`,
+    duration: duration ?? null,
+  };
+}
+
+/**
+ * Delete recipe video by URL.
+ * URL format: /recipes/{recipeId}/video-{timestamp}.{ext}
+ */
+export async function deleteVideoByUrl(url: string): Promise<void> {
+  // Match video URLs: /recipes/{uuid}/video-{timestamp}.{ext}
+  const match = url.match(/^\/recipes\/([a-f0-9-]+)\/(video-[^/]+)$/i);
+
+  if (!match) {
+    throw new Error("Invalid video URL format");
+  }
+
+  const [, recipeId, filename] = match;
+
+  // Validate recipeId is a UUID
+  if (!/^[a-f0-9-]{36}$/i.test(recipeId)) {
+    throw new Error("Invalid recipe ID in URL");
+  }
+
+  // Validate filename pattern
+  if (!/^video-\d+\.[a-zA-Z0-9]+$/.test(filename)) {
+    throw new Error("Invalid video filename in URL");
+  }
+
+  const filePath = path.join(RECIPES_BASE_DIR, recipeId, filename);
+
+  try {
+    await fs.unlink(filePath);
+    log.info({ recipeId, filename }, "Deleted video file");
+  } catch (err) {
+    log.warn({ err, recipeId, filename }, "Could not delete video file");
+    throw err;
+  }
+}

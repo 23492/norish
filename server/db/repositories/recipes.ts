@@ -917,6 +917,25 @@ export async function updateRecipeWithRefs(
         );
       }
     }
+
+    // Replace videos if provided
+    if (payload.videos !== undefined) {
+      // Delete existing videos for this recipe
+      await tx.delete(recipeVideos).where(eq(recipeVideos.recipeId, recipeId));
+
+      // Add new ones
+      if (payload.videos.length > 0) {
+        await tx.insert(recipeVideos).values(
+          payload.videos.map((v) => ({
+            recipeId,
+            video: v.video,
+            thumbnail: v.thumbnail ?? null,
+            duration: v.duration != null ? String(v.duration) : null,
+            order: String(v.order ?? 0),
+          }))
+        );
+      }
+    }
   });
 }
 
@@ -1082,6 +1101,18 @@ export interface RecipeVideoInput {
   thumbnail?: string | null;
   duration?: number | null;
   order: number;
+}
+
+/**
+ * Count videos for a recipe
+ */
+export async function countRecipeVideos(recipeId: string): Promise<number> {
+  const [result] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(recipeVideos)
+    .where(eq(recipeVideos.recipeId, recipeId));
+
+  return Number(result?.count ?? 0);
 }
 
 /**

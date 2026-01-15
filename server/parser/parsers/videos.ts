@@ -5,6 +5,8 @@
  * Downloads videos from contentUrl and saves them to the recipe directory.
  */
 
+import fs from "fs/promises";
+
 import { decode } from "html-entities";
 
 import { downloadVideo, getVideoMetadata, getFfmpegPath } from "@/server/video/yt-dlp";
@@ -136,6 +138,18 @@ function extractVideoCandidates(videoField: unknown): VideoObjectCandidate[] {
 }
 
 /**
+ * Safely delete a file, ignoring errors if it doesn't exist.
+ */
+async function cleanupFile(filePath: string): Promise<void> {
+  try {
+    await fs.unlink(filePath);
+    log.debug({ filePath }, "Cleaned up temp file");
+  } catch {
+    // Ignore errors - file may already be deleted
+  }
+}
+
+/**
  * Download a video from URL using yt-dlp.
  *
  * @param videoUrl - The video URL to download
@@ -152,6 +166,9 @@ async function downloadAndSaveVideo(
   thumbnailUrl: string | null,
   durationHint: number | null
 ): Promise<ParsedVideo | null> {
+  let downloadedPath: string | null = null;
+  let convertedPath: string | null = null;
+
   try {
     log.debug({ videoUrl, recipeId }, "Attempting to download video from JSON-LD");
 
@@ -177,9 +194,18 @@ async function downloadAndSaveVideo(
       return null;
     }
 
+    downloadedPath = downloadResult.filePath;
+
     // Convert to MP4 if needed
     const ffmpegPath = getFfmpegPath();
     const converted = await convertToMp4(downloadResult.filePath, ffmpegPath);
+
+    // Track converted path if different from download path
+    if (converted.filePath !== downloadResult.filePath) {
+      convertedPath = converted.filePath;
+      // Original was already deleted by convertToMp4 on success
+      downloadedPath = null;
+    }
 
     // Save to recipe directory
     const savedVideo = await saveVideoFile(converted.filePath, recipeId, duration ?? undefined);
@@ -188,6 +214,16 @@ async function downloadAndSaveVideo(
       { videoUrl, recipeId, video: savedVideo.video },
       "Video downloaded and saved from JSON-LD"
     );
+
+    // Cleanup: delete the temp file after successful save
+    // saveVideoFile copies the file, so we need to clean up the source
+    if (convertedPath) {
+      await cleanupFile(convertedPath);
+      convertedPath = null;
+    } else if (downloadedPath) {
+      await cleanupFile(downloadedPath);
+      downloadedPath = null;
+    }
 
     return {
       video: savedVideo.video,
@@ -199,6 +235,14 @@ async function downloadAndSaveVideo(
     log.warn({ error, videoUrl }, "Failed to process video from JSON-LD");
 
     return null;
+  } finally {
+    // Cleanup any remaining temp files on error
+    if (downloadedPath) {
+      await cleanupFile(downloadedPath);
+    }
+    if (convertedPath) {
+      await cleanupFile(convertedPath);
+    }
   }
 }
 

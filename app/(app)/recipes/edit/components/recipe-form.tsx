@@ -14,7 +14,9 @@ import IngredientInput, { ParsedIngredient } from "@/components/recipes/ingredie
 import StepInput, { Step } from "@/components/recipes/step-input";
 import TimeInputs from "@/components/recipes/time-inputs";
 import MeasurementSystemSelector from "@/components/recipes/measurement-system-selector";
-import ImageGalleryInput, { RecipeGalleryImage } from "@/components/recipes/image-gallery-input";
+import MediaGalleryInput, {
+  type RecipeGalleryMedia,
+} from "@/components/recipes/media-gallery-input";
 import EditRecipeSkeleton from "@/components/skeleton/edit-recipe-skeleton";
 import { useRecipesContext } from "@/context/recipes-context";
 import { inferSystemUsedFromParsed } from "@/lib/determine-recipe-system";
@@ -65,22 +67,41 @@ export default function RecipeForm({ mode, initialData }: RecipeFormProps) {
   const [detectedSystem, setDetectedSystem] = useState<MeasurementSystem | null>(null);
   const [manuallySetSystem, setManuallySetSystem] = useState(false);
 
-  // Images state - array of gallery images
-  const [images, setImages] = useState<RecipeGalleryImage[]>(() => {
-    // Initialize from initialData.images if available, or from legacy image field
+  // Media state - unified array of images and videos
+  const [media, setMedia] = useState<RecipeGalleryMedia[]>(() => {
+    const items: RecipeGalleryMedia[] = [];
+
+    // Add images from initialData
     if (initialData?.images && initialData.images.length > 0) {
-      return initialData.images.map((img) => ({
-        id: img.id,
-        image: img.image,
-        order: img.order,
-      }));
-    }
-    // Fallback to legacy single image field
-    if (initialData?.image) {
-      return [{ image: initialData.image, order: 0 }];
+      initialData.images.forEach((img) => {
+        items.push({
+          id: img.id,
+          type: "image",
+          src: img.image,
+          order: img.order,
+        });
+      });
+    } else if (initialData?.image) {
+      // Fallback to legacy single image field
+      items.push({ type: "image", src: initialData.image, order: 0 });
     }
 
-    return [];
+    // Add videos from initialData
+    if (initialData?.videos && initialData.videos.length > 0) {
+      initialData.videos.forEach((vid) => {
+        items.push({
+          id: vid.id,
+          type: "video",
+          src: vid.video,
+          thumbnail: vid.thumbnail,
+          duration: vid.duration,
+          order: vid.order,
+        });
+      });
+    }
+
+    // Sort by order to maintain unified ordering
+    return items.sort((a, b) => a.order - b.order);
   });
 
   // Nutrition state
@@ -191,9 +212,29 @@ export default function RecipeForm({ mode, initialData }: RecipeFormProps) {
     setErrors({});
 
     try {
-      // Get primary image (first in order) for legacy image field
+      // Extract images from unified media state, preserving their order
+      const images = media
+        .filter((m) => m.type === "image")
+        .map((img) => ({
+          id: img.id,
+          image: img.src,
+          order: img.order,
+        }));
+
+      // Get primary image (first image by order) for legacy image field
       const sortedImages = [...images].sort((a, b) => a.order - b.order);
       const primaryImage = sortedImages[0]?.image || null;
+
+      // Extract videos from unified media state, preserving their order
+      const videos = media
+        .filter((m) => m.type === "video")
+        .map((vid) => ({
+          id: vid.id,
+          video: vid.src,
+          thumbnail: vid.thumbnail ?? null,
+          duration: vid.duration ?? null,
+          order: vid.order,
+        }));
 
       const recipeData = {
         name: name.trim(),
@@ -224,12 +265,10 @@ export default function RecipeForm({ mode, initialData }: RecipeFormProps) {
           systemUsed: s.systemUsed,
           images: s.images || [],
         })),
-        // New images array field
-        images: images.map((img) => ({
-          id: img.id,
-          image: img.image,
-          order: img.order,
-        })),
+        // Images array field
+        images,
+        // Videos array field
+        videos,
       };
 
       if (mode === "create") {
@@ -252,7 +291,7 @@ export default function RecipeForm({ mode, initialData }: RecipeFormProps) {
     name,
     description,
     url,
-    images,
+    media,
     servings,
     prepMinutes,
     cookMinutes,
@@ -319,7 +358,7 @@ export default function RecipeForm({ mode, initialData }: RecipeFormProps) {
           </h2>
           <div className="ml-0 min-w-0 md:ml-9">
             {recipeId && (
-              <ImageGalleryInput images={images} recipeId={recipeId} onChange={setImages} />
+              <MediaGalleryInput media={media} recipeId={recipeId} onChange={setMedia} />
             )}
             {errors.image && <p className="text-danger-600 mt-2 text-base">{errors.image}</p>}
           </div>

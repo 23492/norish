@@ -7,6 +7,7 @@ export { usePendingRecipesQuery } from "./use-pending-recipes-query";
 export { useAutoTaggingQuery } from "./use-auto-tagging-query";
 export { useAllergyDetectionQuery } from "./use-allergy-detection-query";
 export { useRecipeImages, type RecipeImagesResult } from "./use-recipe-images";
+export { useRecipeVideos, type RecipeVideosResult } from "./use-recipe-videos";
 export { useRecipeId, type RecipeIdResult } from "./use-recipe-id";
 export { useRecipeAutocomplete } from "./use-recipe-autocomplete";
 export { useNutritionQuery } from "./use-nutrition-query";

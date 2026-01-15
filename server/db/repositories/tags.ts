@@ -11,12 +11,14 @@ import { stripHtmlTags } from "@/lib/helpers";
 const TagArraySchema = z.array(TagSelectBaseSchema);
 
 export async function listAllTagNames(): Promise<string[]> {
+  // Only return tags that are actually used by at least one recipe
   const rows = await db
-    .select({ name: tags.name })
+    .selectDistinct({ name: tags.name })
     .from(tags)
+    .innerJoin(recipeTags, eq(tags.id, recipeTags.tagId))
     .orderBy(sql`lower(${tags.name})`);
 
-  return Array.from(new Set(rows.map((r) => r.name).filter(Boolean)));
+  return rows.map((r) => r.name).filter(Boolean);
 }
 
 function ensureNonEmptyName(name: string): string {

@@ -108,7 +108,10 @@
     "addImage": "Add image",
     "uploading": "Uploading...",
     "uploadFailed": "Upload failed",
-    "dragToReorder": "Drag images to reorder"
+    "dragToReorder": "Drag to reorder",
+    "maxImagesReached": "Maximum {max} images allowed",
+    "maxVideosReached": "Maximum {max} videos allowed",
+    "invalidFileType": "Invalid file type"
   },
   "carousel": {
     "noImageAvailable": "No image available",
