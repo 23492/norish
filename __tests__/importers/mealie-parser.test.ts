@@ -460,7 +460,7 @@ describe("Mealie Parser", () => {
       expect(dto).not.toBeNull();
       expect(dto!.prepMinutes).toBe(20);
       expect(dto!.cookMinutes).toBe(60); // 1 hr = 60 minutes
-      expect(dto!.totalMinutes).toBeUndefined();
+      expect(dto!.totalMinutes).toBe(80); // calculated: 20 + 60
     });
 
     it("handles null time fields", async () => {
@@ -481,9 +481,11 @@ describe("Mealie Parser", () => {
       expect(dto!.totalMinutes).toBeUndefined();
     });
 
-    it("uses perform_time as fallback for total_time", async () => {
+    it("uses perform_time as cook_time when cook_time is null", async () => {
       mockRecipe.total_time = null;
-      mockRecipe.perform_time = 50;
+      mockRecipe.cook_time = null;
+      mockRecipe.prep_time = 20;
+      mockRecipe.perform_time = 60;
 
       const dto = await parseMealieRecipeToDTO(
         mockRecipe,
@@ -493,7 +495,44 @@ describe("Mealie Parser", () => {
       );
 
       expect(dto).not.toBeNull();
-      expect(dto!.totalMinutes).toBe(50);
+      expect(dto!.prepMinutes).toBe(20);
+      expect(dto!.cookMinutes).toBe(60); // perform_time only
+      expect(dto!.totalMinutes).toBe(80); // calculated: 20 + 60
+    });
+
+    it("calculates total_time from prep_time and cook_time when total_time is null", async () => {
+      mockRecipe.total_time = null;
+      mockRecipe.prep_time = 15;
+      mockRecipe.cook_time = 30;
+      mockRecipe.perform_time = null;
+
+      const dto = await parseMealieRecipeToDTO(
+        mockRecipe,
+        mockIngredients,
+        mockInstructions,
+        lookups
+      );
+
+      expect(dto).not.toBeNull();
+      expect(dto!.totalMinutes).toBe(45);
+    });
+
+    it("adds cook_time and perform_time when both are present", async () => {
+      mockRecipe.total_time = null;
+      mockRecipe.cook_time = 30;
+      mockRecipe.perform_time = 60;
+      mockRecipe.prep_time = 10;
+
+      const dto = await parseMealieRecipeToDTO(
+        mockRecipe,
+        mockIngredients,
+        mockInstructions,
+        lookups
+      );
+
+      expect(dto).not.toBeNull();
+      expect(dto!.cookMinutes).toBe(90); // cook_time + perform_time
+      expect(dto!.totalMinutes).toBe(100); // 10 + 90
     });
 
     it("handles missing servings with fallback to recipe_yield_quantity", async () => {

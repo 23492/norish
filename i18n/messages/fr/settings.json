@@ -16,7 +16,8 @@
       "nameLabel": "Nom",
       "namePlaceholder": "Votre nom",
       "emailLabel": "Email",
-      "avatarHint": "Cliquez sur votre avatar pour changer l’image",
+      "avatarHint": "Cliquez sur votre avatar pour changer l'image",
+      "deleteAvatar": "Supprimer la photo de profil",
       "saveChanges": "Enregistrer les modifications"
     },
     "allergies": {

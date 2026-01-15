@@ -102,6 +102,14 @@ export async function closeBrowser() {
   }
 }
 
-// Graceful shutdown
-process.on("SIGINT", closeBrowser);
-process.on("SIGTERM", closeBrowser);
+// Graceful shutdown - register handlers only once
+let shutdownHandlersRegistered = false;
+
+function registerShutdownHandlers() {
+  if (shutdownHandlersRegistered) return;
+  shutdownHandlersRegistered = true;
+  process.on("SIGINT", closeBrowser);
+  process.on("SIGTERM", closeBrowser);
+}
+
+registerShutdownHandlers();

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Card, CardBody, CardHeader, Input, Button, Avatar } from "@heroui/react";
-import { UserCircleIcon } from "@heroicons/react/24/outline";
+import { UserCircleIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { useRef } from "react";
 import { useTranslations } from "next-intl";
 
@@ -10,7 +10,7 @@ import { useUserSettingsContext } from "../context";
 
 export default function ProfileCard() {
   const t = useTranslations("settings.user.profile");
-  const { user, updateName, updateImage } = useUserSettingsContext();
+  const { user, updateName, updateImage, deleteImage, isDeletingAvatar } = useUserSettingsContext();
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -63,6 +63,13 @@ export default function ProfileCard() {
     });
   };
 
+  const handleDeleteImage = async () => {
+    setImagePreview(null);
+    await deleteImage();
+  };
+
+  const hasImage = imagePreview || user?.image;
+
   return (
     <Card>
       <CardHeader>
@@ -88,6 +95,21 @@ export default function ProfileCard() {
               type="file"
               onChange={handleImageSelect}
             />
+            {hasImage && (
+              <Button
+                isIconOnly
+                aria-label={t("deleteAvatar")}
+                className="absolute -right-1 -bottom-1 h-7 w-7 min-w-0"
+                color="danger"
+                isLoading={isDeletingAvatar}
+                radius="full"
+                size="sm"
+                variant="flat"
+                onPress={handleDeleteImage}
+              >
+                <TrashIcon className="h-3.5 w-3.5" />
+              </Button>
+            )}
           </div>
           <div className="flex flex-1 flex-col gap-2">
             <Input

@@ -539,8 +539,19 @@ export async function parseMealieRecipeToDTO(
   };
 
   const prepMinutes = parseTime(recipe.prep_time);
-  const cookMinutes = parseTime(recipe.cook_time);
-  const totalMinutes = parseTime(recipe.total_time) || parseTime(recipe.perform_time);
+  // cook_time + perform_time combined
+  const parsedCookTime = parseTime(recipe.cook_time);
+  const parsedPerformTime = parseTime(recipe.perform_time);
+  const cookMinutes =
+    parsedCookTime !== undefined || parsedPerformTime !== undefined
+      ? (parsedCookTime ?? 0) + (parsedPerformTime ?? 0)
+      : undefined;
+  // If total_time is not provided, calculate from prep + cook
+  const totalMinutes =
+    parseTime(recipe.total_time) ??
+    (prepMinutes !== undefined || cookMinutes !== undefined
+      ? (prepMinutes ?? 0) + (cookMinutes ?? 0)
+      : undefined);
 
   // Normalize servings (must be an integer for the schema)
   let servings: number | undefined = undefined;

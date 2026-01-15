@@ -17,6 +17,7 @@
       "namePlaceholder": "Ihr Name",
       "emailLabel": "E-Mail",
       "avatarHint": "Klicken Sie auf Ihr Bild, um das Profilfoto zu ändern",
+      "deleteAvatar": "Profilfoto löschen",
       "saveChanges": "Änderungen speichern"
     },
     "allergies": {
