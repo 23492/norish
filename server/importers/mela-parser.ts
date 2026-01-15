@@ -1,3 +1,5 @@
+import crypto from "crypto";
+
 import JSZip from "jszip";
 
 import {
@@ -39,14 +41,17 @@ export async function parseMelaRecipeToDTO(json: MelaRecipe): Promise<FullRecipe
 
   if (!title) throw new Error("Missing title");
 
+  // Generate recipe ID upfront so images are saved to the correct folder
+  const recipeId = crypto.randomUUID();
+
   // Save first image if present
   let image: string | undefined = undefined;
 
   if (json.images && json.images.length) {
-    image = await saveBase64Image(json.images[0], title);
+    image = await saveBase64Image(json.images[0], recipeId);
   }
 
-  return buildRecipeDTO({
+  const dto = await buildRecipeDTO({
     name: title,
     image,
     url: json.link || undefined,
@@ -59,6 +64,9 @@ export async function parseMelaRecipeToDTO(json: MelaRecipe): Promise<FullRecipe
     instructionsText: json.instructions,
     categories: json.categories,
   });
+
+  // Add the pre-generated recipe ID to ensure the image path matches
+  return { ...dto, id: recipeId };
 }
 
 export async function parseMelaArchive(zip: JSZip): Promise<MelaRecipe[]> {

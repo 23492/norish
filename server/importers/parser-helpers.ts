@@ -6,7 +6,7 @@ import { FullRecipeInsertDTO } from "@/types";
 import { FullRecipeInsertSchema } from "@/server/db";
 
 /**
- * Parse human-readable duration strings like "30 min", "1 hr 15 min", "1h30m", "1 hour"
+ * Parse human-readable duration strings like "30 min", "1 hr 15 min", "1h30m", "1 hour", "1:30", "1:00h"
  * Returns minutes or undefined if invalid/empty
  */
 export function parseHumanDurationToMinutes(s?: string | null): number | undefined {
@@ -14,9 +14,21 @@ export function parseHumanDurationToMinutes(s?: string | null): number | undefin
 
   const lower = s.toLowerCase().trim();
 
-  // Match patterns like "1 hr 30 min", "1h30m", "90 minutes", "1 hour"
-  const hourMatch = lower.match(/(\d+)\s*(?:hr|hour|h)/i);
-  const minMatch = lower.match(/(\d+)\s*(?:min|minute|m)(?!\w)/i);
+  // First, try to match colon-based time format: "1:30", "1:00h", "01:30", "1:00 h"
+  // Format: HH:MM or H:MM, optionally followed by 'h' or 'hr'
+  const colonMatch = lower.match(/^(\d{1,2}):(\d{2})\s*(?:h|hr)?$/i);
+  if (colonMatch) {
+    const hours = parseInt(colonMatch[1], 10);
+    const minutes = parseInt(colonMatch[2], 10);
+    const total = hours * 60 + minutes;
+    return Number.isFinite(total) && total > 0 ? total : undefined;
+  }
+
+  // Match patterns like "1 hr 30 min", "1h30m", "90 minutes", "1 hour", "2 hours"
+  // For hours: allow 'h' to be followed by digits (for compact "1h30m" format)
+  const hourMatch = lower.match(/(\d+)\s*(?:hrs?|hours?|h)(?:\s|\d|$)/i);
+  // For minutes: require 'm' not to be followed by word characters (to avoid matching words like "medium")
+  const minMatch = lower.match(/(\d+)\s*(?:mins?|minutes?|m)(?!\w)/i);
 
   const hours = hourMatch ? parseInt(hourMatch[1], 10) : 0;
   const minutes = minMatch ? parseInt(minMatch[1], 10) : 0;

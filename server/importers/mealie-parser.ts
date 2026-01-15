@@ -1,6 +1,9 @@
+import crypto from "crypto";
+
 import JSZip from "jszip";
 
 import { saveImageBytes } from "../downloader";
+import { parseHumanDurationToMinutes } from "./parser-helpers";
 
 import { serverLogger as log } from "@/server/logger";
 import { inferSystemUsedFromParsed } from "@/lib/determine-recipe-system";
@@ -406,6 +409,9 @@ export async function parseMealieRecipeToDTO(
 
   if (!title) throw new Error("Missing recipe name");
 
+  // Generate recipe ID upfront so images are saved to the correct folder
+  const recipeId = crypto.randomUUID();
+
   // Load units for parsing unparsed ingredients
   const units = await getUnits();
 
@@ -414,7 +420,7 @@ export async function parseMealieRecipeToDTO(
 
   if (imageBuffer && imageBuffer.length > 0) {
     try {
-      image = await saveImageBytes(imageBuffer, title);
+      image = await saveImageBytes(imageBuffer, recipeId);
     } catch (err) {
       // Log but ignore image failure, proceed without image
       log.error({ err, title }, "Failed to save image for recipe");
@@ -510,11 +516,25 @@ export async function parseMealieRecipeToDTO(
     .map((inst) => inst.text)
     .filter((text) => text && text.trim());
 
-  // Calculate times (Mealie stores in minutes, some fields may be null or strings)
-  const parseTime = (val: number | null | undefined): number | undefined => {
+  // Calculate times (Mealie stores in minutes, but some exports contain human-readable strings
+  // like "1 hour 45 minutes" or "30 mins" which need to be parsed properly)
+  const parseTime = (val: number | string | null | undefined): number | undefined => {
     if (val === null || val === undefined) return undefined;
-    const num = typeof val === "string" ? parseInt(val, 10) : val;
 
+    // Handle numeric values directly
+    if (typeof val === "number") {
+      return Number.isFinite(val) && val > 0 ? val : undefined;
+    }
+
+    // Handle string values - try human-readable parsing first (e.g., "1 hour 45 minutes")
+    // then fall back to parseInt for simple numeric strings (e.g., "30")
+    const humanParsed = parseHumanDurationToMinutes(val);
+    if (humanParsed !== undefined) {
+      return humanParsed;
+    }
+
+    // Fallback to parseInt for simple numeric strings
+    const num = parseInt(val, 10);
     return Number.isFinite(num) && num > 0 ? num : undefined;
   };
 
@@ -567,6 +587,7 @@ export async function parseMealieRecipeToDTO(
   const protein = nutrition ? parseNutritionValue(nutrition.protein_content) : null;
 
   const dto: FullRecipeInsertDTO = {
+    id: recipeId,
     name: title,
     url: recipe.org_url || undefined,
     image: image || undefined,

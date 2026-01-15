@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { gunzip } from "zlib";
 import { promisify } from "util";
 
@@ -63,13 +64,16 @@ export async function parsePaprikaRecipeToDTO(
     throw new Error("Missing recipe name");
   }
 
+  // Generate recipe ID upfront so images are saved to the correct folder
+  const recipeId = crypto.randomUUID();
+
   // Save image if provided
-  const image = await saveBufferImage(imageBuffer, name);
+  const image = await saveBufferImage(imageBuffer, recipeId);
 
   // Get source URL
   const url = validated.source_url || validated.source || undefined;
 
-  return buildRecipeDTO({
+  const dto = await buildRecipeDTO({
     name,
     image,
     url,
@@ -82,6 +86,9 @@ export async function parsePaprikaRecipeToDTO(
     instructionsText: validated.directions || undefined,
     categories: validated.categories,
   });
+
+  // Add the pre-generated recipe ID to ensure the image path matches
+  return { ...dto, id: recipeId };
 }
 
 /**

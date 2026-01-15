@@ -427,6 +427,42 @@ describe("Mealie Parser", () => {
       expect(dto!.steps![1].step).toBe("Add tomatoes and simmer");
     });
 
+    it("parses human-readable time strings like '1 hour 45 minutes'", async () => {
+      mockRecipe.prep_time = "30 minutes" as any;
+      mockRecipe.cook_time = "1 hour 45 minutes" as any;
+      mockRecipe.total_time = "2 hours 15 minutes" as any;
+
+      const dto = await parseMealieRecipeToDTO(
+        mockRecipe,
+        mockIngredients,
+        mockInstructions,
+        lookups
+      );
+
+      expect(dto).not.toBeNull();
+      expect(dto!.prepMinutes).toBe(30);
+      expect(dto!.cookMinutes).toBe(105); // 1 hour 45 minutes = 105 minutes
+      expect(dto!.totalMinutes).toBe(135); // 2 hours 15 minutes = 135 minutes
+    });
+
+    it("parses abbreviated time strings like '1 hr', '20 mins'", async () => {
+      mockRecipe.prep_time = "20 mins" as any;
+      mockRecipe.cook_time = "1 hr" as any;
+      mockRecipe.total_time = null;
+
+      const dto = await parseMealieRecipeToDTO(
+        mockRecipe,
+        mockIngredients,
+        mockInstructions,
+        lookups
+      );
+
+      expect(dto).not.toBeNull();
+      expect(dto!.prepMinutes).toBe(20);
+      expect(dto!.cookMinutes).toBe(60); // 1 hr = 60 minutes
+      expect(dto!.totalMinutes).toBeUndefined();
+    });
+
     it("handles null time fields", async () => {
       mockRecipe.prep_time = null;
       mockRecipe.cook_time = null;
