@@ -412,6 +412,7 @@ export async function listRecipes(
       with: {
         recipeTags: {
           with: { tag: { columns: { id: true, name: true } } },
+          orderBy: (rt, { asc }) => [asc(rt.order)],
         },
         ratings: {
           columns: { rating: true },
@@ -499,6 +500,7 @@ export async function dashboardRecipe(id: string): Promise<RecipeDashboardDTO | 
         with: {
           tag: { columns: { id: true, name: true } },
         },
+        orderBy: (rt, { asc }) => [asc(rt.order)],
       },
       ratings: {
         columns: { rating: true },
@@ -687,6 +689,7 @@ export async function getRecipeFull(id: string): Promise<FullRecipeDTO | null> {
       recipeTags: {
         columns: {},
         with: { tag: { columns: { id: true, name: true } } },
+        orderBy: (rt, { asc }) => [asc(rt.order)],
       },
       ingredients: {
         columns: {

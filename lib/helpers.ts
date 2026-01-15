@@ -195,31 +195,32 @@ export function normalizeUrl(url: string): string {
 }
 
 /**
- * Sort tags with allergen tags appearing first, then alphabetically.
- * Uses case-insensitive matching for allergen detection.
+ * Sort tags with allergy priority - allergens first, then rest in original order.
  *
  * @param tags - Array of tag objects with a name property
  * @param allergies - Array of allergy tag names to prioritize
- * @returns Sorted array of tags (allergens first, then alphabetically)
+ * @returns Sorted array of tags (allergens first in original order, then non-allergens in original order)
  */
 export function sortTagsWithAllergyPriority<T extends { name: string }>(
   tags: T[],
   allergies: string[]
 ): T[] {
-  // Create a Set for O(1) lookup of allergen names (case-insensitive)
   const allergySet = new Set(allergies.map((a) => a.toLowerCase()));
 
-  return [...tags].sort((a, b) => {
-    const aIsAllergen = allergySet.has(a.name.toLowerCase());
-    const bIsAllergen = allergySet.has(b.name.toLowerCase());
+  // Separate allergens and non-allergens while preserving original order
+  const allergenTags: T[] = [];
+  const nonAllergenTags: T[] = [];
 
-    // Allergens come first
-    if (aIsAllergen && !bIsAllergen) return -1;
-    if (!aIsAllergen && bIsAllergen) return 1;
+  for (const tag of tags) {
+    if (allergySet.has(tag.name.toLowerCase())) {
+      allergenTags.push(tag);
+    } else {
+      nonAllergenTags.push(tag);
+    }
+  }
 
-    // Within same category, sort alphabetically
-    return a.name.localeCompare(b.name);
-  });
+  // Allergens first, then non-allergens - both in their original order
+  return [...allergenTags, ...nonAllergenTags];
 }
 
 /**

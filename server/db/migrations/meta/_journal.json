@@ -169,6 +169,13 @@
       "when": 1768287362442,
       "tag": "0023_curvy_pretty_boy",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1768483712689,
+      "tag": "0024_worried_lenny_balinger",
+      "breakpoints": true
     }
   ]
 }

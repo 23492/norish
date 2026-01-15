@@ -1,6 +1,6 @@
 import type { TagDto } from "@/types/dto/tag";
 
-import { eq, inArray, sql } from "drizzle-orm";
+import { asc, eq, inArray, sql } from "drizzle-orm";
 import z from "zod";
 
 import { db } from "@/server/db/drizzle";
@@ -125,11 +125,16 @@ export async function getOrCreateManyTagsTx(tx: any, names: string[]): Promise<T
 export async function attachTagsToRecipeTx(
   tx: any,
   recipeId: string,
-  tagIds: string[]
+  tagIds: string[],
+  startOrder: number = 0
 ): Promise<void> {
   if (!tagIds.length) return;
 
-  const rows = tagIds.map((tagId: string) => ({ recipeId, tagId }));
+  const rows = tagIds.map((tagId: string, index: number) => ({
+    recipeId,
+    tagId,
+    order: startOrder + index,
+  }));
 
   await tx.insert(recipeTags).values(rows).onConflictDoNothing();
 }
@@ -145,9 +150,28 @@ export async function attachTagsToRecipeByInputTx(
   if (!tagNames.length) return;
 
   const created = await getOrCreateManyTagsTx(tx, tagNames);
-  const ids = created.map((t) => t.id);
 
-  await attachTagsToRecipeTx(tx, recipeId, ids);
+  // Build a map from lowercase tag name to tag id for matching
+  const tagNameToId = new Map<string, string>();
+
+  for (const tag of created) {
+    tagNameToId.set(tag.name.toLowerCase(), tag.id);
+  }
+
+  // Create rows preserving the original order from tagNames
+  const rows = tagNames
+    .map((name, index) => {
+      const tagId = tagNameToId.get(name.toLowerCase());
+
+      if (!tagId) return null;
+
+      return { recipeId, tagId, order: index };
+    })
+    .filter((row): row is { recipeId: string; tagId: string; order: number } => row !== null);
+
+  if (rows.length > 0) {
+    await tx.insert(recipeTags).values(rows).onConflictDoNothing();
+  }
 }
 
 export async function getRecipeTagNames(recipeId: string): Promise<string[]> {
@@ -155,7 +179,8 @@ export async function getRecipeTagNames(recipeId: string): Promise<string[]> {
     .select({ name: tags.name })
     .from(recipeTags)
     .innerJoin(tags, eq(recipeTags.tagId, tags.id))
-    .where(eq(recipeTags.recipeId, recipeId));
+    .where(eq(recipeTags.recipeId, recipeId))
+    .orderBy(asc(recipeTags.order));
 
   return rows.map((r) => r.name);
 }
@@ -165,7 +190,8 @@ export async function getRecipeTagNamesTx(tx: any, recipeId: string): Promise<st
     .select({ name: tags.name })
     .from(recipeTags)
     .innerJoin(tags, eq(recipeTags.tagId, tags.id))
-    .where(eq(recipeTags.recipeId, recipeId));
+    .where(eq(recipeTags.recipeId, recipeId))
+    .orderBy(asc(recipeTags.order));
 
   return rows.map((r: { name: string }) => r.name);
 }

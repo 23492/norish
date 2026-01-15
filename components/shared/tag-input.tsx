@@ -1,10 +1,72 @@
 "use client";
 
 import React, { useState, useCallback, useMemo, useRef } from "react";
+import {
+  DndContext,
+  DragOverlay,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  horizontalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { motion, AnimatePresence } from "motion/react";
 import { XMarkIcon } from "@heroicons/react/16/solid";
 
 import { useTagsQuery } from "@/hooks/config";
+
+interface SortableTagItemProps {
+  tag: string;
+  onRemove: (tag: string) => void;
+}
+
+function SortableTagItem({ tag, onRemove }: SortableTagItemProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: tag,
+  });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      className="bg-primary/10 text-primary hover:bg-primary/20 inline-flex cursor-grab touch-none items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors active:cursor-grabbing"
+      style={style}
+      {...attributes}
+      {...listeners}
+    >
+      <span>{tag}</span>
+
+      {/* Remove button */}
+      <button
+        className="flex h-4 w-4 items-center justify-center rounded-full opacity-50 transition-opacity hover:opacity-100"
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemove(tag);
+        }}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        <XMarkIcon className="h-3 w-3" />
+      </button>
+    </div>
+  );
+}
 
 export interface TagInputProps {
   value: string[];
@@ -20,8 +82,51 @@ export default function TagInput({
   className = "",
 }: TagInputProps) {
   const [rawInput, setRawInput] = useState("");
+  const [activeId, setActiveId] = useState<string | null>(null);
   const { tags: allTags } = useTagsQuery();
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Configure sensors for mouse, touch, and keyboard
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      // Require 5px movement before activating (prevents accidental drags)
+      activationConstraint: {
+        distance: 5,
+      },
+    }),
+    useSensor(TouchSensor, {
+      // Press delay for touch to distinguish from scroll
+      activationConstraint: {
+        delay: 200,
+        tolerance: 5,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Handle drag start to track active item for overlay
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
+  }, []);
+
+  // Handle drag end to reorder tags
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+
+      setActiveId(null);
+
+      if (over && active.id !== over.id) {
+        const oldIndex = value.indexOf(active.id as string);
+        const newIndex = value.indexOf(over.id as string);
+
+        onChange(arrayMove(value, oldIndex, newIndex));
+      }
+    },
+    [value, onChange]
+  );
 
   // Parse all typed words (not just the current one)
   const typedWords = useMemo(() => {
@@ -160,31 +265,28 @@ export default function TagInput({
     <div className={className}>
       {/* Input area with inline tags */}
       <div className="group bg-default-100 hover:bg-default-200 transition-background data-[focus=true]:bg-default-100 flex min-h-[48px] flex-wrap items-center gap-2 rounded-xl px-3 py-2">
-        <AnimatePresence mode="popLayout">
-          {/* Selected tags */}
-          {value.map((tag) => {
-            return (
-              <motion.button
-                key={`selected-${tag}`}
-                animate={{ opacity: 1, scale: 1 }}
-                className="bg-primary/10 text-primary hover:bg-primary/20 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors"
-                exit={{ opacity: 0, scale: 0.8 }}
-                initial={{ opacity: 0, scale: 0.8 }}
-                transition={{
-                  type: "spring",
-                  stiffness: 500,
-                  damping: 35,
-                  mass: 0.5,
-                }}
-                type="button"
-                onClick={() => handleRemoveTag(tag)}
-              >
-                {tag}
-                <XMarkIcon className="h-3 w-3" />
-              </motion.button>
-            );
-          })}
-        </AnimatePresence>
+        <DndContext
+          collisionDetection={closestCenter}
+          sensors={sensors}
+          onDragEnd={handleDragEnd}
+          onDragStart={handleDragStart}
+        >
+          <SortableContext items={value} strategy={horizontalListSortingStrategy}>
+            {/* Selected tags - sortable */}
+            {value.map((tag) => (
+              <SortableTagItem key={tag} tag={tag} onRemove={handleRemoveTag} />
+            ))}
+          </SortableContext>
+
+          {/* Drag overlay - shows the tag following the cursor */}
+          <DragOverlay>
+            {activeId ? (
+              <div className="bg-primary/20 text-primary inline-flex cursor-grabbing items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium shadow-lg">
+                <span>{activeId}</span>
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
 
         <input
           ref={inputRef}
