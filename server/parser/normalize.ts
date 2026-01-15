@@ -2,7 +2,7 @@
  * JSON-LD Recipe Normalization
  *
  * This module orchestrates the parsing of different recipe components:
- * - Metadata 
+ * - Metadata
  * - Ingredients
  * - Steps/Instructions
  * - Nutrition information
@@ -95,6 +95,7 @@ export async function normalizeRecipeFromJson(
 
   // --- VIDEOS (from VideoObject in JSON-LD) ---
   const { videos } = await parseVideos(jsonObj.video, effectiveRecipeId);
+
   if (videos.length > 0) {
     log.debug({ count: videos.length }, "Parsed videos from JSON-LD");
   }

@@ -69,6 +69,7 @@ function formatDuration(seconds: number | null | undefined): string {
   if (seconds == null || seconds <= 0) return "";
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
+
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
@@ -235,6 +236,7 @@ export default function MediaGalleryInput({
   const getVideoDuration = (file: File): Promise<number | undefined> => {
     return new Promise((resolve) => {
       const video = document.createElement("video");
+
       video.preload = "metadata";
 
       video.onloadedmetadata = () => {
@@ -259,6 +261,7 @@ export default function MediaGalleryInput({
       if (!isVideo && !isImage) {
         setUploadError("Invalid file type");
         setTimeout(() => setUploadError(null), 3000);
+
         return;
       }
 
@@ -266,12 +269,14 @@ export default function MediaGalleryInput({
       if (isImage && imageCount >= maxImages) {
         setUploadError(`Maximum ${maxImages} images allowed`);
         setTimeout(() => setUploadError(null), 3000);
+
         return;
       }
 
       if (isVideo && videoCount >= maxVideos) {
         setUploadError(`Maximum ${maxVideos} videos allowed`);
         setTimeout(() => setUploadError(null), 3000);
+
         return;
       }
 

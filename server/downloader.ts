@@ -883,6 +883,7 @@ function extFromVideoBuffer(buf: Buffer): string | undefined {
     buf[7] === 0x70
   ) {
     const brand = buf.slice(8, 12).toString("ascii");
+
     // Common MP4 brands
     if (
       brand === "isom" ||
@@ -899,6 +900,7 @@ function extFromVideoBuffer(buf: Buffer): string | undefined {
     if (brand === "qt  " || brand === "moov") {
       return ".mov";
     }
+
     // Default to mp4 for ftyp containers
     return ".mp4";
   }
@@ -935,10 +937,12 @@ export async function saveVideoBytes(
 
   // Detect extension from magic bytes or use provided
   let ext = extFromVideoBuffer(bytes);
+
   if (!ext && originalExt) {
     const normalizedExt = originalExt.startsWith(".")
       ? originalExt.toLowerCase()
       : `.${originalExt.toLowerCase()}`;
+
     if (ALLOWED_VIDEO_EXTS.has(normalizedExt)) {
       ext = normalizedExt;
     }
