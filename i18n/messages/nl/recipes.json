@@ -108,7 +108,10 @@
     "addImage": "Afbeelding toevoegen",
     "uploading": "Bezig met uploaden...",
     "uploadFailed": "Upload mislukt",
-    "dragToReorder": "Sleep afbeeldingen om te herordenen"
+    "dragToReorder": "Sleep afbeeldingen om te herordenen",
+    "maxImagesReached": "Maximaal {max} afbeeldingen toegestaan",
+    "maxVideosReached": "Maximaal {max} video's toegestaan",
+    "invalidFileType": "Ongeldig bestandstype"
   },
   "carousel": {
     "noImageAvailable": "Geen afbeelding beschikbaar",

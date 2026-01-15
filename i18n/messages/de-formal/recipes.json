@@ -108,7 +108,10 @@
     "addImage": "Bild hinzufügen",
     "uploading": "Wird hochgeladen...",
     "uploadFailed": "Hochladen fehlgeschlagen",
-    "dragToReorder": "Ziehe Bilder, um sie neu zu ordnen"
+    "dragToReorder": "Ziehe Bilder, um sie neu zu ordnen",
+    "maxImagesReached": "Maximal {max} Bilder erlaubt",
+    "maxVideosReached": "Maximal {max} Videos erlaubt",
+    "invalidFileType": "Ungültiger Dateityp"
   },
   "carousel": {
     "noImageAvailable": "Kein Bild verfügbar",
