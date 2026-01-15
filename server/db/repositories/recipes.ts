@@ -539,8 +539,9 @@ export async function createRecipeWithRefs(
 ): Promise<string | null> {
   const parsed = FullRecipeInsertSchema.safeParse(input);
 
+  console.log(parsed);
   if (!parsed.success) {
-    throw new Error("Invalid FullRecipeInsertDTO");
+    throw new Error("Could not parse recipe data.");
   }
 
   const payload = parsed.data;

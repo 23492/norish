@@ -122,6 +122,7 @@
   "formatting": {
     "title": "Formatierungstipps",
     "heading": "Starte eine Zeile mit <strong>#</strong> für eine Überschrift",
+    "bold": "Umgebe Text mit <strong>**doppelten Sternchen**</strong> für fett",
     "recipeLink": "Gib <strong>/Rezeptname</strong> ein, um zu einem anderen Rezept zu verlinken",
     "helpAriaLabel": "Formatierungshilfe"
   },

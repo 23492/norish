@@ -49,6 +49,7 @@ vi.mock("@/config/env-config-server", () => ({
     MASTER_KEY: "QmFzZTY0RW5jb2RlZE1hc3RlcktleU1pbjMyQ2hhcnM=",
     REDIS_URL: "redis://localhost:6379",
     UPLOADS_DIR: "/tmp/uploads",
+    YT_DLP_BIN_DIR: "/tmp/bin",
   },
 }));
 
@@ -120,13 +121,17 @@ vi.mock("@/server/queue/config", () => ({
 }));
 
 // Mock logger
+const mockLogger = {
+  info: vi.fn(),
+  debug: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  child: vi.fn(() => mockLogger),
+};
+
 vi.mock("@/server/logger", () => ({
-  createLogger: vi.fn(() => ({
-    info: vi.fn(),
-    debug: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  })),
+  createLogger: vi.fn(() => mockLogger),
+  parserLogger: mockLogger,
 }));
 
 // Mock DB functions

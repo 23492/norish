@@ -172,7 +172,7 @@ export async function parseRecipeFromUrl(
   const recipe = await extractWithAIPreference(html, recipeId, url, allergies, false);
 
   if (recipe) return { recipe, usedAI: true };
-
+  
   log.error({ url }, "All extraction methods failed");
   throw new Error("Cannot parse recipe.");
 }

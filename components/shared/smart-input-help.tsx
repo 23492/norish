@@ -30,6 +30,12 @@ export default function SmartInputHelp() {
             </li>
             <li className="flex items-start gap-2">
               <code className="bg-default-100 text-primary rounded px-1.5 py-0.5 font-mono text-xs">
+                **
+              </code>
+              <span dangerouslySetInnerHTML={{ __html: t.raw("bold") }} />
+            </li>
+            <li className="flex items-start gap-2">
+              <code className="bg-default-100 text-primary rounded px-1.5 py-0.5 font-mono text-xs">
                 /
               </code>
               <span dangerouslySetInnerHTML={{ __html: t.raw("recipeLink") }} />

@@ -122,6 +122,7 @@
   "formatting": {
     "title": "Formatting Tips",
     "heading": "Start a line with <strong>#</strong> for a heading",
+    "bold": "Wrap in <strong>**double asterisks**</strong> for bold",
     "recipeLink": "Type <strong>/recipe name</strong> to link to another recipe",
     "helpAriaLabel": "Formatting help"
   },

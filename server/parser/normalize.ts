@@ -1,264 +1,127 @@
+/**
+ * JSON-LD Recipe Normalization
+ *
+ * This module orchestrates the parsing of different recipe components:
+ * - Metadata 
+ * - Ingredients
+ * - Steps/Instructions
+ * - Nutrition information
+ * - Images
+ * - Videos
+ */
+
+import type { FullRecipeInsertDTO } from "@/types/dto/recipe";
+
 import { randomUUID } from "crypto";
 
-import { decode } from "html-entities";
+import {
+  extractNutrition,
+  parseIngredients,
+  parseSteps,
+  parseImages,
+  parseVideos,
+  parseMetadata,
+  getServings,
+} from "./parsers";
 
-import { parseIsoDuration, parseIngredientWithDefaults } from "@/lib/helpers";
-import { downloadAllImagesFromJsonLd } from "@/server/downloader";
-import { FullRecipeInsertDTO } from "@/types/dto/recipe";
-import { inferSystemUsedFromParsed } from "@/lib/determine-recipe-system";
 import { getUnits } from "@/config/server-config-loader";
-import { MAX_RECIPE_IMAGES } from "@/server/db/zodSchemas";
+import { parserLogger } from "@/server/logger";
 
-function parseNutritionValue(value: unknown): number | null {
-  if (value == null) return null;
-  if (typeof value === "number") return value;
-  if (typeof value === "string") {
-    // Extract numeric portion (handles "300 kcal", "25g", "25 grams", etc.)
-    const match = value.match(/^[\d.,]+/);
+// Re-export getServings for backward compatibility (used by mela-parser.ts)
+export { getServings };
 
-    if (match) {
-      const parsed = parseFloat(match[0].replace(",", "."));
+const log = parserLogger.child({ module: "normalize" });
 
-      return Number.isFinite(parsed) ? parsed : null;
-    }
-  }
+/**
+ * Parse tags/keywords from JSON-LD.
+ *
+ * @param keywords - The keywords field from JSON-LD
+ * @returns Array of tag objects
+ */
+function parseTags(keywords: unknown): { name: string }[] {
+  if (!Array.isArray(keywords)) return [];
 
-  return null;
+  return keywords
+    .filter((k): k is string => typeof k === "string")
+    .map((k) => ({ name: k.toLowerCase() }));
 }
 
-function extractNutrition(json: any): {
-  calories: number | null;
-  fat: string | null;
-  carbs: string | null;
-  protein: string | null;
-} {
-  const nutrition = json?.nutrition;
-
-  if (!nutrition || typeof nutrition !== "object") {
-    return { calories: null, fat: null, carbs: null, protein: null };
-  }
-
-  const calories = parseNutritionValue(nutrition.calories || nutrition.calorieContent);
-  const fat = parseNutritionValue(nutrition.fatContent || nutrition.fat);
-  const carbs = parseNutritionValue(nutrition.carbohydrateContent || nutrition.carbs);
-  const protein = parseNutritionValue(nutrition.proteinContent || nutrition.protein);
-
-  return {
-    calories,
-    fat: fat != null ? fat.toString() : null,
-    carbs: carbs != null ? carbs.toString() : null,
-    protein: protein != null ? protein.toString() : null,
-  };
-}
-
+/**
+ * Normalize a JSON-LD Recipe node into a FullRecipeInsertDTO.
+ *
+ * This is the main entry point for recipe normalization. It:
+ * 1. Parses metadata (name, description, timing, servings)
+ * 2. Parses ingredients and infers the measurement system
+ * 3. Parses steps/instructions
+ * 4. Extracts nutrition information
+ * 5. Downloads and processes images
+ * 6. Downloads and processes videos from VideoObject
+ * 7. Assembles the final DTO
+ *
+ * @param json - The JSON-LD Recipe node
+ * @param recipeId - Optional recipe ID (generates UUID if not provided)
+ * @returns The normalized recipe DTO, or null if json is falsy
+ */
 export async function normalizeRecipeFromJson(
-  json: any,
+  json: unknown,
   recipeId?: string
 ): Promise<FullRecipeInsertDTO | null> {
   if (!json) return null;
 
-  // Generate a recipe ID if not provided - needed for image storage paths
+  const jsonObj = json as Record<string, unknown>;
+
+  // Generate a recipe ID if not provided, needed for image storage paths
   const effectiveRecipeId = recipeId ?? randomUUID();
+
+  log.debug({ recipeId: effectiveRecipeId }, "Normalizing recipe from JSON-LD");
+  log.debug({ json: jsonObj }, "Recipe JSON-LD content");
+  // Get unit configuration for ingredient parsing
   const units = await getUnits();
 
+  // --- METADATA ---
+  const metadata = parseMetadata(jsonObj);
+
   // --- INGREDIENTS ---
-  const ingSource = json.recipeIngredient ?? json.ingredients;
-  const ingredients = Array.isArray(ingSource)
-    ? parseIngredientWithDefaults(
-        ingSource.map((v: any) => decode(v?.toString() || "")).filter(Boolean),
-        units
-      )
-    : typeof ingSource === "string"
-      ? parseIngredientWithDefaults(decode(ingSource.toString()), units)
-      : [];
+  const { ingredients: recipeIngredients, systemUsed } = parseIngredients(jsonObj, units);
 
-  const systemUsed = inferSystemUsedFromParsed(ingredients);
-
-  // --- STEPS ---
-  const rawSteps: string[] = [];
-  const collectSteps = (node: any) => {
-    if (!node) return;
-
-    if (typeof node === "string") {
-      const s = decode(node).trim();
-
-      if (s) rawSteps.push(s);
-
-      return;
-    }
-
-    if (Array.isArray(node)) {
-      node.forEach(collectSteps);
-
-      return;
-    }
-
-    if (typeof node === "object") {
-      const obj: any = node;
-      const type = String(obj["@type"] ?? obj.type ?? "").toLowerCase();
-      const item = obj.item && typeof obj.item === "object" ? obj.item : undefined;
-      const text =
-        typeof obj.text === "string"
-          ? obj.text
-          : item && typeof item.text === "string"
-            ? item.text
-            : undefined;
-      const name =
-        typeof obj.name === "string"
-          ? obj.name
-          : item && typeof item.name === "string"
-            ? item.name
-            : undefined;
-      const chosen = decode((text || name || "").toString()).trim();
-
-      if (chosen) {
-        if (
-          type.includes("howtostep") ||
-          type.includes("howtodirection") ||
-          type.includes("listitem") ||
-          (!obj.itemListElement && !obj.item)
-        ) {
-          rawSteps.push(chosen);
-        }
-      }
-
-      if (obj.itemListElement) collectSteps(obj.itemListElement);
-      if (obj.item) collectSteps(obj.item);
-    }
-  };
-
-  collectSteps(json?.recipeInstructions);
-
-  // --- Deduplicate + preserve order ---
-  const seenSteps = new Set<string>();
-  const steps = rawSteps
-    .filter((s) => {
-      const k = s?.trim();
-
-      if (!k) return false;
-
-      const key = k.toLowerCase();
-
-      if (seenSteps.has(key)) return false;
-
-      seenSteps.add(key);
-
-      return true;
-    })
-    .map((t, i) => ({
-      step: t,
-      systemUsed,
-      order: i + 1,
-    }));
-
-  const imageField = json.image;
-
-  // Handle images - check if they're already downloaded (local paths) or need downloading
-  let downloadedImages: string[] = [];
-
-  if (imageField) {
-    // Check if image is already a local web path (from video parsing/pre-download)
-    const isLocalPath = (img: unknown): img is string =>
-      typeof img === "string" && img.startsWith("/recipes/");
-
-    if (isLocalPath(imageField)) {
-      // Single pre-downloaded image
-      downloadedImages = [imageField];
-    } else if (Array.isArray(imageField)) {
-      // Check if all are local paths
-      const localPaths = imageField.filter(isLocalPath);
-      const remotePaths = imageField.filter((img) => !isLocalPath(img));
-
-      // Use local paths directly, download remote ones
-      downloadedImages = [...localPaths];
-      if (remotePaths.length > 0) {
-        const downloaded = await downloadAllImagesFromJsonLd(
-          remotePaths,
-          effectiveRecipeId,
-          MAX_RECIPE_IMAGES - localPaths.length
-        );
-
-        downloadedImages.push(...downloaded);
-      }
-    } else {
-      // Remote URLs - download them
-      downloadedImages = await downloadAllImagesFromJsonLd(
-        imageField,
-        effectiveRecipeId,
-        MAX_RECIPE_IMAGES
-      );
-    }
-  }
-
-  // First image becomes the legacy `image` field for backwards compatibility
-  const primaryImage = downloadedImages.length > 0 ? downloadedImages[0] : undefined;
-
-  // Build images array with order
-  const imagesArray = downloadedImages.map((img, index) => ({
-    image: img,
-    order: index,
-  }));
-
-  // Parse servings from recipeYield
-  let servings: number | undefined = undefined;
-
-  if (json.recipeYield) {
-    if (typeof json.recipeYield === "number") {
-      servings = json.recipeYield;
-    } else if (typeof json.recipeYield === "string") {
-      const match = json.recipeYield.match(/\d+/);
-
-      if (match) {
-        servings = parseInt(match[0], 10);
-      }
-    }
-  }
+  // --- STEPS (with HowToSection heading support and bold step names) ---
+  const steps = parseSteps(jsonObj.recipeInstructions, systemUsed);
 
   // --- NUTRITION ---
-  const nutrition = extractNutrition(json);
+  const nutrition = extractNutrition(jsonObj);
 
-  const coreMaybe: Partial<FullRecipeInsertDTO> = {
-    name: json.name ?? json.headline,
-    image: primaryImage,
-    url: "",
-    description: typeof json.description === "string" ? json.description : undefined,
-    servings,
-    steps,
-    systemUsed,
-    prepMinutes: json.prepTime ? parseIsoDuration(json.prepTime) : undefined,
-    cookMinutes: json.cookTime ? parseIsoDuration(json.cookTime) : undefined,
-    totalMinutes: json.totalTime ? parseIsoDuration(json.totalTime) : undefined,
-    ...nutrition,
-  };
+  // --- IMAGES ---
+  const { images, primaryImage } = await parseImages(jsonObj.image, effectiveRecipeId);
+
+  // --- VIDEOS (from VideoObject in JSON-LD) ---
+  const { videos } = await parseVideos(jsonObj.video, effectiveRecipeId);
+  if (videos.length > 0) {
+    log.debug({ count: videos.length }, "Parsed videos from JSON-LD");
+  }
+
+  // --- TAGS ---
+  const tags = parseTags(jsonObj.keywords);
 
   // --- FINAL STRUCTURE ---
   return {
-    name: (coreMaybe.name as string) || "Untitled recipe",
-    description: coreMaybe.description,
-    url: coreMaybe.url,
-    image: coreMaybe.image,
-    servings: coreMaybe.servings as any,
-    prepMinutes: coreMaybe.prepMinutes as any,
-    cookMinutes: coreMaybe.cookMinutes as any,
-    totalMinutes: coreMaybe.totalMinutes as any,
-    calories: coreMaybe.calories ?? null,
-    fat: coreMaybe.fat ?? null,
-    carbs: coreMaybe.carbs ?? null,
-    protein: coreMaybe.protein ?? null,
-    systemUsed,
-    steps: Array.isArray(coreMaybe.steps) ? (coreMaybe.steps as any) : steps,
-    recipeIngredients: ingredients.map((ing, i) => ({
-      ingredientId: null,
-      ingredientName: ing.description,
-      amount: ing.quantity != null ? ing.quantity : null,
-      unit: ing.unitOfMeasureID,
-      systemUsed,
-      order: i,
-    })),
-    tags: Array.isArray(json.keywords)
-      ? json.keywords.map((k: string) => ({ name: k.toLowerCase() }))
-      : [],
-    images: imagesArray,
     id: effectiveRecipeId,
+    name: metadata.name,
+    description: metadata.description,
+    url: "",
+    image: primaryImage,
+    servings: metadata.servings,
+    prepMinutes: metadata.prepMinutes,
+    cookMinutes: metadata.cookMinutes,
+    totalMinutes: metadata.totalMinutes,
+    calories: nutrition.calories,
+    fat: nutrition.fat,
+    carbs: nutrition.carbs,
+    protein: nutrition.protein,
+    systemUsed,
+    steps,
+    recipeIngredients,
+    tags,
+    images,
+    videos,
   };
 }
