@@ -149,6 +149,7 @@ export default function RecipeGrid() {
       }
 
       const recipe = item as RecipeDashboardDTO;
+
       return (
         <RecipeCard
           key={`recipe-${recipe.id}`}

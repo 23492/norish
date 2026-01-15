@@ -12,7 +12,7 @@ export function useFavoritesQuery() {
 
   const query = useQuery(trpc.favorites.list.queryOptions());
 
-  const favoriteIds = query.data?.favoriteIds ?? [];
+  const favoriteIds = useMemo(() => query.data?.favoriteIds ?? [], [query.data?.favoriteIds]);
   const favoriteSet = useMemo(() => new Set(favoriteIds), [favoriteIds]);
 
   const isFavorite = useCallback(

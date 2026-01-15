@@ -31,6 +31,7 @@ export function useAutoHide({
 
   // Store disabled in ref to avoid callback dependency changes
   const disabledRef = useRef(disabled);
+
   disabledRef.current = disabled;
 
   // Check if page is scrollable
@@ -38,6 +39,7 @@ export function useAutoHide({
     const checkScrollable = () => {
       const hasVerticalScroll = document.documentElement.scrollHeight > window.innerHeight;
       const wasScrollable = isScrollableRef.current;
+
       isScrollableRef.current = hasVerticalScroll;
 
       // If became non-scrollable, show navbar
@@ -99,12 +101,14 @@ export function useAutoHide({
 
     if (disabledRef.current || !isScrollableRef.current) {
       lastScrollY.current = latest;
+
       return;
     }
 
     // Ignore scroll events during route change scroll restoration
     if (Date.now() < ignoreScrollUntil.current) {
       lastScrollY.current = latest;
+
       return;
     }
 
@@ -112,6 +116,7 @@ export function useAutoHide({
     if (latest < topOffset) {
       show();
       lastScrollY.current = latest;
+
       return;
     }
 

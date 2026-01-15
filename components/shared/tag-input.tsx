@@ -52,7 +52,7 @@ function SortableTagItem({ tag, onEdit }: SortableTagItemProps) {
         e.stopPropagation();
         onEdit(tag);
       }}
-      onPointerDown={(e) => {
+      onPointerDown={(_e) => {
         // Allow drag to start, but also allow click
         // The PointerSensor distance constraint handles this
       }}

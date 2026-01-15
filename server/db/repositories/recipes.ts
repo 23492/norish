@@ -551,7 +551,7 @@ export async function createRecipeWithRefs(
 ): Promise<string | null> {
   const parsed = FullRecipeInsertSchema.safeParse(input);
 
-  console.log(parsed);
+  dbLogger.debug({ parsed }, "Parsed full recipe insert");
   if (!parsed.success) {
     throw new Error("Could not parse recipe data.");
   }

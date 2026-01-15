@@ -3,6 +3,7 @@ import crypto from "crypto";
 import JSZip from "jszip";
 
 import { saveImageBytes } from "../downloader";
+
 import { parseHumanDurationToMinutes } from "./parser-helpers";
 
 import { serverLogger as log } from "@/server/logger";
@@ -529,12 +530,14 @@ export async function parseMealieRecipeToDTO(
     // Handle string values - try human-readable parsing first (e.g., "1 hour 45 minutes")
     // then fall back to parseInt for simple numeric strings (e.g., "30")
     const humanParsed = parseHumanDurationToMinutes(val);
+
     if (humanParsed !== undefined) {
       return humanParsed;
     }
 
     // Fallback to parseInt for simple numeric strings
     const num = parseInt(val, 10);
+
     return Number.isFinite(num) && num > 0 ? num : undefined;
   };
 

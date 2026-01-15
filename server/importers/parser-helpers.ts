@@ -17,10 +17,12 @@ export function parseHumanDurationToMinutes(s?: string | null): number | undefin
   // First, try to match colon-based time format: "1:30", "1:00h", "01:30", "1:00 h"
   // Format: HH:MM or H:MM, optionally followed by 'h' or 'hr'
   const colonMatch = lower.match(/^(\d{1,2}):(\d{2})\s*(?:h|hr)?$/i);
+
   if (colonMatch) {
     const hours = parseInt(colonMatch[1], 10);
     const minutes = parseInt(colonMatch[2], 10);
     const total = hours * 60 + minutes;
+
     return Number.isFinite(total) && total > 0 ? total : undefined;
   }
 
