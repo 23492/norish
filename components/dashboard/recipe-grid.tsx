@@ -13,7 +13,6 @@ import NoRecipesText from "./no-recipes-text";
 import NoRecipeResults from "./no-recipe-results";
 
 import { useRecipesContext } from "@/context/recipes-context";
-import { useRecipesFiltersContext } from "@/context/recipes-filters-context";
 import { useScrollRestoration } from "@/hooks/use-scroll-restoration";
 import { useContainerColumns } from "@/hooks/use-container-columns";
 
@@ -28,9 +27,11 @@ export default function RecipeGrid() {
     hasMore: _hasMore,
     loadMore,
     pendingRecipeIds,
+    hasAppliedFilters,
+    clearFilters,
+    filterKey,
   } = useRecipesContext();
-  const { filters, clearFilters } = useRecipesFiltersContext();
-  const { saveScrollState, getScrollState } = useScrollRestoration(filters);
+  const { saveScrollState, getScrollState } = useScrollRestoration(filterKey);
 
   const [showSkeleton, setShowSkeleton] = useState(false);
   const [isLoadedOnce, setIsLoadedOnce] = useState(false);
@@ -131,14 +132,6 @@ export default function RecipeGrid() {
       return () => clearTimeout(timeout);
     }
   }, [isLoading, recipes.length, isLoadedOnce]);
-
-  // Check for empty states
-  const hasAppliedFilters = useMemo(() => {
-    const hasSearch = filters.rawInput.trim().length > 0;
-    const hasTags = filters.searchTags.length > 0;
-
-    return hasSearch || hasTags;
-  }, [filters.rawInput, filters.searchTags]);
 
   const showEmptyState = !isLoading && displayData.length === 0;
 

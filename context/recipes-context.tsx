@@ -29,6 +29,11 @@ type Ctx = {
   // Allergies (lifted from useActiveAllergies to avoid per-card observers)
   allergies: string[];
 
+  // Filters (lifted to avoid RecipeGrid subscribing to filters context directly)
+  hasAppliedFilters: boolean;
+  clearFilters: () => void;
+  filterKey: string; // Stable key for scroll restoration
+
   // Actions (all void - fire and forget)
   loadMore: () => void;
   importRecipe: (url: string) => void;
@@ -45,7 +50,7 @@ const RecipesContext = createContext<Ctx | null>(null);
 
 export function RecipesContextProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const { filters } = useRecipesFiltersContext();
+  const { filters, clearFilters } = useRecipesFiltersContext();
 
   // Map filters from context to query format
   const queryFilters = useMemo(
@@ -59,6 +64,9 @@ export function RecipesContextProvider({ children }: { children: ReactNode }) {
     }),
     [filters]
   );
+
+  // Stable key for scroll restoration - changes when filters change
+  const filterKey = useMemo(() => JSON.stringify(queryFilters), [queryFilters]);
 
   const {
     recipes: allRecipes,
@@ -149,6 +157,14 @@ export function RecipesContextProvider({ children }: { children: ReactNode }) {
     [updateRecipeMutation, router]
   );
 
+  // Derived state for empty state check
+  const hasAppliedFilters = useMemo(() => {
+    const hasSearch = filters.rawInput.trim().length > 0;
+    const hasTags = filters.searchTags.length > 0;
+
+    return hasSearch || hasTags;
+  }, [filters.rawInput, filters.searchTags]);
+
   const value = useMemo<Ctx>(
     () => ({
       recipes,
@@ -162,6 +178,9 @@ export function RecipesContextProvider({ children }: { children: ReactNode }) {
       isFavorite,
       toggleFavorite,
       allergies,
+      hasAppliedFilters,
+      clearFilters,
+      filterKey,
       loadMore,
       importRecipe,
       importRecipeWithAI,
@@ -183,6 +202,9 @@ export function RecipesContextProvider({ children }: { children: ReactNode }) {
       isFavorite,
       toggleFavorite,
       allergies,
+      hasAppliedFilters,
+      clearFilters,
+      filterKey,
       loadMore,
       importRecipe,
       importRecipeWithAI,

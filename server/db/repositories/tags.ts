@@ -12,11 +12,13 @@ const TagArraySchema = z.array(TagSelectBaseSchema);
 
 export async function listAllTagNames(): Promise<string[]> {
   // Only return tags that are actually used by at least one recipe
+  // NOTE: PostgreSQL's SELECT DISTINCT requires ORDER BY expressions to be in the select list
+  const lowerName = sql<string>`lower(${tags.name})`.as("lower_name");
   const rows = await db
-    .selectDistinct({ name: tags.name })
+    .selectDistinct({ name: tags.name, lowerName })
     .from(tags)
     .innerJoin(recipeTags, eq(tags.id, recipeTags.tagId))
-    .orderBy(sql`lower(${tags.name})`);
+    .orderBy(lowerName);
 
   return rows.map((r) => r.name).filter(Boolean);
 }

@@ -10,35 +10,17 @@ interface ScrollState {
 
 const scrollStateStore = new Map<string, ScrollState>();
 
-export function useScrollRestoration<T extends Record<string, any>>(filters: T) {
-  const getFilterHash = useCallback(() => {
-    const entries = Object.entries(filters)
-      .sort(([keyA], [keyB]) => keyA.localeCompare(keyB))
-      .map(([key, value]) => {
-        if (Array.isArray(value)) {
-          return `${key}:${value.sort().join(",")}`;
-        }
-
-        return `${key}:${value}`;
-      });
-
-    return entries.join("|");
-  }, [filters]);
-
+export function useScrollRestoration(filterKey: string) {
   const saveScrollState = useCallback(
     (scrollOffset: number, measurementsCache: VirtualItem[]) => {
-      const hash = getFilterHash();
-
-      scrollStateStore.set(hash, { scrollOffset, measurementsCache });
+      scrollStateStore.set(filterKey, { scrollOffset, measurementsCache });
     },
-    [getFilterHash]
+    [filterKey]
   );
 
   const getScrollState = useCallback((): ScrollState | undefined => {
-    const hash = getFilterHash();
-
-    return scrollStateStore.get(hash);
-  }, [getFilterHash]);
+    return scrollStateStore.get(filterKey);
+  }, [filterKey]);
 
   return {
     saveScrollState,

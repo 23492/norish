@@ -262,75 +262,85 @@ export async function listRecipes(
   if (search && searchFields.length > 0) {
     // Convert search terms to tsquery format with prefix matching
     // Each term gets :* suffix for partial word matching (e.g., "om" matches "oma")
+    // Sanitize terms to remove PostgreSQL tsquery special characters: & | ! ( ) : * \ ' "
+    const sanitizeTsqueryTerm = (term: string): string =>
+      term.replace(/[&|!():<>*\\'"]/g, "").trim();
+
     const searchTerms = search
       .trim()
       .split(/\s+/)
+      .map(sanitizeTsqueryTerm)
       .filter((t) => t.length > 0)
       .map((t) => `${t}:*`)
       .join(" | ");
 
-    // Build weighted tsvector components based on selected fields
-    const tsvectorParts: ReturnType<typeof sql>[] = [];
+    // Skip search if all terms were filtered out (e.g., search was only special characters)
+    if (!searchTerms) {
+      // Fall through without adding search conditions
+    } else {
+      // Build weighted tsvector components based on selected fields
+      const tsvectorParts: ReturnType<typeof sql>[] = [];
 
-    for (const field of searchFields) {
-      switch (field) {
-        case "title":
-          // Weight A (highest) for title
-          tsvectorParts.push(
-            sql`setweight(to_tsvector('simple', coalesce(${recipes.name}, '')), 'A')`
-          );
-          break;
-        case "tags":
-          // Weight B for tags - aggregate from related table
-          tsvectorParts.push(
-            sql`setweight(to_tsvector('simple', coalesce((
+      for (const field of searchFields) {
+        switch (field) {
+          case "title":
+            // Weight A (highest) for title
+            tsvectorParts.push(
+              sql`setweight(to_tsvector('simple', coalesce(${recipes.name}, '')), 'A')`
+            );
+            break;
+          case "tags":
+            // Weight B for tags - aggregate from related table
+            tsvectorParts.push(
+              sql`setweight(to_tsvector('simple', coalesce((
               SELECT string_agg(t.name, ' ')
               FROM ${recipeTags} rt
               INNER JOIN ${tags} t ON rt.tag_id = t.id
               WHERE rt.recipe_id = ${recipes.id}
             ), '')), 'B')`
-          );
-          break;
-        case "ingredients":
-          // Weight C for ingredients - aggregate from related table
-          tsvectorParts.push(
-            sql`setweight(to_tsvector('simple', coalesce((
+            );
+            break;
+          case "ingredients":
+            // Weight C for ingredients - aggregate from related table
+            tsvectorParts.push(
+              sql`setweight(to_tsvector('simple', coalesce((
               SELECT string_agg(i.name, ' ')
               FROM ${recipeIngredients} ri
               INNER JOIN ${ingredients} i ON ri.ingredient_id = i.id
               WHERE ri.recipe_id = ${recipes.id}
             ), '')), 'C')`
-          );
-          break;
-        case "description":
-          // Weight D for description
-          tsvectorParts.push(
-            sql`setweight(to_tsvector('simple', coalesce(${recipes.description}, '')), 'D')`
-          );
-          break;
-        case "steps":
-          // Weight D for steps - aggregate from related table
-          tsvectorParts.push(
-            sql`setweight(to_tsvector('simple', coalesce((
+            );
+            break;
+          case "description":
+            // Weight D for description
+            tsvectorParts.push(
+              sql`setweight(to_tsvector('simple', coalesce(${recipes.description}, '')), 'D')`
+            );
+            break;
+          case "steps":
+            // Weight D for steps - aggregate from related table
+            tsvectorParts.push(
+              sql`setweight(to_tsvector('simple', coalesce((
               SELECT string_agg(s.step, ' ')
               FROM ${stepsTable} s
               WHERE s.recipe_id = ${recipes.id}
             ), '')), 'D')`
-          );
-          break;
+            );
+            break;
+        }
       }
-    }
 
-    if (tsvectorParts.length > 0) {
-      // Combine all tsvector parts with ||
-      const combinedTsvector = sql.join(tsvectorParts, sql` || `);
-      const tsQuery = sql`to_tsquery('simple', ${searchTerms})`;
+      if (tsvectorParts.length > 0) {
+        // Combine all tsvector parts with ||
+        const combinedTsvector = sql.join(tsvectorParts, sql` || `);
+        const tsQuery = sql`to_tsquery('simple', ${searchTerms})`;
 
-      // Add search condition using @@ operator
-      whereConditions.push(sql`(${combinedTsvector}) @@ ${tsQuery}`);
+        // Add search condition using @@ operator
+        whereConditions.push(sql`(${combinedTsvector}) @@ ${tsQuery}`);
 
-      // Build rank expression for ordering
-      searchRank = sql<number>`ts_rank(${combinedTsvector}, ${tsQuery})`;
+        // Build rank expression for ordering
+        searchRank = sql<number>`ts_rank(${combinedTsvector}, ${tsQuery})`;
+      }
     }
   }
 
