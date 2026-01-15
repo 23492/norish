@@ -5,7 +5,6 @@ import { useDebounceValue } from "usehooks-ts";
 import { Input } from "@heroui/react";
 import { MagnifyingGlassIcon } from "@heroicons/react/16/solid";
 import { useTranslations } from "next-intl";
-import { AnimatePresence, motion } from "motion/react";
 
 import Filters from "../shared/filters";
 
@@ -130,19 +129,17 @@ export default function SearchInput() {
         />
         <Filters isGlass={false} />
       </div>
-      <AnimatePresence initial={false}>
-        {showFieldToggles && (
-          <motion.div
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            initial={{ opacity: 0, height: 0 }}
-            style={{ overflow: "hidden" }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-          >
-            <SearchFieldToggles scrollable className="px-1 pb-1" onInteraction={resetHideTimer} />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Use grid for height animation - avoids layout thrashing on desktop */}
+      <div
+        className="grid transition-[grid-template-rows] duration-200 ease-out"
+        style={{
+          gridTemplateRows: showFieldToggles ? "1fr" : "0fr",
+        }}
+      >
+        <div className="overflow-hidden">
+          <SearchFieldToggles scrollable className="px-1 pb-1" onInteraction={resetHideTimer} />
+        </div>
+      </div>
     </div>
   );
 }

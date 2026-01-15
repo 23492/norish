@@ -23,48 +23,55 @@ export function useAutoHide({
   const lastScrollY = useRef(0);
   const scrollTimeout = useRef<NodeJS.Timeout | null>(null);
   const isHoveringRef = useRef(false);
-  const [isScrollable, setIsScrollable] = useState(true);
+  // Use ref instead of state to avoid re-renders when scrollability changes
+  const isScrollableRef = useRef(true);
 
   // Brief pause after route change to ignore scroll restoration
   const ignoreScrollUntil = useRef(0);
+
+  // Store disabled in ref to avoid callback dependency changes
+  const disabledRef = useRef(disabled);
+  disabledRef.current = disabled;
 
   // Check if page is scrollable
   useEffect(() => {
     const checkScrollable = () => {
       const hasVerticalScroll = document.documentElement.scrollHeight > window.innerHeight;
+      const wasScrollable = isScrollableRef.current;
+      isScrollableRef.current = hasVerticalScroll;
 
-      setIsScrollable(hasVerticalScroll);
-      // If not scrollable, always show
-      if (!hasVerticalScroll) {
+      // If became non-scrollable, show navbar
+      if (wasScrollable && !hasVerticalScroll) {
         setIsVisible(true);
       }
     };
 
     checkScrollable();
     window.addEventListener("resize", checkScrollable);
-    // Also check when content changes
-    const observer = new MutationObserver(checkScrollable);
 
-    observer.observe(document.body, { childList: true, subtree: true });
+    // Check scrollability periodically instead of on every DOM mutation
+    // This avoids performance issues with virtualized lists that constantly update DOM
+    const intervalId = setInterval(checkScrollable, 1000);
 
     return () => {
       window.removeEventListener("resize", checkScrollable);
-      observer.disconnect();
+      clearInterval(intervalId);
     };
   }, []);
 
+  // Stable callbacks that read from refs
   const show = useCallback(() => {
-    if (disabled) return;
+    if (disabledRef.current) return;
     setIsVisible(true);
     if (scrollTimeout.current) clearTimeout(scrollTimeout.current);
-  }, [disabled]);
+  }, []);
 
   const hide = useCallback(() => {
-    if (disabled || !isScrollable) return;
+    if (disabledRef.current || !isScrollableRef.current) return;
     if (!isHoveringRef.current) {
       setIsVisible(false);
     }
-  }, [disabled, isScrollable]);
+  }, []);
 
   // Reset state on route change - show nav and ignore scroll events briefly
   useEffect(() => {
@@ -90,16 +97,14 @@ export function useAutoHide({
     const prev = lastScrollY.current;
     const diff = latest - prev;
 
-    if (disabled || !isScrollable) {
+    if (disabledRef.current || !isScrollableRef.current) {
       lastScrollY.current = latest;
-
       return;
     }
 
     // Ignore scroll events during route change scroll restoration
     if (Date.now() < ignoreScrollUntil.current) {
       lastScrollY.current = latest;
-
       return;
     }
 
@@ -107,7 +112,6 @@ export function useAutoHide({
     if (latest < topOffset) {
       show();
       lastScrollY.current = latest;
-
       return;
     }
 
@@ -150,10 +154,10 @@ export function useAutoHide({
     isHoveringRef.current = false;
     const currentScroll = scrollY.get();
 
-    if (currentScroll > topOffset && isScrollable) {
+    if (currentScroll > topOffset && isScrollableRef.current) {
       scrollTimeout.current = setTimeout(() => hide(), idleDelay);
     }
-  }, [hide, idleDelay, scrollY, topOffset, isScrollable]);
+  }, [hide, idleDelay, scrollY, topOffset]);
 
   return {
     isVisible,

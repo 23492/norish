@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useMemo } from "react";
 
 import { useTRPC } from "@/app/providers/trpc-provider";
 
@@ -12,14 +13,18 @@ export function useFavoritesQuery() {
   const query = useQuery(trpc.favorites.list.queryOptions());
 
   const favoriteIds = query.data?.favoriteIds ?? [];
+  const favoriteSet = useMemo(() => new Set(favoriteIds), [favoriteIds]);
 
-  const isFavorite = (recipeId: string): boolean => {
-    return favoriteIds.includes(recipeId);
-  };
+  const isFavorite = useCallback(
+    (recipeId: string): boolean => {
+      return favoriteSet.has(recipeId);
+    },
+    [favoriteSet]
+  );
 
-  const invalidate = () => {
+  const invalidate = useCallback(() => {
     queryClient.invalidateQueries({ queryKey });
-  };
+  }, [queryClient, queryKey]);
 
   return {
     favoriteIds,
