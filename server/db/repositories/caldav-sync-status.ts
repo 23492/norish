@@ -9,7 +9,7 @@ import type {
 import { eq, and, inArray, desc, sql } from "drizzle-orm";
 
 import { db } from "@/server/db/drizzle";
-import { caldavSyncStatus, plannedRecipes, notes } from "@/server/db/schema";
+import { caldavSyncStatus, plannedItems } from "@/server/db/schema";
 import {
   CaldavSyncStatusSelectSchema,
   CaldavSyncStatusInsertSchema,
@@ -108,14 +108,11 @@ export async function getCaldavSyncStatusesByUser(
       lastSyncAt: caldavSyncStatus.lastSyncAt,
       createdAt: caldavSyncStatus.createdAt,
       updatedAt: caldavSyncStatus.updatedAt,
-      recipeDate: plannedRecipes.date,
-      recipeSlot: plannedRecipes.slot,
-      noteDate: notes.date,
-      noteSlot: notes.slot,
+      itemDate: plannedItems.date,
+      itemSlot: plannedItems.slot,
     })
     .from(caldavSyncStatus)
-    .leftJoin(plannedRecipes, eq(caldavSyncStatus.plannedItemId, plannedRecipes.id))
-    .leftJoin(notes, eq(caldavSyncStatus.plannedItemId, notes.id))
+    .leftJoin(plannedItems, eq(caldavSyncStatus.plannedItemId, plannedItems.id))
     .where(eq(caldavSyncStatus.userId, userId))
     .$dynamic();
 
@@ -159,8 +156,8 @@ export async function getCaldavSyncStatusesByUser(
     lastSyncAt: item.lastSyncAt,
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
-    date: item.itemType === "recipe" ? item.recipeDate : item.noteDate,
-    slot: item.itemType === "recipe" ? item.recipeSlot : item.noteSlot,
+    date: item.itemDate,
+    slot: item.itemSlot,
   }));
 
   return { items: viewItems, total: count };

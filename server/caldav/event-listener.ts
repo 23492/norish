@@ -7,7 +7,6 @@ import { addCaldavSyncJob } from "@/server/queue/caldav-sync/producer";
 import { calendarEmitter } from "@/server/trpc/routers/calendar/emitter";
 import { recipeEmitter } from "@/server/trpc/routers/recipes/emitter";
 import { getCaldavSyncStatusByItemId } from "@/server/db/repositories/caldav-sync-status";
-import { getPlannedRecipesByRecipeId } from "@/server/db/repositories/planned-recipe";
 import { getCaldavConfigDecrypted } from "@/server/db/repositories/caldav-config";
 import { createLogger } from "@/server/logger";
 
@@ -249,31 +248,11 @@ async function startRecipeSubscriptions(signal: AbortSignal): Promise<void> {
 
       log.debug(
         { recipeId, newName },
-        "Recipe name updated - queuing CalDAV sync for all instances"
+        "Recipe name updated - CalDAV sync temporarily disabled during planned_items migration"
       );
 
-      try {
-        const plannedInstances = await getPlannedRecipesByRecipeId(recipeId);
-
-        for (const planned of plannedInstances) {
-          await queueSyncJob(
-            planned.userId,
-            planned.id,
-            "recipe",
-            planned.id,
-            newName,
-            planned.date,
-            planned.slot as Slot,
-            recipeId
-          );
-        }
-        log.info(
-          { recipeId, count: plannedInstances.length },
-          "Queued CalDAV sync for recipe name update"
-        );
-      } catch (error) {
-        log.error({ err: error, recipeId }, "Failed to queue CalDAV sync for recipe name update");
-      }
+      // TODO: Re-enable after planned-items repository is implemented
+      // This requires getPlannedItemsByRecipeId from the new repository
     }
   } catch (err) {
     if (!signal.aborted) {
@@ -286,86 +265,10 @@ export async function syncAllFutureItems(userId: string): Promise<{
   totalSynced: number;
   totalFailed: number;
 }> {
-  const { getFuturePlannedRecipes } = await import("@/server/db/repositories/planned-recipe");
-  const { getFutureNotes } = await import("@/server/db/repositories/notes");
-  const { getRecipeFull } = await import("@/server/db/repositories/recipes");
+  log.info({ userId }, "syncAllFutureItems temporarily disabled during planned_items migration");
 
-  log.info({ userId }, "Starting initial CalDAV sync for all future items");
-
-  const today = new Date().toISOString().split("T")[0];
-  let totalSynced = 0;
-  let totalFailed = 0;
-
-  try {
-    // Get all future planned recipes for this user
-    const futurePlannedRecipes = await getFuturePlannedRecipes(today);
-    const userRecipes = futurePlannedRecipes.filter((p) => p.userId === userId);
-
-    // Get all future notes for this user
-    const futureNotes = await getFutureNotes(today);
-    const userNotes = futureNotes.filter((n) => n.userId === userId);
-
-    log.debug(
-      { userId, recipeCount: userRecipes.length, noteCount: userNotes.length },
-      "Found future items to sync"
-    );
-
-    // Queue sync for all future planned recipes
-    for (const planned of userRecipes) {
-      try {
-        const recipe = await getRecipeFull(planned.recipeId);
-
-        if (!recipe) continue;
-
-        await queueSyncJob(
-          planned.userId,
-          planned.id,
-          "recipe",
-          planned.id,
-          recipe.name,
-          planned.date,
-          planned.slot as Slot,
-          planned.recipeId
-        );
-        totalSynced++;
-      } catch (error) {
-        log.error(
-          { err: error, plannedId: planned.id, userId },
-          "Failed to queue planned recipe during initial sync"
-        );
-        totalFailed++;
-      }
-    }
-
-    // Queue sync for all future notes
-    for (const note of userNotes) {
-      try {
-        await queueSyncJob(
-          note.userId,
-          note.id,
-          "note",
-          note.id,
-          note.title,
-          note.date,
-          note.slot as Slot
-        );
-        totalSynced++;
-      } catch (error) {
-        log.error(
-          { err: error, noteId: note.id, userId },
-          "Failed to queue note during initial sync"
-        );
-        totalFailed++;
-      }
-    }
-
-    log.info({ userId, totalSynced, totalFailed }, "Initial CalDAV sync queued");
-
-    return { totalSynced, totalFailed };
-  } catch (error) {
-    log.error({ err: error, userId }, "Initial CalDAV sync failed");
-    throw error;
-  }
+  // TODO: Re-enable after planned-items repository is implemented
+  return { totalSynced: 0, totalFailed: 0 };
 }
 
 /**
@@ -376,74 +279,8 @@ export async function retryFailedSyncs(userId: string): Promise<{
   totalRetried: number;
   totalFailed: number;
 }> {
-  const { getPendingOrFailedSyncStatuses } =
-    await import("@/server/db/repositories/caldav-sync-status");
-  const { getPlannedRecipeViewById } = await import("@/server/db/repositories/planned-recipe");
-  const { getNoteViewById } = await import("@/server/db/repositories/notes");
-  const { getRecipeFull } = await import("@/server/db/repositories/recipes");
+  log.info({ userId }, "retryFailedSyncs temporarily disabled during planned_items migration");
 
-  log.info({ userId }, "Starting retry of pending/failed CalDAV syncs");
-
-  let totalRetried = 0;
-  let totalFailed = 0;
-
-  try {
-    // Get all pending/failed sync statuses for this user
-    const pendingItems = await getPendingOrFailedSyncStatuses(userId);
-
-    log.debug({ userId, count: pendingItems.length }, "Found pending/failed items to retry");
-
-    // Retry each pending/failed item
-    for (const item of pendingItems) {
-      try {
-        if (item.itemType === "recipe") {
-          const planned = await getPlannedRecipeViewById(item.itemId);
-
-          if (!planned) continue;
-
-          const recipe = await getRecipeFull(planned.recipeId);
-
-          if (!recipe) continue;
-
-          await queueSyncJob(
-            userId,
-            item.itemId,
-            "recipe",
-            item.plannedItemId || planned.id,
-            recipe.name,
-            planned.date,
-            planned.slot as Slot,
-            planned.recipeId
-          );
-        } else {
-          // Note
-          const note = await getNoteViewById(item.itemId);
-
-          if (!note) continue;
-
-          await queueSyncJob(
-            userId,
-            item.itemId,
-            "note",
-            item.plannedItemId || note.id,
-            note.title,
-            note.date,
-            note.slot as Slot
-          );
-        }
-
-        totalRetried++;
-      } catch (error) {
-        log.error({ err: error, itemId: item.itemId, userId }, "Failed to queue retry sync item");
-        totalFailed++;
-      }
-    }
-
-    log.info({ userId, totalRetried, totalFailed }, "CalDAV sync retry queued");
-
-    return { totalRetried, totalFailed };
-  } catch (error) {
-    log.error({ err: error, userId }, "CalDAV sync retry failed");
-    throw error;
-  }
+  // TODO: Re-enable after planned-items repository is implemented
+  return { totalRetried: 0, totalFailed: 0 };
 }
