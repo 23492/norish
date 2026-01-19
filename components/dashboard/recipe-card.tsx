@@ -11,7 +11,6 @@ import DoubleTapContainer from "../shared/double-tap-container";
 
 import RecipeMetadata from "./recipe-metadata";
 import RecipeTags from "./recipe-tags";
-import RecipeCategories from "./recipe-categories";
 
 import { MiniCalendar, MiniGroceries } from "@/components/Panel/consumers";
 import SmartMarkdownRenderer from "@/components/shared/smart-markdown-renderer";
@@ -180,12 +179,6 @@ function RecipeCardComponent({
 
                 {/* bottom tags */}
                 {allTags.length > 0 && <RecipeTags allergies={allergies} tags={allTags} />}
-
-                <div className="absolute inset-x-0 bottom-0 z-30 overflow-hidden p-2">
-                  <div className="flex flex-col gap-2">
-                    <RecipeCategories categories={categories} />
-                  </div>
-                </div>
               </DoubleTapContainer>
 
               {/* Body*/}
@@ -196,6 +189,12 @@ function RecipeCardComponent({
                 >
                   {recipe.name}
                 </h3>
+
+                {categories.length > 0 && (
+                  <p className="text-default-400 mt-0.5 truncate text-xs">
+                    {categories.join(" · ")}
+                  </p>
+                )}
 
                 {description && (
                   <p

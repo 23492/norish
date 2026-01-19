@@ -118,6 +118,11 @@ export default function RecipePageMobile() {
             )}
           </h1>
 
+          {/* Categories */}
+          {recipe.categories.length > 0 && (
+            <p className="text-default-400 text-sm">{recipe.categories.join(" · ")}</p>
+          )}
+
           {/* Description */}
           {recipe.description && (
             <p className="text-base leading-relaxed">
@@ -140,22 +145,6 @@ export default function RecipePageMobile() {
                   {formatMinutesHM(recipe.totalMinutes)} {t("total")}
                 </div>
               )}
-            </div>
-          )}
-
-          {recipe.categories.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {recipe.categories.map((category) => (
-                <Chip
-                  key={category}
-                  size="sm"
-                  classNames={{
-                    base: "bg-primary-100 text-primary-700",
-                  }}
-                >
-                  {category}
-                </Chip>
-              ))}
             </div>
           )}
 
