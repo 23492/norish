@@ -10,6 +10,7 @@ IMPORTANT RULES:
 - Extract ingredients as simple, clean strings without serving size prefixes (NO "Single portion:", "Five portions:", etc.)
 - If multiple serving sizes are listed chose and and represent this accuratly in recipeYield
 - If the recipe title, does not represent the recipe. Make one yourself.
+- Categorize the recipe as one or more of: Breakfast, Lunch, Dinner, Snack
 
 NUTRITION / MACRONUTRIENTS (IMPORTANT OVERRIDE):
 - Nutrition values (calories, fatContent, carbohydrateContent, proteinContent)

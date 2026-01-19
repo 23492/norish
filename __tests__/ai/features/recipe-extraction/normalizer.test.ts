@@ -214,6 +214,7 @@ describe("getExtractionLogContext", () => {
       recipeIngredient: undefined,
       recipeInstructions: undefined,
       keywords: null,
+      categories: null,
       nutrition: { calories: 0, fat: 0, carbs: 0, protein: 0 },
     } as unknown as RecipeExtractionOutput;
 
@@ -252,6 +253,7 @@ function createValidOutput(): RecipeExtractionOutput {
     prepTime: "PT15M",
     totalTime: "PT45M",
     keywords: [],
+    categories: null,
     nutrition: {
       calories: 350,
       fat: 12,
@@ -269,6 +271,57 @@ function createPartialOutput(overrides: Partial<RecipeExtractionOutput>): Recipe
 }
 
 describe("normalizeExtractionOutput - HTML Entity Decoding", () => {
+  it("normalizes categories with matcher", async () => {
+    const output: RecipeExtractionOutput = {
+      "@context": "https://schema.org",
+      "@type": "Recipe",
+      name: "Test Recipe",
+      description: "Test",
+      recipeIngredient: {
+        metric: ["100g flour"],
+        us: ["1 cup flour"],
+      },
+      recipeInstructions: {
+        metric: ["Mix well"],
+        us: ["Mix well"],
+      },
+      recipeYield: "4",
+      cookTime: null,
+      prepTime: null,
+      totalTime: null,
+      keywords: [],
+      categories: ["Brunch", "gibberish", "dinner", "Breakfast"],
+      nutrition: { calories: 0, fat: 0, carbs: 0, protein: 0 },
+    };
+
+    const { normalizeRecipeFromJson } = await import("@/server/parser/normalize");
+
+    vi.mocked(normalizeRecipeFromJson).mockResolvedValue({
+      name: "Test Recipe",
+      description: "Test",
+      url: null,
+      image: undefined,
+      servings: undefined,
+      prepMinutes: undefined,
+      cookMinutes: undefined,
+      totalMinutes: undefined,
+      calories: null,
+      fat: null,
+      carbs: null,
+      protein: null,
+      recipeIngredients: [],
+      steps: [],
+      systemUsed: "metric",
+      tags: [],
+      images: [],
+      categories: [],
+    } as any);
+
+    const result = await normalizeExtractionOutput(output);
+
+    expect(result?.categories).toEqual(["Breakfast", "Dinner"]);
+  });
+
   it("decodes HTML entities in US ingredients and keeps comments", async () => {
     const output: RecipeExtractionOutput = {
       "@context": "https://schema.org",
@@ -288,6 +341,7 @@ describe("normalizeExtractionOutput - HTML Entity Decoding", () => {
       prepTime: null,
       totalTime: null,
       keywords: [],
+      categories: null,
       nutrition: { calories: 0, fat: 0, carbs: 0, protein: 0 },
     };
 
@@ -359,6 +413,7 @@ describe("normalizeExtractionOutput - HTML Entity Decoding", () => {
       prepTime: null,
       totalTime: null,
       keywords: [],
+      categories: null,
       nutrition: { calories: 0, fat: 0, carbs: 0, protein: 0 },
     };
 
@@ -418,6 +473,7 @@ describe("normalizeExtractionOutput - HTML Entity Decoding", () => {
       prepTime: null,
       totalTime: null,
       keywords: [],
+      categories: null,
       nutrition: { calories: 0, fat: 0, carbs: 0, protein: 0 },
     };
 
@@ -480,6 +536,7 @@ describe("normalizeExtractionOutput - HTML Entity Decoding", () => {
       prepTime: null,
       totalTime: null,
       keywords: [],
+      categories: null,
       nutrition: { calories: 0, fat: 0, carbs: 0, protein: 0 },
     };
 

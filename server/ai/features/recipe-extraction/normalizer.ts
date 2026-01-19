@@ -6,7 +6,7 @@
  */
 
 import type { RecipeExtractionOutput } from "@/server/ai/schemas/recipe.schema";
-import type { FullRecipeInsertDTO } from "@/types/dto/recipe";
+import type { FullRecipeInsertDTO, RecipeCategory } from "@/types/dto/recipe";
 
 import { decode } from "html-entities";
 
@@ -14,6 +14,7 @@ import { normalizeRecipeFromJson } from "@/server/parser/normalize";
 import { parseIngredientWithDefaults } from "@/lib/helpers";
 import { getUnits } from "@/config/server-config-loader";
 import { aiLogger } from "@/server/logger";
+import { matchCategory } from "@/server/ai/utils/category-matcher";
 
 /**
  * Options for normalizing AI extraction output.
@@ -161,6 +162,14 @@ export async function normalizeExtractionOutput(
     ...(normalized.steps ?? []), // metric from normalizer
     ...usSteps,
   ];
+
+  const normalizedCategories = (output.categories ?? [])
+    .filter((category): category is string => typeof category === "string")
+    .map((category) => matchCategory(category))
+    .filter((category): category is RecipeCategory => category !== null)
+    .filter((category, index, categories) => categories.indexOf(category) === index);
+
+  normalized.categories = normalizedCategories;
 
   return normalized;
 }

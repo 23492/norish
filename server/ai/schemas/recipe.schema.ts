@@ -44,6 +44,10 @@ export const recipeExtractionSchema = z
       .array(z.string())
       .nullable()
       .describe("Tags including detected allergens (e.g., gluten, dairy, nuts)"),
+    categories: z
+      .array(z.string())
+      .nullable()
+      .describe("Meal categories like Breakfast, Lunch, Dinner, Snack"),
     nutrition: nutritionEstimationSchema,
   })
   .strict();
