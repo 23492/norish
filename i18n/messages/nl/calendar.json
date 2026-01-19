@@ -47,6 +47,7 @@
     "noDaysAvailable": "Geen dagen beschikbaar.",
     "searchPlaceholder": "Zoek recepten of voeg notities toe...",
     "addNote": "Notitie toevoegen: {input}",
+    "randomRecipe": "Willekeurig recept",
     "noRecipesFound": "Geen recepten gevonden.",
     "failedToLoadRecipes": "Kan recepten niet laden."
   }

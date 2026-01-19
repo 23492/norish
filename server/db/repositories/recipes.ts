@@ -490,6 +490,7 @@ export async function listRecipes(
 
 export async function dashboardRecipe(id: string): Promise<RecipeDashboardDTO | null> {
   const rows = await db.query.recipes.findMany({
+    where: eq(recipes.id, id),
     columns: {
       id: true,
       userId: true,

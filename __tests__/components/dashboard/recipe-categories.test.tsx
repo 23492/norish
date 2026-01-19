@@ -1,12 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import { vi } from "vitest";
 
 import RecipeCategories from "@/components/dashboard/recipe-categories";
 import RecipeCard from "@/components/dashboard/recipe-card";
-
 import { PermissionsProvider } from "@/context/permissions-context";
-
-import { vi } from "vitest";
 
 vi.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
@@ -65,11 +63,13 @@ function createRecipe(partial: Partial<RecipeDashboardDTO>): RecipeDashboardDTO 
 describe("RecipeCategories", () => {
   it("does not render when categories is empty", () => {
     const { container } = render(<RecipeCategories categories={[]} />);
+
     expect(container).toBeEmptyDOMElement();
   });
 
   it("renders each category as a chip", () => {
     const categories: RecipeCategory[] = ["Breakfast", "Dinner"];
+
     render(<RecipeCategories categories={categories} />);
 
     expect(screen.getByText("Breakfast")).toBeInTheDocument();
@@ -84,11 +84,11 @@ describe("RecipeCard + RecipeCategories", () => {
     render(
       <PermissionsProvider>
         <RecipeCard
-          recipe={recipe}
-          isFavorite={false}
           allergies={[]}
-          onToggleFavorite={() => undefined}
+          isFavorite={false}
+          recipe={recipe}
           onDelete={() => undefined}
+          onToggleFavorite={() => undefined}
         />
       </PermissionsProvider>
     );

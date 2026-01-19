@@ -49,6 +49,13 @@
     "searchTags": "Tags durchsuchen",
     "favoritesAndRating": "Favoriten & Bewertung",
     "favorites": "Favoriten",
+    "categories": "Kategorien",
+    "category": {
+      "breakfast": "Frühstück",
+      "lunch": "Mittagessen",
+      "dinner": "Abendessen",
+      "snack": "Snack"
+    },
     "sortByTitle": "Titel",
     "sortByDate": "Datum",
     "clearFilters": "Filter löschen"

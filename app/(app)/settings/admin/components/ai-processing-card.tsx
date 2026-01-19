@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import AIConfigForm from "./ai-config-form";
 import VideoProcessingForm from "./video-processing-form";
 import PromptsForm from "./prompts-form";
+import BulkCategorizationForm from "./bulk-categorization-form";
 
 export default function AIProcessingCard() {
   const t = useTranslations("settings.admin.aiProcessing");
@@ -44,6 +45,14 @@ export default function AIProcessingCard() {
             title={<div className="flex items-center gap-2">{t("prompts.title")}</div>}
           >
             <PromptsForm />
+          </AccordionItem>
+
+          <AccordionItem
+            key="bulkCategorization"
+            subtitle={t("bulkCategorization.subtitle")}
+            title={<div className="flex items-center gap-2">{t("bulkCategorization.title")}</div>}
+          >
+            <BulkCategorizationForm />
           </AccordionItem>
         </Accordion>
       </CardBody>

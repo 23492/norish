@@ -21,11 +21,13 @@ describe("recipeCategorySchema", () => {
 describe("recipe category arrays", () => {
   it("accepts valid categories arrays", () => {
     const categories = ["Lunch", "Dinner"];
+
     expect(() => recipeCategorySchema.array().parse(categories)).not.toThrow();
   });
 
   it("rejects invalid categories arrays", () => {
     const categories = ["InvalidCategory"];
+
     expect(() => recipeCategorySchema.array().parse(categories)).toThrow();
   });
 
@@ -37,6 +39,7 @@ describe("recipe category arrays", () => {
 describe("recipe schemas", () => {
   it("parses categories on dashboard schema", () => {
     const parsed = RecipeDashboardSchema.pick({ categories: true }).parse({});
+
     expect(parsed.categories).toEqual([]);
   });
 
@@ -44,11 +47,13 @@ describe("recipe schemas", () => {
     const parsed = FullRecipeSchema.pick({ categories: true }).parse({
       categories: ["Breakfast"],
     });
+
     expect(parsed.categories).toEqual(["Breakfast"]);
   });
 
   it("parses categories on full recipe insert schema", () => {
     const parsed = FullRecipeInsertSchema.pick({ categories: true }).parse({});
+
     expect(parsed.categories).toEqual([]);
   });
 });

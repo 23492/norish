@@ -380,6 +380,15 @@
       "prompts": {
         "title": "Prompts",
         "subtitle": "Customize AI instructions for recipe processing"
+      },
+      "bulkCategorization": {
+        "title": "Bulk Categorization",
+        "subtitle": "Categorize uncategorized recipes using AI",
+        "description": "Queue all uncategorized recipes for AI-based category detection. Categories include Breakfast, Lunch, Dinner, and Snack.",
+        "button": "Categorize All Recipes",
+        "queued": "{count, plural, =0 {No recipes to categorize} one {# recipe queued} other {# recipes queued}}",
+        "success": "Categorization started",
+        "error": "Failed to start categorization"
       }
     },
     "aiConfig": {

@@ -18,6 +18,9 @@ import ChipSkeleton from "@/components/skeleton/chip-skeleton";
 import Panel from "@/components/Panel/Panel";
 import RatingStars from "@/components/shared/rating-stars";
 import SearchFieldToggles from "@/components/dashboard/search-field-toggles";
+import { RecipeCategory } from "@/types";
+
+const ALL_CATEGORIES: RecipeCategory[] = ["Breakfast", "Lunch", "Dinner", "Snack"];
 
 type FiltersPanelProps = {
   open: boolean;
@@ -32,6 +35,7 @@ function FiltersPanelContent({ onOpenChange }: { onOpenChange: (open: boolean) =
 
   const [tagFilter, setTagFilter] = useState("");
   const [workingTags, setWorkingTags] = useState<string[]>(filters.searchTags);
+  const [workingCategories, setWorkingCategories] = useState<RecipeCategory[]>(filters.categories);
   const [localFilterMode, setLocalFilterMode] = useState(filters.filterMode);
   const [localSortMode, setLocalSortMode] = useState(filters.sortMode);
   const [localInput, setLocalInput] = useState(filters.rawInput);
@@ -42,6 +46,7 @@ function FiltersPanelContent({ onOpenChange }: { onOpenChange: (open: boolean) =
 
   useEffect(() => {
     setWorkingTags(filters.searchTags);
+    setWorkingCategories(filters.categories);
     setLocalFilterMode(filters.filterMode);
     setLocalSortMode(filters.sortMode);
     setLocalInput(filters.rawInput);
@@ -51,6 +56,12 @@ function FiltersPanelContent({ onOpenChange }: { onOpenChange: (open: boolean) =
 
   const toggleTag = useCallback((tag: string) => {
     setWorkingTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
+  }, []);
+
+  const toggleCategory = useCallback((category: RecipeCategory) => {
+    setWorkingCategories((prev) =>
+      prev.includes(category) ? prev.filter((c) => c !== category) : [...prev, category]
+    );
   }, []);
 
   const decideSortOrder = (type: "title" | "date") => {
@@ -76,6 +87,7 @@ function FiltersPanelContent({ onOpenChange }: { onOpenChange: (open: boolean) =
   const apply = () => {
     setFilters({
       searchTags: [...workingTags],
+      categories: [...workingCategories],
       filterMode: localFilterMode,
       sortMode: localSortMode,
       rawInput: localInput,
@@ -195,6 +207,31 @@ function FiltersPanelContent({ onOpenChange }: { onOpenChange: (open: boolean) =
         </div>
       </section>
 
+      {/* Categories */}
+      <section>
+        <h3 className="text-default-500 mb-2 text-[11px] font-medium tracking-wide uppercase">
+          {t("categories")}
+        </h3>
+        <div className="flex flex-wrap gap-1">
+          {ALL_CATEGORIES.map((category) => {
+            const active = workingCategories.includes(category);
+
+            return (
+              <Chip
+                key={category}
+                className="h-7 cursor-pointer px-2 text-[11px]"
+                color={active ? "primary" : "default"}
+                radius="full"
+                variant={active ? "solid" : "flat"}
+                onClick={() => toggleCategory(category)}
+              >
+                {t(`category.${category.toLowerCase()}`)}
+              </Chip>
+            );
+          })}
+        </div>
+      </section>
+
       {/* Tags */}
       <section>
         <h3 className="text-default-500 mb-3 text-xs font-medium tracking-wide uppercase">
@@ -254,6 +291,7 @@ function FiltersPanelContent({ onOpenChange }: { onOpenChange: (open: boolean) =
           onPress={() => {
             clearFilters();
             setWorkingTags([]);
+            setWorkingCategories([]);
             setLocalFilterMode("AND");
             setLocalSortMode("dateDesc");
             setLocalInput("");

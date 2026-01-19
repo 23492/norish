@@ -3,7 +3,10 @@ import {
   FireIcon,
   ArrowTopRightOnSquareIcon,
   ArrowLeftIcon,
+  SunIcon,
+  MoonIcon,
 } from "@heroicons/react/20/solid";
+import { CakeIcon } from "@heroicons/react/24/solid";
 import { Card, CardBody, Chip, Divider, Link } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
@@ -118,16 +121,33 @@ export default function RecipePageMobile() {
             )}
           </h1>
 
-          {/* Categories */}
-          {recipe.categories.length > 0 && (
-            <p className="text-default-400 text-sm">{recipe.categories.join(" · ")}</p>
-          )}
-
           {/* Description */}
           {recipe.description && (
             <p className="text-base leading-relaxed">
               <SmartMarkdownRenderer text={recipe.description} />
             </p>
+          )}
+
+          {/* Categories */}
+          {recipe.categories.length > 0 && (
+            <div className="text-default-500 flex flex-wrap items-center gap-4 text-base">
+              {recipe.categories.map((category) => {
+                const IconComponent =
+                  {
+                    Breakfast: FireIcon,
+                    Lunch: SunIcon,
+                    Dinner: MoonIcon,
+                    Snack: CakeIcon,
+                  }[category] || SunIcon;
+
+                return (
+                  <span key={category} className="flex items-center gap-1">
+                    <IconComponent className="h-4 w-4" />
+                    {category}
+                  </span>
+                );
+              })}
+            </div>
           )}
 
           {/* Time info */}

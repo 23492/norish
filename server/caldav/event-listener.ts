@@ -120,6 +120,7 @@ async function startCalendarSubscriptions(signal: AbortSignal): Promise<void> {
 
     if (signal.aborted) {
       await subscriber.quit();
+
       return;
     }
 
@@ -144,10 +145,12 @@ async function startCalendarSubscriptions(signal: AbortSignal): Promise<void> {
       const eventName = parts[parts.length - 1];
 
       let data: unknown;
+
       try {
         data = superjson.parse(message);
       } catch (err) {
         log.error({ err, channel }, "Failed to parse calendar event message");
+
         return;
       }
 
@@ -206,6 +209,7 @@ async function handleCalendarEvent(eventName: string, data: unknown): Promise<vo
 
       case "itemDeleted": {
         const { itemId } = data as CalendarSubscriptionEvents["itemDeleted"];
+
         log.debug({ itemId }, "Item deleted - queuing CalDAV delete for all synced users");
         await queueDeleteJobByItemId(itemId);
         break;
@@ -222,11 +226,13 @@ async function handleCalendarEvent(eventName: string, data: unknown): Promise<vo
         );
 
         const movedSyncStatus = await getCaldavSyncStatusByItemId(item.userId, item.id);
+
         if (!movedSyncStatus) {
           log.debug(
             { id: item.id, userId: item.userId },
             "Item not synced to CalDAV, skipping move update"
           );
+
           return;
         }
 
@@ -251,11 +257,13 @@ async function handleCalendarEvent(eventName: string, data: unknown): Promise<vo
         log.debug({ id: item.id, userId: item.userId }, "Item updated - queuing CalDAV sync");
 
         const updatedSyncStatus = await getCaldavSyncStatusByItemId(item.userId, item.id);
+
         if (!updatedSyncStatus) {
           log.debug(
             { id: item.id, userId: item.userId },
             "Item not synced to CalDAV, skipping update"
           );
+
           return;
         }
 

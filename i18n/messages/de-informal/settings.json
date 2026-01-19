@@ -380,6 +380,15 @@
       "prompts": {
         "title": "Prompts",
         "subtitle": "Passe KI-Anweisungen für Rezept-Verarbeitung an"
+      },
+      "bulkCategorization": {
+        "title": "Massenkategorisierung",
+        "subtitle": "Nicht kategorisierte Rezepte mit KI kategorisieren",
+        "description": "Alle nicht kategorisierten Rezepte für KI-basierte Kategorieerkennung in die Warteschlange stellen. Kategorien sind Frühstück, Mittagessen, Abendessen und Snack.",
+        "button": "Alle Rezepte kategorisieren",
+        "queued": "{count, plural, =0 {Keine Rezepte zu kategorisieren} one {# Rezept in Warteschlange} other {# Rezepte in Warteschlange}}",
+        "success": "Kategorisierung gestartet",
+        "error": "Kategorisierung konnte nicht gestartet werden"
       }
     },
     "aiConfig": {

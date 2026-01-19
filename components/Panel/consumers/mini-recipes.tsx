@@ -5,17 +5,25 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { Image, Input, Button } from "@heroui/react";
 import { motion, AnimatePresence } from "motion/react";
 import { PlusIcon } from "@heroicons/react/16/solid";
+import { ArrowPathIcon } from "@heroicons/react/24/outline";
 import { useTranslations } from "next-intl";
 
 import Panel from "@/components/Panel/Panel";
-import { RecipeDashboardDTO, Slot } from "@/types";
-import { useRecipesQuery } from "@/hooks/recipes";
+import { RecipeDashboardDTO, Slot, RecipeCategory } from "@/types";
+import { useRecipesQuery, useRandomRecipe } from "@/hooks/recipes";
 import MiniRecipeSkeleton from "@/components/skeleton/mini-recipe-skeleton";
 import { dateKey } from "@/lib/helpers";
 import { useCalendarContext } from "@/app/(app)/calendar/context";
 import { SlotDropdown } from "@/components/shared/slot-dropdown";
 
 const ESTIMATED_ITEM_HEIGHT = 88; // ~80px image + 8px padding
+
+const SLOT_TO_CATEGORY: Record<Slot, RecipeCategory> = {
+  Breakfast: "Breakfast",
+  Lunch: "Lunch",
+  Dinner: "Dinner",
+  Snack: "Snack",
+};
 
 type MiniRecipesProps = {
   open: boolean;
@@ -190,7 +198,9 @@ function MiniRecipesContent({
   const [rawInput, setRawInput] = useState("");
   const [search, setSearch] = useState("");
   const [, startTransition] = useTransition();
+  const [isRandomLoading, setIsRandomLoading] = useState(false);
   const { planMeal, planNote } = useCalendarContext();
+  const { getRandomRecipe } = useRandomRecipe();
 
   const {
     recipes,
@@ -223,6 +233,23 @@ function MiniRecipesContent({
     },
     [dateString, close, planMeal]
   );
+
+  const handleRandomSelect = useCallback(async () => {
+    if (!slot) return;
+
+    setIsRandomLoading(true);
+
+    try {
+      const result = await getRandomRecipe(SLOT_TO_CATEGORY[slot]);
+
+      if (result) {
+        planMeal(dateString, slot, result.id);
+        close();
+      }
+    } finally {
+      setIsRandomLoading(false);
+    }
+  }, [slot, getRandomRecipe, planMeal, dateString, close]);
 
   const handlePlanNote = useCallback(
     (targetSlot: Slot) => {
@@ -258,6 +285,7 @@ function MiniRecipesContent({
   }
 
   const showAddNote = rawInput.trim().length > 0;
+  const showRandom = !showAddNote && slot !== undefined;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
@@ -301,6 +329,27 @@ function MiniRecipesContent({
                 </Button>
               </SlotDropdown>
             )}
+          </motion.div>
+        )}
+        {showRandom && (
+          <motion.div
+            key="random-button"
+            animate={{ opacity: 1, height: "auto", marginBottom: 0 }}
+            exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+            initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+            transition={{ duration: 0.15, ease: "easeInOut" }}
+          >
+            <Button
+              className="w-full justify-center"
+              color="primary"
+              isLoading={isRandomLoading}
+              size="sm"
+              startContent={!isRandomLoading && <ArrowPathIcon className="h-4 w-4 shrink-0" />}
+              variant="solid"
+              onPress={handleRandomSelect}
+            >
+              {t("randomRecipe")}
+            </Button>
           </motion.div>
         )}
       </AnimatePresence>

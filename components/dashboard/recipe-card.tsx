@@ -57,7 +57,6 @@ function RecipeCardComponent({
 
   const servings = recipe.servings;
   const allTags = recipe.tags ?? [];
-  const categories = recipe.categories ?? [];
   const description = recipe.description?.trim() || "";
 
   // Get thumbnail from the legacy image field
@@ -189,12 +188,6 @@ function RecipeCardComponent({
                 >
                   {recipe.name}
                 </h3>
-
-                {categories.length > 0 && (
-                  <p className="text-default-400 mt-0.5 truncate text-xs">
-                    {categories.join(" · ")}
-                  </p>
-                )}
 
                 {description && (
                   <p

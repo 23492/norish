@@ -183,6 +183,13 @@
       "when": 1768808608079,
       "tag": "0025_powerful_jocasta",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1768837431115,
+      "tag": "0026_chief_skreet",
+      "breakpoints": true
     }
   ]
 }

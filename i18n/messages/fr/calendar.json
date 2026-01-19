@@ -47,6 +47,7 @@
     "noDaysAvailable": "Aucun jour disponible.",
     "searchPlaceholder": "Rechercher des recettes ou ajouter des notes...",
     "addNote": "Ajouter une note : {input}",
+    "randomRecipe": "Recette aléatoire",
     "noRecipesFound": "Pas de recette trouvée.",
     "failedToLoadRecipes": "Impossible de charger les recettes."
   }

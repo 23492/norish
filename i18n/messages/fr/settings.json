@@ -380,6 +380,15 @@
       "prompts": {
         "title": "Prompts",
         "subtitle": "Personnalisez les instructions IA pour le traitement des recettes"
+      },
+      "bulkCategorization": {
+        "title": "Catégorisation en masse",
+        "subtitle": "Catégoriser les recettes non catégorisées avec l'IA",
+        "description": "Mettre en file d'attente toutes les recettes non catégorisées pour la détection de catégorie par IA. Les catégories incluent Petit-déjeuner, Déjeuner, Dîner et Collation.",
+        "button": "Catégoriser toutes les recettes",
+        "queued": "{count, plural, =0 {Aucune recette à catégoriser} one {# recette en file d'attente} other {# recettes en file d'attente}}",
+        "success": "Catégorisation démarrée",
+        "error": "Échec du démarrage de la catégorisation"
       }
     },
     "aiConfig": {

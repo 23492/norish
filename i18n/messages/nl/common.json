@@ -49,6 +49,13 @@
     "searchTags": "Zoek tags",
     "favoritesAndRating": "Favorieten & Beoordeling",
     "favorites": "Favorieten",
+    "categories": "Categorieën",
+    "category": {
+      "breakfast": "Ontbijt",
+      "lunch": "Lunch",
+      "dinner": "Diner",
+      "snack": "Snack"
+    },
     "sortByTitle": "Titel",
     "sortByDate": "Datum",
     "clearFilters": "Filters wissen"
