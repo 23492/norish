@@ -1,4 +1,4 @@
-import type { NoteViewDto, PlannedRecipeViewDto, Slot } from "@/types";
+import type { Slot } from "@/types";
 
 export type PlannedItemWithRecipePayload =
   import("@/server/db/zodSchemas").PlannedItemWithRecipePayload;
@@ -7,12 +7,6 @@ export type SlotItemSortUpdate = import("@/server/db/zodSchemas").SlotItemSortUp
 export type PlannedItemType = "recipe" | "note";
 
 export type CalendarSubscriptionEvents = {
-  recipePlanned: { plannedRecipe: PlannedRecipeViewDto };
-  recipeDeleted: { plannedRecipeId: string; date: string };
-  recipeUpdated: { plannedRecipe: PlannedRecipeViewDto; oldDate: string };
-  notePlanned: { note: NoteViewDto };
-  noteDeleted: { noteId: string; date: string };
-  noteUpdated: { note: NoteViewDto; oldDate: string };
   failed: { reason: string };
 
   itemCreated: { item: PlannedItemWithRecipePayload };
