@@ -16,6 +16,8 @@ import {
   updateRecipeWithRefs,
   deleteRecipeById,
   dashboardRecipe,
+  updateRecipeCategories,
+  getRandomRecipeCandidates,
   setActiveSystemForRecipe,
   addStepsAndIngredientsToRecipeByInput,
   searchRecipesByName,
@@ -28,6 +30,7 @@ import {
   RecipeUpdateInputSchema,
   type RecipeListContext,
 } from "@/server/db";
+import { selectWeightedRandomRecipe } from "@/server/services/recipe-randomizer";
 import {
   canAccessResource,
   isAIEnabled as checkAIEnabled,
@@ -43,7 +46,7 @@ import {
   addAutoTaggingJob,
   addAllergyDetectionJob,
 } from "@/server/queue";
-import { FilterMode, SortOrder } from "@/types";
+import { FilterMode, SortOrder, RecipeCategory } from "@/types";
 import { MAX_RECIPE_PASTE_CHARS } from "@/types/uploads";
 
 interface UserContext {
@@ -124,7 +127,8 @@ async function assertRecipeAccess(
 
 // Procedures
 const list = authedProcedure.input(RecipeListInputSchema).query(async ({ ctx, input }) => {
-  const { cursor, limit, search, searchFields, tags, filterMode, sortMode, minRating } = input;
+  const { cursor, limit, search, searchFields, tags, filterMode, sortMode, minRating, categories } =
+    input;
 
   log.debug({ userId: ctx.user.id, cursor, limit }, "Listing recipes");
 
@@ -143,7 +147,8 @@ const list = authedProcedure.input(RecipeListInputSchema).query(async ({ ctx, in
     tags,
     filterMode as FilterMode,
     sortMode as SortOrder,
-    minRating
+    minRating,
+    categories
   );
 
   log.debug({ count: result.recipes.length, total: result.total }, "Listed recipes");
@@ -255,6 +260,35 @@ const update = authedProcedure.input(RecipeUpdateInputSchema).mutation(({ ctx, i
 
   return { success: true };
 });
+
+const updateCategories = authedProcedure
+  .input(
+    z.object({
+      recipeId: z.string().uuid(),
+      categories: z.array(z.enum(["Breakfast", "Lunch", "Dinner", "Snack"])),
+    })
+  )
+  .mutation(async ({ ctx, input }) => {
+    await assertRecipeAccess(ctx, input.recipeId, "edit");
+
+    await updateRecipeCategories(input.recipeId, input.categories as RecipeCategory[]);
+
+    const updated = await getRecipeFull(input.recipeId);
+
+    if (updated) {
+      const policy = await getRecipePermissionPolicy();
+
+      emitByPolicy(
+        recipeEmitter,
+        policy.view,
+        { userId: ctx.user.id, householdKey: ctx.householdKey },
+        "updated",
+        { recipe: updated }
+      );
+    }
+
+    return { success: true };
+  });
 
 const deleteProcedure = authedProcedure
   .input(RecipeDeleteInputSchema)
@@ -464,6 +498,34 @@ const autocomplete = authedProcedure
     const results = await searchRecipesByName(listCtx, input.query, 10);
 
     return results;
+  });
+
+const getRandomRecipe = authedProcedure
+  .input(
+    z.object({
+      category: z.enum(["Breakfast", "Lunch", "Dinner", "Snack"]).optional(),
+    })
+  )
+  .query(async ({ ctx, input }) => {
+    const listCtx: RecipeListContext = {
+      userId: ctx.user.id,
+      householdUserIds: ctx.householdUserIds,
+      isServerAdmin: ctx.isServerAdmin,
+    };
+
+    let candidates = await getRandomRecipeCandidates(listCtx, input.category);
+
+    if (candidates.length <= 1 && input.category) {
+      candidates = await getRandomRecipeCandidates(listCtx, undefined);
+    }
+
+    const selected = selectWeightedRandomRecipe(candidates);
+
+    if (!selected) {
+      return null;
+    }
+
+    return { id: selected.id, name: selected.name, image: selected.image };
   });
 
 const importFromImagesProcedure = authedProcedure
@@ -768,4 +830,6 @@ export const recipesProcedures = router({
   triggerAllergyDetection,
   reserveId,
   autocomplete,
+  updateCategories,
+  getRandomRecipe,
 });
