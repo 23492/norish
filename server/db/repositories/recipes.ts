@@ -27,6 +27,7 @@ import { stripHtmlTags } from "@/lib/helpers";
 import { deleteRecipeImagesDir } from "@/server/downloader";
 import {
   RecipeDashboardDTO,
+  RecipeCategory,
   FilterMode,
   SortOrder,
   FullRecipeInsertDTO,
@@ -95,7 +96,7 @@ export async function recipeExistsByUrlForPolicy(
   householdUserIds: string[] | null,
   viewPolicy: "everyone" | "household" | "owner"
 ): Promise<{ exists: boolean; existingRecipeId?: string }> {
-  let whereCondition;
+  let whereCondition: ReturnType<typeof and> | ReturnType<typeof or> | ReturnType<typeof eq>;
 
   switch (viewPolicy) {
     case "everyone":
@@ -244,7 +245,8 @@ export async function listRecipes(
   tagNames?: string[],
   filterMode: FilterMode = "OR",
   sortMode: SortOrder = "dateDesc",
-  minRating?: number
+  minRating?: number,
+  categories?: RecipeCategory[]
 ): Promise<{ recipes: RecipeDashboardDTO[]; total: number }> {
   const whereConditions: any[] = [];
 
@@ -380,6 +382,11 @@ export async function listRecipes(
     whereConditions.push(inArray(recipes.id, tagFilteredIds));
   }
 
+  if (categories?.length) {
+    const categoryArray = `{${categories.join(",")}}`;
+    whereConditions.push(sql`${recipes.categories} && ${categoryArray}::recipe_category[]`);
+  }
+
   const whereClause = whereConditions.length ? and(...whereConditions) : undefined;
 
   const sortMap = {
@@ -407,6 +414,7 @@ export async function listRecipes(
         cookMinutes: true,
         totalMinutes: true,
         calories: true,
+        categories: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -449,6 +457,7 @@ export async function listRecipes(
       cookMinutes: r.cookMinutes ?? null,
       totalMinutes: r.totalMinutes ?? null,
       calories: r.calories ?? null,
+      categories: r.categories ?? [],
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
       tags: (r.recipeTags ?? [])
@@ -481,7 +490,6 @@ export async function listRecipes(
 
 export async function dashboardRecipe(id: string): Promise<RecipeDashboardDTO | null> {
   const rows = await db.query.recipes.findMany({
-    where: eq(recipes.id, id),
     columns: {
       id: true,
       userId: true,
@@ -494,6 +502,7 @@ export async function dashboardRecipe(id: string): Promise<RecipeDashboardDTO | 
       cookMinutes: true,
       totalMinutes: true,
       calories: true,
+      categories: true,
       createdAt: true,
       updatedAt: true,
     },
@@ -533,6 +542,7 @@ export async function dashboardRecipe(id: string): Promise<RecipeDashboardDTO | 
     cookMinutes: r.cookMinutes ?? null,
     totalMinutes: r.totalMinutes ?? null,
     calories: r.calories ?? null,
+    categories: r.categories ?? [],
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
     tags: (r.recipeTags ?? [])
@@ -667,6 +677,25 @@ export async function setActiveSystemForRecipe(
   await db.update(recipes).set({ systemUsed: system }).where(eq(recipes.id, recipeId));
 }
 
+export async function updateRecipeCategories(
+  recipeId: string,
+  categories: RecipeCategory[]
+): Promise<void> {
+  await db
+    .update(recipes)
+    .set({ categories, updatedAt: new Date() })
+    .where(eq(recipes.id, recipeId));
+}
+
+export async function getRecipesWithoutCategories(): Promise<{ id: string; name: string }[]> {
+  const rows = await db
+    .select({ id: recipes.id, name: recipes.name })
+    .from(recipes)
+    .where(sql`cardinality(${recipes.categories}) = 0`);
+
+  return rows;
+}
+
 export async function getRecipeFull(id: string): Promise<FullRecipeDTO | null> {
   const full = await db.query.recipes.findFirst({
     where: eq(recipes.id, id),
@@ -686,6 +715,7 @@ export async function getRecipeFull(id: string): Promise<FullRecipeDTO | null> {
       fat: true,
       carbs: true,
       protein: true,
+      categories: true,
       createdAt: true,
       updatedAt: true,
     },
@@ -755,6 +785,7 @@ export async function getRecipeFull(id: string): Promise<FullRecipeDTO | null> {
     fat: full.fat ?? null,
     carbs: full.carbs ?? null,
     protein: full.protein ?? null,
+    categories: full.categories ?? [],
     steps: ((full.steps as any) ?? []).map((s: any) => ({
       step: s.step,
       systemUsed: s.systemUsed,
@@ -861,6 +892,8 @@ export async function updateRecipeWithRefs(
     if (payload.totalMinutes !== undefined) updateData.totalMinutes = payload.totalMinutes;
     if (payload.systemUsed !== undefined) updateData.systemUsed = payload.systemUsed;
     if (payload.calories !== undefined) updateData.calories = payload.calories;
+    if (payload.categories != undefined && payload.categories?.length > 0)
+      updateData.categories = payload.categories;
     if (payload.fat !== undefined) updateData.fat = payload.fat;
     if (payload.carbs !== undefined) updateData.carbs = payload.carbs;
     if (payload.protein !== undefined) updateData.protein = payload.protein;
@@ -954,6 +987,95 @@ export async function updateRecipeWithRefs(
       }
     }
   });
+}
+
+export interface RandomRecipeCandidate {
+  id: string;
+  name: string;
+  image: string | null;
+  categories: RecipeCategory[];
+  householdFavoriteCount: number;
+  householdAverageRating: number | null;
+}
+
+export async function getRandomRecipeCandidates(
+  ctx: RecipeListContext,
+  category?: RecipeCategory
+): Promise<RandomRecipeCandidate[]> {
+  const whereConditions: any[] = [];
+
+  const policyCondition = await buildViewPolicyCondition(ctx);
+
+  if (policyCondition) {
+    whereConditions.push(policyCondition);
+  }
+
+  if (category) {
+    whereConditions.push(sql`${category} = ANY(${recipes.categories})`);
+  }
+
+  const whereClause = whereConditions.length ? and(...whereConditions) : undefined;
+
+  const householdUserIds = ctx.householdUserIds ?? [ctx.userId];
+
+  const rows = await db
+    .select({
+      id: recipes.id,
+      name: recipes.name,
+      image: recipes.image,
+      categories: recipes.categories,
+    })
+    .from(recipes)
+    .where(whereClause);
+
+  if (rows.length === 0) return [];
+
+  const recipeIds = rows.map((r) => r.id);
+
+  const { recipeFavorites } = await import("../schema/recipe-favorites");
+  const { recipeRatings } = await import("../schema/recipe-ratings");
+
+  const [favoriteCounts, ratingAverages] = await Promise.all([
+    db
+      .select({
+        recipeId: recipeFavorites.recipeId,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(recipeFavorites)
+      .where(
+        and(
+          inArray(recipeFavorites.recipeId, recipeIds),
+          inArray(recipeFavorites.userId, householdUserIds)
+        )
+      )
+      .groupBy(recipeFavorites.recipeId),
+
+    db
+      .select({
+        recipeId: recipeRatings.recipeId,
+        avgRating: sql<number>`avg(${recipeRatings.rating})::float`,
+      })
+      .from(recipeRatings)
+      .where(
+        and(
+          inArray(recipeRatings.recipeId, recipeIds),
+          inArray(recipeRatings.userId, householdUserIds)
+        )
+      )
+      .groupBy(recipeRatings.recipeId),
+  ]);
+
+  const favoriteMap = new Map(favoriteCounts.map((f) => [f.recipeId, f.count]));
+  const ratingMap = new Map(ratingAverages.map((r) => [r.recipeId, r.avgRating]));
+
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    image: r.image,
+    categories: r.categories ?? [],
+    householdFavoriteCount: favoriteMap.get(r.id) ?? 0,
+    householdAverageRating: ratingMap.get(r.id) ?? null,
+  }));
 }
 
 export async function searchRecipesByName(
