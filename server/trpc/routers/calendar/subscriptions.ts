@@ -183,6 +183,81 @@ const onFailed = authedProcedure.subscription(async function* ({ ctx, signal }) 
   }
 });
 
+const onItemCreated = authedProcedure.subscription(async function* ({ ctx, signal }) {
+  const eventName = calendarEmitter.householdEvent(ctx.householdKey, "itemCreated");
+
+  log.trace(
+    { userId: ctx.user.id, householdKey: ctx.householdKey },
+    "Subscribed to item created events"
+  );
+
+  try {
+    for await (const data of createSubscriptionIterable(
+      calendarEmitter,
+      ctx.multiplexer,
+      eventName,
+      signal
+    )) {
+      yield data as CalendarSubscriptionEvents["itemCreated"];
+    }
+  } finally {
+    log.trace(
+      { userId: ctx.user.id, householdKey: ctx.householdKey },
+      "Unsubscribed from item created events"
+    );
+  }
+});
+
+const onItemDeleted = authedProcedure.subscription(async function* ({ ctx, signal }) {
+  const eventName = calendarEmitter.householdEvent(ctx.householdKey, "itemDeleted");
+
+  log.trace(
+    { userId: ctx.user.id, householdKey: ctx.householdKey },
+    "Subscribed to item deleted events"
+  );
+
+  try {
+    for await (const data of createSubscriptionIterable(
+      calendarEmitter,
+      ctx.multiplexer,
+      eventName,
+      signal
+    )) {
+      yield data as CalendarSubscriptionEvents["itemDeleted"];
+    }
+  } finally {
+    log.trace(
+      { userId: ctx.user.id, householdKey: ctx.householdKey },
+      "Unsubscribed from item deleted events"
+    );
+  }
+});
+
+const onItemMoved = authedProcedure.subscription(async function* ({ ctx, signal }) {
+  const eventName = calendarEmitter.householdEvent(ctx.householdKey, "itemMoved");
+
+  log.trace(
+    { userId: ctx.user.id, householdKey: ctx.householdKey },
+    "Subscribed to item moved events"
+  );
+
+  try {
+    for await (const data of createSubscriptionIterable(
+      calendarEmitter,
+      ctx.multiplexer,
+      eventName,
+      signal
+    )) {
+      yield data as CalendarSubscriptionEvents["itemMoved"];
+    }
+  } finally {
+    log.trace(
+      { userId: ctx.user.id, householdKey: ctx.householdKey },
+      "Unsubscribed from item moved events"
+    );
+  }
+});
+
 export const calendarSubscriptions = router({
   onRecipePlanned,
   onRecipeDeleted,
@@ -191,4 +266,7 @@ export const calendarSubscriptions = router({
   onNoteDeleted,
   onNoteUpdated,
   onFailed,
+  onItemCreated,
+  onItemDeleted,
+  onItemMoved,
 });

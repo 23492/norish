@@ -2,7 +2,7 @@
 
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { Slot, CaldavItemType } from "@/types";
+import { Slot } from "@/types";
 import { PlusIcon } from "@heroicons/react/16/solid";
 import { Button } from "@heroui/react";
 import { useTranslations } from "next-intl";
@@ -32,8 +32,8 @@ export function CalendarSlot({ date, slot, onAddClick, onEditNote }: CalendarSlo
   const { getItemsForContainer, getItemById } = useDndCalendarContext();
   const itemIds = getItemsForContainer(containerId);
 
-  const handleDelete = (id: string, itemType: CaldavItemType) => {
-    deletePlanned(id, date, itemType);
+  const handleDelete = (id: string) => {
+    deletePlanned(id);
   };
 
   const handleNavigate = (recipeId: string) => {
@@ -67,7 +67,7 @@ export function CalendarSlot({ date, slot, onAddClick, onEditNote }: CalendarSlo
                 <CalendarItem
                   key={item.id}
                   item={item}
-                  onDelete={() => handleDelete(item.id, item.itemType)}
+                  onDelete={() => handleDelete(item.id)}
                   onNavigate={
                     item.itemType === "recipe" ? () => handleNavigate(item.recipeId) : undefined
                   }

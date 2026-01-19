@@ -1,47 +1,81 @@
 "use client";
 
-// STUBBED: Mutations disabled during planned_items migration (Task 7 will restore)
-
 import type { Slot } from "@/types";
 
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+
+import { useTRPC } from "@/app/providers/trpc-provider";
+
 export type CalendarMutationsResult = {
-  createPlannedRecipe: (
+  createItem: (
     date: string,
     slot: Slot,
-    recipeId: string,
-    recipeName: string,
-    recipeImage: string | null,
-    servings: number | null,
-    calories: number | null,
-    recipeTags?: string[]
+    itemType: "recipe" | "note",
+    recipeId?: string,
+    title?: string
   ) => void;
-  deletePlannedRecipe: (id: string, date: string) => void;
-  updatePlannedRecipeDate: (id: string, newDate: string, oldDate: string) => void;
-  createNote: (date: string, slot: Slot, title: string) => void;
-  deleteNote: (id: string, date: string) => void;
-  updateNoteDate: (id: string, newDate: string, oldDate: string) => void;
-  updateNoteTitle: (id: string, date: string, slot: Slot, title: string) => void;
-  updateNote: (
-    id: string,
-    oldDate: string,
-    oldSlot: Slot,
-    newDate: string,
-    newSlot: Slot,
-    title: string
-  ) => void;
+  deleteItem: (itemId: string) => void;
+  moveItem: (itemId: string, targetDate: string, targetSlot: Slot, targetIndex: number) => void;
+  isCreating: boolean;
+  isDeleting: boolean;
+  isMoving: boolean;
 };
 
-const noop = () => {};
+export function useCalendarMutations(startISO: string, endISO: string): CalendarMutationsResult {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
 
-export function useCalendarMutations(_startISO: string, _endISO: string): CalendarMutationsResult {
+  const queryKey = trpc.calendar.listItems.queryKey({ startISO, endISO });
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey });
+  };
+
+  const createMutation = useMutation(
+    trpc.calendar.createItem.mutationOptions({
+      onSuccess: () => invalidate(),
+      onError: () => invalidate(),
+    })
+  );
+
+  const deleteMutation = useMutation(
+    trpc.calendar.deleteItem.mutationOptions({
+      onSuccess: () => invalidate(),
+      onError: () => invalidate(),
+    })
+  );
+
+  const moveMutation = useMutation(
+    trpc.calendar.moveItem.mutationOptions({
+      onSuccess: () => invalidate(),
+      onError: () => invalidate(),
+    })
+  );
+
+  const createItem = (
+    date: string,
+    slot: Slot,
+    itemType: "recipe" | "note",
+    recipeId?: string,
+    title?: string
+  ) => {
+    createMutation.mutate({ date, slot, itemType, recipeId, title });
+  };
+
+  const deleteItem = (itemId: string) => {
+    deleteMutation.mutate({ itemId });
+  };
+
+  const moveItem = (itemId: string, targetDate: string, targetSlot: Slot, targetIndex: number) => {
+    moveMutation.mutate({ itemId, targetDate, targetSlot, targetIndex });
+  };
+
   return {
-    createPlannedRecipe: noop,
-    deletePlannedRecipe: noop,
-    updatePlannedRecipeDate: noop,
-    createNote: noop,
-    deleteNote: noop,
-    updateNoteDate: noop,
-    updateNoteTitle: noop,
-    updateNote: noop,
+    createItem,
+    deleteItem,
+    moveItem,
+    isCreating: createMutation.isPending,
+    isDeleting: deleteMutation.isPending,
+    isMoving: moveMutation.isPending,
   };
 }

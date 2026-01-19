@@ -1,8 +1,18 @@
 import type { PlannedRecipeViewDto, NoteViewDto, Slot } from "@/types";
 
-/**
- * Calendar subscription event payloads.
- */
+type PlannedItemType = "recipe" | "note";
+
+interface PlannedItemEventPayload {
+  id: string;
+  date: string;
+  slot: Slot;
+  sortOrder: number;
+  itemType: PlannedItemType;
+  recipeId: string | null;
+  title: string | null;
+  userId: string;
+}
+
 export type CalendarSubscriptionEvents = {
   recipePlanned: { plannedRecipe: PlannedRecipeViewDto };
   recipeDeleted: { plannedRecipeId: string; date: string };
@@ -12,8 +22,15 @@ export type CalendarSubscriptionEvents = {
   noteUpdated: { note: NoteViewDto; oldDate: string };
   failed: { reason: string };
 
-  // Global events for server-side listeners (e.g., CalDAV sync)
-  // These include userId since the listener needs to know which user to sync
+  itemCreated: { item: PlannedItemEventPayload };
+  itemDeleted: { itemId: string; date: string; slot: Slot };
+  itemMoved: {
+    item: PlannedItemEventPayload;
+    oldDate: string;
+    oldSlot: Slot;
+    oldSortOrder: number;
+  };
+
   globalRecipePlanned: {
     id: string;
     recipeId: string;

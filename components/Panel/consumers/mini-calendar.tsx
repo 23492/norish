@@ -139,9 +139,9 @@ function MiniCalendarContent({
 
   const { recipe } = useRecipeQuery(recipeId);
   const { calendarData, isLoading } = useCalendarQuery(startISO, endISO);
-  const { createPlannedRecipe } = useCalendarMutations(startISO, endISO);
+  const { createItem } = useCalendarMutations(startISO, endISO);
 
-  useCalendarSubscription();
+  useCalendarSubscription(startISO, endISO);
 
   const allDays = useMemo(() => eachDayOfInterval(rangeStart, rangeEnd), [rangeStart, rangeEnd]);
 
@@ -201,18 +201,10 @@ function MiniCalendarContent({
     (dayKey: string, slot: Slot) => {
       if (!recipe) return;
 
-      createPlannedRecipe(
-        dayKey,
-        slot,
-        recipe.id,
-        recipe.name,
-        recipe.image,
-        recipe.servings,
-        recipe.calories ?? null
-      );
+      createItem(dayKey, slot, "recipe", recipe.id, undefined);
       onOpenChange(false);
     },
-    [recipe, onOpenChange, createPlannedRecipe]
+    [recipe, onOpenChange, createItem]
   );
 
   if (isLoading) {

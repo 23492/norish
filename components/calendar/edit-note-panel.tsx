@@ -28,7 +28,7 @@ export function EditNotePanel({
   date,
   slot,
 }: EditNotePanelProps) {
-  const { updateNote, deletePlanned } = useCalendarContext();
+  const { deletePlanned, moveItem } = useCalendarContext();
   const [title, setTitle] = useState(initialTitle);
   const [selectedDate, setSelectedDate] = useState(parseDate(date));
   const [selectedSlot, setSelectedSlot] = useState<Slot>(slot);
@@ -50,12 +50,14 @@ export function EditNotePanel({
 
     const newDateStr = selectedDate.toString();
 
-    updateNote(noteId, date, slot, newDateStr, selectedSlot, title);
+    if (newDateStr !== date || selectedSlot !== slot) {
+      moveItem(noteId, newDateStr, selectedSlot, 0);
+    }
     onOpenChange(false);
   };
 
   const handleDelete = () => {
-    deletePlanned(noteId, date, "note");
+    deletePlanned(noteId);
     onOpenChange(false);
   };
 

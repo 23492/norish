@@ -1,77 +1,90 @@
 "use client";
 
-// STUBBED: Query disabled during planned_items migration (Task 7 will restore)
-
-import type { CalendarItemViewDto } from "@/types";
+import type { Slot } from "@/types";
 import type { QueryKey } from "@tanstack/react-query";
 
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useMemo, useCallback } from "react";
 
-const CALENDAR_COMBINED_PREFIX = ["calendar", "combined"] as const;
+import { useTRPC } from "@/app/providers/trpc-provider";
 
-export type CalendarData = Record<string, CalendarItemViewDto[]>;
+type PlannedItemFromQuery = {
+  id: string;
+  userId: string;
+  date: string;
+  slot: Slot;
+  sortOrder: number;
+  itemType: "recipe" | "note";
+  recipeId: string | null;
+  title: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type CalendarData = Record<string, PlannedItemFromQuery[]>;
 
 export type CalendarQueryResult = {
+  items: PlannedItemFromQuery[];
   calendarData: CalendarData;
   isLoading: boolean;
   error: unknown;
-  recipesQueryKey: QueryKey;
-  notesQueryKey: QueryKey;
+  queryKey: QueryKey;
   setCalendarData: (updater: (prev: CalendarData) => CalendarData) => void;
-  removeRecipeFromCache: (id: string) => void;
-  updateRecipeInCache: (id: string, newDate: string) => void;
-  removeNoteFromCache: (id: string) => void;
-  updateNoteInCache: (id: string, newDate: string) => void;
   invalidate: () => void;
 };
 
-const noop = () => {};
+function groupItemsByDate(items: PlannedItemFromQuery[]): CalendarData {
+  const grouped: CalendarData = {};
+  for (const item of items) {
+    if (!grouped[item.date]) {
+      grouped[item.date] = [];
+    }
+    grouped[item.date].push(item);
+  }
+  return grouped;
+}
 
 export function useCalendarQuery(startISO: string, endISO: string): CalendarQueryResult {
+  const trpc = useTRPC();
   const queryClient = useQueryClient();
 
-  const recipesQueryKey: QueryKey = ["calendar", "listRecipes", { startISO, endISO }];
-  const notesQueryKey: QueryKey = ["calendar", "listNotes", { startISO, endISO }];
-  const combinedQueryKey = useMemo(
-    () => [...CALENDAR_COMBINED_PREFIX, startISO, endISO],
-    [startISO, endISO]
+  const queryKey = trpc.calendar.listItems.queryKey({ startISO, endISO });
+
+  const { data, error, isLoading } = useQuery(
+    trpc.calendar.listItems.queryOptions(
+      { startISO, endISO },
+      {
+        staleTime: 1000 * 60 * 5,
+        refetchOnWindowFocus: false,
+      }
+    )
   );
 
-  const optimisticQuery = useQuery({
-    queryKey: combinedQueryKey,
-    queryFn: () => ({}) as CalendarData,
-    staleTime: Infinity,
-    gcTime: Infinity,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-  });
-
-  const calendarData = useMemo(() => optimisticQuery.data ?? {}, [optimisticQuery.data]);
+  const items = useMemo(() => data ?? [], [data]);
+  const calendarData = useMemo(() => groupItemsByDate(items), [items]);
 
   const setCalendarData = useCallback(
     (updater: (prev: CalendarData) => CalendarData) => {
-      queryClient.setQueryData<CalendarData>(combinedQueryKey, (prev) => updater(prev ?? {}));
+      queryClient.setQueryData<PlannedItemFromQuery[]>(queryKey, (prev) => {
+        const currentData = groupItemsByDate(prev ?? []);
+        const newData = updater(currentData);
+        return Object.values(newData).flat();
+      });
     },
-    [queryClient, combinedQueryKey]
+    [queryClient, queryKey]
   );
 
   const invalidate = useCallback(() => {
-    queryClient.setQueryData<CalendarData>(combinedQueryKey, {});
-  }, [queryClient, combinedQueryKey]);
+    queryClient.invalidateQueries({ queryKey });
+  }, [queryClient, queryKey]);
 
   return {
+    items,
     calendarData,
-    isLoading: false,
-    error: null,
-    recipesQueryKey,
-    notesQueryKey,
+    isLoading,
+    error,
+    queryKey,
     setCalendarData,
-    removeRecipeFromCache: noop,
-    updateRecipeInCache: noop,
-    removeNoteFromCache: noop,
-    updateNoteInCache: noop,
     invalidate,
   };
 }

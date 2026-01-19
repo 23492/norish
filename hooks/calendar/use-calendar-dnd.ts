@@ -54,7 +54,7 @@ function findContainerForItem(
 }
 
 export function useCalendarDnd() {
-  const { plannedItemsByDate, updateItemDate, updateItemSlot } = useCalendarContext();
+  const { plannedItemsByDate, moveItem } = useCalendarContext();
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overContainerId, setOverContainerId] = useState<CalendarContainerId | null>(null);
@@ -262,40 +262,17 @@ export function useCalendarDnd() {
         return;
       }
 
-      let originalItem: CalendarItemViewDto | undefined;
+      const currentItems = items[currentContainer] ?? [];
+      const targetIndex = currentItems.indexOf(activeIdStr);
 
-      for (const d of Object.keys(plannedItemsByDate)) {
-        const item = plannedItemsByDate[d].find((i) => i.id === activeIdStr);
-
-        if (item) {
-          originalItem = item;
-          break;
-        }
-      }
-
-      if (!originalItem) return;
-
-      if (originalParsed.date !== currentParsed.date) {
-        if (originalParsed.slot === currentParsed.slot) {
-          updateItemDate(
-            activeIdStr,
-            originalParsed.date,
-            currentParsed.date,
-            originalItem.itemType
-          );
-        } else {
-          updateItemSlot(
-            activeIdStr,
-            currentParsed.date,
-            currentParsed.slot,
-            originalItem.itemType
-          );
-        }
-      } else {
-        updateItemSlot(activeIdStr, currentParsed.date, currentParsed.slot, originalItem.itemType);
-      }
+      moveItem(
+        activeIdStr,
+        currentParsed.date,
+        currentParsed.slot,
+        targetIndex >= 0 ? targetIndex : 0
+      );
     },
-    [findContainer, plannedItemsByDate, updateItemDate, updateItemSlot]
+    [findContainer, items, moveItem]
   );
 
   const handleDragCancel = useCallback(() => {
