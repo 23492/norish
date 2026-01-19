@@ -109,6 +109,36 @@ export function useCalendarSubscription(startISO: string, endISO: string) {
   );
 
   useSubscription(
+    trpc.calendar.onItemUpdated.subscriptionOptions(undefined, {
+      onData: (payload) => {
+        setItems((prev) =>
+          prev.map((item) => {
+            if (item.id === payload.item.id) {
+              return {
+                ...item,
+                userId: payload.item.userId,
+                date: payload.item.date,
+                slot: payload.item.slot,
+                sortOrder: payload.item.sortOrder,
+                itemType: payload.item.itemType,
+                recipeId: payload.item.recipeId,
+                title: payload.item.title,
+                recipeName: payload.item.recipeName,
+                recipeImage: payload.item.recipeImage,
+                servings: payload.item.servings,
+                calories: payload.item.calories,
+                updatedAt: new Date(),
+              };
+            }
+
+            return item;
+          })
+        );
+      },
+    })
+  );
+
+  useSubscription(
     trpc.calendar.onFailed.subscriptionOptions(undefined, {
       onData: () => {
         invalidate();
