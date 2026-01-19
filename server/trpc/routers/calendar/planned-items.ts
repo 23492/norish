@@ -3,25 +3,23 @@ import type { PlannedItemWithRecipePayload, SlotItemSortUpdate } from "@/server/
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
-import type { CalendarSubscriptionEvents } from "./types";
-
-import { router } from "../../trpc";
 import { authedProcedure } from "../../middleware";
+import { router } from "../../trpc";
 
 import { calendarEmitter } from "./emitter";
 
 import { assertHouseholdAccess } from "@/server/auth/permissions";
-
 import {
-  getPlannedItemById,
-  moveItem,
   createPlannedItem,
   deletePlannedItem,
+  getPlannedItemById,
+  getPlannedItemWithRecipeById,
   listPlannedItemsByUserAndDateRange,
   listPlannedItemsWithRecipeBySlot,
-  getPlannedItemWithRecipeById,
+  moveItem,
   updatePlannedItem,
 } from "@/server/db/repositories/planned-items";
+import { trpcLogger as log } from "@/server/logger";
 
 const slotSchema = z.enum(["Breakfast", "Lunch", "Dinner", "Snack"]);
 const itemTypeSchema = z.enum(["recipe", "note"]);
@@ -222,6 +220,8 @@ export const plannedItemsProcedures = router({
 
   updateItem: authedProcedure.input(updateItemInput).mutation(async ({ ctx, input }) => {
     const { itemId, title } = input;
+    const householdKey = ctx.householdKey;
+    const userId = ctx.user.id;
 
     const item = await getPlannedItemById(itemId);
 
@@ -234,42 +234,53 @@ export const plannedItemsProcedures = router({
 
     await assertHouseholdAccess(ctx.user.id, item.userId);
 
-    const updatedItem = await updatePlannedItem(itemId, { title });
+    updatePlannedItem(itemId, { title })
+      .then(async (updatedItem) => {
+        if (!updatedItem) {
+          throw new Error("Failed to update item");
+        }
 
-    if (!updatedItem) {
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to update item",
+        const itemWithRecipe = await getPlannedItemWithRecipeById(updatedItem.id);
+
+        if (!itemWithRecipe) {
+          throw new Error("Failed to fetch updated item");
+        }
+
+        const itemPayload: PlannedItemWithRecipePayload = {
+          id: itemWithRecipe.id,
+          date: itemWithRecipe.date,
+          slot: itemWithRecipe.slot,
+          sortOrder: itemWithRecipe.sortOrder,
+          itemType: itemWithRecipe.itemType,
+          recipeId: itemWithRecipe.recipeId,
+          title: itemWithRecipe.title,
+          userId: itemWithRecipe.userId,
+          recipeName: itemWithRecipe.recipeName,
+          recipeImage: itemWithRecipe.recipeImage,
+          servings: itemWithRecipe.servings,
+          calories: itemWithRecipe.calories,
+        };
+
+        calendarEmitter.emitToHousehold(householdKey, "itemUpdated", {
+          item: itemPayload,
+        });
+
+        if (itemWithRecipe.itemType === "note") {
+          calendarEmitter.emitGlobal("globalNoteUpdated", {
+            id: itemWithRecipe.id,
+            title: itemWithRecipe.title ?? "",
+            newDate: itemWithRecipe.date,
+            slot: itemWithRecipe.slot,
+            userId: itemWithRecipe.userId,
+          });
+        }
+      })
+      .catch((err) => {
+        log.error({ err, userId, itemId }, "Failed to update calendar item");
+        calendarEmitter.emitToHousehold(householdKey, "failed", {
+          reason: "Failed to update item",
+        });
       });
-    }
-
-    const itemWithRecipe = await getPlannedItemWithRecipeById(updatedItem.id);
-
-    if (!itemWithRecipe) {
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to fetch updated item",
-      });
-    }
-
-    const itemPayload: PlannedItemWithRecipePayload = {
-      id: itemWithRecipe.id,
-      date: itemWithRecipe.date,
-      slot: itemWithRecipe.slot,
-      sortOrder: itemWithRecipe.sortOrder,
-      itemType: itemWithRecipe.itemType,
-      recipeId: itemWithRecipe.recipeId,
-      title: itemWithRecipe.title,
-      userId: itemWithRecipe.userId,
-      recipeName: itemWithRecipe.recipeName,
-      recipeImage: itemWithRecipe.recipeImage,
-      servings: itemWithRecipe.servings,
-      calories: itemWithRecipe.calories,
-    };
-
-    calendarEmitter.emitToHousehold(ctx.householdKey, "itemUpdated", {
-      item: itemPayload,
-    });
 
     return { success: true };
   }),
