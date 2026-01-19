@@ -68,7 +68,7 @@ export const myEntityRepository = {
 | `recipes`                          | Recipe metadata                  |
 | `ingredients`, `steps`             | Recipe components                |
 | `groceries`, `recurring_groceries` | Grocery management               |
-| `planned_recipe`, `notes`          | Calendar items                   |
+| `planned_items`                    | Calendar items (recipes + notes) |
 | `households`, `household_users`    | Multi-user households            |
 | `server_config`                    | Server-wide settings (encrypted) |
 
