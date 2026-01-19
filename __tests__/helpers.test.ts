@@ -5,6 +5,10 @@ import {
   formatMinutesHM,
   parseIngredientWithDefaults,
   stripHtmlTags,
+  getWeekStart,
+  getWeekEnd,
+  getWeekDays,
+  addWeeks,
 } from "@/lib/helpers";
 
 describe("parseIsoDuration", () => {
@@ -188,5 +192,71 @@ describe("stripHtmlTags", () => {
     expect(stripHtmlTags("<p>Bake at 180&#176;C for 30 minutes</p>")).toBe(
       "Bake at 180°C for 30 minutes"
     );
+  });
+});
+
+describe("getWeekStart", () => {
+  it("returns Monday for a Wednesday", () => {
+    const wed = new Date("2026-01-21");
+    const result = getWeekStart(wed);
+    expect(result).toEqual(new Date("2026-01-19"));
+    expect(result.getDay()).toBe(1);
+  });
+
+  it("returns same day for Monday", () => {
+    const mon = new Date("2026-01-19");
+    const result = getWeekStart(mon);
+    expect(result).toEqual(new Date("2026-01-19"));
+    expect(result.getDay()).toBe(1);
+  });
+
+  it("returns previous Monday for Sunday", () => {
+    const sun = new Date("2026-01-25");
+    const result = getWeekStart(sun);
+    expect(result).toEqual(new Date("2026-01-19"));
+    expect(result.getDay()).toBe(1);
+  });
+});
+
+describe("getWeekEnd", () => {
+  it("returns Sunday of the same week", () => {
+    const wed = new Date("2026-01-21");
+    const result = getWeekEnd(wed);
+    expect(result).toEqual(new Date("2026-01-25"));
+    expect(result.getDay()).toBe(0);
+  });
+});
+
+describe("getWeekDays", () => {
+  it("returns exactly 7 days", () => {
+    const result = getWeekDays(new Date("2026-01-21"));
+    expect(result).toHaveLength(7);
+  });
+
+  it("starts with Monday and ends with Sunday", () => {
+    const result = getWeekDays(new Date("2026-01-21"));
+    expect(result[0]?.getDay()).toBe(1);
+    expect(result[6]?.getDay()).toBe(0);
+  });
+});
+
+describe("addWeeks", () => {
+  it("adds one week", () => {
+    const date = new Date("2026-01-19");
+    const result = addWeeks(date, 1);
+    expect(result).toEqual(new Date("2026-01-26"));
+  });
+
+  it("subtracts one week", () => {
+    const date = new Date("2026-01-19");
+    const result = addWeeks(date, -1);
+    expect(result).toEqual(new Date("2026-01-12"));
+  });
+
+  it("handles month boundary", () => {
+    const date = new Date("2026-01-26");
+    const result = addWeeks(date, 1);
+    expect(result.getMonth()).toBe(1);
+    expect(result.getDate()).toBe(2);
   });
 });

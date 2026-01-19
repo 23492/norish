@@ -233,3 +233,52 @@ export function sortTagsWithAllergyPriority<T extends { name: string }>(
 export function isAllergenTag(tagName: string, allergySet: Set<string>): boolean {
   return allergySet.has(tagName.toLowerCase());
 }
+
+/**
+ * Get the Monday (ISO week start) of the week containing the provided date.
+ *
+ * Note: Sunday is treated as the last day of the week and will return the
+ * previous Monday.
+ */
+export function getWeekStart(date: Date): Date {
+  const d = new Date(date);
+  const day = d.getDay();
+  const daysSinceMonday = day === 0 ? 6 : day - 1;
+
+  d.setDate(d.getDate() - daysSinceMonday);
+
+  return d;
+}
+
+/**
+ * Get the Sunday (ISO week end) of the week containing the provided date.
+ */
+export function getWeekEnd(date: Date): Date {
+  const start = getWeekStart(date);
+  const end = new Date(start);
+
+  end.setDate(end.getDate() + 6);
+
+  return end;
+}
+
+/**
+ * Get all 7 days (Mon-Sun) for the week containing the provided date.
+ */
+export function getWeekDays(date: Date): Date[] {
+  const start = getWeekStart(date);
+  const end = getWeekEnd(date);
+
+  return eachDayOfInterval(start, end);
+}
+
+/**
+ * Add (or subtract) a number of weeks from a date.
+ */
+export function addWeeks(date: Date, weeks: number): Date {
+  const d = new Date(date);
+
+  d.setDate(d.getDate() + weeks * 7);
+
+  return d;
+}

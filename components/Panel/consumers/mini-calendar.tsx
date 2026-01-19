@@ -1,7 +1,14 @@
 "use client";
 
-import { PlusIcon } from "@heroicons/react/16/solid";
-import { Dropdown, DropdownTrigger, Button, DropdownMenu, DropdownItem } from "@heroui/react";
+import { ExclamationTriangleIcon, PlusIcon } from "@heroicons/react/16/solid";
+import {
+  Dropdown,
+  DropdownTrigger,
+  Button,
+  DropdownMenu,
+  DropdownItem,
+  Divider,
+} from "@heroui/react";
 import { useMemo, useRef, useCallback, memo, useEffect, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useLocale, useTranslations } from "next-intl";
@@ -10,7 +17,7 @@ import { Slot } from "@/types";
 import DayTimelineSkeleton from "@/components/skeleton/day-timeline-skeleton";
 import { startOfMonth, addMonths, endOfMonth, eachDayOfInterval, dateKey } from "@/lib/helpers";
 import { useRecipeQuery } from "@/hooks/recipes";
-import { MealIcon } from "@/lib/meal-icon";
+
 import Panel from "@/components/Panel/Panel";
 import { useCalendarQuery, useCalendarMutations, useCalendarSubscription } from "@/hooks/calendar";
 
@@ -38,7 +45,13 @@ const DayRow = memo(function DayRow({
   date: Date;
   dateKeyStr: string;
   isToday: boolean;
-  items: { slot: Slot; itemType: string; recipeName?: string | null; title?: string | null }[];
+  items: {
+    slot: Slot;
+    itemType: string;
+    recipeName?: string | null;
+    title?: string | null;
+    allergyWarnings?: string[] | null;
+  }[];
   weekdayLong: Intl.DateTimeFormat;
   monthLong: Intl.DateTimeFormat;
   onPlan: (dayKey: string, slot: Slot) => void;
@@ -49,25 +62,9 @@ const DayRow = memo(function DayRow({
   return (
     <div className="border-default-100 border-b last:border-none">
       <div className="bg-background hover:bg-default-50/50 flex flex-col gap-3 px-4 py-4 transition-colors">
-        <div className="flex items-center gap-4">
-          <div className="bg-default-50 flex shrink-0 flex-col items-center justify-center rounded-xl px-3 py-2 text-center">
-            <div className="text-default-500 text-xs font-medium tracking-wider uppercase">
-              {weekdayLong.format(date).slice(0, 3)}
-            </div>
-            <div
-              className={`${
-                isToday ? "text-primary" : "text-foreground"
-              } font-mono text-2xl leading-none font-bold tracking-tight`}
-            >
-              {String(date.getDate())}
-            </div>
-          </div>
-
-          <div className="flex flex-1 flex-col justify-center">
-            <div className="text-default-900 text-sm font-semibold">{weekdayLong.format(date)}</div>
-            <div className="text-default-500 text-xs">
-              {monthLong.format(date)} {date.getFullYear()}
-            </div>
+        <div className="flex items-center justify-between gap-3">
+          <div className={`text-sm font-semibold ${isToday ? "text-primary" : "text-foreground"}`}>
+            {weekdayLong.format(date)}, {monthLong.format(date)} {date.getDate()}
           </div>
 
           <Dropdown>
@@ -94,22 +91,27 @@ const DayRow = memo(function DayRow({
           </Dropdown>
         </div>
 
-        <div className="flex w-full flex-col gap-2 pl-[4.5rem]">
+        <Divider className="my-2" />
+
+        <div className="flex w-full flex-col gap-2">
           {items.length === 0 ? (
             <span className="text-default-400 text-xs italic">{noItemsLabel}</span>
           ) : (
-            items.map((it, i) => (
+            items.map((it) => (
               <div
-                key={i}
-                className="bg-content1 border-default-100 flex w-full items-center gap-3 rounded-lg border px-3 py-2 shadow-sm"
+                key={`${dateKeyStr}-${it.slot}-${it.itemType}-${it.recipeName ?? it.title ?? ""}`}
+                className="bg-content1 border-default-100 flex w-full items-center gap-2 rounded-lg border px-3 py-2 shadow-sm"
               >
-                <MealIcon slot={it.slot} />
                 <span
-                  className={`truncate text-sm font-medium ${it.itemType === "note" ? "text-default-500 italic" : "text-foreground"}`}
+                  className={`flex-1 truncate text-sm font-medium ${it.itemType === "note" ? "text-default-500 italic" : "text-foreground"}`}
                   title={it.itemType === "recipe" ? (it.recipeName ?? "") : (it.title ?? "")}
                 >
                   {it.itemType === "recipe" ? it.recipeName : it.title}
                 </span>
+
+                {it.allergyWarnings && it.allergyWarnings.length > 0 && (
+                  <ExclamationTriangleIcon className="text-warning h-4 w-4 shrink-0" />
+                )}
               </div>
             ))
           )}
@@ -232,9 +234,15 @@ function MiniCalendarContent({
           {virtualItems.map((virtualItem) => {
             const d = allDays[virtualItem.index];
             const key = dateKey(d);
-            const items = (calendarData[key] ?? []).sort(
-              (a, b) => slotOrder[a.slot] - slotOrder[b.slot]
-            );
+            const items = (calendarData[key] ?? [])
+              .sort((a, b) => slotOrder[a.slot] - slotOrder[b.slot])
+              .map((it) => ({
+                slot: it.slot,
+                itemType: it.itemType,
+                recipeName: (it as { recipeName?: string | null }).recipeName,
+                title: it.title,
+                allergyWarnings: (it as { allergyWarnings?: string[] | null }).allergyWarnings,
+              }));
             const isToday = key === todayKey;
 
             return (

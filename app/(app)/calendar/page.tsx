@@ -2,13 +2,19 @@
 
 import { CalendarContextProvider } from "./context";
 
-import { DndCalendarProvider, MobileMealplan } from "@/components/calendar";
+import { DesktopMealplan, DndCalendarProvider, MobileMealplan } from "@/components/calendar";
 
 export default function CalendarPage() {
   return (
     <CalendarContextProvider>
       <DndCalendarProvider>
-        <MobileMealplan />
+        <div className="block md:hidden">
+          <MobileMealplan />
+        </div>
+
+        <div className="hidden h-full md:block">
+          <DesktopMealplan />
+        </div>
       </DndCalendarProvider>
     </CalendarContextProvider>
   );
