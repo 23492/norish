@@ -8,6 +8,7 @@ import {
   DropdownMenu,
   DropdownItem,
   Divider,
+  Image,
 } from "@heroui/react";
 import { useMemo, useRef, useCallback, memo, useEffect, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -21,7 +22,7 @@ import { useRecipeQuery } from "@/hooks/recipes";
 import Panel from "@/components/Panel/Panel";
 import { useCalendarQuery, useCalendarMutations, useCalendarSubscription } from "@/hooks/calendar";
 
-const ESTIMATED_DAY_HEIGHT = 140; // Approximate height of a day row
+const ESTIMATED_DAY_HEIGHT = 180;
 
 type MiniCalendarProps = {
   open: boolean;
@@ -29,7 +30,15 @@ type MiniCalendarProps = {
   recipeId: string;
 };
 
-// Memoized day row to prevent re-renders when other days change
+type PlannedItemDisplay = {
+  slot: Slot;
+  itemType: string;
+  recipeName?: string | null;
+  recipeImage?: string | null;
+  title?: string | null;
+  allergyWarnings?: string[] | null;
+};
+
 const DayRow = memo(function DayRow({
   date,
   dateKeyStr,
@@ -45,13 +54,7 @@ const DayRow = memo(function DayRow({
   date: Date;
   dateKeyStr: string;
   isToday: boolean;
-  items: {
-    slot: Slot;
-    itemType: string;
-    recipeName?: string | null;
-    title?: string | null;
-    allergyWarnings?: string[] | null;
-  }[];
+  items: PlannedItemDisplay[];
   weekdayLong: Intl.DateTimeFormat;
   monthLong: Intl.DateTimeFormat;
   onPlan: (dayKey: string, slot: Slot) => void;
@@ -100,18 +103,32 @@ const DayRow = memo(function DayRow({
             items.map((it) => (
               <div
                 key={`${dateKeyStr}-${it.slot}-${it.itemType}-${it.recipeName ?? it.title ?? ""}`}
-                className="bg-content1 border-default-100 flex w-full items-center gap-2 rounded-lg border px-3 py-2 shadow-sm"
+                className="flex w-full items-start gap-3 py-1"
               >
-                <span
-                  className={`flex-1 truncate text-sm font-medium ${it.itemType === "note" ? "text-default-500 italic" : "text-foreground"}`}
-                  title={it.itemType === "recipe" ? (it.recipeName ?? "") : (it.title ?? "")}
-                >
-                  {it.itemType === "recipe" ? it.recipeName : it.title}
-                </span>
-
-                {it.allergyWarnings && it.allergyWarnings.length > 0 && (
-                  <ExclamationTriangleIcon className="text-warning h-4 w-4 shrink-0" />
+                {it.itemType === "recipe" && it.recipeImage && (
+                  <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-md">
+                    <Image
+                      removeWrapper
+                      alt={it.recipeName ?? ""}
+                      className="h-full w-full object-cover"
+                      src={it.recipeImage}
+                    />
+                  </div>
                 )}
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`flex-1 truncate text-sm font-medium ${it.itemType === "note" ? "text-default-500 italic" : "text-foreground"}`}
+                      title={it.itemType === "recipe" ? (it.recipeName ?? "") : (it.title ?? "")}
+                    >
+                      {it.itemType === "recipe" ? it.recipeName : it.title}
+                    </span>
+                    {it.allergyWarnings && it.allergyWarnings.length > 0 && (
+                      <ExclamationTriangleIcon className="text-warning h-4 w-4 shrink-0" />
+                    )}
+                  </div>
+                  <span className="text-default-400 text-xs">{slotLabels[it.slot]}</span>
+                </div>
               </div>
             ))
           )}
@@ -240,6 +257,7 @@ function MiniCalendarContent({
                 slot: it.slot,
                 itemType: it.itemType,
                 recipeName: (it as { recipeName?: string | null }).recipeName,
+                recipeImage: (it as { recipeImage?: string | null }).recipeImage,
                 title: it.title,
                 allergyWarnings: (it as { allergyWarnings?: string[] | null }).allergyWarnings,
               }));

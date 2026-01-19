@@ -17,16 +17,6 @@ function formatWeekRange(format: ReturnType<typeof useFormatter>, weekStart: Dat
   const start = getWeekStart(weekStart);
   const end = getWeekEnd(weekStart);
 
-  const sameMonth =
-    start.getFullYear() === end.getFullYear() && start.getMonth() === end.getMonth();
-
-  if (sameMonth) {
-    return `${format.dateTime(start, { month: "long", day: "numeric" })} - ${format.dateTime(end, {
-      day: "numeric",
-      year: "numeric",
-    })}`;
-  }
-
   return `${format.dateTime(start, { month: "long", day: "numeric" })} - ${format.dateTime(end, {
     month: "long",
     day: "numeric",
