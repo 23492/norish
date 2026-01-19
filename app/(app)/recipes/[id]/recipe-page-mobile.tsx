@@ -143,6 +143,22 @@ export default function RecipePageMobile() {
             </div>
           )}
 
+          {recipe.categories.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {recipe.categories.map((category) => (
+                <Chip
+                  key={category}
+                  size="sm"
+                  classNames={{
+                    base: "bg-primary-100 text-primary-700",
+                  }}
+                >
+                  {category}
+                </Chip>
+              ))}
+            </div>
+          )}
+
           {/* Tags */}
           {recipe.tags.length > 0 && (
             <div className="flex flex-wrap gap-2">
