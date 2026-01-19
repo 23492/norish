@@ -20,37 +20,4 @@ export type CalendarSubscriptionEvents = {
     oldSortOrder: number;
   };
   itemUpdated: { item: PlannedItemWithRecipePayload };
-
-  globalRecipePlanned: {
-    id: string;
-    recipeId: string;
-    recipeName: string;
-    date: string;
-    slot: Slot;
-    userId: string;
-  };
-  globalRecipeDeleted: { id: string; userId: string };
-  globalRecipeUpdated: {
-    id: string;
-    recipeId: string;
-    recipeName: string;
-    newDate: string;
-    slot: Slot;
-    userId: string;
-  };
-  globalNotePlanned: {
-    id: string;
-    title: string;
-    date: string;
-    slot: Slot;
-    userId: string;
-  };
-  globalNoteDeleted: { id: string; userId: string };
-  globalNoteUpdated: {
-    id: string;
-    title: string;
-    newDate: string;
-    slot: Slot;
-    userId: string;
-  };
 };

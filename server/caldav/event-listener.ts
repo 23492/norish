@@ -1,13 +1,16 @@
 import type { CalendarSubscriptionEvents } from "@/server/trpc/routers/calendar/types";
 import type { RecipeSubscriptionEvents } from "@/server/trpc/routers/recipes/types";
 import type { Slot } from "@/types";
+import type Redis from "ioredis";
+
+import superjson from "superjson";
 
 import { getQueues } from "@/server/queue/registry";
 import { addCaldavSyncJob } from "@/server/queue/caldav-sync/producer";
-import { calendarEmitter } from "@/server/trpc/routers/calendar/emitter";
 import { recipeEmitter } from "@/server/trpc/routers/recipes/emitter";
 import { getCaldavSyncStatusByItemId } from "@/server/db/repositories/caldav-sync-status";
 import { getCaldavConfigDecrypted } from "@/server/db/repositories/caldav-config";
+import { createSubscriberClient } from "@/server/redis/client";
 import { createLogger } from "@/server/logger";
 
 const log = createLogger("caldav-sync");
@@ -109,126 +112,185 @@ async function queueDeleteJob(userId: string, itemId: string): Promise<void> {
 }
 
 async function startCalendarSubscriptions(signal: AbortSignal): Promise<void> {
-  // Run all subscriptions concurrently
-  await Promise.all([
-    subscribeToGlobalEvent(
-      "globalRecipePlanned",
-      signal,
-      async (data: CalendarSubscriptionEvents["globalRecipePlanned"]) => {
-        const { id, recipeId, recipeName, date, slot, userId } = data;
-
-        log.debug({ id, recipeId, userId }, "Recipe planned - queuing CalDAV sync");
-        try {
-          await queueSyncJob(userId, id, "recipe", id, recipeName, date, slot, recipeId);
-        } catch (error) {
-          log.error({ err: error, id, userId }, "Failed to queue CalDAV sync for planned recipe");
-        }
-      }
-    ),
-    subscribeToGlobalEvent(
-      "globalRecipeDeleted",
-      signal,
-      async (data: CalendarSubscriptionEvents["globalRecipeDeleted"]) => {
-        const { id, userId } = data;
-
-        log.debug({ id, userId }, "Recipe unplanned - queuing CalDAV delete");
-        try {
-          await queueDeleteJob(userId, id);
-        } catch (error) {
-          log.error(
-            { err: error, id, userId },
-            "Failed to queue CalDAV delete for unplanned recipe"
-          );
-        }
-      }
-    ),
-    subscribeToGlobalEvent(
-      "globalRecipeUpdated",
-      signal,
-      async (data: CalendarSubscriptionEvents["globalRecipeUpdated"]) => {
-        const { id, recipeId, recipeName, newDate, slot, userId } = data;
-
-        log.debug({ id, userId, newDate }, "Recipe updated - queuing CalDAV sync");
-        try {
-          const syncStatus = await getCaldavSyncStatusByItemId(userId, id);
-
-          if (!syncStatus) {
-            log.debug({ id, userId }, "Recipe not synced to CalDAV, skipping update");
-
-            return;
-          }
-          await queueSyncJob(userId, id, "recipe", id, recipeName, newDate, slot, recipeId);
-        } catch (error) {
-          log.error({ err: error, id, userId }, "Failed to queue CalDAV sync for recipe update");
-        }
-      }
-    ),
-    subscribeToGlobalEvent(
-      "globalNotePlanned",
-      signal,
-      async (data: CalendarSubscriptionEvents["globalNotePlanned"]) => {
-        const { id, title, date, slot, userId } = data;
-
-        log.debug({ id, title, userId }, "Note planned - queuing CalDAV sync");
-        try {
-          await queueSyncJob(userId, id, "note", id, title, date, slot);
-        } catch (error) {
-          log.error({ err: error, id, userId }, "Failed to queue CalDAV sync for planned note");
-        }
-      }
-    ),
-    subscribeToGlobalEvent(
-      "globalNoteDeleted",
-      signal,
-      async (data: CalendarSubscriptionEvents["globalNoteDeleted"]) => {
-        const { id, userId } = data;
-
-        log.debug({ id, userId }, "Note unplanned - queuing CalDAV delete");
-        try {
-          await queueDeleteJob(userId, id);
-        } catch (error) {
-          log.error({ err: error, id, userId }, "Failed to queue CalDAV delete for unplanned note");
-        }
-      }
-    ),
-    subscribeToGlobalEvent(
-      "globalNoteUpdated",
-      signal,
-      async (data: CalendarSubscriptionEvents["globalNoteUpdated"]) => {
-        const { id, title, newDate, slot, userId } = data;
-
-        log.debug({ id, userId, newDate }, "Note updated - queuing CalDAV sync");
-        try {
-          const syncStatus = await getCaldavSyncStatusByItemId(userId, id);
-
-          if (!syncStatus) {
-            log.debug({ id, userId }, "Note not synced to CalDAV, skipping update");
-
-            return;
-          }
-          await queueSyncJob(userId, id, "note", id, title, newDate, slot);
-        } catch (error) {
-          log.error({ err: error, id, userId }, "Failed to queue CalDAV sync for note update");
-        }
-      }
-    ),
-  ]);
-}
-
-async function subscribeToGlobalEvent<K extends keyof CalendarSubscriptionEvents>(
-  event: K,
-  signal: AbortSignal,
-  handler: (data: CalendarSubscriptionEvents[K]) => Promise<void>
-): Promise<void> {
-  const channel = calendarEmitter.globalEvent(event);
+  const CALENDAR_PATTERN = "norish:calendar:household:*:*";
+  let subscriber: Redis | null = null;
 
   try {
-    for await (const data of calendarEmitter.createSubscription(channel, signal)) {
-      await handler(data as CalendarSubscriptionEvents[K]);
+    subscriber = await createSubscriberClient();
+
+    if (signal.aborted) {
+      await subscriber.quit();
+      return;
     }
+
+    await subscriber.psubscribe(CALENDAR_PATTERN);
+    log.info({ pattern: CALENDAR_PATTERN }, "CalDAV subscribed to calendar events via psubscribe");
+
+    const abortHandler = async () => {
+      if (subscriber) {
+        try {
+          await subscriber.punsubscribe(CALENDAR_PATTERN);
+          await subscriber.quit();
+        } catch (err) {
+          log.debug({ err }, "Error during calendar subscription cleanup");
+        }
+      }
+    };
+
+    signal.addEventListener("abort", abortHandler, { once: true });
+
+    subscriber.on("pmessage", (_pattern: string, channel: string, message: string) => {
+      const parts = channel.split(":");
+      const eventName = parts[parts.length - 1];
+
+      let data: unknown;
+      try {
+        data = superjson.parse(message);
+      } catch (err) {
+        log.error({ err, channel }, "Failed to parse calendar event message");
+        return;
+      }
+
+      void handleCalendarEvent(eventName, data);
+    });
+
+    subscriber.on("error", (err) => {
+      if (!signal.aborted) {
+        log.error({ err }, "Calendar psubscribe error");
+      }
+    });
+
+    await new Promise<void>((resolve) => {
+      signal.addEventListener("abort", () => resolve(), { once: true });
+    });
   } catch (err) {
     if (!signal.aborted) {
-      log.error({ err, event }, "Calendar subscription error");
+      log.error({ err }, "Failed to start calendar subscriptions");
+    }
+  } finally {
+    if (subscriber) {
+      try {
+        await subscriber.punsubscribe(CALENDAR_PATTERN);
+        await subscriber.quit();
+      } catch {
+        // Cleanup errors are expected during shutdown
+      }
+    }
+  }
+}
+
+async function handleCalendarEvent(eventName: string, data: unknown): Promise<void> {
+  try {
+    switch (eventName) {
+      case "itemCreated": {
+        const { item } = data as CalendarSubscriptionEvents["itemCreated"];
+        const title =
+          item.itemType === "recipe" ? (item.recipeName ?? "Recipe") : (item.title ?? "Note");
+
+        log.debug(
+          { id: item.id, itemType: item.itemType, userId: item.userId },
+          "Item created - queuing CalDAV sync"
+        );
+        await queueSyncJob(
+          item.userId,
+          item.id,
+          item.itemType,
+          item.id,
+          title,
+          item.date,
+          item.slot,
+          item.recipeId ?? undefined
+        );
+        break;
+      }
+
+      case "itemDeleted": {
+        const { itemId } = data as CalendarSubscriptionEvents["itemDeleted"];
+        log.debug({ itemId }, "Item deleted - queuing CalDAV delete for all synced users");
+        await queueDeleteJobByItemId(itemId);
+        break;
+      }
+
+      case "itemMoved": {
+        const { item } = data as CalendarSubscriptionEvents["itemMoved"];
+        const title =
+          item.itemType === "recipe" ? (item.recipeName ?? "Recipe") : (item.title ?? "Note");
+
+        log.debug(
+          { id: item.id, userId: item.userId, date: item.date },
+          "Item moved - queuing CalDAV sync"
+        );
+
+        const movedSyncStatus = await getCaldavSyncStatusByItemId(item.userId, item.id);
+        if (!movedSyncStatus) {
+          log.debug(
+            { id: item.id, userId: item.userId },
+            "Item not synced to CalDAV, skipping move update"
+          );
+          return;
+        }
+
+        await queueSyncJob(
+          item.userId,
+          item.id,
+          item.itemType,
+          item.id,
+          title,
+          item.date,
+          item.slot,
+          item.recipeId ?? undefined
+        );
+        break;
+      }
+
+      case "itemUpdated": {
+        const { item } = data as CalendarSubscriptionEvents["itemUpdated"];
+        const title =
+          item.itemType === "recipe" ? (item.recipeName ?? "Recipe") : (item.title ?? "Note");
+
+        log.debug({ id: item.id, userId: item.userId }, "Item updated - queuing CalDAV sync");
+
+        const updatedSyncStatus = await getCaldavSyncStatusByItemId(item.userId, item.id);
+        if (!updatedSyncStatus) {
+          log.debug(
+            { id: item.id, userId: item.userId },
+            "Item not synced to CalDAV, skipping update"
+          );
+          return;
+        }
+
+        await queueSyncJob(
+          item.userId,
+          item.id,
+          item.itemType,
+          item.id,
+          title,
+          item.date,
+          item.slot,
+          item.recipeId ?? undefined
+        );
+        break;
+      }
+
+      default:
+        break;
+    }
+  } catch (error) {
+    log.error({ err: error, eventName }, "Failed to handle calendar event for CalDAV sync");
+  }
+}
+
+async function queueDeleteJobByItemId(itemId: string): Promise<void> {
+  const { getAllCaldavSyncStatusesByItemId } =
+    await import("@/server/db/repositories/caldav-sync-status");
+
+  const syncStatuses = await getAllCaldavSyncStatusesByItemId(itemId);
+
+  for (const status of syncStatuses) {
+    try {
+      await queueDeleteJob(status.userId, itemId);
+    } catch (error) {
+      log.error({ err: error, itemId, userId: status.userId }, "Failed to queue CalDAV delete");
     }
   }
 }

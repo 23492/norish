@@ -264,16 +264,6 @@ export const plannedItemsProcedures = router({
         calendarEmitter.emitToHousehold(householdKey, "itemUpdated", {
           item: itemPayload,
         });
-
-        if (itemWithRecipe.itemType === "note") {
-          calendarEmitter.emitGlobal("globalNoteUpdated", {
-            id: itemWithRecipe.id,
-            title: itemWithRecipe.title ?? "",
-            newDate: itemWithRecipe.date,
-            slot: itemWithRecipe.slot,
-            userId: itemWithRecipe.userId,
-          });
-        }
       })
       .catch((err) => {
         log.error({ err, userId, itemId }, "Failed to update calendar item");

@@ -211,6 +211,20 @@ export async function deleteCaldavSyncStatusByItemId(
     .where(and(eq(caldavSyncStatus.userId, userId), eq(caldavSyncStatus.itemId, itemId)));
 }
 
+export async function getAllCaldavSyncStatusesByItemId(
+  itemId: string
+): Promise<CaldavSyncStatusDto[]> {
+  const rows = await db.select().from(caldavSyncStatus).where(eq(caldavSyncStatus.itemId, itemId));
+
+  return rows.map((row) => {
+    const validated = CaldavSyncStatusSelectSchema.safeParse(row);
+
+    if (!validated.success) throw new Error("Invalid sync status data");
+
+    return validated.data;
+  });
+}
+
 export async function getSyncStatusSummary(
   userId: string
 ): Promise<{ synced: number; pending: number; failed: number; removed: number }> {
