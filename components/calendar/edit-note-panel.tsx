@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { Button, Input, DatePicker, Select, SelectItem } from "@heroui/react";
-import { Panel, PANEL_HEIGHT_COMPACT } from "@/components/Panel/Panel";
-import { useCalendarContext } from "@/app/(app)/calendar/context";
-import { Slot } from "@/types";
 import { parseDate } from "@internationalized/date";
 import { TrashIcon } from "@heroicons/react/16/solid";
 import { useTranslations } from "next-intl";
+
+import { Panel, PANEL_HEIGHT_COMPACT } from "@/components/Panel/Panel";
+import { useCalendarContext } from "@/app/(app)/calendar/context";
+import { Slot } from "@/types";
 
 const SLOTS: Slot[] = ["Breakfast", "Lunch", "Dinner", "Snack"];
 
@@ -62,34 +63,33 @@ export function EditNotePanel({
   };
 
   return (
-    <Panel open={open} onOpenChange={onOpenChange} title={t("title")} height={PANEL_HEIGHT_COMPACT}>
+    <Panel height={PANEL_HEIGHT_COMPACT} open={open} title={t("title")} onOpenChange={onOpenChange}>
       <div className="flex flex-col gap-4">
         <Input
           label={t("noteLabel")}
-          value={title}
-          onValueChange={setTitle}
           placeholder={t("notePlaceholder")}
-          autoFocus
+          value={title}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               handleSave();
             }
           }}
+          onValueChange={setTitle}
         />
 
         <div className="flex gap-3">
           <DatePicker
+            isRequired
+            className="flex-1"
             label={t("date")}
             value={selectedDate}
             onChange={(d) => d && setSelectedDate(d)}
-            className="flex-1"
-            isRequired
           />
           <Select
+            className="flex-1"
             label={t("slot")}
             selectedKeys={[selectedSlot]}
             onChange={(e) => setSelectedSlot(e.target.value as Slot)}
-            className="flex-1"
           >
             {SLOTS.map((s) => (
               <SelectItem key={s}>{tSlots(s.toLowerCase())}</SelectItem>
@@ -97,9 +97,10 @@ export function EditNotePanel({
           </Select>
         </div>
 
-        <div className="mt-2 flex justify-between">
-          <Button isIconOnly color="danger" variant="light" onPress={handleDelete}>
+        <div className="mt-2 flex justify-end gap-2">
+          <Button color="danger" size="sm" variant="light" onPress={handleDelete}>
             <TrashIcon className="h-4 w-4" />
+            {tActions("delete")}
           </Button>
           <Button color="primary" onPress={handleSave}>
             {tActions("save")}
