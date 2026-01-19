@@ -6,9 +6,12 @@ import { permissionsEmitter } from "../permissions/emitter";
 
 import { trpcLogger as log } from "@/server/logger";
 import { setConfig, getConfig } from "@/server/db/repositories/server-config";
+import { getRecipesWithoutCategories } from "@/server/db/repositories/recipes";
 import { testAIEndpoint as testAIEndpointFn } from "@/server/auth/connection-tests";
 import { getRecipePermissionPolicy } from "@/config/server-config-loader";
 import { listModels, listTranscriptionModels } from "@/server/ai/providers";
+import { getQueues } from "@/server/queue/registry";
+import { addAutoCategorizationJob } from "@/server/queue/auto-categorization/producer";
 import {
   ServerConfigKeys,
   AIConfigSchema,
@@ -160,10 +163,37 @@ const listAvailableTranscriptionModels = adminProcedure
     return { models };
   });
 
-export const aiVideoProcedures = router({
+const categorizeAllRecipes = adminProcedure.mutation(async ({ ctx }) => {
+  log.info({ userId: ctx.user.id }, "Bulk categorization requested");
+
+  const uncategorized = await getRecipesWithoutCategories();
+
+  if (uncategorized.length === 0) {
+    log.info("No uncategorized recipes found");
+
+    return { queued: 0 };
+  }
+
+  const queues = getQueues();
+
+  for (const recipe of uncategorized) {
+    await addAutoCategorizationJob(queues.autoCategorization, {
+      recipeId: recipe.id,
+      userId: ctx.user.id,
+      householdKey: ctx.household?.id ?? "",
+    });
+  }
+
+  log.info({ count: uncategorized.length }, "Bulk categorization jobs queued");
+
+  return { queued: uncategorized.length };
+});
+
+export const aiConfigProcedures = router({
   updateAIConfig,
   updateVideoConfig,
   testAIEndpoint,
   listAvailableModels,
   listAvailableTranscriptionModels,
+  categorizeAllRecipes,
 });
