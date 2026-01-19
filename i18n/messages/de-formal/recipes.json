@@ -51,6 +51,7 @@
     "delete": "Löschen",
     "autoTag": "Auto-Tagging",
     "autoTagging": "Tags werden generiert...",
+    "autoCategorize": "Automatisch kategorisieren",
     "detectAllergies": "Allergene erkennen",
     "detectingAllergies": "Allergene werden erkannt...",
     "estimateNutrition": "Nährwerte schätzen",
@@ -86,6 +87,14 @@
     "ingredientsHelp": "Geben Sie Zutaten wie \"2 Tassen Mehl\" ein - wir analysieren die Mengen und Einheiten automatisch.",
     "instructionsHelp": "Schreiben Sie klare Schritt-für-Schritt-Anleitungen. Drücken Sie Enter, um zum nächsten Schritt zu gehen.",
     "tagsHelp": "Geben Sie Tags ein und klicken Sie auf Vorschläge zum Hinzufügen. Ausgewählte Tags sind blau, neue Tags haben einen gestrichelten Rahmen.",
+    "tagsAndCategories": "Tags & Kategorien",
+    "categoriesHelp": "Wählen Sie Mahlzeitkategorien für dieses Rezept.",
+    "category": {
+      "breakfast": "Frühstück",
+      "lunch": "Mittagessen",
+      "dinner": "Abendessen",
+      "snack": "Snack"
+    },
     "calories": "Kalorien",
     "fat": "Fett (g)",
     "carbs": "Kohlenhydrate (g)",

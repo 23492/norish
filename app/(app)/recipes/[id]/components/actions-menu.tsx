@@ -7,8 +7,8 @@ import {
   PencilSquareIcon,
   TrashIcon,
   DevicePhoneMobileIcon,
-  SparklesIcon,
 } from "@heroicons/react/20/solid";
+import { SparklesIcon } from "@heroicons/react/24/outline";
 import { EllipsisHorizontalIcon } from "@heroicons/react/16/solid";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -48,6 +48,8 @@ export default function ActionsMenu({ id }: Props) {
     recipe,
     isAutoTagging,
     triggerAutoTag,
+    isCategorizing,
+    triggerAutoCategorize,
     isDetectingAllergies,
     triggerAllergyDetection,
     isEstimatingNutrition,
@@ -113,6 +115,18 @@ export default function ActionsMenu({ id }: Props) {
       });
     }
 
+    if (isAIEnabled && canEdit) {
+      items.push({
+        key: "auto-categorize",
+        label: t("autoCategorize"),
+        icon: <SparklesIcon className="size-4" />,
+        onPress: () => triggerAutoCategorize(),
+        labelClassName: cssAIGradientText,
+        iconClassName: cssAIIconColor,
+        isDisabled: isCategorizing,
+      });
+    }
+
     // Show allergy detection when AI is enabled, user can edit, and allergies are configured
     const hasAllergies = allergies.length > 0;
 
@@ -172,6 +186,8 @@ export default function ActionsMenu({ id }: Props) {
     triggerAllergyDetection,
     isEstimatingNutrition,
     estimateNutrition,
+    isCategorizing,
+    triggerAutoCategorize,
   ]);
 
   return (

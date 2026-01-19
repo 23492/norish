@@ -44,6 +44,7 @@ import {
   addPasteImportJob,
   addNutritionEstimationJob,
   addAutoTaggingJob,
+  addAutoCategorizationJob,
   addAllergyDetectionJob,
 } from "@/server/queue";
 import { FilterMode, SortOrder, RecipeCategory } from "@/types";
@@ -743,6 +744,62 @@ const triggerAutoTag = authedProcedure
     return { success: true };
   });
 
+const triggerAutoCategorize = authedProcedure
+  .input(z.object({ recipeId: z.uuid() }))
+  .mutation(async ({ ctx, input }) => {
+    const { recipeId } = input;
+
+    log.info({ userId: ctx.user.id, recipeId }, "Queueing auto-categorization for recipe");
+
+    const aiEnabled = await checkAIEnabled();
+
+    if (!aiEnabled) {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: "AI features are disabled",
+      });
+    }
+
+    const recipe = await getRecipeFull(recipeId);
+
+    if (!recipe) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "Recipe not found",
+      });
+    }
+
+    if (recipe.recipeIngredients.length === 0) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Recipe has no ingredients to generate categories from",
+      });
+    }
+
+    const queues = getQueues();
+    const result = await addAutoCategorizationJob(queues.autoCategorization, {
+      recipeId,
+      userId: ctx.user.id,
+      householdKey: ctx.householdKey,
+    });
+
+    if (result.status === "duplicate") {
+      throw new TRPCError({
+        code: "CONFLICT",
+        message: "Auto-categorization is already in progress for this recipe",
+      });
+    }
+
+    if (result.status === "skipped") {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: "Auto-categorization is disabled",
+      });
+    }
+
+    return { success: true };
+  });
+
 const triggerAllergyDetection = authedProcedure
   .input(z.object({ recipeId: z.uuid() }))
   .mutation(async ({ ctx, input }) => {
@@ -827,6 +884,7 @@ export const recipesProcedures = router({
   convertMeasurements,
   estimateNutrition,
   triggerAutoTag,
+  triggerAutoCategorize,
   triggerAllergyDetection,
   reserveId,
   autocomplete,
