@@ -1,17 +1,27 @@
+import type { PlannedItemWithRecipePayload, SlotItemSortUpdate } from "@/server/db/zodSchemas";
+
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
+import type { CalendarSubscriptionEvents } from "./types";
+
 import { router } from "../../trpc";
 import { authedProcedure } from "../../middleware";
+
+import { calendarEmitter } from "./emitter";
+
 import { assertHouseholdAccess } from "@/server/auth/permissions";
+
 import {
   getPlannedItemById,
   moveItem,
   createPlannedItem,
   deletePlannedItem,
   listPlannedItemsByUserAndDateRange,
+  listPlannedItemsWithRecipeBySlot,
+  getPlannedItemWithRecipeById,
+  updatePlannedItem,
 } from "@/server/db/repositories/planned-items";
-import { calendarEmitter } from "./emitter";
 
 const slotSchema = z.enum(["Breakfast", "Lunch", "Dinner", "Snack"]);
 const itemTypeSchema = z.enum(["recipe", "note"]);
@@ -47,9 +57,15 @@ const deleteItemInput = z.object({
   itemId: z.string().uuid(),
 });
 
+const updateItemInput = z.object({
+  itemId: z.string().uuid(),
+  title: z.string().min(1),
+});
+
 export const plannedItemsProcedures = router({
   listItems: authedProcedure.input(listItemsInput).query(async ({ ctx, input }) => {
     const { startISO, endISO } = input;
+
     return listPlannedItemsByUserAndDateRange(ctx.userIds, startISO, endISO);
   }),
 
@@ -80,17 +96,61 @@ export const plannedItemsProcedures = router({
       });
     }
 
+    const isCrossSlot = item.date !== targetDate || item.slot !== targetSlot;
+
+    const movedItemWithRecipe = await getPlannedItemWithRecipeById(movedItem.id);
+
+    if (!movedItemWithRecipe) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to fetch moved item with recipe data",
+      });
+    }
+
+    const targetSlotItems = await listPlannedItemsWithRecipeBySlot(
+      ctx.userIds,
+      targetDate,
+      targetSlot
+    );
+    const targetSlotSortUpdates: SlotItemSortUpdate[] = targetSlotItems.map((i) => ({
+      id: i.id,
+      sortOrder: i.sortOrder,
+    }));
+
+    let sourceSlotSortUpdates: SlotItemSortUpdate[] | null = null;
+
+    if (isCrossSlot) {
+      const sourceSlotItems = await listPlannedItemsWithRecipeBySlot(
+        ctx.userIds,
+        item.date,
+        item.slot
+      );
+
+      sourceSlotSortUpdates = sourceSlotItems.map((i) => ({
+        id: i.id,
+        sortOrder: i.sortOrder,
+      }));
+    }
+
+    const itemPayload: PlannedItemWithRecipePayload = {
+      id: movedItemWithRecipe.id,
+      date: movedItemWithRecipe.date,
+      slot: movedItemWithRecipe.slot,
+      sortOrder: movedItemWithRecipe.sortOrder,
+      itemType: movedItemWithRecipe.itemType,
+      recipeId: movedItemWithRecipe.recipeId,
+      title: movedItemWithRecipe.title,
+      userId: movedItemWithRecipe.userId,
+      recipeName: movedItemWithRecipe.recipeName,
+      recipeImage: movedItemWithRecipe.recipeImage,
+      servings: movedItemWithRecipe.servings,
+      calories: movedItemWithRecipe.calories,
+    };
+
     calendarEmitter.emitToHousehold(ctx.householdKey, "itemMoved", {
-      item: {
-        id: movedItem.id,
-        date: movedItem.date,
-        slot: movedItem.slot,
-        sortOrder: movedItem.sortOrder,
-        itemType: movedItem.itemType,
-        recipeId: movedItem.recipeId,
-        title: movedItem.title,
-        userId: movedItem.userId,
-      },
+      item: itemPayload,
+      targetSlotItems: targetSlotSortUpdates,
+      sourceSlotItems: sourceSlotSortUpdates,
       oldDate: item.date,
       oldSlot: item.slot,
       oldSortOrder: item.sortOrder,
@@ -111,17 +171,25 @@ export const plannedItemsProcedures = router({
       title: title ?? null,
     });
 
+    const itemWithRecipe = await getPlannedItemWithRecipeById(newItem.id);
+
+    const itemPayload: PlannedItemWithRecipePayload = {
+      id: newItem.id,
+      date: newItem.date,
+      slot: newItem.slot,
+      sortOrder: newItem.sortOrder,
+      itemType: newItem.itemType,
+      recipeId: newItem.recipeId,
+      title: newItem.title,
+      userId: newItem.userId,
+      recipeName: itemWithRecipe?.recipeName ?? null,
+      recipeImage: itemWithRecipe?.recipeImage ?? null,
+      servings: itemWithRecipe?.servings ?? null,
+      calories: itemWithRecipe?.calories ?? null,
+    };
+
     calendarEmitter.emitToHousehold(ctx.householdKey, "itemCreated", {
-      item: {
-        id: newItem.id,
-        date: newItem.date,
-        slot: newItem.slot,
-        sortOrder: newItem.sortOrder,
-        itemType: newItem.itemType,
-        recipeId: newItem.recipeId,
-        title: newItem.title,
-        userId: newItem.userId,
-      },
+      item: itemPayload,
     });
 
     return { id: newItem.id };
@@ -147,6 +215,60 @@ export const plannedItemsProcedures = router({
       itemId,
       date: item.date,
       slot: item.slot,
+    });
+
+    return { success: true };
+  }),
+
+  updateItem: authedProcedure.input(updateItemInput).mutation(async ({ ctx, input }) => {
+    const { itemId, title } = input;
+
+    const item = await getPlannedItemById(itemId);
+
+    if (!item) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "Planned item not found",
+      });
+    }
+
+    await assertHouseholdAccess(ctx.user.id, item.userId);
+
+    const updatedItem = await updatePlannedItem(itemId, { title });
+
+    if (!updatedItem) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to update item",
+      });
+    }
+
+    const itemWithRecipe = await getPlannedItemWithRecipeById(updatedItem.id);
+
+    if (!itemWithRecipe) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to fetch updated item",
+      });
+    }
+
+    const itemPayload: PlannedItemWithRecipePayload = {
+      id: itemWithRecipe.id,
+      date: itemWithRecipe.date,
+      slot: itemWithRecipe.slot,
+      sortOrder: itemWithRecipe.sortOrder,
+      itemType: itemWithRecipe.itemType,
+      recipeId: itemWithRecipe.recipeId,
+      title: itemWithRecipe.title,
+      userId: itemWithRecipe.userId,
+      recipeName: itemWithRecipe.recipeName,
+      recipeImage: itemWithRecipe.recipeImage,
+      servings: itemWithRecipe.servings,
+      calories: itemWithRecipe.calories,
+    };
+
+    calendarEmitter.emitToHousehold(ctx.householdKey, "itemUpdated", {
+      item: itemPayload,
     });
 
     return { success: true };

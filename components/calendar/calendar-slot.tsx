@@ -2,14 +2,16 @@
 
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { Slot } from "@/types";
 import { PlusIcon } from "@heroicons/react/16/solid";
 import { Button } from "@heroui/react";
 import { useTranslations } from "next-intl";
-import { CalendarItem } from "./calendar-item";
-import { useCalendarContext } from "@/app/(app)/calendar/context";
 import { useRouter } from "next/navigation";
+
+import { CalendarItem } from "./calendar-item";
 import { useDndCalendarContext } from "./dnd-calendar-provider";
+
+import { useCalendarContext } from "@/app/(app)/calendar/context";
+import { Slot } from "@/types";
 
 type CalendarSlotProps = {
   date: string;
@@ -46,9 +48,9 @@ export function CalendarSlot({ date, slot, onAddClick, onEditNote }: CalendarSlo
         <span className="text-default-600 text-sm font-medium">{tSlots(slot.toLowerCase())}</span>
         <Button
           isIconOnly
+          className="text-default-400 data-[hover=true]:text-primary"
           size="sm"
           variant="light"
-          className="text-default-400 data-[hover=true]:text-primary"
           onPress={onAddClick}
         >
           <PlusIcon className="h-5 w-5" />
@@ -62,19 +64,21 @@ export function CalendarSlot({ date, slot, onAddClick, onEditNote }: CalendarSlo
           ) : (
             itemIds.map((itemId) => {
               const item = getItemById(itemId);
+
               if (!item) return null;
+
               return (
                 <CalendarItem
                   key={item.id}
                   item={item}
                   onDelete={() => handleDelete(item.id)}
-                  onNavigate={
-                    item.itemType === "recipe" ? () => handleNavigate(item.recipeId) : undefined
-                  }
                   onEdit={
                     item.itemType === "note"
                       ? () => onEditNote(item.id, item.title, date, slot)
                       : undefined
+                  }
+                  onNavigate={
+                    item.itemType === "recipe" ? () => handleNavigate(item.recipeId) : undefined
                   }
                 />
               );

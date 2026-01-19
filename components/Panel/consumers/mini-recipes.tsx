@@ -58,9 +58,9 @@ const MiniRecipeItem = memo(function MiniRecipeItem({
   if (slot) {
     return (
       <div
+        className="focus-visible:ring-primary cursor-pointer rounded-md outline-none focus-visible:ring-2"
         role="button"
         tabIndex={0}
-        className="focus-visible:ring-primary cursor-pointer rounded-md outline-none focus-visible:ring-2"
         onClick={() => onPlan(recipe, slot)}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
@@ -168,7 +168,7 @@ const VirtualizedRecipeList = memo(function VirtualizedRecipeList({
                 transform: `translateY(${virtualItem.start}px)`,
               }}
             >
-              <MiniRecipeItem recipe={recipe} onPlan={onPlan} slot={slot} />
+              <MiniRecipeItem recipe={recipe} slot={slot} onPlan={onPlan} />
             </div>
           );
         })}
@@ -310,8 +310,8 @@ function MiniRecipesContent({
         loadMore={loadMore}
         noRecipesFound={t("noRecipesFound")}
         recipes={recipes}
-        onPlan={handlePlan}
         slot={slot}
+        onPlan={handlePlan}
       />
     </div>
   );
@@ -322,7 +322,7 @@ export default function MiniRecipes({ open, onOpenChange, date, slot }: MiniReci
 
   return (
     <Panel open={open} title={t("addRecipe")} onOpenChange={onOpenChange}>
-      {open && <MiniRecipesContent date={date} onOpenChange={onOpenChange} slot={slot} />}
+      {open && <MiniRecipesContent date={date} slot={slot} onOpenChange={onOpenChange} />}
     </Panel>
   );
 }

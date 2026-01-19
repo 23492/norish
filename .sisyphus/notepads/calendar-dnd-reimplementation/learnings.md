@@ -1,3 +1,0 @@
-- Repository tests mock Drizzle chains (select().from().where().orderBy(), select().from().where().limit()).
-- planned-items repository uses slot enum type from plannedItems.$inferSelect["slot"] to satisfy drizzle-orm eq typing.
-- delete/move operations reindex within transactions for contiguous sortOrder.

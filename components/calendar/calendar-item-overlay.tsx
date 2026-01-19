@@ -1,8 +1,9 @@
 "use client";
 
-import { CalendarItemViewDto } from "@/types";
 import { Card, Image } from "@heroui/react";
 import { ExclamationTriangleIcon } from "@heroicons/react/16/solid";
+
+import { CalendarItemViewDto } from "@/types";
 
 export function CalendarItemOverlay({ item }: { item: CalendarItemViewDto }) {
   const isRecipe = item.itemType === "recipe";
@@ -22,12 +23,12 @@ export function CalendarItemOverlay({ item }: { item: CalendarItemViewDto }) {
       <div className="flex min-w-0 flex-1 items-center gap-3">
         {image && (
           <Image
-            src={image}
             alt={item.itemType === "recipe" ? item.recipeName || "Recipe" : "Recipe"}
             classNames={{
               wrapper: "shrink-0",
               img: "h-12 w-12 rounded-lg object-cover",
             }}
+            src={image}
           />
         )}
         <div className="flex min-w-0 flex-col">

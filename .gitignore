@@ -51,3 +51,6 @@ bun.lockb
 
 docker-compose.yml
 
+.sisyphus
+/.sisyphus
+/.sisyphus/

@@ -10,7 +10,7 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
-import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { arrayMove } from "@dnd-kit/sortable";
 
 import { CalendarItemViewDto, Slot } from "@/types";
@@ -39,7 +39,10 @@ function buildItemsState(
     for (const slot of slots) {
       const containerId = `${date}_${slot}`;
 
-      items[containerId] = dateItems.filter((item) => item.slot === slot).map((item) => item.id);
+      items[containerId] = dateItems
+        .filter((item) => item.slot === slot)
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map((item) => item.id);
     }
   }
 
@@ -58,25 +61,29 @@ export function useCalendarDnd() {
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overContainerId, setOverContainerId] = useState<CalendarContainerId | null>(null);
+
+  // Persistent local state - syncs with external data only when not dragging
   const [items, setItems] = useState<CalendarItemsState>(() => buildItemsState(plannedItemsByDate));
 
   const clonedItems = useRef<CalendarItemsState | null>(null);
-  const recentlyMovedToNewContainer = useRef(false);
 
-  const prevPlannedRef = useRef(plannedItemsByDate);
+  // Track previous plannedItemsByDate to detect external changes
+  const prevPlannedItemsRef = useRef<Record<string, CalendarItemViewDto[]>>(plannedItemsByDate);
 
-  if (!activeId && plannedItemsByDate !== prevPlannedRef.current) {
-    prevPlannedRef.current = plannedItemsByDate;
+  // Sync with external data only when not actively dragging
+  if (!activeId && plannedItemsByDate !== prevPlannedItemsRef.current) {
+    prevPlannedItemsRef.current = plannedItemsByDate;
     const newItems = buildItemsState(plannedItemsByDate);
+    const itemsChanged =
+      JSON.stringify(Object.keys(newItems).sort()) !== JSON.stringify(Object.keys(items).sort()) ||
+      Object.keys(newItems).some(
+        (key) => JSON.stringify(newItems[key]) !== JSON.stringify(items[key])
+      );
 
-    setItems(newItems);
+    if (itemsChanged) {
+      setItems(newItems);
+    }
   }
-
-  useEffect(() => {
-    requestAnimationFrame(() => {
-      recentlyMovedToNewContainer.current = false;
-    });
-  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -121,7 +128,6 @@ export function useCalendarDnd() {
     [items]
   );
 
-  // O(1) lookup map for items - avoids O(n*m) loop on every getItemById call
   const itemsById = useMemo(() => {
     const map = new Map<string, CalendarItemViewDto>();
 
@@ -177,6 +183,8 @@ export function useCalendarDnd() {
 
       if (activeContainer !== overContainer) {
         setItems((prevItems) => {
+          if (!prevItems) return prevItems;
+
           const activeItems = prevItems[activeContainer] ?? [];
           const overItems = prevItems[overContainer] ?? [];
           const overIndex = overItems.indexOf(overId as string);
@@ -195,8 +203,6 @@ export function useCalendarDnd() {
             newIndex = overIndex >= 0 ? overIndex + modifier : overItems.length;
           }
 
-          recentlyMovedToNewContainer.current = true;
-
           return {
             ...prevItems,
             [activeContainer]: activeItems.filter((item) => item !== active.id),
@@ -209,6 +215,8 @@ export function useCalendarDnd() {
         });
       } else {
         setItems((prevItems) => {
+          if (!prevItems) return prevItems;
+
           const containerItems = prevItems[activeContainer] ?? [];
           const activeIndex = containerItems.indexOf(active.id as string);
           const overIndex = containerItems.indexOf(overId as string);
@@ -236,10 +244,8 @@ export function useCalendarDnd() {
       setOverContainerId(null);
       clonedItems.current = null;
 
-      if (!over) {
-        if (originalItems) {
-          setItems(originalItems);
-        }
+      if (!over || !originalItems) {
+        if (originalItems) setItems(originalItems);
 
         return;
       }
@@ -247,23 +253,39 @@ export function useCalendarDnd() {
       const activeIdStr = active.id as string;
       const currentContainer = findContainer(activeIdStr);
 
-      if (!currentContainer || !originalItems) return;
+      if (!currentContainer) {
+        setItems(originalItems);
+
+        return;
+      }
 
       const originalContainer = findContainerForItem(activeIdStr, originalItems);
 
-      if (!originalContainer) return;
+      if (!originalContainer) {
+        setItems(originalItems);
+
+        return;
+      }
 
       const originalParsed = parseContainerId(originalContainer);
       const currentParsed = parseContainerId(currentContainer);
 
-      if (!originalParsed || !currentParsed) return;
+      if (!originalParsed || !currentParsed) {
+        setItems(originalItems);
 
-      if (originalContainer === currentContainer) {
         return;
       }
 
       const currentItems = items[currentContainer] ?? [];
       const targetIndex = currentItems.indexOf(activeIdStr);
+
+      const positionChanged =
+        originalContainer !== currentContainer ||
+        originalItems[originalContainer].indexOf(activeIdStr) !== targetIndex;
+
+      if (!positionChanged) {
+        return;
+      }
 
       moveItem(
         activeIdStr,

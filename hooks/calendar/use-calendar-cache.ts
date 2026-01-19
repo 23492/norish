@@ -1,58 +1,51 @@
 "use client";
 
-// STUBBED: Cache helpers during planned_items migration (Task 7 will restore)
+/**
+ * Lightweight cache manipulation helpers for calendar.
+ *
+ * This hook provides functions to update the React Query cache WITHOUT
+ * creating query observers. Use this in subscription hooks to avoid
+ * duplicate hook trees that cause recursion issues.
+ *
+ * For reading data + cache manipulation, use useCalendarQuery instead.
+ */
 
-import type { CalendarItemViewDto } from "@/types";
+import type { PlannedItemFromQuery } from "@/types";
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 
-export type CalendarData = Record<string, CalendarItemViewDto[]>;
+import { useTRPC } from "@/app/providers/trpc-provider";
 
 export type CalendarCacheHelpers = {
-  setCalendarData: (updater: (prev: CalendarData) => CalendarData) => void;
-  removeRecipeFromCache: (id: string) => void;
-  updateRecipeInCache: (id: string, newDate: string) => void;
-  removeNoteFromCache: (id: string) => void;
-  updateNoteInCache: (id: string, newDate: string) => void;
+  setCalendarData: (
+    updater: (prev: PlannedItemFromQuery[] | undefined) => PlannedItemFromQuery[] | undefined
+  ) => void;
   invalidate: () => void;
 };
 
-const CALENDAR_COMBINED_PREFIX = ["calendar", "combined"] as const;
-const noop = () => {};
-
-export function useCalendarCacheHelpers(): CalendarCacheHelpers {
+/**
+ * Returns cache manipulation helpers without creating query observers.
+ * Safe to call from subscription hooks - won't cause recursion.
+ */
+export function useCalendarCacheHelpers(startISO: string, endISO: string): CalendarCacheHelpers {
+  const trpc = useTRPC();
   const queryClient = useQueryClient();
+  const queryKey = trpc.calendar.listItems.queryKey({ startISO, endISO });
 
   const setCalendarData = useCallback(
-    (updater: (prev: CalendarData) => CalendarData) => {
-      const queries = queryClient.getQueriesData<CalendarData>({
-        queryKey: CALENDAR_COMBINED_PREFIX,
-      });
-
-      for (const [key] of queries) {
-        queryClient.setQueryData<CalendarData>(key, (prev) => updater(prev ?? {}));
-      }
+    (updater: (prev: PlannedItemFromQuery[] | undefined) => PlannedItemFromQuery[] | undefined) => {
+      queryClient.setQueryData<PlannedItemFromQuery[]>(queryKey, updater);
     },
-    [queryClient]
+    [queryClient, queryKey]
   );
 
   const invalidate = useCallback(() => {
-    const queries = queryClient.getQueriesData<CalendarData>({
-      queryKey: CALENDAR_COMBINED_PREFIX,
-    });
-
-    for (const [key] of queries) {
-      queryClient.setQueryData<CalendarData>(key, {});
-    }
-  }, [queryClient]);
+    queryClient.invalidateQueries({ queryKey });
+  }, [queryClient, queryKey]);
 
   return {
     setCalendarData,
-    removeRecipeFromCache: noop,
-    updateRecipeInCache: noop,
-    removeNoteFromCache: noop,
-    updateNoteInCache: noop,
     invalidate,
   };
 }

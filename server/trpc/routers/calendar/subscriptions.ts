@@ -258,6 +258,31 @@ const onItemMoved = authedProcedure.subscription(async function* ({ ctx, signal 
   }
 });
 
+const onItemUpdated = authedProcedure.subscription(async function* ({ ctx, signal }) {
+  const eventName = calendarEmitter.householdEvent(ctx.householdKey, "itemUpdated");
+
+  log.trace(
+    { userId: ctx.user.id, householdKey: ctx.householdKey },
+    "Subscribed to item updated events"
+  );
+
+  try {
+    for await (const data of createSubscriptionIterable(
+      calendarEmitter,
+      ctx.multiplexer,
+      eventName,
+      signal
+    )) {
+      yield data as CalendarSubscriptionEvents["itemUpdated"];
+    }
+  } finally {
+    log.trace(
+      { userId: ctx.user.id, householdKey: ctx.householdKey },
+      "Unsubscribed from item updated events"
+    );
+  }
+});
+
 export const calendarSubscriptions = router({
   onRecipePlanned,
   onRecipeDeleted,
@@ -269,4 +294,5 @@ export const calendarSubscriptions = router({
   onItemCreated,
   onItemDeleted,
   onItemMoved,
+  onItemUpdated,
 });

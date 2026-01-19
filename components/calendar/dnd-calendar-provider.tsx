@@ -2,13 +2,15 @@
 
 import { createContext, useContext, useMemo, ReactNode } from "react";
 import { DndContext, DragOverlay, MeasuringStrategy } from "@dnd-kit/core";
+import { createPortal } from "react-dom";
+
+import { CalendarItemOverlay } from "./calendar-item-overlay";
+
 import {
   useCalendarDnd,
   CalendarContainerId,
   CalendarItemsState,
 } from "@/hooks/calendar/use-calendar-dnd";
-import { CalendarItemOverlay } from "./calendar-item-overlay";
-import { createPortal } from "react-dom";
 import { CalendarItemViewDto } from "@/types";
 
 type DndCalendarContextValue = {
@@ -23,7 +25,9 @@ const DndCalendarContext = createContext<DndCalendarContextValue | null>(null);
 
 export function useDndCalendarContext(): DndCalendarContextValue {
   const ctx = useContext(DndCalendarContext);
+
   if (!ctx) throw new Error("useDndCalendarContext must be used within DndCalendarProvider");
+
   return ctx;
 }
 
@@ -57,17 +61,17 @@ export function DndCalendarProvider({ children }: { children: ReactNode }) {
   return (
     <DndCalendarContext.Provider value={contextValue}>
       <DndContext
-        sensors={sensors}
         collisionDetection={collisionDetection}
         measuring={{
           droppable: {
             strategy: MeasuringStrategy.Always,
           },
         }}
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
-        onDragEnd={handleDragEnd}
+        sensors={sensors}
         onDragCancel={handleDragCancel}
+        onDragEnd={handleDragEnd}
+        onDragOver={handleDragOver}
+        onDragStart={handleDragStart}
       >
         {children}
         {typeof document !== "undefined" &&

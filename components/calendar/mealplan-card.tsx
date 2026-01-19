@@ -2,10 +2,12 @@
 
 import { useFormatter } from "next-intl";
 import { Card, CardHeader, CardBody, Divider } from "@heroui/react";
-import { Slot } from "@/types";
-import { CalendarSlot } from "./calendar-slot";
-import { dateKey } from "@/lib/helpers";
 import { Fragment } from "react";
+
+import { CalendarSlot } from "./calendar-slot";
+
+import { Slot } from "@/types";
+import { dateKey } from "@/lib/helpers";
 
 type MealplanCardProps = {
   date: Date;

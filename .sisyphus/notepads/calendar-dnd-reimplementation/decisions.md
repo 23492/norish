@@ -1,1 +1,0 @@
-- Used input objects for listPlannedItemsBySlot and deletePlannedItem to avoid slot enum typing issues.

@@ -1,23 +1,46 @@
 import { and, asc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 
 import { db } from "@/server/db/drizzle";
-import { plannedItems } from "@/server/db/schema";
+import { plannedItems, recipes } from "@/server/db/schema";
 
 type PlannedItem = typeof plannedItems.$inferSelect;
 type PlannedItemInsert = typeof plannedItems.$inferInsert;
 type PlannedItemUpdate = Partial<PlannedItemInsert>;
 type PlannedItemSlot = PlannedItem["slot"];
 
+type PlannedItemWithRecipe = PlannedItem & {
+  recipeName: string | null;
+  recipeImage: string | null;
+  servings: number | null;
+  calories: number | null;
+};
+
 export async function listPlannedItemsByUserAndDateRange(
   userIds: string[],
   startDate: string,
   endDate: string
-): Promise<PlannedItem[]> {
+): Promise<PlannedItemWithRecipe[]> {
   if (!userIds.length) return [];
 
   return await db
-    .select()
+    .select({
+      id: plannedItems.id,
+      userId: plannedItems.userId,
+      date: plannedItems.date,
+      slot: plannedItems.slot,
+      sortOrder: plannedItems.sortOrder,
+      itemType: plannedItems.itemType,
+      recipeId: plannedItems.recipeId,
+      title: plannedItems.title,
+      createdAt: plannedItems.createdAt,
+      updatedAt: plannedItems.updatedAt,
+      recipeName: recipes.name,
+      recipeImage: recipes.image,
+      servings: recipes.servings,
+      calories: recipes.calories,
+    })
     .from(plannedItems)
+    .leftJoin(recipes, eq(plannedItems.recipeId, recipes.id))
     .where(
       and(
         inArray(plannedItems.userId, userIds),
@@ -26,6 +49,70 @@ export async function listPlannedItemsByUserAndDateRange(
       )
     )
     .orderBy(asc(plannedItems.date), asc(plannedItems.slot), asc(plannedItems.sortOrder));
+}
+
+export async function listPlannedItemsWithRecipeBySlot(
+  userIds: string[],
+  date: string,
+  slot: PlannedItemSlot
+): Promise<PlannedItemWithRecipe[]> {
+  if (!userIds.length) return [];
+
+  return await db
+    .select({
+      id: plannedItems.id,
+      userId: plannedItems.userId,
+      date: plannedItems.date,
+      slot: plannedItems.slot,
+      sortOrder: plannedItems.sortOrder,
+      itemType: plannedItems.itemType,
+      recipeId: plannedItems.recipeId,
+      title: plannedItems.title,
+      createdAt: plannedItems.createdAt,
+      updatedAt: plannedItems.updatedAt,
+      recipeName: recipes.name,
+      recipeImage: recipes.image,
+      servings: recipes.servings,
+      calories: recipes.calories,
+    })
+    .from(plannedItems)
+    .leftJoin(recipes, eq(plannedItems.recipeId, recipes.id))
+    .where(
+      and(
+        inArray(plannedItems.userId, userIds),
+        eq(plannedItems.date, date),
+        eq(plannedItems.slot, slot)
+      )
+    )
+    .orderBy(asc(plannedItems.sortOrder));
+}
+
+export async function getPlannedItemWithRecipeById(
+  id: string
+): Promise<PlannedItemWithRecipe | null> {
+  const [row] = await db
+    .select({
+      id: plannedItems.id,
+      userId: plannedItems.userId,
+      date: plannedItems.date,
+      slot: plannedItems.slot,
+      sortOrder: plannedItems.sortOrder,
+      itemType: plannedItems.itemType,
+      recipeId: plannedItems.recipeId,
+      title: plannedItems.title,
+      createdAt: plannedItems.createdAt,
+      updatedAt: plannedItems.updatedAt,
+      recipeName: recipes.name,
+      recipeImage: recipes.image,
+      servings: recipes.servings,
+      calories: recipes.calories,
+    })
+    .from(plannedItems)
+    .leftJoin(recipes, eq(plannedItems.recipeId, recipes.id))
+    .where(eq(plannedItems.id, id))
+    .limit(1);
+
+  return row ?? null;
 }
 
 export async function listPlannedItemsBySlot(
@@ -192,6 +279,7 @@ export async function moveItem(
     if (!sameSlot) {
       for (let i = 0; i < sourceWithout.length; i += 1) {
         const item = sourceWithout[i];
+
         await trx
           .update(plannedItems)
           .set({ sortOrder: i, updatedAt: new Date() })

@@ -3,7 +3,6 @@
 import { memo, useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { CalendarItemViewDto } from "@/types";
 import {
   Image,
   Dropdown,
@@ -14,6 +13,8 @@ import {
 } from "@heroui/react";
 import { ExclamationTriangleIcon, EllipsisVerticalIcon } from "@heroicons/react/16/solid";
 import { useTranslations } from "next-intl";
+
+import { CalendarItemViewDto } from "@/types";
 import { MiniGroceries } from "@/components/Panel/consumers";
 
 type CalendarItemProps = {
@@ -69,25 +70,25 @@ export const CalendarItem = memo(function CalendarItem({
         style={style}
         {...attributes}
         {...listeners}
+        className="group border-default-100 active:bg-default-50 focus-visible:ring-primary relative flex w-full touch-none items-center justify-between border-b py-3 transition-colors outline-none last:border-b-0 focus-visible:ring-2"
         role="button"
         tabIndex={0}
+        onClick={isRecipe ? onNavigate : onEdit}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             isRecipe ? onNavigate?.() : onEdit?.();
           }
         }}
-        className="group border-default-100 active:bg-default-50 focus-visible:ring-primary relative flex w-full touch-none items-center justify-between border-b py-3 transition-colors outline-none last:border-b-0 focus-visible:ring-2"
-        onClick={isRecipe ? onNavigate : onEdit}
       >
         <div className="flex min-w-0 flex-1 items-center gap-3">
           {image && (
             <Image
-              src={image}
               alt={item.itemType === "recipe" ? item.recipeName || "Recipe" : "Recipe"}
               classNames={{
                 wrapper: "shrink-0",
                 img: "h-12 w-12 rounded-lg object-cover",
               }}
+              src={image}
             />
           )}
           <div className="flex min-w-0 flex-col">
@@ -105,16 +106,16 @@ export const CalendarItem = memo(function CalendarItem({
 
         <div
           className="flex items-center"
-          onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
         >
           <Dropdown>
             <DropdownTrigger>
               <Button
                 isIconOnly
+                className="text-default-400 data-[hover=true]:text-primary h-8 w-8 min-w-8"
                 size="sm"
                 variant="light"
-                className="text-default-400 data-[hover=true]:text-primary h-8 w-8 min-w-8"
               >
                 <EllipsisVerticalIcon className="h-5 w-5" />
               </Button>

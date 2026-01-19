@@ -1,17 +1,10 @@
-import type { PlannedRecipeViewDto, NoteViewDto, Slot } from "@/types";
+import type { NoteViewDto, PlannedRecipeViewDto, Slot } from "@/types";
 
-type PlannedItemType = "recipe" | "note";
+export type PlannedItemWithRecipePayload =
+  import("@/server/db/zodSchemas").PlannedItemWithRecipePayload;
+export type SlotItemSortUpdate = import("@/server/db/zodSchemas").SlotItemSortUpdate;
 
-interface PlannedItemEventPayload {
-  id: string;
-  date: string;
-  slot: Slot;
-  sortOrder: number;
-  itemType: PlannedItemType;
-  recipeId: string | null;
-  title: string | null;
-  userId: string;
-}
+export type PlannedItemType = "recipe" | "note";
 
 export type CalendarSubscriptionEvents = {
   recipePlanned: { plannedRecipe: PlannedRecipeViewDto };
@@ -22,14 +15,17 @@ export type CalendarSubscriptionEvents = {
   noteUpdated: { note: NoteViewDto; oldDate: string };
   failed: { reason: string };
 
-  itemCreated: { item: PlannedItemEventPayload };
+  itemCreated: { item: PlannedItemWithRecipePayload };
   itemDeleted: { itemId: string; date: string; slot: Slot };
   itemMoved: {
-    item: PlannedItemEventPayload;
+    item: PlannedItemWithRecipePayload;
+    targetSlotItems: SlotItemSortUpdate[];
+    sourceSlotItems: SlotItemSortUpdate[] | null;
     oldDate: string;
     oldSlot: Slot;
     oldSortOrder: number;
   };
+  itemUpdated: { item: PlannedItemWithRecipePayload };
 
   globalRecipePlanned: {
     id: string;

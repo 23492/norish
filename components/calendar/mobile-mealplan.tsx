@@ -1,13 +1,14 @@
 "use client";
 
 import { useRef, useEffect, useState, useMemo } from "react";
+
 import { MealplanCard } from "./mealplan-card";
 import { ScrollToTodayButton } from "./scroll-to-today-button";
+import { EditNotePanel } from "./edit-note-panel";
+
 import { dateKey, eachDayOfInterval, startOfMonth, endOfMonth, addMonths } from "@/lib/helpers";
 import MiniRecipes from "@/components/Panel/consumers/mini-recipes";
 import { Slot } from "@/types";
-
-import { EditNotePanel } from "./edit-note-panel";
 
 export function MobileMealplan() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -28,6 +29,7 @@ export function MobileMealplan() {
     const now = new Date();
     const start = startOfMonth(addMonths(now, -1));
     const end = endOfMonth(addMonths(now, 1));
+
     return eachDayOfInterval(start, end);
   }, []);
 
@@ -35,6 +37,7 @@ export function MobileMealplan() {
 
   const scrollToToday = () => {
     const el = document.getElementById(`day-${todayKey}`);
+
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "start" });
     }
@@ -42,6 +45,7 @@ export function MobileMealplan() {
 
   useEffect(() => {
     const el = document.getElementById(`day-${todayKey}`);
+
     if (el) {
       el.scrollIntoView({ behavior: "instant", block: "start" });
     }
@@ -53,6 +57,7 @@ export function MobileMealplan() {
 
   useEffect(() => {
     const el = document.getElementById(`day-${todayKey}`);
+
     if (!el) return;
 
     const observer = new IntersectionObserver(
@@ -60,6 +65,7 @@ export function MobileMealplan() {
         setIsTodayVisible(entry.isIntersecting);
         if (!entry.isIntersecting) {
           const rect = entry.boundingClientRect;
+
           setTodayDirection(rect.top < 0 ? "up" : "down");
         }
       },
@@ -69,7 +75,6 @@ export function MobileMealplan() {
     observer.observe(el);
 
     return () => observer.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [todayKey]);
 
   const handleAddClick = (date: Date, slot: Slot) => {
@@ -106,26 +111,26 @@ export function MobileMealplan() {
       </div>
 
       <ScrollToTodayButton
+        direction={todayDirection}
         visible={!isTodayVisible}
         onClick={scrollToToday}
-        direction={todayDirection}
       />
 
       <MiniRecipes
-        open={miniRecipesOpen}
-        onOpenChange={setMiniRecipesOpen}
         date={selectedDate}
+        open={miniRecipesOpen}
         slot={selectedSlot}
+        onOpenChange={setMiniRecipesOpen}
       />
 
       {editingNote && (
         <EditNotePanel
-          open={editNoteOpen}
-          onOpenChange={setEditNoteOpen}
-          noteId={editingNote.id}
-          initialTitle={editingNote.title}
           date={editingNote.date}
+          initialTitle={editingNote.title}
+          noteId={editingNote.id}
+          open={editNoteOpen}
           slot={editingNote.slot}
+          onOpenChange={setEditNoteOpen}
         />
       )}
     </>

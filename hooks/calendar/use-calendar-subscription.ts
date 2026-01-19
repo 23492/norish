@@ -1,37 +1,19 @@
 "use client";
 
-import type { Slot } from "@/types";
+import type { PlannedItemFromQuery } from "@/types";
 
 import { useSubscription } from "@trpc/tanstack-react-query";
-import { useQueryClient } from "@tanstack/react-query";
+
+import { useCalendarCacheHelpers } from "./use-calendar-cache";
 
 import { useTRPC } from "@/app/providers/trpc-provider";
 
-type PlannedItemFromQuery = {
-  id: string;
-  userId: string;
-  date: string;
-  slot: Slot;
-  sortOrder: number;
-  itemType: "recipe" | "note";
-  recipeId: string | null;
-  title: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-};
-
 export function useCalendarSubscription(startISO: string, endISO: string) {
   const trpc = useTRPC();
-  const queryClient = useQueryClient();
-
-  const queryKey = trpc.calendar.listItems.queryKey({ startISO, endISO });
-
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey });
-  };
+  const { setCalendarData, invalidate } = useCalendarCacheHelpers(startISO, endISO);
 
   const setItems = (updater: (prev: PlannedItemFromQuery[]) => PlannedItemFromQuery[]) => {
-    queryClient.setQueryData<PlannedItemFromQuery[]>(queryKey, (prev) => updater(prev ?? []));
+    setCalendarData((prev) => updater(prev ?? []));
   };
 
   useSubscription(
@@ -39,6 +21,7 @@ export function useCalendarSubscription(startISO: string, endISO: string) {
       onData: (payload) => {
         setItems((prev) => {
           const exists = prev.some((item) => item.id === payload.item.id);
+
           if (exists) return prev;
 
           const newItem: PlannedItemFromQuery = {
@@ -50,6 +33,10 @@ export function useCalendarSubscription(startISO: string, endISO: string) {
             itemType: payload.item.itemType,
             recipeId: payload.item.recipeId,
             title: payload.item.title,
+            recipeName: payload.item.recipeName,
+            recipeImage: payload.item.recipeImage,
+            servings: payload.item.servings,
+            calories: payload.item.calories,
             createdAt: new Date(),
             updatedAt: new Date(),
           };
@@ -57,6 +44,7 @@ export function useCalendarSubscription(startISO: string, endISO: string) {
           return [...prev, newItem].sort((a, b) => {
             if (a.date !== b.date) return a.date.localeCompare(b.date);
             if (a.slot !== b.slot) return a.slot.localeCompare(b.slot);
+
             return a.sortOrder - b.sortOrder;
           });
         });
@@ -76,21 +64,43 @@ export function useCalendarSubscription(startISO: string, endISO: string) {
     trpc.calendar.onItemMoved.subscriptionOptions(undefined, {
       onData: (payload) => {
         setItems((prev) => {
-          const updated = prev.map((item) => {
-            if (item.id !== payload.item.id) return item;
+          const targetSortMap = new Map(payload.targetSlotItems.map((i) => [i.id, i.sortOrder]));
+          const sourceSortMap = payload.sourceSlotItems
+            ? new Map(payload.sourceSlotItems.map((i) => [i.id, i.sortOrder]))
+            : null;
 
-            return {
-              ...item,
-              date: payload.item.date,
-              slot: payload.item.slot,
-              sortOrder: payload.item.sortOrder,
-              updatedAt: new Date(),
-            };
+          const updated = prev.map((item) => {
+            if (item.id === payload.item.id) {
+              return {
+                ...item,
+                date: payload.item.date,
+                slot: payload.item.slot,
+                sortOrder: payload.item.sortOrder,
+                updatedAt: new Date(),
+              };
+            }
+
+            if (targetSortMap.has(item.id)) {
+              return {
+                ...item,
+                sortOrder: targetSortMap.get(item.id)!,
+              };
+            }
+
+            if (sourceSortMap?.has(item.id)) {
+              return {
+                ...item,
+                sortOrder: sourceSortMap.get(item.id)!,
+              };
+            }
+
+            return item;
           });
 
           return updated.sort((a, b) => {
             if (a.date !== b.date) return a.date.localeCompare(b.date);
             if (a.slot !== b.slot) return a.slot.localeCompare(b.slot);
+
             return a.sortOrder - b.sortOrder;
           });
         });

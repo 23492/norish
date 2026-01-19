@@ -15,17 +15,17 @@ export function ScrollToTodayButton({ visible, onClick, direction }: ScrollToTod
     <AnimatePresence>
       {visible && (
         <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.8 }}
           className="fixed right-4 bottom-24 z-40"
+          exit={{ opacity: 0, scale: 0.8 }}
+          initial={{ opacity: 0, scale: 0.8 }}
         >
           <Button
             isIconOnly
+            className="h-10 w-10 min-w-10"
             color="primary"
             radius="full"
             size="sm"
-            className="h-10 w-10 min-w-10"
             onPress={onClick}
           >
             {direction === "up" ? (

@@ -6,6 +6,7 @@ export type * from "@/types/dto/recipe";
 export type * from "@/types/dto/tag";
 export type * from "@/types/dto/planned-recipe";
 export type * from "@/types/dto/planned-item";
+export type * from "@/types/dto/planned-item-from-query";
 export type * from "@/types/dto/notes";
 export type * from "@/types/dto/groceries";
 export type * from "@/types/dto/recurring-groceries";

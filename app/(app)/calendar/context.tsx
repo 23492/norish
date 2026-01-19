@@ -31,6 +31,7 @@ type Ctx = {
   planNote: (date: string, slot: Slot, title: string) => void;
   deletePlanned: (id: string) => void;
   moveItem: (itemId: string, targetDate: string, targetSlot: Slot, targetIndex: number) => void;
+  updateItem: (itemId: string, title: string) => void;
   getItemsForSlot: (date: string, slot: Slot) => PlannedItem[];
 };
 
@@ -50,7 +51,7 @@ export function CalendarContextProvider({ children }: { children: ReactNode }) {
   const endISO = dateKey(dateRange.end);
 
   const { calendarData, isLoading } = useCalendarQuery(startISO, endISO);
-  const { createItem, deleteItem, moveItem } = useCalendarMutations(startISO, endISO);
+  const { createItem, deleteItem, moveItem, updateItem } = useCalendarMutations(startISO, endISO);
 
   useCalendarSubscription(startISO, endISO);
 
@@ -78,6 +79,7 @@ export function CalendarContextProvider({ children }: { children: ReactNode }) {
   const getItemsForSlot = useCallback(
     (date: string, slot: Slot): PlannedItem[] => {
       const items = calendarData[date] ?? [];
+
       return items.filter((item) => item.slot === slot).sort((a, b) => a.sortOrder - b.sortOrder);
     },
     [calendarData]
@@ -91,9 +93,19 @@ export function CalendarContextProvider({ children }: { children: ReactNode }) {
       planNote,
       deletePlanned,
       moveItem,
+      updateItem,
       getItemsForSlot,
     }),
-    [calendarData, isLoading, planMeal, planNote, deletePlanned, moveItem, getItemsForSlot]
+    [
+      calendarData,
+      isLoading,
+      planMeal,
+      planNote,
+      deletePlanned,
+      moveItem,
+      updateItem,
+      getItemsForSlot,
+    ]
   );
 
   return <CalendarContext.Provider value={value}>{children}</CalendarContext.Provider>;

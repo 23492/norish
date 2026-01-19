@@ -35,12 +35,14 @@ export type CalendarQueryResult = {
 
 function groupItemsByDate(items: PlannedItemFromQuery[]): CalendarData {
   const grouped: CalendarData = {};
+
   for (const item of items) {
     if (!grouped[item.date]) {
       grouped[item.date] = [];
     }
     grouped[item.date].push(item);
   }
+
   return grouped;
 }
 
@@ -68,6 +70,7 @@ export function useCalendarQuery(startISO: string, endISO: string): CalendarQuer
       queryClient.setQueryData<PlannedItemFromQuery[]>(queryKey, (prev) => {
         const currentData = groupItemsByDate(prev ?? []);
         const newData = updater(currentData);
+
         return Object.values(newData).flat();
       });
     },

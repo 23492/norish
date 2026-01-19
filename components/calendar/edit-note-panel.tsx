@@ -29,7 +29,7 @@ export function EditNotePanel({
   date,
   slot,
 }: EditNotePanelProps) {
-  const { deletePlanned, moveItem } = useCalendarContext();
+  const { deletePlanned, moveItem, updateItem } = useCalendarContext();
   const [title, setTitle] = useState(initialTitle);
   const [selectedDate, setSelectedDate] = useState(parseDate(date));
   const [selectedSlot, setSelectedSlot] = useState<Slot>(slot);
@@ -50,10 +50,17 @@ export function EditNotePanel({
     if (!title.trim()) return;
 
     const newDateStr = selectedDate.toString();
+    const titleChanged = title.trim() !== initialTitle;
+    const locationChanged = newDateStr !== date || selectedSlot !== slot;
 
-    if (newDateStr !== date || selectedSlot !== slot) {
+    if (titleChanged) {
+      updateItem(noteId, title.trim());
+    }
+
+    if (locationChanged) {
       moveItem(noteId, newDateStr, selectedSlot, 0);
     }
+
     onOpenChange(false);
   };
 
@@ -98,9 +105,8 @@ export function EditNotePanel({
         </div>
 
         <div className="mt-2 flex justify-end gap-2">
-          <Button color="danger" size="sm" variant="light" onPress={handleDelete}>
+          <Button isIconOnly color="danger" size="sm" variant="light" onPress={handleDelete}>
             <TrashIcon className="h-4 w-4" />
-            {tActions("delete")}
           </Button>
           <Button color="primary" onPress={handleSave}>
             {tActions("save")}

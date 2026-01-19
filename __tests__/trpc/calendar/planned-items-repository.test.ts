@@ -39,15 +39,17 @@ describe("planned items repository", () => {
     it("returns items sorted by date, slot, sortOrder", async () => {
       const items = [{ id: "a" }, { id: "b" }];
       const orderBy = vi.fn().mockResolvedValue(items);
-
       const where = vi.fn().mockReturnValue({ orderBy });
+      const leftJoin = vi.fn().mockReturnValue({ where });
+
       dbMock.select.mockReturnValue({
-        from: vi.fn().mockReturnValue({ where }),
+        from: vi.fn().mockReturnValue({ leftJoin }),
       } as any);
 
       const result = await listPlannedItemsByUserAndDateRange(userIds, "2025-01-01", "2025-01-31");
 
-      expect(dbMock.select).toHaveBeenCalledWith();
+      expect(dbMock.select).toHaveBeenCalled();
+      expect(leftJoin).toHaveBeenCalled();
       expect(where).toHaveBeenCalled();
       expect(orderBy).toHaveBeenCalled();
       expect(result).toEqual(items);
@@ -56,8 +58,10 @@ describe("planned items repository", () => {
     it("returns empty array for no matches", async () => {
       const orderBy = vi.fn().mockResolvedValue([]);
       const where = vi.fn().mockReturnValue({ orderBy });
+      const leftJoin = vi.fn().mockReturnValue({ where });
+
       dbMock.select.mockReturnValue({
-        from: vi.fn().mockReturnValue({ where }),
+        from: vi.fn().mockReturnValue({ leftJoin }),
       } as any);
 
       const result = await listPlannedItemsByUserAndDateRange(userIds, "2025-01-01", "2025-01-31");
@@ -142,6 +146,7 @@ describe("planned items repository", () => {
       const updates = { title: "Updated" };
       const returning = vi.fn().mockResolvedValue([{ id: "item-1", title: "Updated" }]);
       const set = vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ returning }) });
+
       dbMock.update.mockReturnValue({ set } as any);
 
       const result = await updatePlannedItem("item-1", updates as any);
@@ -154,6 +159,7 @@ describe("planned items repository", () => {
     it("returns null when item not found", async () => {
       const returning = vi.fn().mockResolvedValue([]);
       const set = vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ returning }) });
+
       dbMock.update.mockReturnValue({ set } as any);
 
       const result = await updatePlannedItem("item-1", { title: "Updated" } as any);
