@@ -1,20 +1,55 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 
 import { WeekGrid } from "./week-grid";
 import { EditNotePanel } from "./edit-note-panel";
 
 import MiniRecipes from "@/components/Panel/consumers/mini-recipes";
-import { addWeeks, getWeekStart } from "@/lib/helpers";
+import { addWeeks, getWeekStart, getWeekEnd } from "@/lib/helpers";
 import type { Slot } from "@/types";
+import { useCalendarContext } from "@/app/(app)/calendar/context";
+import CalendarSkeletonDesktop from "@/components/skeleton/calendar-skeleton-desktop";
 
 export function DesktopMealplan() {
+  const { dateRange, expandRange, isLoading } = useCalendarContext();
   const [currentWeekStart, setCurrentWeekStart] = useState(() => getWeekStart(new Date()));
 
-  const handlePrevWeek = () => setCurrentWeekStart((prev) => addWeeks(prev, -1));
-  const handleNextWeek = () => setCurrentWeekStart((prev) => addWeeks(prev, 1));
-  const handleToday = () => setCurrentWeekStart(getWeekStart(new Date()));
+  const handlePrevWeek = useCallback(() => {
+    const newWeekStart = addWeeks(currentWeekStart, -1);
+
+    // Check if the new week is outside the loaded range
+    if (newWeekStart < dateRange.start) {
+      expandRange("past");
+    }
+
+    setCurrentWeekStart(newWeekStart);
+  }, [currentWeekStart, dateRange.start, expandRange]);
+
+  const handleNextWeek = useCallback(() => {
+    const newWeekStart = addWeeks(currentWeekStart, 1);
+    const newWeekEnd = getWeekEnd(newWeekStart);
+
+    // Check if the new week end is outside the loaded range
+    if (newWeekEnd > dateRange.end) {
+      expandRange("future");
+    }
+
+    setCurrentWeekStart(newWeekStart);
+  }, [currentWeekStart, dateRange.end, expandRange]);
+
+  const handleToday = useCallback(() => {
+    const todayWeekStart = getWeekStart(new Date());
+
+    // Ensure today's week is in range
+    if (todayWeekStart < dateRange.start) {
+      expandRange("past");
+    } else if (getWeekEnd(todayWeekStart) > dateRange.end) {
+      expandRange("future");
+    }
+
+    setCurrentWeekStart(todayWeekStart);
+  }, [dateRange, expandRange]);
 
   const [miniRecipesOpen, setMiniRecipesOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -39,15 +74,20 @@ export function DesktopMealplan() {
     setEditNoteOpen(true);
   };
 
+  // Show full skeleton on initial load only
+  if (isLoading) {
+    return <CalendarSkeletonDesktop />;
+  }
+
   return (
     <div className="h-full">
       <WeekGrid
         weekStart={currentWeekStart}
-        onPrevWeek={handlePrevWeek}
-        onNextWeek={handleNextWeek}
-        onToday={handleToday}
         onAddClick={handleAddClick}
         onEditNote={handleEditNote}
+        onNextWeek={handleNextWeek}
+        onPrevWeek={handlePrevWeek}
+        onToday={handleToday}
       />
 
       <MiniRecipes

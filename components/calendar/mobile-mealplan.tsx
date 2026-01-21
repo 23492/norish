@@ -1,17 +1,26 @@
 "use client";
 
-import { useRef, useEffect, useState, useMemo } from "react";
+import { useRef, useEffect, useState, useMemo, useCallback } from "react";
 
 import { MealplanCard } from "./mealplan-card";
 import { ScrollToTodayButton } from "./scroll-to-today-button";
 import { EditNotePanel } from "./edit-note-panel";
 
-import { dateKey, eachDayOfInterval, startOfMonth, endOfMonth, addMonths } from "@/lib/helpers";
+import { dateKey, eachDayOfInterval } from "@/lib/helpers";
 import MiniRecipes from "@/components/Panel/consumers/mini-recipes";
 import { Slot } from "@/types";
+import { useCalendarContext } from "@/app/(app)/calendar/context";
+import CalendarSkeletonMobile, {
+  MealplanCardSkeleton,
+} from "@/components/skeleton/calendar-skeleton-mobile";
 
 export function MobileMealplan() {
   const containerRef = useRef<HTMLDivElement>(null);
+  const topSentinelRef = useRef<HTMLDivElement>(null);
+  const bottomSentinelRef = useRef<HTMLDivElement>(null);
+  const scrollRestorationRef = useRef<{ key: string; scrollTop: number } | null>(null);
+
+  const { dateRange, expandRange, isLoading, isLoadingMore } = useCalendarContext();
 
   const [miniRecipesOpen, setMiniRecipesOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -25,37 +34,45 @@ export function MobileMealplan() {
     slot: Slot;
   } | null>(null);
 
+  // Generate days from the context's date range
   const days = useMemo(() => {
-    const now = new Date();
-    const start = startOfMonth(addMonths(now, -1));
-    const end = endOfMonth(addMonths(now, 1));
-
-    return eachDayOfInterval(start, end);
-  }, []);
+    return eachDayOfInterval(dateRange.start, dateRange.end);
+  }, [dateRange.start, dateRange.end]);
 
   const todayKey = dateKey(new Date());
 
-  const scrollToToday = () => {
+  const scrollToToday = useCallback(() => {
     const el = document.getElementById(`day-${todayKey}`);
 
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "start" });
     }
-  };
+  }, [todayKey]);
 
+  // Track if we've done the initial scroll
+  const hasScrolledToTodayRef = useRef(false);
+
+  // Scroll to today after initial load completes
   useEffect(() => {
+    // Only scroll once, after loading completes
+    if (isLoading || hasScrolledToTodayRef.current) return;
+
     const el = document.getElementById(`day-${todayKey}`);
 
     if (el) {
       el.scrollIntoView({ behavior: "instant", block: "start" });
+      hasScrolledToTodayRef.current = true;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isLoading, todayKey]);
 
   const [isTodayVisible, setIsTodayVisible] = useState(true);
   const [todayDirection, setTodayDirection] = useState<"up" | "down">("up");
 
+  // Track today's visibility for scroll-to-today button
   useEffect(() => {
+    // Don't set up observer while loading (element doesn't exist yet)
+    if (isLoading) return;
+
     const el = document.getElementById(`day-${todayKey}`);
 
     if (!el) return;
@@ -75,7 +92,59 @@ export function MobileMealplan() {
     observer.observe(el);
 
     return () => observer.disconnect();
-  }, [todayKey]);
+  }, [todayKey, isLoading]);
+
+  // Get the first day key for scroll restoration
+  const firstDayKey = days[0] ? dateKey(days[0]) : null;
+
+  // Intersection observer for infinite scroll
+  useEffect(() => {
+    const topEl = topSentinelRef.current;
+    const bottomEl = bottomSentinelRef.current;
+
+    if (!topEl || !bottomEl) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+
+          if (entry.target === topEl) {
+            // Save scroll position before expanding past
+            if (containerRef.current && firstDayKey) {
+              scrollRestorationRef.current = {
+                key: firstDayKey,
+                scrollTop: containerRef.current.scrollTop,
+              };
+            }
+            expandRange("past");
+          } else if (entry.target === bottomEl) {
+            expandRange("future");
+          }
+        }
+      },
+      { threshold: 0.1, rootMargin: "200px" }
+    );
+
+    observer.observe(topEl);
+    observer.observe(bottomEl);
+
+    return () => observer.disconnect();
+  }, [expandRange, firstDayKey]);
+
+  // Restore scroll position after prepending past dates
+  useEffect(() => {
+    if (!scrollRestorationRef.current || !containerRef.current) return;
+
+    const { key } = scrollRestorationRef.current;
+    const el = document.getElementById(`day-${key}`);
+
+    if (el) {
+      // Restore scroll to keep the same day visible
+      el.scrollIntoView({ behavior: "instant", block: "start" });
+      scrollRestorationRef.current = null;
+    }
+  }); // Runs on every render to check for scroll restoration
 
   const handleAddClick = (date: Date, slot: Slot) => {
     setSelectedDate(date);
@@ -88,10 +157,21 @@ export function MobileMealplan() {
     setEditNoteOpen(true);
   };
 
+  // Show full skeleton on initial load
+  if (isLoading) {
+    return <CalendarSkeletonMobile />;
+  }
+
   return (
     <>
       <div ref={containerRef} className="w-full pb-20">
         <div className="flex min-h-full flex-col gap-4 px-2 py-4">
+          {/* Top sentinel for loading past dates */}
+          <div ref={topSentinelRef} className="h-1" />
+
+          {/* Loading skeleton at top when loading past */}
+          {isLoadingMore && <MealplanCardSkeleton />}
+
           {days.map((day) => {
             const dKey = dateKey(day);
             const isToday = dKey === todayKey;
@@ -107,6 +187,12 @@ export function MobileMealplan() {
               </div>
             );
           })}
+
+          {/* Loading skeleton at bottom when loading future */}
+          {isLoadingMore && <MealplanCardSkeleton />}
+
+          {/* Bottom sentinel for loading future dates */}
+          <div ref={bottomSentinelRef} className="h-1" />
         </div>
       </div>
 

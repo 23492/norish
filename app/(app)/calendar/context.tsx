@@ -1,6 +1,15 @@
 "use client";
 
-import { createContext, useContext, ReactNode, useMemo, useState, useCallback } from "react";
+import {
+  createContext,
+  useContext,
+  ReactNode,
+  useMemo,
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+} from "react";
 
 import {
   useCalendarQuery,
@@ -9,7 +18,7 @@ import {
   type CalendarData,
 } from "@/hooks/calendar";
 import { Slot } from "@/types";
-import { dateKey, startOfMonth, endOfMonth, addMonths } from "@/lib/helpers";
+import { dateKey, addWeeks, getWeekStart, getWeekEnd } from "@/lib/helpers";
 
 type PlannedItem = {
   id: string;
@@ -24,36 +33,113 @@ type PlannedItem = {
   updatedAt: Date;
 };
 
+type DateRange = {
+  start: Date;
+  end: Date;
+};
+
 type Ctx = {
   plannedItemsByDate: CalendarData;
   isLoading: boolean;
+  isLoadingMore: boolean;
+  dateRange: DateRange;
   planMeal: (date: string, slot: Slot, recipeId: string) => void;
   planNote: (date: string, slot: Slot, title: string) => void;
   deletePlanned: (id: string) => void;
   moveItem: (itemId: string, targetDate: string, targetSlot: Slot, targetIndex: number) => void;
   updateItem: (itemId: string, title: string) => void;
   getItemsForSlot: (date: string, slot: Slot) => PlannedItem[];
+  expandRange: (direction: "past" | "future") => void;
+  isDateInRange: (date: Date) => boolean;
 };
 
 const CalendarContext = createContext<Ctx | null>(null);
 
-export function CalendarContextProvider({ children }: { children: ReactNode }) {
-  const [dateRange] = useState(() => {
-    const now = new Date();
+type CalendarContextProviderProps = {
+  children: ReactNode;
+  /** Initial range mode - desktop loads current week, mobile loads ±2 weeks */
+  mode?: "desktop" | "mobile";
+};
 
+function getInitialDateRange(mode: "desktop" | "mobile"): DateRange {
+  const now = new Date();
+
+  if (mode === "desktop") {
+    // Desktop: load current week only initially
     return {
-      start: startOfMonth(addMonths(now, -1)),
-      end: endOfMonth(addMonths(now, 1)),
+      start: getWeekStart(now),
+      end: getWeekEnd(now),
     };
-  });
+  }
+
+  // Mobile: load ±2 weeks from today
+  return {
+    start: getWeekStart(addWeeks(now, -2)),
+    end: getWeekEnd(addWeeks(now, 2)),
+  };
+}
+
+export function CalendarContextProvider({
+  children,
+  mode = "mobile",
+}: CalendarContextProviderProps) {
+  const [dateRange, setDateRange] = useState<DateRange>(() => getInitialDateRange(mode));
+  const [isExpandingRange, setIsExpandingRange] = useState(false);
 
   const startISO = dateKey(dateRange.start);
   const endISO = dateKey(dateRange.end);
 
-  const { calendarData, isLoading } = useCalendarQuery(startISO, endISO);
+  const { calendarData, isLoading: isQueryLoading } = useCalendarQuery(startISO, endISO);
   const { createItem, deleteItem, moveItem, updateItem } = useCalendarMutations(startISO, endISO);
 
+  // Track if initial load has completed (only show skeleton on first load)
+  const hasLoadedOnceRef = useRef(false);
+
+  useEffect(() => {
+    if (!isQueryLoading && !hasLoadedOnceRef.current) {
+      hasLoadedOnceRef.current = true;
+    }
+  }, [isQueryLoading]);
+
+  // isInitialLoading is true only for the very first load
+  const isInitialLoading = isQueryLoading && !hasLoadedOnceRef.current;
+
   useCalendarSubscription(startISO, endISO);
+
+  const expandRange = useCallback(
+    (direction: "past" | "future") => {
+      if (isExpandingRange) return;
+
+      setIsExpandingRange(true);
+
+      setDateRange((prev) => {
+        if (direction === "past") {
+          // Expand 2 weeks into the past
+          return {
+            start: addWeeks(prev.start, -2),
+            end: prev.end,
+          };
+        }
+        // Expand 2 weeks into the future
+        return {
+          start: prev.start,
+          end: addWeeks(prev.end, 2),
+        };
+      });
+
+      // Reset expanding state after a short delay to allow new query to start
+      setTimeout(() => setIsExpandingRange(false), 100);
+    },
+    [isExpandingRange]
+  );
+
+  const isDateInRange = useCallback(
+    (date: Date): boolean => {
+      const d = new Date(date);
+      return d >= dateRange.start && d <= dateRange.end;
+    },
+    [dateRange]
+  );
 
   const planMeal = useCallback(
     (date: string, slot: Slot, recipeId: string): void => {
@@ -88,23 +174,31 @@ export function CalendarContextProvider({ children }: { children: ReactNode }) {
   const value = useMemo<Ctx>(
     () => ({
       plannedItemsByDate: calendarData,
-      isLoading,
+      isLoading: isInitialLoading,
+      isLoadingMore: isExpandingRange,
+      dateRange,
       planMeal,
       planNote,
       deletePlanned,
       moveItem,
       updateItem,
       getItemsForSlot,
+      expandRange,
+      isDateInRange,
     }),
     [
       calendarData,
-      isLoading,
+      isInitialLoading,
+      isExpandingRange,
+      dateRange,
       planMeal,
       planNote,
       deletePlanned,
       moveItem,
       updateItem,
       getItemsForSlot,
+      expandRange,
+      isDateInRange,
     ]
   );
 

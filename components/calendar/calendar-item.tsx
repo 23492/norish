@@ -37,6 +37,16 @@ export const CalendarItem = memo(function CalendarItem({
 
   const [isGroceriesOpen, setIsGroceriesOpen] = useState(false);
 
+  const isRecipe = item.itemType === "recipe";
+
+  const handleDoubleClick = () => {
+    if (isRecipe) {
+      onNavigate?.();
+    } else {
+      onEdit?.();
+    }
+  };
+
   const style = {
     transform: CSS.Translate.toString(transform),
     transition,
@@ -46,7 +56,6 @@ export const CalendarItem = memo(function CalendarItem({
   const t = useTranslations("calendar");
   const tActions = useTranslations("common.actions");
 
-  const isRecipe = item.itemType === "recipe";
   const hasAllergies = isRecipe && item.allergyWarnings && item.allergyWarnings.length > 0;
   const image = isRecipe ? item.recipeImage : null;
 
@@ -73,10 +82,10 @@ export const CalendarItem = memo(function CalendarItem({
         className="group border-default-100 active:bg-default-50 focus-visible:ring-primary relative flex w-full touch-none items-center justify-between border-b py-3 transition-colors outline-none last:border-b-0 focus-visible:ring-2"
         role="button"
         tabIndex={0}
-        onClick={isRecipe ? onNavigate : onEdit}
+        onDoubleClick={handleDoubleClick}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
-            isRecipe ? onNavigate?.() : onEdit?.();
+            handleDoubleClick();
           }
         }}
       >
