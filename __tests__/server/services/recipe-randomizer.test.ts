@@ -68,13 +68,35 @@ describe("recipe-randomizer", () => {
         { ...baseCandidate, id: "c" },
       ];
 
-      vi.spyOn(Math, "random").mockReturnValue(0.05);
+      // Weights: a=1.0, b=1.6 (1 + 0.6 bonus), c=1.0, total=3.6
+      // After shuffle, selection depends on both shuffle order and random threshold
+
+      // Mock to return consistent shuffle (no swaps) and then select first item
+      // Fisher-Yates iterates from end: i=2 needs j in [0,2], i=1 needs j in [0,1]
+      // Return values that keep original order: 0.9 -> j=2, 0.9 -> j=1 (no swaps)
+      // Then final random for selection: 0.1 -> picks first item (a)
+      const mockRandom = vi.spyOn(Math, "random");
+      mockRandom
+        .mockReturnValueOnce(0.99) // shuffle i=2: j=2 (no swap)
+        .mockReturnValueOnce(0.99) // shuffle i=1: j=1 (no swap)
+        .mockReturnValueOnce(0.1); // selection: 0.1 * 3.6 = 0.36, picks 'a' (weight 1.0)
+
       expect(selectWeightedRandomRecipe(candidates)?.id).toBe("a");
 
-      vi.spyOn(Math, "random").mockReturnValue(0.65);
+      // Reset and test selecting 'b' (middle item with higher weight)
+      mockRandom
+        .mockReturnValueOnce(0.99) // shuffle: no swap
+        .mockReturnValueOnce(0.99) // shuffle: no swap
+        .mockReturnValueOnce(0.5); // selection: 0.5 * 3.6 = 1.8, past 'a' (1.0), into 'b' (1.6)
+
       expect(selectWeightedRandomRecipe(candidates)?.id).toBe("b");
 
-      vi.spyOn(Math, "random").mockReturnValue(0.95);
+      // Reset and test selecting 'c' (last item)
+      mockRandom
+        .mockReturnValueOnce(0.99) // shuffle: no swap
+        .mockReturnValueOnce(0.99) // shuffle: no swap
+        .mockReturnValueOnce(0.95); // selection: 0.95 * 3.6 = 3.42, past 'a' and 'b', into 'c'
+
       expect(selectWeightedRandomRecipe(candidates)?.id).toBe("c");
     });
 

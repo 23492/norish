@@ -36,6 +36,13 @@ vi.mock("@/app/providers/trpc-provider", () => ({
           return { enabled: true };
         },
       },
+      onItemUpdated: {
+        subscriptionOptions: (_input: unknown, options: { onData: SubscriptionCallback }) => {
+          subscriptionCallbacks["onItemUpdated"] = options?.onData;
+
+          return { enabled: true };
+        },
+      },
       onFailed: {
         subscriptionOptions: (_input: unknown, options: { onData: SubscriptionCallback }) => {
           subscriptionCallbacks["onFailed"] = options?.onData;
