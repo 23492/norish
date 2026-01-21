@@ -126,7 +126,9 @@
     "noImageAvailable": "Geen afbeelding beschikbaar",
     "videoPlayer": {
       "mute": "Dempen",
-      "unmute": "Geluid aan"
+      "unmute": "Geluid aan",
+      "fullscreen": "Volledig scherm",
+      "exitFullscreen": "Volledig scherm sluiten"
     }
   },
   "validation": {

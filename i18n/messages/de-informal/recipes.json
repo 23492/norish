@@ -126,7 +126,9 @@
     "noImageAvailable": "Kein Bild verfügbar",
     "videoPlayer": {
       "mute": "Stummschalten",
-      "unmute": "Ton einschalten"
+      "unmute": "Ton einschalten",
+      "fullscreen": "Vollbild",
+      "exitFullscreen": "Vollbild beenden"
     }
   },
   "validation": {

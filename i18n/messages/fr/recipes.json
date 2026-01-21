@@ -126,7 +126,9 @@
     "noImageAvailable": "Aucune image disponible",
     "videoPlayer": {
       "mute": "Couper le son",
-      "unmute": "Activer le son"
+      "unmute": "Activer le son",
+      "fullscreen": "Plein écran",
+      "exitFullscreen": "Quitter le plein écran"
     }
   },
   "validation": {

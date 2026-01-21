@@ -126,7 +126,9 @@
     "noImageAvailable": "No image available",
     "videoPlayer": {
       "mute": "Mute",
-      "unmute": "Unmute"
+      "unmute": "Unmute",
+      "fullscreen": "Enter fullscreen",
+      "exitFullscreen": "Exit fullscreen"
     }
   },
   "validation": {

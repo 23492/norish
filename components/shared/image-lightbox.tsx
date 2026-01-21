@@ -103,9 +103,10 @@ export default function ImageLightbox({
             {/* Close button */}
             <Button
               isIconOnly
-              className="absolute top-4 right-4 z-50 bg-black/50 text-white hover:bg-black/70"
+              className="absolute right-4 z-50 bg-black/50 text-white hover:bg-black/70"
               radius="full"
               size="lg"
+              style={{ top: "calc(1rem + env(safe-area-inset-top))" }}
               variant="flat"
               onPress={onClose}
             >
@@ -114,7 +115,10 @@ export default function ImageLightbox({
 
             {/* Image counter */}
             {showNavigation && (
-              <div className="absolute top-4 left-4 z-50 rounded-full bg-black/50 px-4 py-2 text-sm text-white">
+              <div
+                className="absolute left-4 z-50 rounded-full bg-black/50 px-4 py-2 text-sm text-white"
+                style={{ top: "calc(1rem + env(safe-area-inset-top))" }}
+              >
                 {currentIndex + 1} / {images.length}
               </div>
             )}

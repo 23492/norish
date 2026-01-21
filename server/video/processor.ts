@@ -8,6 +8,8 @@ import {
   downloadVideoAudio,
   downloadVideo,
   getFfmpegPath,
+  downloadCaptions,
+  parseVttFile,
 } from "@/server/video/yt-dlp";
 import { extractRecipeFromVideo } from "@/server/video/normalizer";
 import { cleanupFile } from "@/server/video/cleanup";
@@ -29,6 +31,7 @@ export async function processVideoRecipe(
 
   let audioPath: string | null = null;
   let videoPath: string | null = null;
+  let captionPath: string | null = null;
   const isInstagram = isInstagramUrl(url);
 
   try {
@@ -81,6 +84,69 @@ export async function processVideoRecipe(
       // Continue - we can still extract the recipe from audio even if video save fails
     }
 
+    // Try to get captions first (cheaper than audio transcription)
+    let captionText: string | null = null;
+
+    try {
+      log.info({ url }, "Attempting to download captions");
+      const captionResult = await downloadCaptions(url);
+
+      if (captionResult.found && captionResult.filePath) {
+        captionPath = captionResult.filePath;
+        captionText = await parseVttFile(captionResult.filePath);
+        log.info({ url, captionLength: captionText.length }, "Captions downloaded and parsed");
+      }
+    } catch (captionErr) {
+      log.debug({ url, err: captionErr }, "Could not get captions, will use audio transcription");
+    }
+
+    // Build combined text from captions + description
+    // The recipe might be in the description rather than spoken
+    const descriptionText = metadata.description?.trim() || "";
+    const combinedCaptionAndDescription = [captionText, descriptionText]
+      .filter(Boolean)
+      .join("\n\n---\n\n");
+
+    // If we have substantial caption/description content, try extraction without audio transcription
+    const hasSubstantialContent = combinedCaptionAndDescription.length > 200;
+
+    if (hasSubstantialContent) {
+      log.info(
+        { url, contentLength: combinedCaptionAndDescription.length },
+        "Trying extraction from captions + description first"
+      );
+
+      const result = await extractRecipeFromVideo(
+        combinedCaptionAndDescription,
+        metadata,
+        recipeId,
+        url,
+        allergies
+      );
+
+      if (result.success) {
+        log.info({ url }, "Successfully extracted recipe from captions + description");
+
+        // Add video to the recipe if we saved it
+        const savedVideo = canSaveVideo
+          ? await saveVideo(videoPath!, recipeId, metadata.duration).catch(() => null)
+          : null;
+
+        if (savedVideo) {
+          result.data.videos = [
+            { video: savedVideo.video, duration: savedVideo.duration, order: 0 },
+          ];
+        }
+
+        return result.data;
+      }
+
+      log.info(
+        { url },
+        "Caption/description extraction failed, falling back to audio transcription"
+      );
+    }
+
     // Download and extract audio - with fallback for Instagram if audio extraction fails
     try {
       audioPath = await downloadVideoAudio(url);
@@ -121,8 +187,19 @@ export async function processVideoRecipe(
 
     log.info({ url, transcriptLength: transcript.length }, "Audio transcribed");
 
-    // Extract recipe from transcript + metadata
-    const result = await extractRecipeFromVideo(transcript, metadata, recipeId, url, allergies);
+    // Combine transcript with description for best results
+    const combinedTranscriptAndDescription = [transcript, descriptionText]
+      .filter(Boolean)
+      .join("\n\n---\n\n");
+
+    // Extract recipe from transcript + description + metadata
+    const result = await extractRecipeFromVideo(
+      combinedTranscriptAndDescription,
+      metadata,
+      recipeId,
+      url,
+      allergies
+    );
 
     if (!result.success) {
       throw new Error(
@@ -155,6 +232,10 @@ export async function processVideoRecipe(
     // Cleanup temp video file if it exists and is still in temp dir
     if (videoPath && videoPath.includes("video-temp")) {
       await cleanupFile(videoPath);
+    }
+    // Cleanup caption file
+    if (captionPath) {
+      await cleanupFile(captionPath);
     }
   }
 }
