@@ -2,7 +2,7 @@ import { router, publicProcedure } from "../../trpc";
 import { authedProcedure } from "../../middleware";
 
 import { trpcLogger as log } from "@/server/logger";
-import { getUnits, getRecurrenceConfig, getLocaleConfig } from "@/config/server-config-loader";
+import { getUnits, getRecurrenceConfig, getLocaleConfig, isTimersEnabled } from "@/config/server-config-loader";
 import { listAllTagNames } from "@/server/db/repositories/tags";
 import { SERVER_CONFIG } from "@/config/env-config-server";
 
@@ -72,10 +72,18 @@ const uploadLimits = publicProcedure.query(() => {
   };
 });
 
+/**
+ * Check if recipe timers are enabled globally
+ */
+const timersEnabled = publicProcedure.query(async () => {
+  return await isTimersEnabled();
+});
+
 export const configProcedures = router({
   localeConfig,
   tags,
   units,
   recurrenceConfig,
   uploadLimits,
+  timersEnabled,
 });

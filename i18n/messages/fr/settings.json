@@ -353,7 +353,11 @@
       "contentIndicators": {
         "title": "Indicateurs de contenu",
         "subtitle": "Mots-clés identifiant les pages de recettes",
-        "description": "Les indicateurs Schema détectent les données structurées (JSON-LD, microdata). Les indicateurs de contenu sont des mots-clés suggérant qu’une page contient une recette."
+        "description": "Les indicateurs Schema détectent les données structurées (JSON-LD, microdata). Les indicateurs de contenu sont des mots-clés suggérant qu’une page contient une recette.",
+        "timersEnabled": {
+          "title": "Activer les minuteurs de recette",
+          "description": "Détecter et afficher des minuteurs interactifs dans les recettes"
+        }
       },
       "units": {
         "title": "Unités de mesure",

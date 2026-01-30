@@ -353,7 +353,11 @@
       "contentIndicators": {
         "title": "Content Indicatoren",
         "subtitle": "Trefwoorden die receptpagina's identificeren",
-        "description": "Schema-indicatoren detecteren gestructureerde receptgegevens (JSON-LD, microdata). Contentindicatoren zijn trefwoorden die suggereren dat een pagina een recept bevat."
+        "description": "Schema-indicatoren detecteren gestructureerde receptgegevens (JSON-LD, microdata). Contentindicatoren zijn trefwoorden die suggereren dat een pagina een recept bevat.",
+        "timersEnabled": {
+          "title": "Recepttimers inschakelen",
+          "description": "Detecteer en toon interactieve timers in recepten"
+        }
       },
       "units": {
         "title": "Meeteenheden",

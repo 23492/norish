@@ -62,6 +62,15 @@ export async function getContentIndicators(): Promise<ContentIndicatorsConfig> {
 }
 
 /**
+ * Check if recipe timers are enabled
+ */
+export async function isTimersEnabled(): Promise<boolean> {
+  const config = await getContentIndicators();
+
+  return config.timersEnabled ?? true;
+}
+
+/**
  * Get recurrence configuration
  */
 export async function getRecurrenceConfig(): Promise<RecurrenceConfig> {

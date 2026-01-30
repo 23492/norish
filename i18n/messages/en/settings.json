@@ -353,7 +353,11 @@
       "contentIndicators": {
         "title": "Content Indicators",
         "subtitle": "Keywords that identify recipe pages",
-        "description": "Schema indicators detect structured recipe data (JSON-LD, microdata). Content indicators are keywords that suggest a page contains a recipe."
+        "description": "Schema indicators detect structured recipe data (JSON-LD, microdata). Content indicators are keywords that suggest a page contains a recipe.",
+        "timersEnabled": {
+          "title": "Enable Recipe Timers",
+          "description": "Detect and show interactive timers in recipes"
+        }
       },
       "units": {
         "title": "Units of Measure",

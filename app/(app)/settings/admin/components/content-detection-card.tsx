@@ -1,6 +1,6 @@
 "use client";
 
-import { Card, CardBody, CardHeader, Accordion, AccordionItem } from "@heroui/react";
+import { Card, CardBody, CardHeader, Accordion, AccordionItem, Switch } from "@heroui/react";
 import { DocumentMagnifyingGlassIcon } from "@heroicons/react/16/solid";
 import { useTranslations } from "next-intl";
 
@@ -32,7 +32,27 @@ export default function ContentDetectionCard() {
       </CardHeader>
       <CardBody>
         <p className="text-default-500 mb-4 text-base">{t("description")}</p>
+
         <Accordion selectionMode="multiple" variant="bordered">
+          <AccordionItem
+            key="timers-enabled"
+            indicator={
+              <Switch
+                isSelected={contentIndicators?.timersEnabled ?? true}
+                onValueChange={(isSelected) => {
+                  if (!contentIndicators) return;
+                  updateContentIndicators(
+                    JSON.stringify({
+                      ...contentIndicators,
+                      timersEnabled: isSelected,
+                    })
+                  );
+                }}
+              />
+            }
+            subtitle={t("contentIndicators.timersEnabled.description")}
+            title={t("contentIndicators.timersEnabled.title")}
+          />
           <AccordionItem
             key="content-indicators"
             subtitle={t("contentIndicators.subtitle")}
@@ -47,7 +67,6 @@ export default function ContentDetectionCard() {
               />
             </div>
           </AccordionItem>
-
           <AccordionItem key="units" subtitle={t("units.subtitle")} title={t("units.title")}>
             <div className="p-2">
               <JsonEditor
@@ -58,7 +77,6 @@ export default function ContentDetectionCard() {
               />
             </div>
           </AccordionItem>
-
           <AccordionItem
             key="recurrence"
             subtitle={t("recurrence.subtitle")}
