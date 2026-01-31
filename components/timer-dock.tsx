@@ -6,6 +6,7 @@ import { XMarkIcon, ChevronUpIcon, ChevronDownIcon, PlayIcon, PauseIcon, TrashIc
 import { usePathname } from "next/navigation";
 import useSound from "use-sound";
 import { useTimersEnabledQuery } from "@/hooks/config";
+import { useTranslations } from "next-intl";
 
 // Global tick loop component
 function TimerTicker() {
@@ -38,6 +39,7 @@ export function TimerDock() {
     const completedTimers = timers.filter(t => t.status === "completed");
 
     const allActiveOrPaused = [...activeTimers, ...pausedTimers, ...completedTimers];
+    const t = useTranslations("common");
 
     const [isExpanded, setIsExpanded] = useState(false);
     const [isClient, setIsClient] = useState(false);
@@ -106,7 +108,7 @@ export function TimerDock() {
                         </div>
                         <div className="max-h-96 overflow-y-auto">
                             {sortedTimers.map((timer) => (
-                                <TimerRow key={timer.id} timer={timer} />
+                                <TimerRow key={timer.id} timer={timer} t={t} />
                             ))}
                         </div>
                     </div>
@@ -126,7 +128,7 @@ export function TimerDock() {
                                 {topTimer.label}
                             </span>
                             <span className="font-mono text-lg font-bold leading-none">
-                                {topTimer.status === "completed" ? "DONE" : formatTime(topTimer.remainingMs)}
+                                {topTimer.status === "completed" ? t("timer.done") : formatTime(topTimer.remainingMs)}
                             </span>
                         </div>
 
@@ -144,7 +146,7 @@ export function TimerDock() {
     );
 }
 
-function TimerRow({ timer }: { timer: import("@/stores/timers").Timer }) {
+function TimerRow({ timer, t }: { timer: import("@/stores/timers").Timer, t: (key: string) => string }) {
     const pauseTimer = useTimerStore((state) => state.pauseTimer);
     const startTimer = useTimerStore((state) => state.startTimer);
     const removeTimer = useTimerStore((state) => state.removeTimer);
@@ -157,7 +159,7 @@ function TimerRow({ timer }: { timer: import("@/stores/timers").Timer }) {
             <div className="flex-1 min-w-0 mr-3">
                 <h4 className="text-sm font-medium truncate mb-0.5">{timer.label}</h4>
                 <div className={`font-mono text-xl ${isCompleted ? 'text-red-600 font-bold' : ''}`}>
-                    {isCompleted ? "DONE" : formatTime(timer.remainingMs)}
+                    {isCompleted ? t("timer.done") : formatTime(timer.remainingMs)}
                 </div>
             </div>
 

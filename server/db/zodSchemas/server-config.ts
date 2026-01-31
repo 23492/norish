@@ -94,7 +94,7 @@ export type AuthProviderGoogleInput = z.infer<typeof AuthProviderGoogleInputSche
 export const ContentIndicatorsSchema = z.object({
   schemaIndicators: z.array(z.string()),
   contentIndicators: z.array(z.string()),
-  timersEnabled: z.boolean().default(true),
+  timersEnabled: z.boolean().default(false),
 });
 
 export type ContentIndicatorsConfig = z.infer<typeof ContentIndicatorsSchema>;

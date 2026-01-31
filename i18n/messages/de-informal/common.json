@@ -164,5 +164,8 @@
       "5": "Freitag",
       "6": "Samstag"
     }
+  },
+  "timer": {
+    "done": "Fertig"
   }
 }

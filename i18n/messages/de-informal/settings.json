@@ -353,7 +353,11 @@
       "contentIndicators": {
         "title": "Inhalts-Indikatoren",
         "subtitle": "Schlüsselwörter, die Rezept-Seiten identifizieren",
-        "description": "Schema-Indikatoren erkennen strukturierte Rezeptdaten (JSON-LD, Microdata). Inhalts-Indikatoren sind Schlüsselwörter, die darauf hindeuten, dass eine Seite ein Rezept enthält."
+        "description": "Schema-Indikatoren erkennen strukturierte Rezeptdaten (JSON-LD, Microdata). Inhalts-Indikatoren sind Schlüsselwörter, die darauf hindeuten, dass eine Seite ein Rezept enthält.",
+        "timersEnabled": {
+          "title": "Rezept-Timer aktivieren",
+          "description": "Interaktive Timer in Rezepten erkennen und anzeigen"
+        }
       },
       "units": {
         "title": "Maßeinheiten",
