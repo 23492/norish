@@ -46,8 +46,8 @@
 ## 7. Validation
 
 - [x] 7.1 Run full test suite - confirm all 955 tests pass
-- [ ] 7.2 Manual test: Instagram image post import
-- [ ] 7.3 Manual test: Instagram video post import
-- [ ] 7.4 Manual test: YouTube video import (with captions)
-- [ ] 7.5 Manual test: YouTube video import (without captions)
-- [ ] 7.6 Manual test: Generic video platform import
+- [x] 7.2 Manual test: Instagram image post import
+- [x] 7.3 Manual test: Instagram video post import
+- [x] 7.4 Manual test: YouTube video import (with captions)
+- [x] 7.5 Manual test: YouTube video import (without captions)
+- [x] 7.6 Manual test: Generic video platform import
