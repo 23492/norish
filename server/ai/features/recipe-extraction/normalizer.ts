@@ -164,12 +164,20 @@ export async function normalizeExtractionOutput(
   ];
 
   const normalizedCategories = (output.categories ?? [])
-    .filter((category): category is string => typeof category === "string")
+    .filter((category): category is string => typeof category === "string" && category.length > 0)
     .map((category) => matchCategory(category))
     .filter((category): category is RecipeCategory => category !== null)
     .filter((category, index, categories) => categories.indexOf(category) === index);
 
   normalized.categories = normalizedCategories;
+
+  // Log if no categories were matched (helps debug AI responses)
+  if (normalizedCategories.length === 0 && (output.categories?.length ?? 0) > 0) {
+    aiLogger.warn(
+      { rawCategories: output.categories, recipeName: output.name },
+      "AI returned categories but none matched valid category names"
+    );
+  }
 
   return normalized;
 }
@@ -193,5 +201,6 @@ export function getExtractionLogContext(
       systemUsed: normalized.systemUsed,
       tags: normalized.tags,
     }),
+    categories: output.categories
   };
 }

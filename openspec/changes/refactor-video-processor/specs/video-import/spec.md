@@ -35,10 +35,12 @@ The video import system SHALL use existing YouTube captions when available, comb
 
 The video import system SHALL use dedicated processors for each supported platform to handle platform-specific extraction strategies.
 
-#### Scenario: Instagram image post
+#### Scenario: Instagram image post with OCR
 
 - **WHEN** importing an Instagram URL that is an image post (no video duration)
-- **THEN** the system SHALL extract recipe from the post description/caption
+- **THEN** the system SHALL extract text from the image using AI vision (OCR)
+- **AND** the system SHALL parse the post description/caption
+- **AND** the system SHALL merge OCR text with description for AI recipe extraction
 - **AND** the system SHALL download the image as the recipe thumbnail
 - **AND** the system SHALL NOT attempt audio transcription
 
@@ -49,10 +51,12 @@ The video import system SHALL use dedicated processors for each supported platfo
 - **AND** the system SHALL attempt to extract recipe from description first
 - **AND** the system SHALL fall back to audio transcription if description extraction fails
 
-#### Scenario: Facebook image post
+#### Scenario: Facebook image post with OCR
 
 - **WHEN** importing a Facebook URL that is an image post
-- **THEN** the system SHALL extract recipe from the post description/caption
+- **THEN** the system SHALL extract text from the image using AI vision (OCR)
+- **AND** the system SHALL parse the post description/caption
+- **AND** the system SHALL merge OCR text with description for AI recipe extraction
 - **AND** the system SHALL download the image as the recipe thumbnail
 - **AND** the system SHALL NOT attempt audio transcription
 

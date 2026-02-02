@@ -2,9 +2,10 @@
 
 The video processor currently handles multiple platforms in a single 250-line function with nested conditionals. The code path varies significantly by platform:
 
-1. **Instagram**: Detect image vs video posts, handle description-only extraction for images
+1. **Instagram**: Detect image vs video posts. For images: extract text via OCR + parse description. For videos: try description, fallback to transcription
 2. **YouTube**: Prefer captions over transcription, combine with description
-3. **Generic**: Always transcribe audio, use description as supplement
+3. **Facebook**: Same as Instagram (not yet implemented)
+4. **Generic**: Always transcribe audio, use description as supplement
 
 Adding Facebook (which behaves like Instagram) would add more branches. A strategy pattern isolates each platform's logic.
 
@@ -14,7 +15,8 @@ Adding Facebook (which behaves like Instagram) would add more branches. A strate
 
 - Separate platform-specific logic into dedicated, testable classes
 - Make adding new platforms straightforward (implement interface, register in factory)
-- Preserve all existing behavior (no functional changes)
+- Follow TDD approach: write tests first, then implement
+- Preserve all existing behavior (no functional changes to existing platforms)
 - Improve code readability and maintainability
 
 **Non-Goals:**
@@ -48,15 +50,24 @@ server/video/
 ├── processor.ts          # Factory + main entry point
 ├── base-processor.ts     # Abstract base class
 ├── processors/
-│   ├── instagram.ts      # Instagram handler
+│   ├── instagram.ts      # Instagram handler (image OCR + description, video transcription)
 │   ├── facebook.ts       # Facebook handler (mirrors Instagram)
-│   ├── youtube.ts        # YouTube handler
-│   └── generic.ts        # Fallback for other platforms
+│   ├── youtube.ts        # YouTube handler (captions-first)
+│   └── generic.ts        # Fallback for other platforms (transcription-based)
 ├── yt-dlp.ts             # Unchanged
 ├── normalizer.ts         # Unchanged
-├── types.ts              # Add ProcessorResult type
+├── types.ts              # Add ProcessorResult type, VideoProcessor interface
 └── cleanup.ts            # Unchanged
 ```
+
+### Decision: Image Post Handling (Instagram/Facebook)
+
+For image posts, use the existing `extractRecipeFromImages` function from `server/ai/image-recipe-parser.ts` which:
+
+1. Sends images to AI vision model for OCR/text extraction
+2. Extracts recipe data from image content
+
+Additionally, merge the post description/caption with the OCR results before AI extraction, giving the AI both text sources to work with.
 
 ## Risks / Trade-offs
 

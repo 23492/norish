@@ -589,6 +589,7 @@ export async function createRecipeWithRefs(
     fat: payload.fat ?? null,
     carbs: payload.carbs ?? null,
     protein: payload.protein ?? null,
+    categories: payload.categories ?? [],
   };
 
   const finalRecipeId = await db.transaction(async (tx) => {

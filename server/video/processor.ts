@@ -1,23 +1,33 @@
 import type { FullRecipeInsertDTO } from "@/types/dto/recipe";
 
-import { isInstagramUrl, isInstagramImagePost, processInstagramImagePost } from "./instagram";
-
-import {
-  validateVideoLength,
-  getVideoMetadata,
-  downloadVideoAudio,
-  downloadVideo,
-  getFfmpegPath,
-  downloadCaptions,
-  parseVttFile,
-} from "@/server/video/yt-dlp";
-import { extractRecipeFromVideo } from "@/server/video/normalizer";
-import { cleanupFile } from "@/server/video/cleanup";
 import { videoLogger as log } from "@/server/logger";
 import { isVideoParsingEnabled } from "@/config/server-config-loader";
-import { transcribeAudio } from "@/server/ai/transcriber";
-import { convertToMp4, saveVideoFile } from "@/server/downloader";
+import { VideoProcessorFactory } from "./processor-factory";
+import { YouTubeProcessor } from "./processors/youtube";
+import { InstagramProcessor } from "./processors/instagram";
+import { FacebookProcessor } from "./processors/facebook";
+import { GenericVideoProcessor } from "./processors/generic";
 
+/**
+ * Singleton factory instance with all processors registered.
+ */
+let factoryInstance: VideoProcessorFactory | null = null;
+
+function getFactory(): VideoProcessorFactory {
+  if (!factoryInstance) {
+    factoryInstance = new VideoProcessorFactory();
+    factoryInstance.registerProcessor("youtube", new YouTubeProcessor());
+    factoryInstance.registerProcessor("instagram", new InstagramProcessor());
+    factoryInstance.registerProcessor("facebook", new FacebookProcessor());
+    factoryInstance.registerProcessor("generic", new GenericVideoProcessor());
+  }
+  return factoryInstance;
+}
+
+/**
+ * Process a video URL and extract recipe data.
+ * Routes to the appropriate platform-specific processor.
+ */
 export async function processVideoRecipe(
   url: string,
   recipeId: string,
@@ -29,222 +39,19 @@ export async function processVideoRecipe(
     throw new Error("AI features or video processing is not enabled.");
   }
 
-  let audioPath: string | null = null;
-  let videoPath: string | null = null;
-  let captionPath: string | null = null;
-  const isInstagram = isInstagramUrl(url);
+  const factory = getFactory();
+  const processor = factory.getProcessor(url);
+
+  log.info({ url, processor: processor.name }, "Starting video recipe processing");
 
   try {
-    log.info({ url, isInstagram }, "Starting video recipe processing");
-
-    // Get metadata first - needed to detect Instagram image posts
-    const metadata = await getVideoMetadata(url);
-
-    log.info(
-      { url, title: metadata.title, duration: metadata.duration },
-      "Video metadata retrieved"
-    );
-
-    // Handle Instagram image posts (duration is 0 or undefined)
-    if (isInstagram && isInstagramImagePost(metadata)) {
-      log.info({ url }, "Detected Instagram image post, extracting from description");
-
-      return await processInstagramImagePost(url, recipeId, metadata, allergies);
-    }
-
-    // Validate video length before downloading (only for actual videos)
-    await validateVideoLength(url);
-    log.debug({ url }, "Video length validated");
-
-    // Download video file for saving
-    let canSaveVideo = true;
-
-    try {
-      log.info({ url }, "Downloading video file");
-      const downloadedVideo = await downloadVideo(url);
-
-      videoPath = downloadedVideo.filePath;
-
-      // Convert to MP4 if needed
-      const ffmpegPath = getFfmpegPath();
-      const convertResult = await convertToMp4(downloadedVideo.filePath, ffmpegPath);
-
-      videoPath = convertResult.filePath;
-
-      log.info(
-        { method: convertResult.method, converted: convertResult.converted },
-        "Video conversion complete"
-      );
-    } catch (videoDownloadErr) {
-      canSaveVideo = false;
-      log.warn(
-        { err: videoDownloadErr },
-        "Failed to download/save video file, continuing with recipe extraction"
-      );
-      // Continue - we can still extract the recipe from audio even if video save fails
-    }
-
-    // Try to get captions first (cheaper than audio transcription)
-    let captionText: string | null = null;
-
-    try {
-      log.info({ url }, "Attempting to download captions");
-      const captionResult = await downloadCaptions(url);
-
-      if (captionResult.found && captionResult.filePath) {
-        captionPath = captionResult.filePath;
-        captionText = await parseVttFile(captionResult.filePath);
-        log.info({ url, captionLength: captionText.length }, "Captions downloaded and parsed");
-      }
-    } catch (captionErr) {
-      log.debug({ url, err: captionErr }, "Could not get captions, will use audio transcription");
-    }
-
-    // Build combined text from captions + description
-    // The recipe might be in the description rather than spoken
-    const descriptionText = metadata.description?.trim() || "";
-    const combinedCaptionAndDescription = [captionText, descriptionText]
-      .filter(Boolean)
-      .join("\n\n---\n\n");
-
-    // If we have substantial caption/description content, try extraction without audio transcription
-    const hasSubstantialContent = combinedCaptionAndDescription.length > 200;
-
-    if (hasSubstantialContent) {
-      log.info(
-        { url, contentLength: combinedCaptionAndDescription.length },
-        "Trying extraction from captions + description first"
-      );
-
-      const result = await extractRecipeFromVideo(
-        combinedCaptionAndDescription,
-        metadata,
-        recipeId,
-        url,
-        allergies
-      );
-
-      if (result.success) {
-        log.info({ url }, "Successfully extracted recipe from captions + description");
-
-        // Add video to the recipe if we saved it
-        const savedVideo = canSaveVideo
-          ? await saveVideo(videoPath!, recipeId, metadata.duration).catch(() => null)
-          : null;
-
-        if (savedVideo) {
-          result.data.videos = [
-            { video: savedVideo.video, duration: savedVideo.duration, order: 0 },
-          ];
-        }
-
-        return result.data;
-      }
-
-      log.info(
-        { url },
-        "Caption/description extraction failed, falling back to audio transcription"
-      );
-    }
-
-    // Download and extract audio - with fallback for Instagram if audio extraction fails
-    try {
-      audioPath = await downloadVideoAudio(url);
-      log.debug({ url, audioPath }, "Audio downloaded");
-    } catch (audioError: unknown) {
-      // Safety net: If audio download fails for Instagram, try description-based extraction
-      if (isInstagram) {
-        log.warn(
-          { url, err: audioError },
-          "Audio download failed for Instagram, attempting description-based extraction"
-        );
-
-        const result = await processInstagramImagePost(url, recipeId, metadata, allergies);
-
-        // Add video if we managed to save it
-        const savedVideo = canSaveVideo
-          ? await saveVideo(videoPath!, recipeId, metadata.duration).catch(() => null)
-          : null;
-
-        if (savedVideo) {
-          result.videos = [{ video: savedVideo.video, duration: savedVideo.duration, order: 0 }];
-        }
-
-        return result;
-      }
-      throw audioError;
-    }
-
-    // Transcribe audio
-    log.info({ url }, "Starting audio transcription");
-    const transcriptionResult = await transcribeAudio(audioPath);
-
-    if (!transcriptionResult.success) {
-      throw new Error(transcriptionResult.error);
-    }
-
-    const transcript = transcriptionResult.data;
-
-    log.info({ url, transcriptLength: transcript.length }, "Audio transcribed");
-
-    // Combine transcript with description for best results
-    const combinedTranscriptAndDescription = [transcript, descriptionText]
-      .filter(Boolean)
-      .join("\n\n---\n\n");
-
-    // Extract recipe from transcript + description + metadata
-    const result = await extractRecipeFromVideo(
-      combinedTranscriptAndDescription,
-      metadata,
-      recipeId,
-      url,
-      allergies
-    );
-
-    if (!result.success) {
-      throw new Error(
-        result.error ||
-          `No recipe found in video. The video may not contain a recipe or the content was not clear enough to extract.`
-      );
-    }
-
-    // Add video to the recipe if we saved it
-    const savedVideo = canSaveVideo
-      ? await saveVideo(videoPath!, recipeId, metadata.duration).catch(() => null)
-      : null;
-
-    if (savedVideo) {
-      result.data.videos = [{ video: savedVideo.video, duration: savedVideo.duration, order: 0 }];
-    }
-
-    return result.data;
+    return await processor.process({ url, recipeId, allergies });
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-
-    log.error({ err: error }, "Failed to process video");
-
+    log.error({ err: error, processor: processor.name }, "Failed to process video");
     throw new Error(`Failed to process video recipe: ${errorMessage}`);
-  } finally {
-    // Always cleanup temporary audio file
-    if (audioPath) {
-      await cleanupFile(audioPath);
-    }
-    // Cleanup temp video file if it exists and is still in temp dir
-    if (videoPath && videoPath.includes("video-temp")) {
-      await cleanupFile(videoPath);
-    }
-    // Cleanup caption file
-    if (captionPath) {
-      await cleanupFile(captionPath);
-    }
   }
 }
 
-const saveVideo = async (videoPath: string, recipeId: string, duration: number | undefined) => {
-  // Save the video file to the recipe directory
-  const savedVideo = await saveVideoFile(videoPath, recipeId, duration);
-
-  log.info({ video: savedVideo.video }, "Video saved to recipe directory");
-
-  return savedVideo;
-};
+// Re-export factory for testing
+export { VideoProcessorFactory } from "./processor-factory";
