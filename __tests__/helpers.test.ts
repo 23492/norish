@@ -109,6 +109,75 @@ describe("parseIngredientWithDefaults", () => {
     expect(result).toHaveLength(1);
     expect(result[0].quantity).toBe(500);
   });
+
+  // New tests for plural/singular unit form selection
+  describe("grammatically correct unit forms", () => {
+    it("returns plural unit form when quantity > 1", () => {
+      const result = parseIngredientWithDefaults("2 cups flour");
+
+      expect(result[0].unitOfMeasure).toBe("cups");
+    });
+
+    it("returns singular unit form when quantity = 1", () => {
+      const result = parseIngredientWithDefaults("1 cup flour");
+
+      expect(result[0].unitOfMeasure).toBe("cup");
+    });
+
+    it("returns singular unit form when quantity < 1", () => {
+      const result = parseIngredientWithDefaults("0.5 cup flour");
+
+      expect(result[0].unitOfMeasure).toBe("cup");
+    });
+
+    it("returns plural for tablespoons when quantity > 1", () => {
+      const result = parseIngredientWithDefaults("2 tablespoons sugar");
+
+      expect(result[0].unitOfMeasure).toBe("tablespoons");
+    });
+
+    it("returns singular for tablespoon when quantity = 1", () => {
+      const result = parseIngredientWithDefaults("1 tablespoon sugar");
+
+      expect(result[0].unitOfMeasure).toBe("tablespoon");
+    });
+
+    it("returns plural for grams when quantity > 1", () => {
+      const result = parseIngredientWithDefaults("450 grams flour");
+
+      expect(result[0].unitOfMeasure).toBe("grams");
+    });
+
+    it("returns singular for gram when quantity = 1", () => {
+      const result = parseIngredientWithDefaults("1 gram salt");
+
+      expect(result[0].unitOfMeasure).toBe("gram");
+    });
+
+    it("returns plural for custom units when quantity > 1", () => {
+      const customUnits = {
+        stuk: { short: "st", plural: "stuks", alternates: ["stuk"] },
+      };
+      const result = parseIngredientWithDefaults("2 stuk appel", customUnits);
+
+      expect(result[0].unitOfMeasure).toBe("stuks");
+    });
+
+    it("returns singular for custom units when quantity = 1", () => {
+      const customUnits = {
+        stuk: { short: "st", plural: "stuks", alternates: ["stuk"] },
+      };
+      const result = parseIngredientWithDefaults("1 stuk appel", customUnits);
+
+      expect(result[0].unitOfMeasure).toBe("stuk");
+    });
+
+    it("handles fractional quantities > 1 as plural", () => {
+      const result = parseIngredientWithDefaults("1.5 cups flour");
+
+      expect(result[0].unitOfMeasure).toBe("cups");
+    });
+  });
 });
 
 describe("stripHtmlTags", () => {

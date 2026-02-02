@@ -1,10 +1,11 @@
 import type { UnitsMap } from "@/server/db/zodSchemas/server-config";
 
 import { jsonrepair } from "jsonrepair";
-import { parseIngredient } from "parse-ingredient";
+import { parseIngredient, unitsOfMeasure } from "parse-ingredient";
 import { decode } from "html-entities";
 
 import { httpUrlSchema } from "./schema";
+import { selectUnitForm } from "./unit-form-selector";
 
 export function stripHtmlTags(input: string): string {
   const withoutTags = input.replace(/<[^>]*>/g, " ");
@@ -34,6 +35,9 @@ export function parseIngredientWithDefaults(
   const lines = Array.isArray(input) ? input : [input];
   const merged: any[] = [];
 
+  // Merge custom units with built-in units for lookup
+  const allUnitDefs = { ...unitsOfMeasure, ...units };
+
   for (const line of lines) {
     if (!line) continue;
 
@@ -51,7 +55,11 @@ export function parseIngredientWithDefaults(
         allUnits.add(key);
         if (def.short) allUnits.add(def.short);
         if (def.plural) allUnits.add(def.plural);
-        if (def.alternates) def.alternates.forEach((a) => allUnits.add(a));
+        if (def.alternates) {
+          for (const a of def.alternates) {
+            allUnits.add(a);
+          }
+        }
       }
 
       // Sort by length desc to match longest first
@@ -75,6 +83,24 @@ export function parseIngredientWithDefaults(
 
         if (smartParsed[0]?.quantity) {
           parsed = smartParsed;
+        }
+      }
+    }
+
+    // Apply grammatically correct unit form based on quantity
+    for (const ingredient of parsed) {
+      if (ingredient.unitOfMeasureID && ingredient.quantity != null) {
+        const unitDef = allUnitDefs[ingredient.unitOfMeasureID];
+
+        if (unitDef) {
+          const correctedUnit = selectUnitForm(ingredient.quantity, {
+            singular: ingredient.unitOfMeasureID,
+            plural: unitDef.plural || null,
+          });
+
+          if (correctedUnit) {
+            ingredient.unitOfMeasure = correctedUnit;
+          }
         }
       }
     }

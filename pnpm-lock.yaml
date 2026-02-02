@@ -292,8 +292,8 @@ importers:
         specifier: 6.8.1
         version: 6.8.1
       parse-ingredient:
-        specifier: 1.3.3
-        version: 1.3.3
+        specifier: 2.0.1
+        version: 2.0.1
       pino-pretty:
         specifier: ^13.1.3
         version: 13.1.3
@@ -5232,8 +5232,8 @@ packages:
   nth-check@2.1.1:
     resolution: {integrity: sha512-lqjrjmaOoAnWfMmBPL+XNnynZh2+swxiX3WUE0s4yEHI6m+AwrK2UZOimIRl3X/4QctVqS8AiZjFqyOGrMXb/w==}
 
-  numeric-quantity@2.1.0:
-    resolution: {integrity: sha512-oDkQ8nFuNVA+unEg1jd6dAS+O7eLXWWzsa4ViI0S0yFi6654GK0s74o8bF8uLRQdWIz/qFF1GABNFPfwAGQUsg==}
+  numeric-quantity@3.0.0:
+    resolution: {integrity: sha512-+D9y6OCdu0q/G+euPEjbOzIASoODOjA67VDk5t4mPKjxhM+1INuFprFxjIpdJ+s6K6uSY2vGtu2NBogdjT4qSA==}
     engines: {node: '>=16'}
 
   oauth4webapi@3.8.3:
@@ -5332,8 +5332,8 @@ packages:
   parse-entities@4.0.2:
     resolution: {integrity: sha512-GG2AQYWoLgL877gQIKeRPGO1xF9+eG1ujIb5soS5gPvLQ1y2o8FL90w2QWNdf9I361Mpp7726c+lj3U0qK1uGw==}
 
-  parse-ingredient@1.3.3:
-    resolution: {integrity: sha512-AjhsdCtkzUorAOfcEVGDRnS8lAZnS9ycAeU25IPGUcXwjlgKezwFG3ePnfqIdk3sZPIPl6+9yda0vbE0aUr2sg==}
+  parse-ingredient@2.0.1:
+    resolution: {integrity: sha512-FYUgfUtJuy7UkMxErtNt8t43ZN8hH6K7DJmdY8KUZJdvxm3jNx+NA+TZ7f0DyxUwW1Sf/bMKBbUqL9+ma6pyVQ==}
     engines: {node: '>=10'}
 
   parse5-htmlparser2-tree-adapter@7.1.0:
@@ -11979,7 +11979,7 @@ snapshots:
     dependencies:
       boolbase: 1.0.0
 
-  numeric-quantity@2.1.0: {}
+  numeric-quantity@3.0.0: {}
 
   oauth4webapi@3.8.3: {}
 
@@ -12091,9 +12091,9 @@ snapshots:
       is-decimal: 2.0.1
       is-hexadecimal: 2.0.1
 
-  parse-ingredient@1.3.3:
+  parse-ingredient@2.0.1:
     dependencies:
-      numeric-quantity: 2.1.0
+      numeric-quantity: 3.0.0
 
   parse5-htmlparser2-tree-adapter@7.1.0:
     dependencies:

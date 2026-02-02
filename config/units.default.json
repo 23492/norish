@@ -333,5 +333,288 @@
     "short": "large splash",
     "plural": "large splashes",
     "alternates": ["big splash", "good splash"]
+  },
+  "Becher": {
+    "short": "becher",
+    "plural": "Becher",
+    "alternates": ["beh.", "beh"]
+  },
+  "Beutel": {
+    "short": "btl.",
+    "plural": "Beutel",
+    "alternates": ["btl", "tüte", "tüten", "sack", "tütchen"]
+  },
+  "Blatt": {
+    "short": "blatt",
+    "plural": "Blätter",
+    "alternates": ["blättchen"]
+  },
+  "Bund": {
+    "short": "bd.",
+    "plural": "Bünde",
+    "alternates": ["bd", "bund", "bündel", "büschel"]
+  },
+  "Dose": {
+    "short": "dose",
+    "plural": "Dosen",
+    "alternates": [
+      "ds.",
+      "ds",
+      "büchse",
+      "büchsen",
+      "kleine dose",
+      "kleine dosen",
+      "kl. dose",
+      "kl. dosen",
+      "döschen"
+    ]
+  },
+  "Dutzend": {
+    "short": "dutzend",
+    "plural": "Dutzend",
+    "alternates": ["dz.", "dz", "dutzende"]
+  },
+  "Einmachglas": {
+    "short": "einmachglas",
+    "plural": "Einmachgläser",
+    "alternates": ["e.m.glas", "e.m.gläser", "e.m. glas", "e.m. gläser"]
+  },
+  "EL": {
+    "short": "el",
+    "plural": "EL",
+    "alternates": ["el.", "esslöffel", "essl.", "essl"]
+  },
+  "EL, gehäuft": {
+    "short": "gehäufter el",
+    "plural": "gehäufte EL",
+    "alternates": [
+      "gehäufter esslöffel",
+      "gehäufte esslöffel",
+      "großzügiger el",
+      "großzügige el",
+      "großzügiger esslöffel",
+      "großzügige esslöffel"
+    ]
+  },
+  "EL, gestr.": {
+    "short": "knapper el",
+    "plural": "knappe EL",
+    "alternates": [
+      "knappe el",
+      "knapper esslöffel",
+      "knappe esslöffel",
+      "gestrichener el",
+      "gestrichene el",
+      "gestrichener esslöffel",
+      "gestrichene esslöffel"
+    ]
+  },
+  "Flasche": {
+    "short": "fl.",
+    "plural": "Flaschen",
+    "alternates": ["fl", "flasche", "fläschchen"]
+  },
+  "Glas": {
+    "short": "glas",
+    "plural": "Gläser",
+    "alternates": ["gläschen", "shotglas", "großes glas", "kleines glas", "gr. glas", "kl. glas"]
+  },
+  "großer Schuss": {
+    "short": "großer schuss",
+    "plural": "große Schuss",
+    "alternates": ["großer schuß", "großzügiger schuss", "grosser schuss"]
+  },
+  "große Prise": {
+    "short": "großzügige prise",
+    "plural": "große Prisen",
+    "alternates": ["große prise", "große prisen", "gehäufte prise", "grosszügige prise"]
+  },
+  "Handvoll": {
+    "short": "handvoll",
+    "plural": "Handvoll",
+    "alternates": ["hdv.", "hdv", "hand voll"]
+  },
+  "kleiner Schuss": {
+    "short": "kleiner schuss",
+    "plural": "kleine Schuss",
+    "alternates": ["kleiner schuß", "winziger schuss"]
+  },
+  "Knolle": {
+    "short": "knolle",
+    "plural": "Knollen",
+    "alternates": ["knöllchen"]
+  },
+  "Kolben": {
+    "short": "kolben",
+    "plural": "Kolben",
+    "alternates": []
+  },
+  "Kopf": {
+    "short": "kopf",
+    "plural": "Köpfe",
+    "alternates": ["köpfchen"]
+  },
+  "Kugel": {
+    "short": "kugel",
+    "plural": "Kugeln",
+    "alternates": ["kügelchen"]
+  },
+  "Messerspitze": {
+    "short": "msp.",
+    "plural": "Messerspitzen",
+    "alternates": ["msp", "messerspitze"]
+  },
+  "n. B.": {
+    "short": "n.b.",
+    "plural": "n. B.",
+    "alternates": ["nach bedarf", "nach geschmack", "nach belieben"]
+  },
+  "Packung": {
+    "short": "pck.",
+    "plural": "Packungen",
+    "alternates": ["pck", "pkg.", "pkg", "packung", "päckchen"]
+  },
+  "Pfund": {
+    "short": "pfd.",
+    "plural": "Pfund",
+    "alternates": ["pfd"]
+  },
+  "Portion": {
+    "short": "portion",
+    "plural": "Portionen",
+    "alternates": ["port.", "port"]
+  },
+  "Prise": {
+    "short": "prise",
+    "plural": "Prisen",
+    "alternates": ["pr.", "pr"]
+  },
+  "Riegel": {
+    "short": "riegel",
+    "plural": "Riegel",
+    "alternates": ["riegelchen", "reihen"]
+  },
+  "Ring": {
+    "short": "ring",
+    "plural": "Ringe",
+    "alternates": ["ringlein"]
+  },
+  "Rolle": {
+    "short": "rolle",
+    "plural": "Rollen",
+    "alternates": ["röllchen"]
+  },
+  "Schale": {
+    "short": "schale",
+    "plural": "Schalen",
+    "alternates": ["schälchen"]
+  },
+  "Scheibe": {
+    "short": "scheibe",
+    "plural": "Scheiben",
+    "alternates": ["scheibchen"]
+  },
+  "Schuss": {
+    "short": "schuss",
+    "plural": "Schuss",
+    "alternates": ["schuß"]
+  },
+  "Spalte": {
+    "short": "spalte",
+    "plural": "Spalten",
+    "alternates": ["ecke", "keil"]
+  },
+  "Spritzer": {
+    "short": "spritzer",
+    "plural": "Spritzer",
+    "alternates": ["spritzerchen"]
+  },
+  "Stange": {
+    "short": "stange",
+    "plural": "Stangen",
+    "alternates": ["stänglein"]
+  },
+  "Stück": {
+    "short": "stk.",
+    "plural": "Stücke",
+    "alternates": ["stk", "stücke", "stückchen"]
+  },
+  "Tasse": {
+    "short": "tasse",
+    "plural": "Tassen",
+    "alternates": [
+      "tass.",
+      "tass",
+      "tässchen",
+      "große tasse",
+      "gr. tasse",
+      "kleine tasse",
+      "kl. tasse",
+      "große tassen",
+      "gr. tassen",
+      "kleine tassen",
+      "kl. tassen"
+    ]
+  },
+  "TL": {
+    "short": "tl",
+    "plural": "TL",
+    "alternates": ["tl.", "teelöffel", "teel.", "teel"]
+  },
+  "TL, gehäuft": {
+    "short": "gehäufter tl",
+    "plural": "gehäufte TL",
+    "alternates": [
+      "gehäufter teelöffel",
+      "gehäufte teelöffel",
+      "großzügiger tl",
+      "großzügige tl",
+      "großzügiger teelöffel",
+      "großzügige teelöffel"
+    ]
+  },
+  "TL, gestr.": {
+    "short": "knapper tl",
+    "plural": "gestrichene TL",
+    "alternates": [
+      "knappe tl",
+      "kanpper tl",
+      "knapper teelöffel",
+      "knappe teelöffel",
+      "gestrichener tl",
+      "gestrichene tl",
+      "gestrichener teelöffel",
+      "gestrichene teelöffel"
+    ]
+  },
+  "Topf": {
+    "short": "topf",
+    "plural": "Töpfe",
+    "alternates": []
+  },
+  "Tropfen": {
+    "short": "tr.",
+    "plural": "Tropfen",
+    "alternates": ["tr", "trpf.", "trpf"]
+  },
+  "Unze": {
+    "short": "unze",
+    "plural": "Unzen",
+    "alternates": ["oz.", "oz"]
+  },
+  "Würfel": {
+    "short": "würfel",
+    "plural": "Würfel",
+    "alternates": ["würfelchen"]
+  },
+  "Zehe": {
+    "short": "zehe",
+    "plural": "Zehen",
+    "alternates": []
+  },
+  "Zweig": {
+    "short": "zweig",
+    "plural": "Zweige",
+    "alternates": ["zweiglein", "stängel", "stengel", "stängelchen", "stiel", "stiele"]
   }
 }

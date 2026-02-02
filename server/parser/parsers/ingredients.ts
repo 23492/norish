@@ -76,7 +76,7 @@ export function parseIngredients(
     ingredientId: null,
     ingredientName: ing.description,
     amount: ing.quantity != null ? ing.quantity : null,
-    unit: ing.unitOfMeasureID,
+    unit: ing.unitOfMeasure,
     systemUsed,
     order: i,
   }));
