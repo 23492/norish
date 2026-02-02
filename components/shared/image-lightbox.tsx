@@ -6,6 +6,8 @@ import { ChevronLeftIcon, ChevronRightIcon, XMarkIcon } from "@heroicons/react/2
 import { AnimatePresence, motion } from "motion/react";
 import Image from "next/image";
 
+import { FallbackPlaceholder, useImageErrors } from "./fallback-image";
+
 export interface ImageLightboxProps {
   images: { src: string; alt?: string }[];
   initialIndex?: number;
@@ -21,6 +23,7 @@ export default function ImageLightbox({
 }: ImageLightboxProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [direction, setDirection] = useState(0);
+  const { handleImageError, hasError } = useImageErrors();
 
   // Reset to initial index when opening
   useEffect(() => {
@@ -153,13 +156,18 @@ export default function ImageLightbox({
                   }}
                   variants={slideVariants}
                 >
-                  <Image
-                    fill
-                    unoptimized
-                    alt={currentImage?.alt || `Image ${currentIndex + 1}`}
-                    className="object-contain"
-                    src={currentImage?.src || ""}
-                  />
+                  {hasError(currentImage?.src || "") ? (
+                    <FallbackPlaceholder className="rounded-lg" />
+                  ) : (
+                    <Image
+                      fill
+                      unoptimized
+                      alt={currentImage?.alt || `Image ${currentIndex + 1}`}
+                      className="object-contain"
+                      src={currentImage?.src || ""}
+                      onError={() => handleImageError(currentImage?.src || "")}
+                    />
+                  )}
                 </motion.div>
               </AnimatePresence>
             </div>

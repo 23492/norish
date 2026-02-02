@@ -221,6 +221,8 @@ export default function VideoPlayer({ src, duration, poster, className = "" }: V
         ref={videoRef}
         loop
         playsInline
+        webkit-playsinline="true"
+        x5-playsinline="true"
         className="h-full w-full object-cover"
         muted={isMuted}
         poster={poster}
