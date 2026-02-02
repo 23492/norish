@@ -15,7 +15,6 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Slot } from "@/types";
-import DayTimelineSkeleton from "@/components/skeleton/day-timeline-skeleton";
 import { startOfMonth, addMonths, endOfMonth, eachDayOfInterval, dateKey } from "@/lib/helpers";
 import { useRecipeQuery } from "@/hooks/recipes";
 
@@ -227,7 +226,7 @@ function MiniCalendarContent({
   );
 
   if (isLoading) {
-    return <DayTimelineSkeleton />;
+    return <>Loading...</>;
   }
 
   if (allDays.length === 0) {

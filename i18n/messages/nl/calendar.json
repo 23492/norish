@@ -4,9 +4,7 @@
   },
   "mobile": {
     "today": "Vandaag",
-    "scrollToToday": "Ga naar vandaag",
-    "emptySlot": "Tik + om toe te voegen",
-    "nothingPlanned": "Niets gepland"
+    "scrollToToday": "Ga naar vandaag"
   },
   "editNote": {
     "title": "Notitie bewerken",
@@ -31,15 +29,19 @@
     "sun": "Zo"
   },
   "timeline": {
-    "noItems": "Geen items",
-    "addToGroceries": "Toevoegen aan boodschappen",
+    "noItems": "Geen items gepland",
     "goToRecipe": "Ga naar recept",
-    "deleteItem": "Verwijderen",
-    "itemActions": "Item acties",
-    "viewAllergenWarning": "Bekijk allergenenwaarschuwing",
-    "allergyWarning": "Waarschuwing:",
-    "contains": "Bevat: {allergens}",
-    "addItem": "Item toevoegen"
+    "addItem": "Item toevoegen",
+    "untitled": "Zonder titel",
+    "serving": "portie",
+    "servings": "porties",
+    "noImage": "Geen afbeelding",
+    "note": "Notitie"
+  },
+  "editPlannedRecipe": {
+    "title": "Gepland recept bewerken",
+    "date": "Datum",
+    "slot": "Tijdstip"
   },
   "panel": {
     "addToCalendar": "Toevoegen aan agenda",

@@ -4,9 +4,7 @@
   },
   "mobile": {
     "today": "Aujourd'hui",
-    "scrollToToday": "Aller à aujourd'hui",
-    "emptySlot": "Appuyez + pour ajouter",
-    "nothingPlanned": "Rien de prévu"
+    "scrollToToday": "Aller à aujourd'hui"
   },
   "editNote": {
     "title": "Modifier la note",
@@ -31,15 +29,19 @@
     "sun": "Dim"
   },
   "timeline": {
-    "noItems": "Aucun article",
-    "addToGroceries": "Ajouter aux courses",
+    "noItems": "Aucun article prévu",
     "goToRecipe": "Aller aux recettes",
-    "deleteItem": "Supprimer",
-    "itemActions": "Actions sur l'article",
-    "viewAllergenWarning": "Voir l'avertissement relatif aux allergènes",
-    "allergyWarning": "Avertissement concernant les allergies :",
-    "contains": "Contient: {allergens}",
-    "addItem": "Ajouter article"
+    "addItem": "Ajouter article",
+    "untitled": "Sans titre",
+    "serving": "portion",
+    "servings": "portions",
+    "noImage": "Pas d'image",
+    "note": "Note"
+  },
+  "editPlannedRecipe": {
+    "title": "Modifier la recette planifiée",
+    "date": "Date",
+    "slot": "Créneau"
   },
   "panel": {
     "addToCalendar": "Ajouter au calendrier",

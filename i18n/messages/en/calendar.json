@@ -4,9 +4,7 @@
   },
   "mobile": {
     "today": "Today",
-    "scrollToToday": "Go to today",
-    "emptySlot": "Tap + to add",
-    "nothingPlanned": "Nothing planned"
+    "scrollToToday": "Go to today"
   },
   "editNote": {
     "title": "Edit Note",
@@ -31,15 +29,19 @@
     "sun": "Sun"
   },
   "timeline": {
-    "noItems": "No items",
-    "addToGroceries": "Add to groceries",
+    "noItems": "No items planned",
     "goToRecipe": "Go to recipe",
-    "deleteItem": "Delete",
-    "itemActions": "Item actions",
-    "viewAllergenWarning": "View allergen warning",
-    "allergyWarning": "Allergy warning:",
-    "contains": "Contains: {allergens}",
-    "addItem": "Add item"
+    "addItem": "Add item",
+    "untitled": "Untitled",
+    "serving": "serving",
+    "servings": "servings",
+    "noImage": "No image",
+    "note": "Note"
+  },
+  "editPlannedRecipe": {
+    "title": "Edit Planned Recipe",
+    "date": "Date",
+    "slot": "Slot"
   },
   "panel": {
     "addToCalendar": "Add to Calendar",

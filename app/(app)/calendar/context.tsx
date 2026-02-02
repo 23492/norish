@@ -113,17 +113,21 @@ export function CalendarContextProvider({
       setIsExpandingRange(true);
 
       setDateRange((prev) => {
+        // Expand by 12 days (divisible by both 2 and 3 columns) to prevent grid shifting
+        const daysToAdd = 12;
         if (direction === "past") {
-          // Expand 2 weeks into the past
+          const newStart = new Date(prev.start);
+          newStart.setDate(newStart.getDate() - daysToAdd);
           return {
-            start: addWeeks(prev.start, -2),
+            start: newStart,
             end: prev.end,
           };
         }
-        // Expand 2 weeks into the future
+        const newEnd = new Date(prev.end);
+        newEnd.setDate(newEnd.getDate() + daysToAdd);
         return {
           start: prev.start,
-          end: addWeeks(prev.end, 2),
+          end: newEnd,
         };
       });
 
