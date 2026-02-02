@@ -1,19 +1,16 @@
 "use client";
 
-import CalendarSkeletonDesktop from "./calendar-skeleton-desktop";
-import CalendarSkeletonMobile from "./calendar-skeleton-mobile";
-
 export default function CalendarSkeleton() {
   return (
     <>
       {/* Desktop skeleton */}
       <div className="hidden h-full md:block">
-        <CalendarSkeletonDesktop />
+        <h1>Skeleton</h1>
       </div>
 
       {/* Mobile skeleton */}
       <div className="block md:hidden">
-        <CalendarSkeletonMobile />
+        <h1>skeleton</h1>
       </div>
     </>
   );
