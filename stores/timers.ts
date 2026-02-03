@@ -23,6 +23,7 @@ interface TimerState {
     startTimer: (id: string) => void;
     pauseTimer: (id: string) => void;
     resetTimer: (id: string) => void;
+    adjustTimer: (id: string, deltaMs: number) => void;
 
     // The tick loop to update times
     tick: () => void;
@@ -91,6 +92,34 @@ export const useTimerStore = create<TimerState>()(
                             }
                             : t
                     ),
+                }));
+            },
+
+            adjustTimer: (id, deltaMs) => {
+                set((state) => ({
+                    timers: state.timers.map((t) => {
+                        if (t.id !== id) return t;
+
+                        const newRemaining = Math.max(0, t.remainingMs + deltaMs);
+                        let newStatus = t.status;
+                        let newLastTickAt = t.lastTickAt;
+
+                        if (newRemaining === 0) {
+                            newStatus = "completed";
+                            newLastTickAt = Date.now();
+                        } else if (t.status === "completed") {
+                            // If adding time to a completed timer, restart it automatically
+                            newStatus = "running";
+                            newLastTickAt = Date.now();
+                        }
+
+                        return {
+                            ...t,
+                            remainingMs: newRemaining,
+                            status: newStatus,
+                            lastTickAt: newLastTickAt,
+                        };
+                    }),
                 }));
             },
 

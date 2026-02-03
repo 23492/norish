@@ -166,6 +166,7 @@
     }
   },
   "timer": {
-    "done": "Klaar"
+    "done": "Klaar",
+    "done_action": "Klaar"
   }
 }

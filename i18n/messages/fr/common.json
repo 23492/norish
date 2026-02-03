@@ -166,6 +166,7 @@
     }
   },
   "timer": {
-    "done": "Terminé"
+    "done": "Terminé",
+    "done_action": "Terminé"
   }
 }

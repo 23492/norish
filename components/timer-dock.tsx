@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useTimerStore } from "@/stores/timers";
-import { XMarkIcon, ChevronUpIcon, ChevronDownIcon, PlayIcon, PauseIcon, TrashIcon } from "@heroicons/react/24/solid";
+import { XMarkIcon, ChevronUpIcon, ChevronDownIcon, PlayIcon, PauseIcon, TrashIcon, PlusIcon, MinusIcon } from "@heroicons/react/24/solid";
 import { usePathname } from "next/navigation";
 import useSound from "use-sound";
 import { useTimersEnabledQuery } from "@/hooks/config";
@@ -128,7 +128,7 @@ export function TimerDock() {
                                 {topTimer.label}
                             </span>
                             <span className="font-mono text-lg font-bold leading-none">
-                                {topTimer.status === "completed" ? t("timer.done") : formatTime(topTimer.remainingMs)}
+                                {formatTime(topTimer.remainingMs)}
                             </span>
                         </div>
 
@@ -146,39 +146,77 @@ export function TimerDock() {
     );
 }
 
+// Helper for smart increment
+function getSmartIncrement(originalDurationMs: number): number {
+    const minutes = originalDurationMs / 1000 / 60;
+    if (minutes < 5) return 10 * 1000; // 10s
+    if (minutes < 20) return 60 * 1000; // 1m
+    return 5 * 60 * 1000; // 5m
+}
+
 function TimerRow({ timer, t }: { timer: import("@/stores/timers").Timer, t: (key: string) => string }) {
     const pauseTimer = useTimerStore((state) => state.pauseTimer);
     const startTimer = useTimerStore((state) => state.startTimer);
     const removeTimer = useTimerStore((state) => state.removeTimer);
+    const adjustTimer = useTimerStore((state) => state.adjustTimer);
 
     const isCompleted = timer.status === "completed";
     const isRunning = timer.status === "running";
 
+    const smartIncrement = getSmartIncrement(timer.originalDurationMs);
+
     return (
-        <div className={`p-3 border-b last:border-0 flex items-center justify-between ${isCompleted ? 'bg-red-50 dark:bg-red-900/20' : ''}`}>
-            <div className="flex-1 min-w-0 mr-3">
+        <div className={`p-3 border-b last:border-0 flex items-center justify-between gap-3 ${isCompleted ? 'bg-red-50 dark:bg-red-900/20' : ''}`}>
+            <div className="flex-1 min-w-0">
                 <h4 className="text-sm font-medium truncate mb-0.5">{timer.label}</h4>
                 <div className={`font-mono text-xl ${isCompleted ? 'text-red-600 font-bold' : ''}`}>
-                    {isCompleted ? t("timer.done") : formatTime(timer.remainingMs)}
+                    {formatTime(timer.remainingMs)}
                 </div>
             </div>
 
-            <div className="flex items-center space-x-1">
-                {!isCompleted && (
-                    <button
-                        onClick={() => isRunning ? pauseTimer(timer.id) : startTimer(timer.id)}
-                        className="p-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300"
-                    >
-                        {isRunning ? <PauseIcon className="w-5 h-5" /> : <PlayIcon className="w-5 h-5" />}
-                    </button>
-                )}
+            <div className="flex items-center gap-1 shrink-0">
+                <button
+                    onClick={() => adjustTimer(timer.id, -smartIncrement)}
+                    className="p-1.5 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white transition-colors"
+                    title={`-${formatTime(smartIncrement)}`}
+                >
+                    <MinusIcon className="w-4 h-4" />
+                </button>
 
                 <button
-                    onClick={() => removeTimer(timer.id)}
-                    className="p-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-400 hover:text-red-500"
+                    onClick={() => adjustTimer(timer.id, smartIncrement)}
+                    className="p-1.5 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white transition-colors"
+                    title={`+${formatTime(smartIncrement)}`}
                 >
-                    <TrashIcon className="w-5 h-5" />
+                    <PlusIcon className="w-4 h-4" />
                 </button>
+
+                <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-1" />
+
+                {isCompleted ? (
+                    <button
+                        onClick={() => removeTimer(timer.id)}
+                        className="px-3 py-1.5 bg-red-600 text-white rounded-full text-xs font-bold shadow-sm hover:bg-red-700 transition-colors whitespace-nowrap"
+                    >
+                        {t("timer.done_action")}
+                    </button>
+                ) : (
+                    <>
+                        <button
+                            onClick={() => isRunning ? pauseTimer(timer.id) : startTimer(timer.id)}
+                            className="p-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300"
+                        >
+                            {isRunning ? <PauseIcon className="w-5 h-5" /> : <PlayIcon className="w-5 h-5" />}
+                        </button>
+
+                        <button
+                            onClick={() => removeTimer(timer.id)}
+                            className="p-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-400 hover:text-red-500"
+                        >
+                            <TrashIcon className="w-5 h-5" />
+                        </button>
+                    </>
+                )}
             </div>
         </div>
     );

@@ -123,4 +123,28 @@ describe("useTimerStore", () => {
         expect(timers[0].remainingMs).toBe(0);
         expect(timers[0].status).toBe("completed");
     });
+    it("adjusts timer duration", () => {
+        const { addTimer, adjustTimer } = useTimerStore.getState();
+        addTimer("test-adj", "recipe-1", "Adjust Timer", 60000);
+
+        // Add 1 minute
+        adjustTimer("test-adj", 60000);
+        expect(useTimerStore.getState().timers[0].remainingMs).toBe(120000);
+
+        // Subtract 30 seconds
+        adjustTimer("test-adj", -30000);
+        expect(useTimerStore.getState().timers[0].remainingMs).toBe(90000);
+
+        // Subtract to zero -> verify completion
+        adjustTimer("test-adj", -100000); // More than remaining
+        let t = useTimerStore.getState().timers[0];
+        expect(t.remainingMs).toBe(0);
+        expect(t.status).toBe("completed");
+
+        // Add time to completed timer -> verify restart
+        adjustTimer("test-adj", 30000);
+        t = useTimerStore.getState().timers[0];
+        expect(t.remainingMs).toBe(30000);
+        expect(t.status).toBe("running");
+    });
 });
