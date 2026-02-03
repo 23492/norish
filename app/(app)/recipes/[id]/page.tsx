@@ -10,7 +10,7 @@ import { WakeLockProvider } from "./components/wake-lock-context";
 
 import RecipeSkeleton from "@/components/skeleton/recipe-skeleton";
 import { NotFoundView } from "@/components/shared/not-found-view";
-import { TimerDock } from "@/components/timer-dock";
+
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -55,7 +55,6 @@ export default function RecipeDetailPage({ params }: Props) {
     <RecipeContextProvider recipeId={id}>
       <WakeLockProvider>
         <RecipePageContent />
-        <TimerDock />
       </WakeLockProvider>
     </RecipeContextProvider>
   );
