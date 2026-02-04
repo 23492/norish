@@ -1,4 +1,4 @@
-import type { I18nLocaleConfig } from "@/server/db/zodSchemas/server-config";
+import type { I18nLocaleConfig, UnitsMap } from "@/server/db/zodSchemas/server-config";
 
 import { setConfig, configExists, getConfig, deleteConfig } from "../db/repositories/server-config";
 import {
@@ -64,7 +64,7 @@ const REQUIRED_CONFIGS: ConfigDefinition[] = [
   },
   {
     key: ServerConfigKeys.UNITS,
-    getDefaultValue: () => defaultUnits,
+    getDefaultValue: () => ({ units: defaultUnits, isOverwritten: false }),
     sensitive: false,
     description: `Units (${Object.keys(defaultUnits).length} definitions)`,
   },
@@ -151,6 +151,7 @@ export async function seedServerConfig(): Promise<void> {
 
   await importEnvAuthProvidersIfMissing();
   await syncPrompts();
+  await syncUnits();
   await syncLocales();
   if (seededCount === 0) {
     serverLogger.info("All server configuration keys present");
@@ -462,6 +463,42 @@ async function syncPrompts(): Promise<void> {
 }
 
 /**
+ * Sync units from default file to DB
+ * - If DB config doesn't exist: will be seeded by seedMissingConfigs
+ * - If DB config exists and isOverridden=false: update if default file changed
+ * - If DB config exists and isOverridden=true: never touch (admin customized)
+ */
+async function syncUnits(): Promise<void> {
+  const existing = await getConfig<{ units: UnitsMap; isOverridden: boolean }>(
+    ServerConfigKeys.UNITS
+  );
+
+  if (!existing) {
+    serverLogger.warn("Units config not found in DB, will be seeded");
+
+    return;
+  }
+
+  if (existing.isOverridden) {
+    serverLogger.debug("Units are overridden by admin, skipping file sync");
+
+    return;
+  }
+
+  // Compare stored units with default file
+  if (configsDiffer(existing.units, defaultUnits)) {
+    await setConfig(
+      ServerConfigKeys.UNITS,
+      { units: defaultUnits, isOverwritten: false },
+      null,
+      false
+    );
+
+    serverLogger.info("Updated units from default file (content changed)");
+  }
+}
+
+/**
  * Add any new locales from DEFAULT_LOCALE_CONFIG to the DB config.
  * Preserves existing locale settings (enabled/disabled state).
  * Respects ENABLED_LOCALES env var when adding new locales.
@@ -504,7 +541,7 @@ export function getDefaultConfigValue(key: ServerConfigKey): unknown {
     case ServerConfigKeys.REGISTRATION_ENABLED:
       return true;
     case ServerConfigKeys.UNITS:
-      return defaultUnits;
+      return { units: defaultUnits, isOverwritten: false };
     case ServerConfigKeys.CONTENT_INDICATORS:
       return defaultContentIndicators;
     case ServerConfigKeys.RECURRENCE_CONFIG:

@@ -1,620 +1,2290 @@
 {
-  "cl": {
-    "short": "cl",
-    "plural": "centiliters",
-    "alternates": ["centiliter", "centiliters", "cl"]
+  "centiliter": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "cl"
+      },
+      {
+        "locale": "de",
+        "name": "cl"
+      },
+      {
+        "locale": "nl",
+        "name": "cl"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "centiliters"
+      },
+      {
+        "locale": "de",
+        "name": "Zentiliter"
+      },
+      {
+        "locale": "nl",
+        "name": "centiliter"
+      }
+    ],
+    "alternates": [
+      "centiliter",
+      "centiliters",
+      "cl"
+    ]
   },
-  "dl": {
-    "short": "dl",
-    "plural": "deciliters",
-    "alternates": ["deciliter", "deciliters", "dl"]
+  "deciliter": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "dl"
+      },
+      {
+        "locale": "de",
+        "name": "dl"
+      },
+      {
+        "locale": "nl",
+        "name": "dl"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "deciliters"
+      },
+      {
+        "locale": "de",
+        "name": "Deziliter"
+      },
+      {
+        "locale": "nl",
+        "name": "deciliter"
+      }
+    ],
+    "alternates": [
+      "deciliter",
+      "deciliters",
+      "dl"
+    ]
   },
-  "gr": {
-    "short": "gr",
-    "plural": "grams",
-    "alternates": ["gr", "gr.", "gram", "grammen"]
+  "gram": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "g"
+      },
+      {
+        "locale": "de",
+        "name": "g"
+      },
+      {
+        "locale": "nl",
+        "name": "gr"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "grams"
+      },
+      {
+        "locale": "de",
+        "name": "g"
+      },
+      {
+        "locale": "nl",
+        "name": "gram"
+      }
+    ],
+    "alternates": [
+      "gr",
+      "gr.",
+      "gram",
+      "grammen"
+    ]
   },
-  "tl": {
-    "short": "tl",
-    "plural": "theelepels",
-    "alternates": ["tl", "theelepel", "theelepels"]
+  "teaspoon": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "tsp"
+      },
+      {
+        "locale": "de",
+        "name": "TL"
+      },
+      {
+        "locale": "nl",
+        "name": "tl"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "teaspoons"
+      },
+      {
+        "locale": "de",
+        "name": "TL"
+      },
+      {
+        "locale": "nl",
+        "name": "theelepels"
+      }
+    ],
+    "alternates": [
+      "teel",
+      "teel.",
+      "teelöffel",
+      "theelepel",
+      "theelepels",
+      "tl",
+      "tl."
+    ]
   },
-  "el": {
-    "short": "el",
-    "plural": "eetlepels",
-    "alternates": ["el", "eetlepel", "eetlepels"]
+  "tablespoon": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "tbsp"
+      },
+      {
+        "locale": "de",
+        "name": "EL"
+      },
+      {
+        "locale": "nl",
+        "name": "el"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "tablespoons"
+      },
+      {
+        "locale": "de",
+        "name": "EL"
+      },
+      {
+        "locale": "nl",
+        "name": "eetlepels"
+      }
+    ],
+    "alternates": [
+      "eetlepel",
+      "eetlepels",
+      "el",
+      "el.",
+      "essl",
+      "essl.",
+      "esslöffel"
+    ]
   },
-  "mespunt": {
-    "short": "mespunt",
-    "plural": "mespuntjes",
-    "alternates": ["mespunt", "mespuntje", "mespuntjes"]
-  },
-  "snuf": {
-    "short": "snuf",
-    "plural": "snufjes",
-    "alternates": ["snufje", "snufjes"]
-  },
-  "stuk": {
-    "short": "stuk",
-    "plural": "stuks",
-    "alternates": ["stuk", "stukje", "stukjes", "stuks"]
-  },
-  "teen": {
-    "short": "teen",
-    "plural": "tenen",
-    "alternates": ["teen", "teentje", "teentjes", "tenen"]
-  },
-  "blaadje": {
-    "short": "blaadje",
-    "plural": "blaadjes",
-    "alternates": ["blaadje", "blaadjes", "blad", "bladeren"]
-  },
-  "takje": {
-    "short": "takje",
-    "plural": "takjes",
-    "alternates": ["takje", "takjes", "tak", "takken"]
-  },
-  "bos": {
-    "short": "bos",
-    "plural": "bossen",
-    "alternates": ["bosje", "bosjes", "bossen"]
-  },
-  "stengel": {
-    "short": "stengel",
-    "plural": "stengels",
-    "alternates": ["stengel", "stengels"]
-  },
-  "pak": {
-    "short": "pak",
-    "plural": "pakken",
-    "alternates": ["pakje", "pakjes", "pak", "pakken"]
-  },
-  "blik": {
-    "short": "blik",
-    "plural": "blikken",
-    "alternates": ["blikje", "blikjes", "blik", "blikken"]
-  },
-  "pot": {
-    "short": "pot",
-    "plural": "potten",
-    "alternates": ["pot", "potten"]
-  },
-  "fles": {
-    "short": "fles",
-    "plural": "flessen",
-    "alternates": ["flesje", "flesjes", "fles", "flessen"]
-  },
-  "zak": {
-    "short": "zak",
-    "plural": "zakken",
-    "alternates": ["zakje", "zakjes", "zak", "zakken"]
-  },
-  "doos": {
-    "short": "doos",
-    "plural": "dozen",
-    "alternates": ["doosje", "doosjes", "dozen"]
-  },
-  "handje": {
-    "short": "handje",
-    "plural": "handjes",
-    "alternates": ["handje", "handjes", "handvol", "handvullen"]
-  },
-  "scheut": {
-    "short": "scheut",
-    "plural": "scheuten",
-    "alternates": ["scheutje", "scheutjes", "scheut", "scheuten"]
-  },
-  "kop": {
-    "short": "kop",
-    "plural": "koppen",
-    "alternates": ["kopje", "kopjes", "kop", "koppen"]
-  },
-  "glas": {
-    "short": "glas",
-    "plural": "glazen",
-    "alternates": ["glas", "glazen"]
-  },
-  "plak": {
-    "short": "plak",
-    "plural": "plakken",
-    "alternates": ["plakje", "plakjes", "plakken"]
-  },
-  "reep": {
-    "short": "reep",
-    "plural": "repen",
-    "alternates": ["reepje", "reepjes", "repen"]
-  },
-  "vel": {
-    "short": "vel",
-    "plural": "vellen",
-    "alternates": ["vel", "vellen", "velletje", "velletjes"]
-  },
-  "portie": {
-    "short": "portie",
-    "plural": "porties",
-    "alternates": ["portie", "porties", "portion", "portions"]
-  },
-  "schijf": {
-    "short": "schijf",
-    "plural": "schijven",
-    "alternates": ["schijfje", "schijfjes", "schijven"]
-  },
-  "ring": {
-    "short": "ring",
-    "plural": "ringen",
-    "alternates": ["ring", "ringen"]
-  },
-  "bol": {
-    "short": "bol",
-    "plural": "bollen",
-    "alternates": ["bol", "bolletje", "bolletjes", "bollen"]
-  },
-  "blad": {
-    "short": "blad",
-    "plural": "bladeren",
-    "alternates": ["blaadje", "blaadjes", "blad", "bladeren"]
-  },
-  "reepje": {
-    "short": "reepje",
-    "plural": "reepjes",
-    "alternates": ["reepje", "reepjes"]
-  },
-  "plakje": {
-    "short": "plakje",
-    "plural": "plakjes",
-    "alternates": ["plakje", "plakjes"]
+  "knife_tip": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "knife tip"
+      },
+      {
+        "locale": "de",
+        "name": "Msp."
+      },
+      {
+        "locale": "nl",
+        "name": "mespunt"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "knife tips"
+      },
+      {
+        "locale": "de",
+        "name": "Messerspitzen"
+      },
+      {
+        "locale": "nl",
+        "name": "mespuntjes"
+      }
+    ],
+    "alternates": [
+      "mespunt",
+      "mespuntje",
+      "mespuntjes",
+      "messerspitze",
+      "msp"
+    ]
   },
   "pinch": {
-    "short": "pinch",
-    "plural": "pinches",
-    "alternates": ["pinch", "pinches", "a pinch", "dash"]
-  },
-  "dash": {
-    "short": "dash",
-    "plural": "dashes",
-    "alternates": ["dash", "dashes", "a dash"]
-  },
-  "handful": {
-    "short": "handful",
-    "plural": "handfuls",
-    "alternates": ["handful", "handfuls", "a handful"]
-  },
-  "drizzle": {
-    "short": "drizzle",
-    "plural": "drizzles",
-    "alternates": ["drizzle", "drizzles", "a drizzle"]
-  },
-  "splash": {
-    "short": "splash",
-    "plural": "splashes",
-    "alternates": ["splash", "splashes", "a splash"]
-  },
-  "scoop": {
-    "short": "scoop",
-    "plural": "scoops",
-    "alternates": ["scoop", "scoops"]
-  },
-  "serving": {
-    "short": "serving",
-    "plural": "servings",
-    "alternates": ["serving", "servings", "portion", "portions"]
-  },
-  "stick": {
-    "short": "stick",
-    "plural": "sticks",
-    "alternates": ["stick", "sticks", "stick(s)"]
-  },
-  "slice": {
-    "short": "slice",
-    "plural": "slices",
-    "alternates": ["slice", "slices", "slc", "slcs"]
-  },
-  "bunch": {
-    "short": "bunch",
-    "plural": "bunches",
-    "alternates": ["bunch", "bunches"]
-  },
-  "sprig": {
-    "short": "sprig",
-    "plural": "sprigs",
-    "alternates": ["sprig", "sprigs", "sprigs of"]
-  },
-  "jar": {
-    "short": "jar",
-    "plural": "jars",
-    "alternates": ["jar", "jars", "mason jar"]
-  },
-  "bottle": {
-    "short": "bottle",
-    "plural": "bottles",
-    "alternates": ["bottle", "bottles", "btl", "btls"]
-  },
-  "can": {
-    "short": "can",
-    "plural": "cans",
-    "alternates": ["can", "cans", "tin"]
-  },
-  "pack": {
-    "short": "pack",
-    "plural": "packs",
-    "alternates": ["pack", "packs", "packet", "packets", "pkg", "pkgs"]
-  },
-  "bag": {
-    "short": "bag",
-    "plural": "bags",
-    "alternates": ["bag", "bags"]
-  },
-  "box": {
-    "short": "box",
-    "plural": "boxes",
-    "alternates": ["box", "boxes", "bx", "bx."]
-  },
-  "tub": {
-    "short": "tub",
-    "plural": "tubs",
-    "alternates": ["tub", "tubs", "container"]
-  },
-  "capful": {
-    "short": "capful",
-    "plural": "capfuls",
-    "alternates": ["cap full", "capful", "capfuls"]
-  },
-  "pouch": {
-    "short": "pouch",
-    "plural": "pouches",
-    "alternates": ["pouch", "pouches"]
-  },
-  "sleeve": {
-    "short": "sleeve",
-    "plural": "sleeves",
-    "alternates": ["sleeve", "sleeves"]
-  },
-  "roll": {
-    "short": "roll",
-    "plural": "rolls",
-    "alternates": ["roll", "rolls"]
-  },
-  "leaf": {
-    "short": "leaf",
-    "plural": "leaves",
-    "alternates": ["leaf", "leaves"]
-  },
-  "ear": {
-    "short": "ear",
-    "plural": "ears",
-    "alternates": ["ear", "ears", "ear of corn", "ears of corn"]
-  },
-  "wedge": {
-    "short": "wedge",
-    "plural": "wedges",
-    "alternates": ["wedge", "wedges"]
+    "short": [
+      {
+        "locale": "en",
+        "name": "pinch"
+      },
+      {
+        "locale": "de",
+        "name": "Prise"
+      },
+      {
+        "locale": "nl",
+        "name": "snufje"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "pinches"
+      },
+      {
+        "locale": "de",
+        "name": "Prisen"
+      },
+      {
+        "locale": "nl",
+        "name": "snufjes"
+      }
+    ],
+    "alternates": [
+      "a pinch",
+      "dash",
+      "pinch",
+      "pinches",
+      "pr",
+      "pr.",
+      "snufje",
+      "snufjes"
+    ]
   },
   "piece": {
-    "short": "piece",
-    "plural": "pieces",
-    "alternates": ["piece", "pieces", "pc", "pcs", "pc.", "pcs."]
-  },
-  "chunk": {
-    "short": "chunk",
-    "plural": "chunks",
-    "alternates": ["chunk", "chunks"]
-  },
-  "cube": {
-    "short": "cube",
-    "plural": "cubes",
-    "alternates": ["cube", "cubes"]
-  },
-  "strip": {
-    "short": "strip",
-    "plural": "strips",
-    "alternates": ["strip", "strips"]
-  },
-  "fillet": {
-    "short": "fillet",
-    "plural": "fillets",
-    "alternates": ["fillet", "fillets", "filet", "filets"]
-  },
-  "heaping_tbsp": {
-    "short": "heaping tbsp",
-    "plural": "heaping tablespoons",
-    "alternates": ["heaping tablespoon", "heaping tablespoons"]
-  },
-  "scant_tbsp": {
-    "short": "scant tbsp",
-    "plural": "scant tablespoons",
-    "alternates": ["scant tablespoon", "scant tablespoons"]
-  },
-  "generous_pinch": {
-    "short": "generous pinch",
-    "plural": "generous pinches",
-    "alternates": ["big pinch", "large pinch", "heaping pinch"]
-  },
-  "splash_large": {
-    "short": "large splash",
-    "plural": "large splashes",
-    "alternates": ["big splash", "good splash"]
-  },
-  "Becher": {
-    "short": "becher",
-    "plural": "Becher",
-    "alternates": ["beh.", "beh"]
-  },
-  "Beutel": {
-    "short": "btl.",
-    "plural": "Beutel",
-    "alternates": ["btl", "tüte", "tüten", "sack", "tütchen"]
-  },
-  "Blatt": {
-    "short": "blatt",
-    "plural": "Blätter",
-    "alternates": ["blättchen"]
-  },
-  "Bund": {
-    "short": "bd.",
-    "plural": "Bünde",
-    "alternates": ["bd", "bund", "bündel", "büschel"]
-  },
-  "Dose": {
-    "short": "dose",
-    "plural": "Dosen",
+    "short": [
+      {
+        "locale": "en",
+        "name": "piece"
+      },
+      {
+        "locale": "de",
+        "name": "Stk."
+      },
+      {
+        "locale": "nl",
+        "name": "stuk"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "pieces"
+      },
+      {
+        "locale": "de",
+        "name": "Stücke"
+      },
+      {
+        "locale": "nl",
+        "name": "stuks"
+      }
+    ],
     "alternates": [
-      "ds.",
-      "ds",
+      "pc",
+      "pc.",
+      "pcs",
+      "pcs.",
+      "piece",
+      "pieces",
+      "stk",
+      "stuk",
+      "stukje",
+      "stukjes",
+      "stuks",
+      "stückchen",
+      "stücke"
+    ]
+  },
+  "clove": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "clove"
+      },
+      {
+        "locale": "de",
+        "name": "Zehe"
+      },
+      {
+        "locale": "nl",
+        "name": "teen"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "cloves"
+      },
+      {
+        "locale": "de",
+        "name": "Zehen"
+      },
+      {
+        "locale": "nl",
+        "name": "tenen"
+      }
+    ],
+    "alternates": [
+      "teen",
+      "teentje",
+      "teentjes",
+      "tenen"
+    ]
+  },
+  "leaf": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "leaf"
+      },
+      {
+        "locale": "de",
+        "name": "Blatt"
+      },
+      {
+        "locale": "nl",
+        "name": "blaadje"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "leaves"
+      },
+      {
+        "locale": "de",
+        "name": "Blätter"
+      },
+      {
+        "locale": "nl",
+        "name": "blaadjes"
+      }
+    ],
+    "alternates": [
+      "blaadje",
+      "blaadjes",
+      "blad",
+      "bladeren",
+      "blättchen",
+      "leaf",
+      "leaves"
+    ]
+  },
+  "sprig": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "sprig"
+      },
+      {
+        "locale": "de",
+        "name": "Zweig"
+      },
+      {
+        "locale": "nl",
+        "name": "takje"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "sprigs"
+      },
+      {
+        "locale": "de",
+        "name": "Zweige"
+      },
+      {
+        "locale": "nl",
+        "name": "takjes"
+      }
+    ],
+    "alternates": [
+      "sprig",
+      "sprigs",
+      "sprigs of",
+      "stengel",
+      "stiel",
+      "stiele",
+      "stängel",
+      "stängelchen",
+      "tak",
+      "takje",
+      "takjes",
+      "takken",
+      "zweiglein"
+    ]
+  },
+  "bunch": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "bunch"
+      },
+      {
+        "locale": "de",
+        "name": "Bund"
+      },
+      {
+        "locale": "nl",
+        "name": "bos"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "bunches"
+      },
+      {
+        "locale": "de",
+        "name": "Bünde"
+      },
+      {
+        "locale": "nl",
+        "name": "bossen"
+      }
+    ],
+    "alternates": [
+      "bd",
+      "bosje",
+      "bosjes",
+      "bossen",
+      "bunch",
+      "bunches",
+      "bund",
+      "bündel",
+      "büschel"
+    ]
+  },
+  "stalk": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "stalk"
+      },
+      {
+        "locale": "de",
+        "name": "Stängel"
+      },
+      {
+        "locale": "nl",
+        "name": "stengel"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "stalks"
+      },
+      {
+        "locale": "de",
+        "name": "Stängel"
+      },
+      {
+        "locale": "nl",
+        "name": "stengels"
+      }
+    ],
+    "alternates": [
+      "stengel",
+      "stengels"
+    ]
+  },
+  "pack": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "pack"
+      },
+      {
+        "locale": "de",
+        "name": "Pck."
+      },
+      {
+        "locale": "nl",
+        "name": "pak"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "packs"
+      },
+      {
+        "locale": "de",
+        "name": "Packungen"
+      },
+      {
+        "locale": "nl",
+        "name": "pakken"
+      }
+    ],
+    "alternates": [
+      "pack",
+      "packet",
+      "packets",
+      "packs",
+      "packung",
+      "pak",
+      "pakje",
+      "pakjes",
+      "pakken",
+      "pck",
+      "pkg",
+      "pkg.",
+      "pkgs",
+      "päckchen"
+    ]
+  },
+  "can": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "can"
+      },
+      {
+        "locale": "de",
+        "name": "Dose"
+      },
+      {
+        "locale": "nl",
+        "name": "blik"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "cans"
+      },
+      {
+        "locale": "de",
+        "name": "Dosen"
+      },
+      {
+        "locale": "nl",
+        "name": "blikken"
+      }
+    ],
+    "alternates": [
+      "blik",
+      "blikje",
+      "blikjes",
+      "blikken",
       "büchse",
       "büchsen",
-      "kleine dose",
-      "kleine dosen",
+      "can",
+      "cans",
+      "ds",
+      "ds.",
+      "döschen",
       "kl. dose",
       "kl. dosen",
-      "döschen"
+      "kleine dose",
+      "kleine dosen",
+      "tin"
     ]
   },
-  "Dutzend": {
-    "short": "dutzend",
-    "plural": "Dutzend",
-    "alternates": ["dz.", "dz", "dutzende"]
-  },
-  "Einmachglas": {
-    "short": "einmachglas",
-    "plural": "Einmachgläser",
-    "alternates": ["e.m.glas", "e.m.gläser", "e.m. glas", "e.m. gläser"]
-  },
-  "EL": {
-    "short": "el",
-    "plural": "EL",
-    "alternates": ["el.", "esslöffel", "essl.", "essl"]
-  },
-  "EL, gehäuft": {
-    "short": "gehäufter el",
-    "plural": "gehäufte EL",
+  "jar": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "jar"
+      },
+      {
+        "locale": "de",
+        "name": "Glas"
+      },
+      {
+        "locale": "nl",
+        "name": "pot"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "jars"
+      },
+      {
+        "locale": "de",
+        "name": "Gläser"
+      },
+      {
+        "locale": "nl",
+        "name": "potten"
+      }
+    ],
     "alternates": [
-      "gehäufter esslöffel",
-      "gehäufte esslöffel",
-      "großzügiger el",
-      "großzügige el",
-      "großzügiger esslöffel",
-      "großzügige esslöffel"
+      "e.m. glas",
+      "e.m. gläser",
+      "e.m.glas",
+      "e.m.gläser",
+      "jar",
+      "jars",
+      "mason jar",
+      "pot",
+      "potten"
     ]
   },
-  "EL, gestr.": {
-    "short": "knapper el",
-    "plural": "knappe EL",
+  "bottle": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "bottle"
+      },
+      {
+        "locale": "de",
+        "name": "Fl."
+      },
+      {
+        "locale": "nl",
+        "name": "fles"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "bottles"
+      },
+      {
+        "locale": "de",
+        "name": "Flaschen"
+      },
+      {
+        "locale": "nl",
+        "name": "flessen"
+      }
+    ],
     "alternates": [
-      "knappe el",
-      "knapper esslöffel",
-      "knappe esslöffel",
-      "gestrichener el",
-      "gestrichene el",
-      "gestrichener esslöffel",
-      "gestrichene esslöffel"
+      "bottle",
+      "bottles",
+      "btl",
+      "btls",
+      "fl",
+      "flasche",
+      "fles",
+      "flesje",
+      "flesjes",
+      "flessen",
+      "fläschchen"
     ]
   },
-  "Flasche": {
-    "short": "fl.",
-    "plural": "Flaschen",
-    "alternates": ["fl", "flasche", "fläschchen"]
-  },
-  "Glas": {
-    "short": "glas",
-    "plural": "Gläser",
-    "alternates": ["gläschen", "shotglas", "großes glas", "kleines glas", "gr. glas", "kl. glas"]
-  },
-  "großer Schuss": {
-    "short": "großer schuss",
-    "plural": "große Schuss",
-    "alternates": ["großer schuß", "großzügiger schuss", "grosser schuss"]
-  },
-  "große Prise": {
-    "short": "großzügige prise",
-    "plural": "große Prisen",
-    "alternates": ["große prise", "große prisen", "gehäufte prise", "grosszügige prise"]
-  },
-  "Handvoll": {
-    "short": "handvoll",
-    "plural": "Handvoll",
-    "alternates": ["hdv.", "hdv", "hand voll"]
-  },
-  "kleiner Schuss": {
-    "short": "kleiner schuss",
-    "plural": "kleine Schuss",
-    "alternates": ["kleiner schuß", "winziger schuss"]
-  },
-  "Knolle": {
-    "short": "knolle",
-    "plural": "Knollen",
-    "alternates": ["knöllchen"]
-  },
-  "Kolben": {
-    "short": "kolben",
-    "plural": "Kolben",
-    "alternates": []
-  },
-  "Kopf": {
-    "short": "kopf",
-    "plural": "Köpfe",
-    "alternates": ["köpfchen"]
-  },
-  "Kugel": {
-    "short": "kugel",
-    "plural": "Kugeln",
-    "alternates": ["kügelchen"]
-  },
-  "Messerspitze": {
-    "short": "msp.",
-    "plural": "Messerspitzen",
-    "alternates": ["msp", "messerspitze"]
-  },
-  "n. B.": {
-    "short": "n.b.",
-    "plural": "n. B.",
-    "alternates": ["nach bedarf", "nach geschmack", "nach belieben"]
-  },
-  "Packung": {
-    "short": "pck.",
-    "plural": "Packungen",
-    "alternates": ["pck", "pkg.", "pkg", "packung", "päckchen"]
-  },
-  "Pfund": {
-    "short": "pfd.",
-    "plural": "Pfund",
-    "alternates": ["pfd"]
-  },
-  "Portion": {
-    "short": "portion",
-    "plural": "Portionen",
-    "alternates": ["port.", "port"]
-  },
-  "Prise": {
-    "short": "prise",
-    "plural": "Prisen",
-    "alternates": ["pr.", "pr"]
-  },
-  "Riegel": {
-    "short": "riegel",
-    "plural": "Riegel",
-    "alternates": ["riegelchen", "reihen"]
-  },
-  "Ring": {
-    "short": "ring",
-    "plural": "Ringe",
-    "alternates": ["ringlein"]
-  },
-  "Rolle": {
-    "short": "rolle",
-    "plural": "Rollen",
-    "alternates": ["röllchen"]
-  },
-  "Schale": {
-    "short": "schale",
-    "plural": "Schalen",
-    "alternates": ["schälchen"]
-  },
-  "Scheibe": {
-    "short": "scheibe",
-    "plural": "Scheiben",
-    "alternates": ["scheibchen"]
-  },
-  "Schuss": {
-    "short": "schuss",
-    "plural": "Schuss",
-    "alternates": ["schuß"]
-  },
-  "Spalte": {
-    "short": "spalte",
-    "plural": "Spalten",
-    "alternates": ["ecke", "keil"]
-  },
-  "Spritzer": {
-    "short": "spritzer",
-    "plural": "Spritzer",
-    "alternates": ["spritzerchen"]
-  },
-  "Stange": {
-    "short": "stange",
-    "plural": "Stangen",
-    "alternates": ["stänglein"]
-  },
-  "Stück": {
-    "short": "stk.",
-    "plural": "Stücke",
-    "alternates": ["stk", "stücke", "stückchen"]
-  },
-  "Tasse": {
-    "short": "tasse",
-    "plural": "Tassen",
+  "bag": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "bag"
+      },
+      {
+        "locale": "de",
+        "name": "Btl."
+      },
+      {
+        "locale": "nl",
+        "name": "zak"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "bags"
+      },
+      {
+        "locale": "de",
+        "name": "Beutel"
+      },
+      {
+        "locale": "nl",
+        "name": "zakken"
+      }
+    ],
     "alternates": [
-      "tass.",
-      "tass",
-      "tässchen",
-      "große tasse",
+      "bag",
+      "bags",
+      "btl",
+      "sack",
+      "tütchen",
+      "tüte",
+      "tüten",
+      "zak",
+      "zakje",
+      "zakjes",
+      "zakken"
+    ]
+  },
+  "box": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "box"
+      },
+      {
+        "locale": "de",
+        "name": "Schachtel"
+      },
+      {
+        "locale": "nl",
+        "name": "doos"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "boxes"
+      },
+      {
+        "locale": "de",
+        "name": "Schachteln"
+      },
+      {
+        "locale": "nl",
+        "name": "dozen"
+      }
+    ],
+    "alternates": [
+      "box",
+      "boxes",
+      "bx",
+      "bx.",
+      "doosje",
+      "doosjes",
+      "dozen"
+    ]
+  },
+  "handful": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "handful"
+      },
+      {
+        "locale": "de",
+        "name": "Handvoll"
+      },
+      {
+        "locale": "nl",
+        "name": "handje"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "handfuls"
+      },
+      {
+        "locale": "de",
+        "name": "Handvoll"
+      },
+      {
+        "locale": "nl",
+        "name": "handjes"
+      }
+    ],
+    "alternates": [
+      "a handful",
+      "hand voll",
+      "handful",
+      "handfuls",
+      "handje",
+      "handjes",
+      "handvol",
+      "handvullen",
+      "hdv",
+      "hdv."
+    ]
+  },
+  "splash": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "splash"
+      },
+      {
+        "locale": "de",
+        "name": "Schuss"
+      },
+      {
+        "locale": "nl",
+        "name": "scheut"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "splashes"
+      },
+      {
+        "locale": "de",
+        "name": "Schuss"
+      },
+      {
+        "locale": "nl",
+        "name": "scheuten"
+      }
+    ],
+    "alternates": [
+      "a splash",
+      "scheut",
+      "scheuten",
+      "scheutje",
+      "scheutjes",
+      "schuß",
+      "splash",
+      "splashes"
+    ]
+  },
+  "cup": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "cup"
+      },
+      {
+        "locale": "de",
+        "name": "Tasse"
+      },
+      {
+        "locale": "nl",
+        "name": "kop"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "cups"
+      },
+      {
+        "locale": "de",
+        "name": "Tassen"
+      },
+      {
+        "locale": "nl",
+        "name": "koppen"
+      }
+    ],
+    "alternates": [
+      "beh",
+      "beh.",
       "gr. tasse",
-      "kleine tasse",
-      "kl. tasse",
-      "große tassen",
       "gr. tassen",
+      "große tasse",
+      "große tassen",
+      "kl. tasse",
+      "kl. tassen",
+      "kleine tasse",
       "kleine tassen",
-      "kl. tassen"
+      "kop",
+      "kopje",
+      "kopjes",
+      "koppen",
+      "tass",
+      "tass.",
+      "tässchen"
     ]
   },
-  "TL": {
-    "short": "tl",
-    "plural": "TL",
-    "alternates": ["tl.", "teelöffel", "teel.", "teel"]
-  },
-  "TL, gehäuft": {
-    "short": "gehäufter tl",
-    "plural": "gehäufte TL",
+  "glass": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "glass"
+      },
+      {
+        "locale": "de",
+        "name": "Glas"
+      },
+      {
+        "locale": "nl",
+        "name": "glas"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "glasses"
+      },
+      {
+        "locale": "de",
+        "name": "Gläser"
+      },
+      {
+        "locale": "nl",
+        "name": "glazen"
+      }
+    ],
     "alternates": [
-      "gehäufter teelöffel",
+      "glas",
+      "glazen",
+      "gläschen",
+      "gr. glas",
+      "großes glas",
+      "kl. glas",
+      "kleines glas",
+      "shotglas"
+    ]
+  },
+  "slice": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "slice"
+      },
+      {
+        "locale": "de",
+        "name": "Scheibe"
+      },
+      {
+        "locale": "nl",
+        "name": "plakje"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "slices"
+      },
+      {
+        "locale": "de",
+        "name": "Scheiben"
+      },
+      {
+        "locale": "nl",
+        "name": "plakjes"
+      }
+    ],
+    "alternates": [
+      "plakje",
+      "plakjes",
+      "plakken",
+      "scheibchen",
+      "slc",
+      "slcs",
+      "slice",
+      "slices"
+    ]
+  },
+  "strip": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "strip"
+      },
+      {
+        "locale": "de",
+        "name": "Streifen"
+      },
+      {
+        "locale": "nl",
+        "name": "reepje"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "strips"
+      },
+      {
+        "locale": "de",
+        "name": "Streifen"
+      },
+      {
+        "locale": "nl",
+        "name": "reepjes"
+      }
+    ],
+    "alternates": [
+      "reepje",
+      "reepjes",
+      "repen",
+      "strip",
+      "strips"
+    ]
+  },
+  "sheet": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "sheet"
+      },
+      {
+        "locale": "de",
+        "name": "Blatt"
+      },
+      {
+        "locale": "nl",
+        "name": "vel"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "sheets"
+      },
+      {
+        "locale": "de",
+        "name": "Blätter"
+      },
+      {
+        "locale": "nl",
+        "name": "vellen"
+      }
+    ],
+    "alternates": [
+      "vel",
+      "vellen",
+      "velletje",
+      "velletjes"
+    ]
+  },
+  "serving": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "serving"
+      },
+      {
+        "locale": "de",
+        "name": "Portion"
+      },
+      {
+        "locale": "nl",
+        "name": "portie"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "servings"
+      },
+      {
+        "locale": "de",
+        "name": "Portionen"
+      },
+      {
+        "locale": "nl",
+        "name": "porties"
+      }
+    ],
+    "alternates": [
+      "port",
+      "port.",
+      "portie",
+      "porties",
+      "portion",
+      "portions",
+      "serving",
+      "servings"
+    ]
+  },
+  "round_slice": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "round"
+      },
+      {
+        "locale": "de",
+        "name": "Scheibe"
+      },
+      {
+        "locale": "nl",
+        "name": "schijf"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "rounds"
+      },
+      {
+        "locale": "de",
+        "name": "Scheiben"
+      },
+      {
+        "locale": "nl",
+        "name": "schijven"
+      }
+    ],
+    "alternates": [
+      "schijfje",
+      "schijfjes",
+      "schijven"
+    ]
+  },
+  "ring": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "ring"
+      },
+      {
+        "locale": "de",
+        "name": "Ring"
+      },
+      {
+        "locale": "nl",
+        "name": "ring"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "rings"
+      },
+      {
+        "locale": "de",
+        "name": "Ringe"
+      },
+      {
+        "locale": "nl",
+        "name": "ringen"
+      }
+    ],
+    "alternates": [
+      "ring",
+      "ringen",
+      "ringlein"
+    ]
+  },
+  "ball": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "ball"
+      },
+      {
+        "locale": "de",
+        "name": "Kugel"
+      },
+      {
+        "locale": "nl",
+        "name": "bol"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "balls"
+      },
+      {
+        "locale": "de",
+        "name": "Kugeln"
+      },
+      {
+        "locale": "nl",
+        "name": "bollen"
+      }
+    ],
+    "alternates": [
+      "bol",
+      "bollen",
+      "bolletje",
+      "bolletjes",
+      "kügelchen"
+    ]
+  },
+  "dash": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "dash"
+      },
+      {
+        "locale": "de",
+        "name": "Spritzer"
+      },
+      {
+        "locale": "nl",
+        "name": "scheutje"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "dashes"
+      },
+      {
+        "locale": "de",
+        "name": "Spritzer"
+      },
+      {
+        "locale": "nl",
+        "name": "scheutjes"
+      }
+    ],
+    "alternates": [
+      "a dash",
+      "dash",
+      "dashes"
+    ]
+  },
+  "drizzle": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "drizzle"
+      },
+      {
+        "locale": "de",
+        "name": "Spritzer"
+      },
+      {
+        "locale": "nl",
+        "name": "scheutje"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "drizzles"
+      },
+      {
+        "locale": "de",
+        "name": "Spritzer"
+      },
+      {
+        "locale": "nl",
+        "name": "scheutjes"
+      }
+    ],
+    "alternates": [
+      "a drizzle",
+      "drizzle",
+      "drizzles",
+      "spritzerchen"
+    ]
+  },
+  "scoop": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "scoop"
+      },
+      {
+        "locale": "de",
+        "name": "Kugel"
+      },
+      {
+        "locale": "nl",
+        "name": "bolletje"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "scoops"
+      },
+      {
+        "locale": "de",
+        "name": "Kugeln"
+      },
+      {
+        "locale": "nl",
+        "name": "bolletjes"
+      }
+    ],
+    "alternates": [
+      "scoop",
+      "scoops"
+    ]
+  },
+  "stick": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "stick"
+      },
+      {
+        "locale": "de",
+        "name": "Stange"
+      },
+      {
+        "locale": "nl",
+        "name": "staaf"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "sticks"
+      },
+      {
+        "locale": "de",
+        "name": "Stangen"
+      },
+      {
+        "locale": "nl",
+        "name": "staven"
+      }
+    ],
+    "alternates": [
+      "stick",
+      "stick(s)",
+      "sticks",
+      "stänglein"
+    ]
+  },
+  "tub": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "tub"
+      },
+      {
+        "locale": "de",
+        "name": "Becher"
+      },
+      {
+        "locale": "nl",
+        "name": "bakje"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "tubs"
+      },
+      {
+        "locale": "de",
+        "name": "Becher"
+      },
+      {
+        "locale": "nl",
+        "name": "bakjes"
+      }
+    ],
+    "alternates": [
+      "container",
+      "tub",
+      "tubs"
+    ]
+  },
+  "capful": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "capful"
+      },
+      {
+        "locale": "de",
+        "name": "Verschluss"
+      },
+      {
+        "locale": "nl",
+        "name": "dop"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "capfuls"
+      },
+      {
+        "locale": "de",
+        "name": "Verschlüsse"
+      },
+      {
+        "locale": "nl",
+        "name": "doppen"
+      }
+    ],
+    "alternates": [
+      "cap full",
+      "capful",
+      "capfuls"
+    ]
+  },
+  "pouch": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "pouch"
+      },
+      {
+        "locale": "de",
+        "name": "Beutel"
+      },
+      {
+        "locale": "nl",
+        "name": "zakje"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "pouches"
+      },
+      {
+        "locale": "de",
+        "name": "Beutel"
+      },
+      {
+        "locale": "nl",
+        "name": "zakjes"
+      }
+    ],
+    "alternates": [
+      "pouch",
+      "pouches"
+    ]
+  },
+  "sleeve": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "sleeve"
+      },
+      {
+        "locale": "de",
+        "name": "Packung"
+      },
+      {
+        "locale": "nl",
+        "name": "verpakking"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "sleeves"
+      },
+      {
+        "locale": "de",
+        "name": "Packungen"
+      },
+      {
+        "locale": "nl",
+        "name": "verpakkingen"
+      }
+    ],
+    "alternates": [
+      "sleeve",
+      "sleeves"
+    ]
+  },
+  "roll": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "roll"
+      },
+      {
+        "locale": "de",
+        "name": "Rolle"
+      },
+      {
+        "locale": "nl",
+        "name": "rol"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "rolls"
+      },
+      {
+        "locale": "de",
+        "name": "Rollen"
+      },
+      {
+        "locale": "nl",
+        "name": "rollen"
+      }
+    ],
+    "alternates": [
+      "roll",
+      "rolls",
+      "röllchen"
+    ]
+  },
+  "ear": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "ear"
+      },
+      {
+        "locale": "de",
+        "name": "Kolben"
+      },
+      {
+        "locale": "nl",
+        "name": "kolf"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "ears"
+      },
+      {
+        "locale": "de",
+        "name": "Kolben"
+      },
+      {
+        "locale": "nl",
+        "name": "kolven"
+      }
+    ],
+    "alternates": [
+      "ear",
+      "ear of corn",
+      "ears",
+      "ears of corn"
+    ]
+  },
+  "wedge": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "wedge"
+      },
+      {
+        "locale": "de",
+        "name": "Spalte"
+      },
+      {
+        "locale": "nl",
+        "name": "part"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "wedges"
+      },
+      {
+        "locale": "de",
+        "name": "Spalten"
+      },
+      {
+        "locale": "nl",
+        "name": "parten"
+      }
+    ],
+    "alternates": [
+      "ecke",
+      "keil",
+      "wedge",
+      "wedges"
+    ]
+  },
+  "chunk": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "chunk"
+      },
+      {
+        "locale": "de",
+        "name": "Stück"
+      },
+      {
+        "locale": "nl",
+        "name": "stuk"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "chunks"
+      },
+      {
+        "locale": "de",
+        "name": "Stücke"
+      },
+      {
+        "locale": "nl",
+        "name": "stukken"
+      }
+    ],
+    "alternates": [
+      "chunk",
+      "chunks"
+    ]
+  },
+  "cube": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "cube"
+      },
+      {
+        "locale": "de",
+        "name": "Würfel"
+      },
+      {
+        "locale": "nl",
+        "name": "blokje"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "cubes"
+      },
+      {
+        "locale": "de",
+        "name": "Würfel"
+      },
+      {
+        "locale": "nl",
+        "name": "blokjes"
+      }
+    ],
+    "alternates": [
+      "cube",
+      "cubes",
+      "würfelchen"
+    ]
+  },
+  "fillet": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "fillet"
+      },
+      {
+        "locale": "de",
+        "name": "Filet"
+      },
+      {
+        "locale": "nl",
+        "name": "filet"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "fillets"
+      },
+      {
+        "locale": "de",
+        "name": "Filets"
+      },
+      {
+        "locale": "nl",
+        "name": "filets"
+      }
+    ],
+    "alternates": [
+      "filet",
+      "filets",
+      "fillet",
+      "fillets"
+    ]
+  },
+  "heaping_tablespoon": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "heaping tbsp"
+      },
+      {
+        "locale": "de",
+        "name": "gehäufter EL"
+      },
+      {
+        "locale": "nl",
+        "name": "ruime el"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "heaping tablespoons"
+      },
+      {
+        "locale": "de",
+        "name": "gehäufte EL"
+      },
+      {
+        "locale": "nl",
+        "name": "ruime eetlepels"
+      }
+    ],
+    "alternates": [
+      "gehäufte esslöffel",
+      "gehäufter esslöffel",
+      "großzügige el",
+      "großzügige esslöffel",
+      "großzügiger el",
+      "großzügiger esslöffel",
+      "heaping tablespoon",
+      "heaping tablespoons"
+    ]
+  },
+  "scant_tablespoon": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "scant tbsp"
+      },
+      {
+        "locale": "de",
+        "name": "knapper EL"
+      },
+      {
+        "locale": "nl",
+        "name": "schaarse el"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "scant tablespoons"
+      },
+      {
+        "locale": "de",
+        "name": "knappe EL"
+      },
+      {
+        "locale": "nl",
+        "name": "schaarse eetlepels"
+      }
+    ],
+    "alternates": [
+      "gestrichene el",
+      "gestrichene esslöffel",
+      "gestrichener el",
+      "gestrichener esslöffel",
+      "knappe el",
+      "knappe esslöffel",
+      "knapper esslöffel",
+      "scant tablespoon",
+      "scant tablespoons"
+    ]
+  },
+  "generous_pinch": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "generous pinch"
+      },
+      {
+        "locale": "de",
+        "name": "großzügige Prise"
+      },
+      {
+        "locale": "nl",
+        "name": "ruim snufje"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "generous pinches"
+      },
+      {
+        "locale": "de",
+        "name": "große Prisen"
+      },
+      {
+        "locale": "nl",
+        "name": "ruime snufjes"
+      }
+    ],
+    "alternates": [
+      "big pinch",
+      "gehäufte prise",
+      "grosszügige prise",
+      "große prise",
+      "große prisen",
+      "heaping pinch",
+      "large pinch"
+    ]
+  },
+  "large_splash": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "large splash"
+      },
+      {
+        "locale": "de",
+        "name": "großer Schuss"
+      },
+      {
+        "locale": "nl",
+        "name": "grote scheut"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "large splashes"
+      },
+      {
+        "locale": "de",
+        "name": "große Schuss"
+      },
+      {
+        "locale": "nl",
+        "name": "grote scheuten"
+      }
+    ],
+    "alternates": [
+      "big splash",
+      "good splash",
+      "grosser schuss",
+      "großer schuß",
+      "großzügiger schuss"
+    ]
+  },
+  "dozen": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "dozen"
+      },
+      {
+        "locale": "de",
+        "name": "Dutzend"
+      },
+      {
+        "locale": "nl",
+        "name": "dozijn"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "dozen"
+      },
+      {
+        "locale": "de",
+        "name": "Dutzend"
+      },
+      {
+        "locale": "nl",
+        "name": "dozijn"
+      }
+    ],
+    "alternates": [
+      "dutzende",
+      "dz",
+      "dz."
+    ]
+  },
+  "small_splash": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "small splash"
+      },
+      {
+        "locale": "de",
+        "name": "kleiner Schuss"
+      },
+      {
+        "locale": "nl",
+        "name": "klein scheutje"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "small splashes"
+      },
+      {
+        "locale": "de",
+        "name": "kleine Schuss"
+      },
+      {
+        "locale": "nl",
+        "name": "kleine scheutjes"
+      }
+    ],
+    "alternates": [
+      "kleiner schuß",
+      "winziger schuss"
+    ]
+  },
+  "bulb": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "bulb"
+      },
+      {
+        "locale": "de",
+        "name": "Knolle"
+      },
+      {
+        "locale": "nl",
+        "name": "bol"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "bulbs"
+      },
+      {
+        "locale": "de",
+        "name": "Knollen"
+      },
+      {
+        "locale": "nl",
+        "name": "bollen"
+      }
+    ],
+    "alternates": [
+      "knöllchen"
+    ]
+  },
+  "head": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "head"
+      },
+      {
+        "locale": "de",
+        "name": "Kopf"
+      },
+      {
+        "locale": "nl",
+        "name": "krop"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "heads"
+      },
+      {
+        "locale": "de",
+        "name": "Köpfe"
+      },
+      {
+        "locale": "nl",
+        "name": "kroppen"
+      }
+    ],
+    "alternates": [
+      "köpfchen"
+    ]
+  },
+  "to_taste": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "to taste"
+      },
+      {
+        "locale": "de",
+        "name": "n. B."
+      },
+      {
+        "locale": "nl",
+        "name": "naar smaak"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "to taste"
+      },
+      {
+        "locale": "de",
+        "name": "n. B."
+      },
+      {
+        "locale": "nl",
+        "name": "naar smaak"
+      }
+    ],
+    "alternates": [
+      "nach bedarf",
+      "nach belieben",
+      "nach geschmack"
+    ]
+  },
+  "pound": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "lb"
+      },
+      {
+        "locale": "de",
+        "name": "Pfd."
+      },
+      {
+        "locale": "nl",
+        "name": "pond"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "pounds"
+      },
+      {
+        "locale": "de",
+        "name": "Pfund"
+      },
+      {
+        "locale": "nl",
+        "name": "pond"
+      }
+    ],
+    "alternates": [
+      "pfd"
+    ]
+  },
+  "bar": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "bar"
+      },
+      {
+        "locale": "de",
+        "name": "Riegel"
+      },
+      {
+        "locale": "nl",
+        "name": "reep"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "bars"
+      },
+      {
+        "locale": "de",
+        "name": "Riegel"
+      },
+      {
+        "locale": "nl",
+        "name": "repen"
+      }
+    ],
+    "alternates": [
+      "reihen",
+      "riegelchen"
+    ]
+  },
+  "bowl": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "bowl"
+      },
+      {
+        "locale": "de",
+        "name": "Schale"
+      },
+      {
+        "locale": "nl",
+        "name": "kom"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "bowls"
+      },
+      {
+        "locale": "de",
+        "name": "Schalen"
+      },
+      {
+        "locale": "nl",
+        "name": "kommen"
+      }
+    ],
+    "alternates": [
+      "schälchen"
+    ]
+  },
+  "heaping_teaspoon": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "heaping tsp"
+      },
+      {
+        "locale": "de",
+        "name": "gehäufter TL"
+      },
+      {
+        "locale": "nl",
+        "name": "ruime tl"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "heaping teaspoons"
+      },
+      {
+        "locale": "de",
+        "name": "gehäufte TL"
+      },
+      {
+        "locale": "nl",
+        "name": "ruime theelepels"
+      }
+    ],
+    "alternates": [
       "gehäufte teelöffel",
-      "großzügiger tl",
+      "gehäufter teelöffel",
+      "großzügige teelöffel",
       "großzügige tl",
       "großzügiger teelöffel",
-      "großzügige teelöffel"
+      "großzügiger tl"
     ]
   },
-  "TL, gestr.": {
-    "short": "knapper tl",
-    "plural": "gestrichene TL",
+  "scant_teaspoon": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "scant tsp"
+      },
+      {
+        "locale": "de",
+        "name": "knapper TL"
+      },
+      {
+        "locale": "nl",
+        "name": "schaarse tl"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "scant teaspoons"
+      },
+      {
+        "locale": "de",
+        "name": "knappe TL"
+      },
+      {
+        "locale": "nl",
+        "name": "schaarse theelepels"
+      }
+    ],
     "alternates": [
-      "knappe tl",
-      "kanpper tl",
-      "knapper teelöffel",
-      "knappe teelöffel",
-      "gestrichener tl",
+      "gestrichene teelöffel",
       "gestrichene tl",
       "gestrichener teelöffel",
-      "gestrichene teelöffel"
+      "gestrichener tl",
+      "kanpper tl",
+      "knappe teelöffel",
+      "knappe tl",
+      "knapper teelöffel"
     ]
   },
-  "Topf": {
-    "short": "topf",
-    "plural": "Töpfe",
+  "pot": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "pot"
+      },
+      {
+        "locale": "de",
+        "name": "Topf"
+      },
+      {
+        "locale": "nl",
+        "name": "pot"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "pots"
+      },
+      {
+        "locale": "de",
+        "name": "Töpfe"
+      },
+      {
+        "locale": "nl",
+        "name": "potten"
+      }
+    ],
     "alternates": []
   },
-  "Tropfen": {
-    "short": "tr.",
-    "plural": "Tropfen",
-    "alternates": ["tr", "trpf.", "trpf"]
+  "drop": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "drop"
+      },
+      {
+        "locale": "de",
+        "name": "Tr."
+      },
+      {
+        "locale": "nl",
+        "name": "druppel"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "drops"
+      },
+      {
+        "locale": "de",
+        "name": "Tropfen"
+      },
+      {
+        "locale": "nl",
+        "name": "druppels"
+      }
+    ],
+    "alternates": [
+      "tr",
+      "trpf",
+      "trpf."
+    ]
   },
-  "Unze": {
-    "short": "unze",
-    "plural": "Unzen",
-    "alternates": ["oz.", "oz"]
-  },
-  "Würfel": {
-    "short": "würfel",
-    "plural": "Würfel",
-    "alternates": ["würfelchen"]
-  },
-  "Zehe": {
-    "short": "zehe",
-    "plural": "Zehen",
-    "alternates": []
-  },
-  "Zweig": {
-    "short": "zweig",
-    "plural": "Zweige",
-    "alternates": ["zweiglein", "stängel", "stengel", "stängelchen", "stiel", "stiele"]
+  "ounce": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "oz"
+      },
+      {
+        "locale": "de",
+        "name": "Unze"
+      },
+      {
+        "locale": "nl",
+        "name": "ons"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "ounces"
+      },
+      {
+        "locale": "de",
+        "name": "Unzen"
+      },
+      {
+        "locale": "nl",
+        "name": "ons"
+      }
+    ],
+    "alternates": [
+      "oz",
+      "oz."
+    ]
   }
 }

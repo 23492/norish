@@ -47,9 +47,11 @@ export async function isRegistrationEnabled(): Promise<boolean> {
  * Get units configuration
  */
 export async function getUnits(): Promise<UnitsMap> {
-  const value = await getConfig<UnitsMap>(ServerConfigKeys.UNITS);
+  const value = await getConfig<{ units: UnitsMap; isOverwritten: boolean }>(
+    ServerConfigKeys.UNITS
+  );
 
-  return value ?? (defaultUnits as UnitsMap);
+  return value?.units ?? (defaultUnits as UnitsMap);
 }
 
 /**

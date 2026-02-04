@@ -1,11 +1,11 @@
 import type { UnitsMap } from "@/server/db/zodSchemas/server-config";
 
 import { jsonrepair } from "jsonrepair";
-import { parseIngredient, unitsOfMeasure } from "parse-ingredient";
+import { parseIngredient } from "parse-ingredient";
 import { decode } from "html-entities";
 
 import { httpUrlSchema } from "./schema";
-import { selectUnitForm } from "./unit-form-selector";
+import { flattenForLibrary } from "./unit-localization";
 
 export function stripHtmlTags(input: string): string {
   const withoutTags = input.replace(/<[^>]*>/g, " ");
@@ -35,75 +35,19 @@ export function parseIngredientWithDefaults(
   const lines = Array.isArray(input) ? input : [input];
   const merged: any[] = [];
 
-  // Merge custom units with built-in units for lookup
-  const allUnitDefs = { ...unitsOfMeasure, ...units };
+  // Flatten locale-aware units for parse-ingredient library
+  const flatUnits = flattenForLibrary(units);
 
   for (const line of lines) {
     if (!line) continue;
 
+    // Normalize comma decimals to periods (European format → US format)
     const normalizedLine = line.toString().replace(/(\d),(\d)/g, "$1.$2");
-    let parsed = parseIngredient(normalizedLine, {
-      additionalUOMs: units,
+
+    // Parse with flattened units
+    const parsed = parseIngredient(normalizedLine, {
+      additionalUOMs: flatUnits,
     });
-
-    if (!parsed[0]?.quantity) {
-      const allUnits = new Set<string>();
-
-      for (const key in units) {
-        const def = units[key];
-
-        allUnits.add(key);
-        if (def.short) allUnits.add(def.short);
-        if (def.plural) allUnits.add(def.plural);
-        if (def.alternates) {
-          for (const a of def.alternates) {
-            allUnits.add(a);
-          }
-        }
-      }
-
-      // Sort by length desc to match longest first
-      const sortedUnits = Array.from(allUnits).sort((a, b) => b.length - a.length);
-      const unitPattern = sortedUnits
-        .map((u) => u.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-        .join("|");
-      const regex = new RegExp(`\\b(\\d+(?:[.,]\\d+)?)\\s*(${unitPattern})\\b`, "i");
-
-      const match = normalizedLine.match(regex);
-
-      if (match) {
-        const qty = match[1];
-        const unit = match[2];
-        const rest = normalizedLine.replace(match[0], "").trim().replace(/\s+/g, " ");
-        const reordered = `${qty} ${unit} ${rest}`;
-
-        const smartParsed = parseIngredient(reordered, {
-          additionalUOMs: units,
-        });
-
-        if (smartParsed[0]?.quantity) {
-          parsed = smartParsed;
-        }
-      }
-    }
-
-    // Apply grammatically correct unit form based on quantity
-    for (const ingredient of parsed) {
-      if (ingredient.unitOfMeasureID && ingredient.quantity != null) {
-        const unitDef = allUnitDefs[ingredient.unitOfMeasureID];
-
-        if (unitDef) {
-          const correctedUnit = selectUnitForm(ingredient.quantity, {
-            singular: ingredient.unitOfMeasureID,
-            plural: unitDef.plural || null,
-          });
-
-          if (correctedUnit) {
-            ingredient.unitOfMeasure = correctedUnit;
-          }
-        }
-      }
-    }
 
     merged.push(...parsed);
   }
