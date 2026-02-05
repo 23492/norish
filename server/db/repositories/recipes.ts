@@ -918,8 +918,37 @@ export async function updateRecipeWithRefs(
 
     // Replace ingredients if provided
     if (payload.recipeIngredients !== undefined) {
-      // Delete existing ingredients for this recipe
-      await tx.delete(recipeIngredients).where(eq(recipeIngredients.recipeId, recipeId));
+      // Determine which system is being updated
+      let systemToUpdate = payload.systemUsed;
+
+      // If systemUsed is not provided at top level, infer it from the ingredients themselves
+      if (!systemToUpdate && payload.recipeIngredients.length > 0) {
+        const inferredSystems = new Set(
+          payload.recipeIngredients.map((ri) => ri.systemUsed).filter(Boolean)
+        );
+
+        // If all ingredients use the same system, use that
+        if (inferredSystems.size === 1) {
+          systemToUpdate = Array.from(inferredSystems)[0] as any;
+        }
+      }
+
+      // Only delete ingredients for the system being updated (preserve other systems)
+      if (systemToUpdate) {
+        await tx
+          .delete(recipeIngredients)
+          .where(
+            and(
+              eq(recipeIngredients.recipeId, recipeId),
+              eq(recipeIngredients.systemUsed, systemToUpdate)
+            )
+          );
+      } else {
+        // If we still can't determine the system, this is an error
+        throw new Error(
+          "Cannot determine which measurement system to update."
+        );
+      }
 
       // Add new ones
       if (payload.recipeIngredients.length > 0) {
@@ -938,8 +967,29 @@ export async function updateRecipeWithRefs(
 
     // Replace steps if provided
     if (payload.steps !== undefined) {
-      // Delete existing steps for this recipe
-      await tx.delete(stepsTable).where(eq(stepsTable.recipeId, recipeId));
+      // Determine which system is being updated
+      let systemToUpdate = payload.systemUsed;
+
+      // If systemUsed is not provided at top level, infer it from the steps themselves
+      if (!systemToUpdate && payload.steps.length > 0) {
+        const inferredSystems = new Set(payload.steps.map((s) => s.systemUsed).filter(Boolean));
+        // If all steps use the same system, use that
+        if (inferredSystems.size === 1) {
+          systemToUpdate = Array.from(inferredSystems)[0] as any;
+        }
+      }
+
+      // Only delete steps for the system being updated (preserve other systems)
+      if (systemToUpdate) {
+        await tx
+          .delete(stepsTable)
+          .where(and(eq(stepsTable.recipeId, recipeId), eq(stepsTable.systemUsed, systemToUpdate)));
+      } else {
+        // If we still can't determine the system, this is an error
+        throw new Error(
+          "Cannot determine which measurement system to update."
+        );
+      }
 
       // Add new ones
       if (payload.steps.length > 0) {
