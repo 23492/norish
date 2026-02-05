@@ -49,6 +49,13 @@
     "searchTags": "Recherche étiquettes",
     "favoritesAndRating": "Favoris et évaluation",
     "favorites": "Favoris",
+    "categories": "Catégories",
+    "category": {
+      "breakfast": "Petit-déjeuner",
+      "lunch": "Déjeuner",
+      "dinner": "Dîner",
+      "snack": "Collation"
+    },
     "sortByTitle": "Titre",
     "sortByDate": "Date",
     "clearFilters": "Effacer les filtres"

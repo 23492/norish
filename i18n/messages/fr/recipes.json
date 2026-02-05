@@ -51,6 +51,7 @@
     "delete": "Supprimer",
     "autoTag": "Auto‑taguer",
     "autoTagging": "Génération des tags...",
+    "autoCategorize": "Auto‑catégoriser",
     "detectAllergies": "Détecter les allergies",
     "detectingAllergies": "Détection des allergies...",
     "estimateNutrition": "Estimer la nutrition",
@@ -86,6 +87,14 @@
     "ingredientsHelp": "Saisissez les ingrédients comme « 2 tasses de farine » — nous détecterons automatiquement les quantités et unités.",
     "instructionsHelp": "Rédigez des instructions claires étape par étape. Appuyez sur Entrée pour passer à l’étape suivante.",
     "tagsHelp": "Tapez des tags et cliquez sur les suggestions pour ajouter. Les tags sélectionnés sont bleus, les nouveaux ont une bordure en pointillé.",
+    "tagsAndCategories": "Tags & Catégories",
+    "categoriesHelp": "Sélectionnez les catégories de repas pour cette recette.",
+    "category": {
+      "breakfast": "Petit-déjeuner",
+      "lunch": "Déjeuner",
+      "dinner": "Dîner",
+      "snack": "Collation"
+    },
     "calories": "Calories",
     "fat": "Lipides (g)",
     "carbs": "Glucides (g)",
@@ -117,7 +126,9 @@
     "noImageAvailable": "Aucune image disponible",
     "videoPlayer": {
       "mute": "Couper le son",
-      "unmute": "Activer le son"
+      "unmute": "Activer le son",
+      "fullscreen": "Plein écran",
+      "exitFullscreen": "Quitter le plein écran"
     }
   },
   "validation": {

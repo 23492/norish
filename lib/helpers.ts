@@ -5,6 +5,7 @@ import { parseIngredient } from "parse-ingredient";
 import { decode } from "html-entities";
 
 import { httpUrlSchema } from "./schema";
+import { flattenForLibrary } from "./unit-localization";
 
 export function stripHtmlTags(input: string): string {
   const withoutTags = input.replace(/<[^>]*>/g, " ");
@@ -34,50 +35,19 @@ export function parseIngredientWithDefaults(
   const lines = Array.isArray(input) ? input : [input];
   const merged: any[] = [];
 
+  // Flatten locale-aware units for parse-ingredient library
+  const flatUnits = flattenForLibrary(units);
+
   for (const line of lines) {
     if (!line) continue;
 
+    // Normalize comma decimals to periods (European format → US format)
     const normalizedLine = line.toString().replace(/(\d),(\d)/g, "$1.$2");
-    let parsed = parseIngredient(normalizedLine, {
-      additionalUOMs: units,
+
+    // Parse with flattened units
+    const parsed = parseIngredient(normalizedLine, {
+      additionalUOMs: flatUnits,
     });
-
-    if (!parsed[0]?.quantity) {
-      const allUnits = new Set<string>();
-
-      for (const key in units) {
-        const def = units[key];
-
-        allUnits.add(key);
-        if (def.short) allUnits.add(def.short);
-        if (def.plural) allUnits.add(def.plural);
-        if (def.alternates) def.alternates.forEach((a) => allUnits.add(a));
-      }
-
-      // Sort by length desc to match longest first
-      const sortedUnits = Array.from(allUnits).sort((a, b) => b.length - a.length);
-      const unitPattern = sortedUnits
-        .map((u) => u.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-        .join("|");
-      const regex = new RegExp(`\\b(\\d+(?:[.,]\\d+)?)\\s*(${unitPattern})\\b`, "i");
-
-      const match = normalizedLine.match(regex);
-
-      if (match) {
-        const qty = match[1];
-        const unit = match[2];
-        const rest = normalizedLine.replace(match[0], "").trim().replace(/\s+/g, " ");
-        const reordered = `${qty} ${unit} ${rest}`;
-
-        const smartParsed = parseIngredient(reordered, {
-          additionalUOMs: units,
-        });
-
-        if (smartParsed[0]?.quantity) {
-          parsed = smartParsed;
-        }
-      }
-    }
 
     merged.push(...parsed);
   }
@@ -232,4 +202,53 @@ export function sortTagsWithAllergyPriority<T extends { name: string }>(
  */
 export function isAllergenTag(tagName: string, allergySet: Set<string>): boolean {
   return allergySet.has(tagName.toLowerCase());
+}
+
+/**
+ * Get the Monday (ISO week start) of the week containing the provided date.
+ *
+ * Note: Sunday is treated as the last day of the week and will return the
+ * previous Monday.
+ */
+export function getWeekStart(date: Date): Date {
+  const d = new Date(date);
+  const day = d.getDay();
+  const daysSinceMonday = day === 0 ? 6 : day - 1;
+
+  d.setDate(d.getDate() - daysSinceMonday);
+
+  return d;
+}
+
+/**
+ * Get the Sunday (ISO week end) of the week containing the provided date.
+ */
+export function getWeekEnd(date: Date): Date {
+  const start = getWeekStart(date);
+  const end = new Date(start);
+
+  end.setDate(end.getDate() + 6);
+
+  return end;
+}
+
+/**
+ * Get all 7 days (Mon-Sun) for the week containing the provided date.
+ */
+export function getWeekDays(date: Date): Date[] {
+  const start = getWeekStart(date);
+  const end = getWeekEnd(date);
+
+  return eachDayOfInterval(start, end);
+}
+
+/**
+ * Add (or subtract) a number of weeks from a date.
+ */
+export function addWeeks(date: Date, weeks: number): Date {
+  const d = new Date(date);
+
+  d.setDate(d.getDate() + weeks * 7);
+
+  return d;
 }

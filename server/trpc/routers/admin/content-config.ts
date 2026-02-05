@@ -45,6 +45,7 @@ const updateContentIndicators = adminProcedure
 /**
  * Update units config.
  * Accepts a JSON string that gets parsed and validated.
+ * Marks the config as overridden by admin.
  */
 const updateUnits = adminProcedure.input(z.string()).mutation(async ({ input, ctx }) => {
   log.info({ userId: ctx.user.id }, "Updating units config");
@@ -63,7 +64,13 @@ const updateUnits = adminProcedure.input(z.string()).mutation(async ({ input, ct
     return { success: false, error: result.error.message };
   }
 
-  await setConfig(ServerConfigKeys.UNITS, result.data, ctx.user.id, false);
+  // Wrap units and mark as overridden
+  await setConfig(
+    ServerConfigKeys.UNITS,
+    { units: result.data, isOverwritten: true },
+    ctx.user.id,
+    false
+  );
 
   return { success: true };
 });

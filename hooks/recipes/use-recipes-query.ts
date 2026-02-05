@@ -1,6 +1,6 @@
 "use client";
 
-import type { RecipeDashboardDTO, SearchField } from "@/types";
+import type { RecipeCategory, RecipeDashboardDTO, SearchField } from "@/types";
 import type { InfiniteData, QueryKey } from "@tanstack/react-query";
 
 import { useQueryClient, useInfiniteQuery } from "@tanstack/react-query";
@@ -17,6 +17,7 @@ export type RecipeFilters = {
   search?: string;
   searchFields?: SearchField[];
   tags?: string[];
+  categories?: RecipeCategory[];
   filterMode?: "AND" | "OR";
   sortMode?: "titleAsc" | "titleDesc" | "dateAsc" | "dateDesc";
   minRating?: number;
@@ -63,6 +64,7 @@ export function useRecipesQuery(filters: RecipeFilters = {}): RecipesQueryResult
     search,
     searchFields,
     tags,
+    categories,
     filterMode = "OR",
     sortMode = "dateDesc",
     minRating,
@@ -84,7 +86,7 @@ export function useRecipesQuery(filters: RecipeFilters = {}): RecipesQueryResult
   } = useRecipesCacheHelpers();
 
   const infiniteQueryOptions = trpc.recipes.list.infiniteQueryOptions(
-    { limit: 100, search, searchFields, tags, filterMode, sortMode, minRating },
+    { limit: 100, search, searchFields, tags, categories, filterMode, sortMode, minRating },
     {
       getNextPageParam: (lastPage) => lastPage.nextCursor,
     }

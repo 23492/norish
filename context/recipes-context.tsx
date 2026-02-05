@@ -58,6 +58,7 @@ export function RecipesContextProvider({ children }: { children: ReactNode }) {
       search: filters.rawInput || undefined,
       searchFields: filters.searchFields,
       tags: filters.searchTags.length > 0 ? filters.searchTags : undefined,
+      categories: filters.categories.length > 0 ? filters.categories : undefined,
       filterMode: filters.filterMode as "AND" | "OR",
       sortMode: filters.sortMode as "titleAsc" | "titleDesc" | "dateAsc" | "dateDesc",
       minRating: filters.minRating ?? undefined,
@@ -161,9 +162,10 @@ export function RecipesContextProvider({ children }: { children: ReactNode }) {
   const hasAppliedFilters = useMemo(() => {
     const hasSearch = filters.rawInput.trim().length > 0;
     const hasTags = filters.searchTags.length > 0;
+    const hasCategories = filters.categories.length > 0;
 
-    return hasSearch || hasTags;
-  }, [filters.rawInput, filters.searchTags]);
+    return hasSearch || hasTags || hasCategories;
+  }, [filters.rawInput, filters.searchTags, filters.categories]);
 
   const value = useMemo<Ctx>(
     () => ({

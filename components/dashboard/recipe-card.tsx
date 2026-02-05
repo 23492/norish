@@ -1,13 +1,14 @@
 "use client";
 
 import { ShoppingBagIcon, CalendarDaysIcon, TrashIcon } from "@heroicons/react/20/solid";
-import { Card, CardBody, Image } from "@heroui/react";
+import { Card, CardBody } from "@heroui/react";
 import { useRouter } from "next/navigation";
 import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import SwipeableRow, { SwipeableRowRef, SwipeAction } from "../shared/swipable-row";
 import DoubleTapContainer from "../shared/double-tap-container";
+import FallbackImage from "../shared/fallback-image";
 
 import RecipeMetadata from "./recipe-metadata";
 import RecipeTags from "./recipe-tags";
@@ -147,12 +148,15 @@ function RecipeCardComponent({
                 {/* Image */}
                 <div className="pointer-events-none absolute inset-0 z-0">
                   {thumbnailImage ? (
-                    <Image
+                    <FallbackImage
+                      variant="hero"
                       removeWrapper
                       alt={recipe.name}
                       className={`h-full w-full object-cover transition-transform duration-300 ease-in-out ${open ? "scale-100" : "group-hover/row:scale-110"} `}
                       radius="none"
                       src={thumbnailImage}
+                      fallbackClassName={`transition-all duration-300 ease-in-out ${open ? "scale-100" : "group-hover/row:scale-105"}`}
+                      fallbackMessage={t("noImage")}
                     />
                   ) : (
                     <div

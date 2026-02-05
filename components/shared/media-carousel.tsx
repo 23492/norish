@@ -8,6 +8,7 @@ import NextImage from "next/image";
 
 import VideoPlayer from "@/components/shared/video-player";
 import ImageLightbox from "@/components/shared/image-lightbox";
+import { FallbackPlaceholder, useImageErrors } from "@/components/shared/fallback-image";
 
 export interface MediaItem {
   type: "image" | "video";
@@ -91,6 +92,7 @@ export default function MediaCarousel({
   const [direction, setDirection] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  const { handleImageError, hasError } = useImageErrors();
 
   // Touch handling state
   const [touchStart, setTouchStart] = useState<number | null>(null);
@@ -215,6 +217,8 @@ export default function MediaCarousel({
               poster={item.thumbnail || undefined}
               src={item.src}
             />
+          ) : hasError(item.src) ? (
+            <FallbackPlaceholder />
           ) : (
             <div
               className="group relative h-full w-full cursor-pointer"
@@ -234,6 +238,7 @@ export default function MediaCarousel({
                 alt="Recipe image"
                 className="object-cover transition-transform duration-500 group-hover:scale-105"
                 src={item.src}
+                onError={() => handleImageError(item.src)}
               />
             </div>
           )}
@@ -278,6 +283,8 @@ export default function MediaCarousel({
                 poster={sortedItems[currentIndex].thumbnail || undefined}
                 src={sortedItems[currentIndex].src}
               />
+            ) : hasError(sortedItems[currentIndex].src) ? (
+              <FallbackPlaceholder />
             ) : (
               <div
                 className="relative h-full w-full cursor-pointer"
@@ -297,6 +304,7 @@ export default function MediaCarousel({
                   alt={`Recipe media ${currentIndex + 1}`}
                   className="object-cover"
                   src={sortedItems[currentIndex].src}
+                  onError={() => handleImageError(sortedItems[currentIndex].src)}
                 />
               </div>
             )}

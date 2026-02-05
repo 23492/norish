@@ -138,17 +138,35 @@ export type I18nLocaleConfig = z.infer<typeof I18nLocaleConfigSchema>;
 // Units Schema
 // ============================================================================
 
-export const UnitDefSchema = z.object({
-  short: z.string(),
-  plural: z.string(),
-  alternates: z.array(z.string()),
-});
-
-export type UnitDef = z.infer<typeof UnitDefSchema>;
-
-export const UnitsMapSchema = z.record(z.string(), UnitDefSchema);
+// Locale-aware units configuration
+export const UnitsMapSchema = z.record(
+  z.string(),
+  z.object({
+    short: z.array(z.object({ locale: z.string().min(1), name: z.string().min(1) })).min(1),
+    plural: z.array(z.object({ locale: z.string().min(1), name: z.string().min(1) })).min(1),
+    alternates: z.array(z.string()),
+  })
+);
 
 export type UnitsMap = z.infer<typeof UnitsMapSchema>;
+
+// Units configuration with isOverwritten flag (for database storage)
+export const UnitsConfigSchema = z.object({
+  units: UnitsMapSchema,
+  isOverwritten: z.boolean().default(false),
+});
+
+export type UnitsConfig = z.infer<typeof UnitsConfigSchema>;
+
+// Flat units map (for parse-ingredient library compatibility)
+export type FlatUnitsMap = Record<
+  string,
+  {
+    short: string;
+    plural: string;
+    alternates: string[];
+  }
+>;
 
 // ============================================================================
 // Recurrence Config Schema
@@ -385,7 +403,7 @@ export function getSchemaForConfigKey(key: ServerConfigKey): z.ZodType {
     case ServerConfigKeys.AUTH_PROVIDER_GOOGLE:
       return AuthProviderGoogleSchema;
     case ServerConfigKeys.UNITS:
-      return UnitsMapSchema;
+      return UnitsConfigSchema;
     case ServerConfigKeys.CONTENT_INDICATORS:
       return ContentIndicatorsSchema;
     case ServerConfigKeys.RECURRENCE_CONFIG:

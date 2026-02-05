@@ -1,8 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@heroui/react";
-import { SpeakerWaveIcon, SpeakerXMarkIcon, PlayIcon } from "@heroicons/react/24/solid";
+import {
+  SpeakerWaveIcon,
+  SpeakerXMarkIcon,
+  PlayIcon,
+  ArrowsPointingOutIcon,
+  ArrowsPointingInIcon,
+} from "@heroicons/react/24/solid";
 import { AnimatePresence, motion } from "motion/react";
 import { useTranslations } from "next-intl";
 
@@ -27,6 +33,79 @@ export default function VideoPlayer({ src, duration, poster, className = "" }: V
   const [currentTime, setCurrentTime] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [showControls, setShowControls] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [fullscreenSupported, setFullscreenSupported] = useState(false);
+
+  // Check if fullscreen is supported
+  useEffect(() => {
+    setFullscreenSupported(
+      typeof document !== "undefined" &&
+        (document.fullscreenEnabled ||
+          (document as any).webkitFullscreenEnabled ||
+          (document as any).mozFullScreenEnabled ||
+          (document as any).msFullscreenEnabled)
+    );
+  }, []);
+
+  // Handle fullscreen change events (user exits via native controls or Escape)
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isCurrentlyFullscreen = !!(
+        document.fullscreenElement ||
+        (document as any).webkitFullscreenElement ||
+        (document as any).mozFullScreenElement ||
+        (document as any).msFullscreenElement
+      );
+      setIsFullscreen(isCurrentlyFullscreen);
+    };
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+    document.addEventListener("mozfullscreenchange", handleFullscreenChange);
+    document.addEventListener("MSFullscreenChange", handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
+      document.removeEventListener("mozfullscreenchange", handleFullscreenChange);
+      document.removeEventListener("MSFullscreenChange", handleFullscreenChange);
+    };
+  }, []);
+
+  const toggleFullscreen = useCallback(
+    async (e: React.MouseEvent | React.TouchEvent | any) => {
+      e?.stopPropagation?.();
+      const container = containerRef.current;
+      if (!container) return;
+
+      try {
+        if (!isFullscreen) {
+          if (container.requestFullscreen) {
+            await container.requestFullscreen();
+          } else if ((container as any).webkitRequestFullscreen) {
+            await (container as any).webkitRequestFullscreen();
+          } else if ((container as any).mozRequestFullScreen) {
+            await (container as any).mozRequestFullScreen();
+          } else if ((container as any).msRequestFullscreen) {
+            await (container as any).msRequestFullscreen();
+          }
+        } else {
+          if (document.exitFullscreen) {
+            await document.exitFullscreen();
+          } else if ((document as any).webkitExitFullscreen) {
+            await (document as any).webkitExitFullscreen();
+          } else if ((document as any).mozCancelFullScreen) {
+            await (document as any).mozCancelFullScreen();
+          } else if ((document as any).msExitFullscreen) {
+            await (document as any).msExitFullscreen();
+          }
+        }
+      } catch (_err) {
+        // Fullscreen request failed, ignore
+      }
+    },
+    [isFullscreen]
+  );
 
   // Format seconds to mm:ss
   const formatTime = (seconds: number) => {
@@ -142,6 +221,8 @@ export default function VideoPlayer({ src, duration, poster, className = "" }: V
         ref={videoRef}
         loop
         playsInline
+        webkit-playsinline="true"
+        x5-playsinline="true"
         className="h-full w-full object-cover"
         muted={isMuted}
         poster={poster}
@@ -190,7 +271,7 @@ export default function VideoPlayer({ src, duration, poster, className = "" }: V
             </div>
 
             {/* Bottom: Mute, Progress & Time */}
-            <div className="pointer-events-auto absolute right-0 bottom-0 left-0 space-y-2 p-4">
+            <div className="pointer-events-auto absolute right-0 bottom-0 left-0 space-y-2 p-4 pr-16">
               <div className="flex items-center justify-between px-1 text-xs font-medium text-white/90">
                 <div className="flex items-center gap-2">
                   <Button
@@ -209,7 +290,25 @@ export default function VideoPlayer({ src, duration, poster, className = "" }: V
                   </Button>
                   <span>{formatTime(currentTime)}</span>
                 </div>
-                <span>{formatTime(duration || videoRef.current?.duration || 0)}</span>
+                <div className="flex items-center gap-2">
+                  <span>{formatTime(duration || videoRef.current?.duration || 0)}</span>
+                  {fullscreenSupported && (
+                    <Button
+                      isIconOnly
+                      aria-label={isFullscreen ? t("exitFullscreen") : t("fullscreen")}
+                      className="rounded-full text-white/90 backdrop-blur-md hover:bg-white/20 hover:text-white"
+                      size="sm"
+                      variant="light"
+                      onPress={toggleFullscreen}
+                    >
+                      {isFullscreen ? (
+                        <ArrowsPointingInIcon className="h-5 w-5" />
+                      ) : (
+                        <ArrowsPointingOutIcon className="h-5 w-5" />
+                      )}
+                    </Button>
+                  )}
+                </div>
               </div>
 
               {/* Progress Bar */}
