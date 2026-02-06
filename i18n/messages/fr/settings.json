@@ -374,8 +374,15 @@
         "subtitle": "Mots-clés d'unité de temps pour la détection de minuterie",
         "description": "Configurez les mots-clés utilisés pour détecter les minuteries dans les instructions de recette. Supporte plusieurs langues.",
         "enableToggle": "Activer la détection de minuterie",
-        "placeholder": "minute, min, heure, h, seconde, sec...",
-        "inputHelp": "Entrez les mots-clés d'unité de temps séparés par des virgules. Exemples: minute, min, heure, h, uur, stunde",
+        "hoursLabel": "Mots-clés pour heures",
+        "hoursPlaceholder": "heure, heures, h",
+        "hoursHelp": "Mots-clés pour les heures (par ex. heure, hour, stunde, uur)",
+        "minutesLabel": "Mots-clés pour minutes",
+        "minutesPlaceholder": "minute, minutes, min",
+        "minutesHelp": "Mots-clés pour les minutes (par ex. minute, minuten, minuut)",
+        "secondsLabel": "Mots-clés pour secondes",
+        "secondsPlaceholder": "seconde, secondes, sec, s",
+        "secondsHelp": "Mots-clés pour les secondes (par ex. seconde, second, sekunde)",
         "unsavedChanges": "Modifications non enregistrées"
       }
     },

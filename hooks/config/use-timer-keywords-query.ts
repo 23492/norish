@@ -17,7 +17,13 @@ export function useTimerKeywordsQuery() {
   });
 
   return {
-    timerKeywords: data ?? { enabled: true, keywords: [], isOverridden: false },
+    timerKeywords: data ?? {
+      enabled: true,
+      hours: [],
+      minutes: [],
+      seconds: [],
+      isOverridden: false,
+    },
     isLoading,
     error,
   };

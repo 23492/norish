@@ -374,8 +374,15 @@
         "subtitle": "Zeiteinheit-Schlüsselwörter für Timer-Erkennung",
         "description": "Konfigurieren Sie Schlüsselwörter zur Timer-Erkennung in Rezeptanweisungen. Unterstützt mehrere Sprachen.",
         "enableToggle": "Timer-Erkennung aktivieren",
-        "placeholder": "minute, min, stunde, std, sekunde, sek...",
-        "inputHelp": "Geben Sie Zeiteinheit-Schlüsselwörter getrennt durch Kommas ein. Beispiele: minute, min, minuten, stunde, std, uur",
+        "hoursLabel": "Stunden-Schlüsselwörter",
+        "hoursPlaceholder": "stunde, stunden, std, h",
+        "hoursHelp": "Schlüsselwörter für Stunden (z.B. stunde, hour, heure, uur)",
+        "minutesLabel": "Minuten-Schlüsselwörter",
+        "minutesPlaceholder": "minute, minuten, min",
+        "minutesHelp": "Schlüsselwörter für Minuten (z.B. minute, minuten, minuut)",
+        "secondsLabel": "Sekunden-Schlüsselwörter",
+        "secondsPlaceholder": "sekunde, sekunden, sek, s",
+        "secondsHelp": "Schlüsselwörter für Sekunden (z.B. sekunde, second, seconde)",
         "unsavedChanges": "Nicht gespeicherte Änderungen"
       }
     },

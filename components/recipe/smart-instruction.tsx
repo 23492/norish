@@ -16,50 +16,57 @@ interface SmartInstructionProps {
   stepIndex: number;
 }
 
+type Segment = {
+  type: "text" | "timer";
+  content: string;
+  startIndex: number;
+  endIndex: number;
+  data?: any;
+};
+
 export function SmartInstruction({ text, recipeId, recipeName, stepIndex }: SmartInstructionProps) {
   const { timersEnabled } = useTimersEnabledQuery();
   const { timerKeywords } = useTimerKeywordsQuery();
 
   const segments = useMemo(() => {
-    if (timersEnabled === false || !timerKeywords.enabled) {
-      return [{ type: "text" as const, content: text }];
-    }
+    const allSegments: Segment[] = [];
 
-    const parts: Array<{ type: "text" | "timer"; content: string; timerData?: any }> = [];
-    let lastIndex = 0;
+    // Parse timers if enabled - memoized to avoid re-parsing on every render
+    if (timersEnabled && timerKeywords.enabled) {
+      try {
+        const timerMatches = parseTimerDurations(text, {
+          hours: timerKeywords.hours,
+          minutes: timerKeywords.minutes,
+          seconds: timerKeywords.seconds,
+        });
 
-    const matches = parseTimerDurations(text, timerKeywords.keywords);
+        timerMatches.forEach((match, idx) => {
+          const durationMs = match.durationSeconds * 1000;
+          const timerId = `${recipeId}-s${stepIndex}-${idx}`;
+          const label = `Step ${stepIndex + 1} Timer`;
 
-    matches.forEach((match, occurrenceIndex) => {
-      if (match.startIndex > lastIndex) {
-        parts.push({ type: "text", content: text.slice(lastIndex, match.startIndex) });
+          allSegments.push({
+            type: "timer",
+            content: match.originalText,
+            startIndex: match.startIndex,
+            endIndex: match.endIndex,
+            data: {
+              timerId,
+              recipeId,
+              recipeName,
+              label,
+              durationMs,
+              originalText: match.originalText,
+            },
+          });
+        });
+      } catch (error) {
+        // Silently handle parser errors to avoid breaking the UI
+        console.warn("Timer parsing failed:", error);
       }
-
-      const durationMs = match.durationSeconds * 1000;
-      const timerId = `${recipeId}-s${stepIndex}-${occurrenceIndex}`;
-      const label = `Step ${stepIndex + 1} Timer`;
-
-      parts.push({
-        type: "timer",
-        content: match.originalText,
-        timerData: {
-          timerId,
-          recipeId,
-          recipeName,
-          label,
-          durationMs,
-          originalText: match.originalText,
-        },
-      });
-
-      lastIndex = match.endIndex;
-    });
-
-    if (lastIndex < text.length) {
-      parts.push({ type: "text", content: text.slice(lastIndex) });
     }
 
-    return parts;
+    return allSegments;
   }, [text, recipeId, recipeName, stepIndex, timersEnabled, timerKeywords]);
 
   const processedText = useMemo(() => {
@@ -106,7 +113,7 @@ export function SmartInstruction({ text, recipeId, recipeName, stepIndex }: Smar
             );
           },
           p: ({ children }) => {
-            if (timersEnabled && timerKeywords.enabled) {
+            if (timersEnabled && timerKeywords.enabled && segments.length > 0) {
               return <span>{renderWithTimers(children, segments)}</span>;
             }
             return <span>{children}</span>;
@@ -143,7 +150,7 @@ function preprocessMarkdown(text: string): string {
   return processed;
 }
 
-function renderWithTimers(children: any, segments: any[]): React.ReactNode {
+function renderWithTimers(children: any, segments: Segment[]): React.ReactNode {
   if (!children || typeof children === "string") {
     return insertTimers(children || "", segments);
   }
@@ -151,11 +158,7 @@ function renderWithTimers(children: any, segments: any[]): React.ReactNode {
   if (Array.isArray(children)) {
     return children.map((child, idx) => {
       if (typeof child === "string") {
-        return (
-          <React.Fragment key={`frag-${idx}-${child.substring(0, 10)}`}>
-            {insertTimers(child, segments)}
-          </React.Fragment>
-        );
+        return <React.Fragment key={`seg-${idx}`}>{insertTimers(child, segments)}</React.Fragment>;
       }
       return <React.Fragment key={`child-${idx}`}>{child}</React.Fragment>;
     });
@@ -164,32 +167,54 @@ function renderWithTimers(children: any, segments: any[]): React.ReactNode {
   return children;
 }
 
-function insertTimers(text: string, segments: any[]): React.ReactNode[] {
+function insertTimers(text: string, segments: Segment[]): React.ReactNode[] {
+  if (segments.length === 0) {
+    return [text];
+  }
+
   const result: React.ReactNode[] = [];
-  let processedText = text;
+  let currentIndex = 0;
 
-  segments.forEach((segment) => {
-    if (segment.type === "timer" && processedText.includes(segment.content)) {
-      const parts = processedText.split(segment.content);
-      if (parts[0]) result.push(parts[0]);
+  // Sort segments by start index
+  const sortedSegments = [...segments].sort((a, b) => a.startIndex - b.startIndex);
 
-      result.push(
-        <TimerChip
-          key={`timer-${segment.timerData.timerId}`}
-          id={segment.timerData.timerId}
-          recipeId={segment.timerData.recipeId}
-          recipeName={segment.timerData.recipeName}
-          initialLabel={segment.timerData.label}
-          durationMs={segment.timerData.durationMs}
-          originalText={segment.timerData.originalText}
-        />
-      );
+  sortedSegments.forEach((segment) => {
+    // Check if this segment's content is in the text starting from currentIndex
+    const segmentPosition = text.indexOf(segment.content, currentIndex);
 
-      processedText = parts.slice(1).join(segment.content);
+    if (segmentPosition === -1) {
+      // Segment not found in this text node, skip
+      return;
     }
+
+    // Add text before this segment
+    if (currentIndex < segmentPosition) {
+      const beforeText = text.substring(currentIndex, segmentPosition);
+      if (beforeText) {
+        result.push(beforeText);
+      }
+    }
+
+    // Add the timer chip
+    result.push(
+      <TimerChip
+        key={`timer-${segment.data.timerId}`}
+        id={segment.data.timerId}
+        recipeId={segment.data.recipeId}
+        recipeName={segment.data.recipeName}
+        initialLabel={segment.data.label}
+        durationMs={segment.data.durationMs}
+        originalText={segment.data.originalText}
+      />
+    );
+
+    currentIndex = segmentPosition + segment.content.length;
   });
 
-  if (processedText) result.push(processedText);
+  // Add remaining text
+  if (currentIndex < text.length) {
+    result.push(text.substring(currentIndex));
+  }
 
   return result.length > 0 ? result : [text];
 }

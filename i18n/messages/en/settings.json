@@ -374,8 +374,15 @@
         "subtitle": "Time unit keywords for timer detection",
         "description": "Configure keywords used to detect timers in recipe instructions. Supports multiple languages.",
         "enableToggle": "Enable Timer Detection",
-        "placeholder": "minute, min, hour, hr, second, sec...",
-        "inputHelp": "Enter time unit keywords separated by commas. Examples: minute, min, minuten, heure, uur",
+        "hoursLabel": "Hour Keywords",
+        "hoursPlaceholder": "hour, hours, hr, hrs, h",
+        "hoursHelp": "Keywords for hours (e.g., hour, stunde, heure, uur)",
+        "minutesLabel": "Minute Keywords",
+        "minutesPlaceholder": "minute, minutes, min, mins, m",
+        "minutesHelp": "Keywords for minutes (e.g., minute, minuten, minuut)",
+        "secondsLabel": "Second Keywords",
+        "secondsPlaceholder": "second, seconds, sec, secs, s",
+        "secondsHelp": "Keywords for seconds (e.g., second, sekunde, seconde)",
         "unsavedChanges": "Unsaved changes"
       }
     },

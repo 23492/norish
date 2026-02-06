@@ -45,7 +45,9 @@ export default function ContentDetectionCard() {
             <div className="p-2">
               <TimerKeywordsEditor
                 enabled={timerKeywords?.enabled ?? true}
-                keywords={timerKeywords?.keywords ?? []}
+                hours={timerKeywords?.hours ?? []}
+                minutes={timerKeywords?.minutes ?? []}
+                seconds={timerKeywords?.seconds ?? []}
                 onUpdate={updateTimerKeywords}
                 onRestoreDefaults={() => restoreDefaultConfig(ServerConfigKeys.TIMER_KEYWORDS)}
               />

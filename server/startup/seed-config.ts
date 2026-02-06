@@ -496,11 +496,15 @@ async function syncTimerKeywords(): Promise<void> {
   // If config exists but isOverridden=false, check if file has changed
   const storedComparable = {
     enabled: existing.enabled,
-    keywords: existing.keywords,
+    hours: existing.hours,
+    minutes: existing.minutes,
+    seconds: existing.seconds,
   };
   const fileComparable = {
     enabled: fileDefaults.enabled,
-    keywords: fileDefaults.keywords,
+    hours: fileDefaults.hours,
+    minutes: fileDefaults.minutes,
+    seconds: fileDefaults.seconds,
   };
 
   if (configsDiffer(storedComparable, fileComparable)) {

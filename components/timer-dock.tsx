@@ -21,16 +21,26 @@ import { useAutoHide } from "@/hooks/auto-hide";
 
 const logger = createClientLogger("timer-dock");
 
-// Global tick loop component
+// Global tick loop component - only runs when timers are active
 function TimerTicker() {
   const tick = useTimerStore((state) => state.tick);
+  const timers = useTimerStore((state) => state.timers);
+
+  // Check if there are any running timers
+  const hasRunningTimers = timers.some((t) => t.status === "running");
 
   useEffect(() => {
+    // Only start interval if there are running timers
+    if (!hasRunningTimers) {
+      return;
+    }
+
     const interval = setInterval(() => {
       tick();
     }, 1000);
+
     return () => clearInterval(interval);
-  }, [tick]);
+  }, [tick, hasRunningTimers]);
 
   return null;
 }

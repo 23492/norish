@@ -55,7 +55,9 @@ describe("Timer Keywords Configuration - Seeding & Override Behavior", () => {
 
       expect(result).toBeDefined();
       expect(result?.enabled).toBe(DEFAULT_KEYWORDS.enabled);
-      expect(result?.keywords).toEqual(DEFAULT_KEYWORDS.keywords);
+      expect(result?.hours).toEqual(DEFAULT_KEYWORDS.hours);
+      expect(result?.minutes).toEqual(DEFAULT_KEYWORDS.minutes);
+      expect(result?.seconds).toEqual(DEFAULT_KEYWORDS.seconds);
       expect(result?.isOverridden).toBe(false);
     });
 
@@ -67,18 +69,18 @@ describe("Timer Keywords Configuration - Seeding & Override Behavior", () => {
       const result = await getConfig<TimerKeywordsConfig>(ServerConfigKeys.TIMER_KEYWORDS);
 
       // Verify English keywords
-      expect(result?.keywords).toContain("minute");
-      expect(result?.keywords).toContain("hour");
+      expect(result?.minutes).toContain("minute");
+      expect(result?.hours).toContain("hour");
 
       // Verify German keywords
-      expect(result?.keywords).toContain("minuten");
-      expect(result?.keywords).toContain("stunde");
+      expect(result?.minutes).toContain("minuten");
+      expect(result?.hours).toContain("stunde");
 
       // Verify French keywords
-      expect(result?.keywords).toContain("heure");
+      expect(result?.hours).toContain("heure");
 
       // Verify Dutch keywords
-      expect(result?.keywords).toContain("uur");
+      expect(result?.hours).toContain("uur");
     });
   });
 
@@ -90,12 +92,14 @@ describe("Timer Keywords Configuration - Seeding & Override Behavior", () => {
 
       let result = await getConfig<TimerKeywordsConfig>(ServerConfigKeys.TIMER_KEYWORDS);
       expect(result?.isOverridden).toBe(false);
-      const originalKeywords = result?.keywords;
+      const originalMinutes = result?.minutes;
 
       // Simulate config file update by manually setting new keywords with isOverridden=false
       const updatedConfig: TimerKeywordsConfig = {
         enabled: true,
-        keywords: [...(originalKeywords || []), "segundo", "segundos"], // Added Spanish
+        hours: result?.hours || [],
+        minutes: [...(originalMinutes || []), "minuto", "minutos"], // Added Spanish
+        seconds: result?.seconds || [],
         isOverridden: false, // Still using defaults
       };
 
@@ -103,7 +107,7 @@ describe("Timer Keywords Configuration - Seeding & Override Behavior", () => {
 
       // Verify update was applied
       result = await getConfig<TimerKeywordsConfig>(ServerConfigKeys.TIMER_KEYWORDS);
-      expect(result?.keywords).toContain("segundo");
+      expect(result?.minutes).toContain("minuto");
       expect(result?.isOverridden).toBe(false);
     });
 
@@ -127,7 +131,9 @@ describe("Timer Keywords Configuration - Seeding & Override Behavior", () => {
       // User customizes keywords
       const userCustomConfig: TimerKeywordsConfig = {
         enabled: true,
-        keywords: ["dakika", "saat"], // Turkish only
+        hours: ["saat"],
+        minutes: ["dakika"], // Turkish only
+        seconds: ["saniye"],
         isOverridden: true,
       };
 
@@ -135,7 +141,7 @@ describe("Timer Keywords Configuration - Seeding & Override Behavior", () => {
 
       // Verify user config is saved
       let result = await getConfig<TimerKeywordsConfig>(ServerConfigKeys.TIMER_KEYWORDS);
-      expect(result?.keywords).toEqual(["dakika", "saat"]);
+      expect(result?.minutes).toEqual(["dakika"]);
       expect(result?.isOverridden).toBe(true);
 
       // Attempt to seed (should skip because isOverridden=true)
@@ -143,15 +149,17 @@ describe("Timer Keywords Configuration - Seeding & Override Behavior", () => {
 
       // Verify user config is UNCHANGED
       result = await getConfig<TimerKeywordsConfig>(ServerConfigKeys.TIMER_KEYWORDS);
-      expect(result?.keywords).toEqual(["dakika", "saat"]);
+      expect(result?.minutes).toEqual(["dakika"]);
       expect(result?.isOverridden).toBe(true);
-      expect(result?.keywords).not.toContain("minute"); // Defaults not applied
+      expect(result?.minutes).not.toContain("minute"); // Defaults not applied
     });
 
     it("should preserve custom keywords even with multiple seed attempts", async () => {
       const customConfig: TimerKeywordsConfig = {
         enabled: true,
-        keywords: ["custom1", "custom2"],
+        hours: ["custom_h"],
+        minutes: ["custom_m"],
+        seconds: ["custom_s"],
         isOverridden: true,
       };
 
@@ -164,7 +172,9 @@ describe("Timer Keywords Configuration - Seeding & Override Behavior", () => {
 
       // Verify still custom
       const result = await getConfig<TimerKeywordsConfig>(ServerConfigKeys.TIMER_KEYWORDS);
-      expect(result?.keywords).toEqual(["custom1", "custom2"]);
+      expect(result?.hours).toEqual(["custom_h"]);
+      expect(result?.minutes).toEqual(["custom_m"]);
+      expect(result?.seconds).toEqual(["custom_s"]);
       expect(result?.isOverridden).toBe(true);
     });
   });
@@ -181,7 +191,9 @@ describe("Timer Keywords Configuration - Seeding & Override Behavior", () => {
       // Admin saves custom config via UI (simulating admin mutation)
       const adminCustomConfig: TimerKeywordsConfig = {
         enabled: true,
-        keywords: ["admin", "custom", "keywords"],
+        hours: ["admin_hour"],
+        minutes: ["admin_min"],
+        seconds: ["admin_sec"],
         isOverridden: true, // Set by admin mutation
       };
 
@@ -189,7 +201,7 @@ describe("Timer Keywords Configuration - Seeding & Override Behavior", () => {
 
       result = await getConfig<TimerKeywordsConfig>(ServerConfigKeys.TIMER_KEYWORDS);
       expect(result?.isOverridden).toBe(true);
-      expect(result?.keywords).toEqual(["admin", "custom", "keywords"]);
+      expect(result?.minutes).toEqual(["admin_min"]);
     });
   });
 
@@ -198,7 +210,9 @@ describe("Timer Keywords Configuration - Seeding & Override Behavior", () => {
       // User has custom config
       const customConfig: TimerKeywordsConfig = {
         enabled: true,
-        keywords: ["custom"],
+        hours: ["custom_h"],
+        minutes: ["custom_m"],
+        seconds: ["custom_s"],
         isOverridden: true,
       };
 
@@ -216,7 +230,9 @@ describe("Timer Keywords Configuration - Seeding & Override Behavior", () => {
 
       // Verify defaults restored
       result = await getConfig<TimerKeywordsConfig>(ServerConfigKeys.TIMER_KEYWORDS);
-      expect(result?.keywords).toEqual(DEFAULT_KEYWORDS.keywords);
+      expect(result?.hours).toEqual(DEFAULT_KEYWORDS.hours);
+      expect(result?.minutes).toEqual(DEFAULT_KEYWORDS.minutes);
+      expect(result?.seconds).toEqual(DEFAULT_KEYWORDS.seconds);
       expect(result?.isOverridden).toBe(false);
     });
 
@@ -224,7 +240,9 @@ describe("Timer Keywords Configuration - Seeding & Override Behavior", () => {
       // User has custom config
       const customConfig: TimerKeywordsConfig = {
         enabled: true,
-        keywords: ["custom"],
+        hours: ["custom_h"],
+        minutes: ["custom_m"],
+        seconds: ["custom_s"],
         isOverridden: true,
       };
 
@@ -233,7 +251,9 @@ describe("Timer Keywords Configuration - Seeding & Override Behavior", () => {
       // Reset by setting defaults with isOverridden=false
       const resetConfig: TimerKeywordsConfig = {
         enabled: DEFAULT_KEYWORDS.enabled,
-        keywords: DEFAULT_KEYWORDS.keywords,
+        hours: DEFAULT_KEYWORDS.hours,
+        minutes: DEFAULT_KEYWORDS.minutes,
+        seconds: DEFAULT_KEYWORDS.seconds,
         isOverridden: false,
       };
 
@@ -241,7 +261,9 @@ describe("Timer Keywords Configuration - Seeding & Override Behavior", () => {
 
       // Verify reset
       const result = await getConfig<TimerKeywordsConfig>(ServerConfigKeys.TIMER_KEYWORDS);
-      expect(result?.keywords).toEqual(DEFAULT_KEYWORDS.keywords);
+      expect(result?.hours).toEqual(DEFAULT_KEYWORDS.hours);
+      expect(result?.minutes).toEqual(DEFAULT_KEYWORDS.minutes);
+      expect(result?.seconds).toEqual(DEFAULT_KEYWORDS.seconds);
       expect(result?.isOverridden).toBe(false);
     });
   });
@@ -254,7 +276,9 @@ describe("Timer Keywords Configuration - Seeding & Override Behavior", () => {
       // Disable feature
       const disabledConfig: TimerKeywordsConfig = {
         enabled: false,
-        keywords: DEFAULT_KEYWORDS.keywords,
+        hours: DEFAULT_KEYWORDS.hours,
+        minutes: DEFAULT_KEYWORDS.minutes,
+        seconds: DEFAULT_KEYWORDS.seconds,
         isOverridden: false,
       };
 
@@ -262,12 +286,16 @@ describe("Timer Keywords Configuration - Seeding & Override Behavior", () => {
 
       let result = await getConfig<TimerKeywordsConfig>(ServerConfigKeys.TIMER_KEYWORDS);
       expect(result?.enabled).toBe(false);
-      expect(result?.keywords).toEqual(DEFAULT_KEYWORDS.keywords);
+      expect(result?.hours).toEqual(DEFAULT_KEYWORDS.hours);
+      expect(result?.minutes).toEqual(DEFAULT_KEYWORDS.minutes);
+      expect(result?.seconds).toEqual(DEFAULT_KEYWORDS.seconds);
 
       // Re-enable feature
       const enabledConfig: TimerKeywordsConfig = {
         enabled: true,
-        keywords: DEFAULT_KEYWORDS.keywords,
+        hours: DEFAULT_KEYWORDS.hours,
+        minutes: DEFAULT_KEYWORDS.minutes,
+        seconds: DEFAULT_KEYWORDS.seconds,
         isOverridden: false,
       };
 
@@ -275,13 +303,17 @@ describe("Timer Keywords Configuration - Seeding & Override Behavior", () => {
 
       result = await getConfig<TimerKeywordsConfig>(ServerConfigKeys.TIMER_KEYWORDS);
       expect(result?.enabled).toBe(true);
-      expect(result?.keywords).toEqual(DEFAULT_KEYWORDS.keywords);
+      expect(result?.hours).toEqual(DEFAULT_KEYWORDS.hours);
+      expect(result?.minutes).toEqual(DEFAULT_KEYWORDS.minutes);
+      expect(result?.seconds).toEqual(DEFAULT_KEYWORDS.seconds);
     });
 
     it("should preserve user keywords when toggling enabled state", async () => {
       const customConfig: TimerKeywordsConfig = {
         enabled: true,
-        keywords: ["custom", "keywords"],
+        hours: ["custom_h"],
+        minutes: ["custom_m"],
+        seconds: ["custom_s"],
         isOverridden: true,
       };
 
@@ -293,7 +325,9 @@ describe("Timer Keywords Configuration - Seeding & Override Behavior", () => {
 
       let result = await getConfig<TimerKeywordsConfig>(ServerConfigKeys.TIMER_KEYWORDS);
       expect(result?.enabled).toBe(false);
-      expect(result?.keywords).toEqual(["custom", "keywords"]);
+      expect(result?.hours).toEqual(["custom_h"]);
+      expect(result?.minutes).toEqual(["custom_m"]);
+      expect(result?.seconds).toEqual(["custom_s"]);
 
       // Toggle back to enabled
       customConfig.enabled = true;
@@ -301,7 +335,9 @@ describe("Timer Keywords Configuration - Seeding & Override Behavior", () => {
 
       result = await getConfig<TimerKeywordsConfig>(ServerConfigKeys.TIMER_KEYWORDS);
       expect(result?.enabled).toBe(true);
-      expect(result?.keywords).toEqual(["custom", "keywords"]);
+      expect(result?.hours).toEqual(["custom_h"]);
+      expect(result?.minutes).toEqual(["custom_m"]);
+      expect(result?.seconds).toEqual(["custom_s"]);
     });
   });
 });
