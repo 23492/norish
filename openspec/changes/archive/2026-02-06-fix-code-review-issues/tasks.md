@@ -103,30 +103,30 @@ docker ps -a --filter "ancestor=postgres:15-alpine" --filter "status=exited" | w
 
 ### 3.1 Audit Current German Locale Coverage (15 min)
 
-- [ ] Open `config/units.default.json`
-- [ ] Check each unit for German (`"de"`) locale entries
-- [ ] Create list of units missing German support
+- [x] Open `config/units.default.json`
+- [x] Check each unit for German (`"de"`) locale entries
+- [x] Create list of units missing German support
 
 **Units requiring German locale:**
 
-- [ ] `tablespoon` → German: short="EL", plural="Esslöffel"
-- [ ] `teaspoon` → German: short="TL", plural="Teelöffel"
-- [ ] `cup` → German: short="Tasse", plural="Tassen" / "Becher"
-- [ ] `bag` → German: short="Beutel", plural="Beutel"
-- [ ] `bunch` → German: short="Bund", plural="Bünde"
-- [ ] `can` → German: short="Dose", plural="Dosen"
-- [ ] `dozen` → German: short="Dutzend", plural="Dutzend"
-- [ ] `bottle` → German: short="Flasche", plural="Flaschen"
-- [ ] `glass` → German: short="Glas", plural="Gläser"
-- [ ] `handful` → German: short="Handvoll", plural="Handvoll"
-- [ ] `bulb` → German: short="Knolle", plural="Knollen"
-- [ ] `head` → German: short="Kopf", plural="Köpfe"
-- [ ] `pack` → German: short="Packung", plural="Packungen"
-- [ ] `slice` → German: short="Scheibe", plural="Scheiben"
-- [ ] `dash` → German: short="Schuss", plural="Schüsse"
-- [ ] `splash` → German: short="Spritzer", plural="Spritzer"
-- [ ] `drop` → German: short="Tropfen", plural="Tropfen"
-- [ ] `cube` → German: short="Würfel", plural="Würfel"
+- [x] `tablespoon` → German: short="EL", plural="Esslöffel"
+- [x] `teaspoon` → German: short="TL", plural="Teelöffel"
+- [x] `cup` → German: short="Tasse", plural="Tassen" / "Becher"
+- [x] `bag` → German: short="Beutel", plural="Beutel"
+- [x] `bunch` → German: short="Bund", plural="Bünde"
+- [x] `can` → German: short="Dose", plural="Dosen"
+- [x] `dozen` → German: short="Dutzend", plural="Dutzend"
+- [x] `bottle` → German: short="Flasche", plural="Flaschen"
+- [x] `glass` → German: short="Glas", plural="Gläser"
+- [x] `handful` → German: short="Handvoll", plural="Handvoll"
+- [x] `bulb` → German: short="Knolle", plural="Knollen"
+- [x] `head` → German: short="Kopf", plural="Köpfe"
+- [x] `pack` → German: short="Packung", plural="Packungen"
+- [x] `slice` → German: short="Scheibe", plural="Scheiben"
+- [x] `dash` → German: short="Schuss", plural="Schüsse"
+- [x] `splash` → German: short="Spritzer", plural="Spritzer"
+- [x] `drop` → German: short="Tropfen", plural="Tropfen"
+- [x] `cube` → German: short="Würfel", plural="Würfel"
 
 ### 3.2 Add German Locale Entries (45 min)
 
@@ -159,21 +159,21 @@ For each unit missing German support:
 }
 ```
 
-- [ ] Update all ~18 units following this pattern
-- [ ] Ensure all German terms added to `alternates` array
-- [ ] Include both capitalized and lowercase variants in alternates
-- [ ] Verify JSON syntax is valid: `node -e "require('./config/units.default.json')"`
+- [x] Update all ~18 units following this pattern
+- [x] Ensure all German terms added to `alternates` array
+- [x] Include both capitalized and lowercase variants in alternates
+- [x] Verify JSON syntax is valid: `node -e "require('./config/units.default.json')"`
 
 ### 3.3 Delete Incorrect Test File (2 min)
 
-- [ ] Delete `__tests__/config/german-units.test.ts`
-- [ ] Reason: Test expects German keys, but config correctly uses English keys
-- [ ] Run: `rm __tests__/config/german-units.test.ts`
+- [x] Delete `__tests__/config/german-units.test.ts`
+- [x] Reason: Test expects German keys, but config correctly uses English keys
+- [x] Run: `rm __tests__/config/german-units.test.ts`
 
 ### 3.4 Create New Comprehensive Coverage Test (28 min)
 
-- [ ] Create `__tests__/config/units-coverage.test.ts`
-- [ ] Implement test suites:
+- [x] Create `__tests__/config/units-coverage.test.ts`
+- [x] Implement test suites:
   1. **Structure validation** - all units have required fields
   2. **Locale arrays** - proper format with locale + name
   3. **English locale** - all units have English support
@@ -206,10 +206,10 @@ describe("Units Configuration Coverage", () => {
 
 ### 3.5 Validation
 
-- [ ] Run: `pnpm test:run __tests__/config/units-coverage.test.ts`
-- [ ] Expect: All tests pass, reports "Total units: 61+"
-- [ ] Test German parsing: `parseIngredientWithDefaults("2 EL Öl", units)`
-- [ ] Verify returns: `{ unitOfMeasureID: "tablespoon", unitOfMeasure: "EL", ... }`
+- [x] Run: `pnpm test:run __tests__/config/units-coverage.test.ts`
+- [x] Expect: All tests pass, reports "Total units: 61+"
+- [x] Test German parsing: `parseIngredientWithDefaults("2 EL Öl", units)`
+- [x] Verify returns: `{ unitOfMeasureID: "tablespoon", unitOfMeasure: "EL", ... }`
 
 **Success Criteria:**
 
@@ -228,11 +228,11 @@ describe("Units Configuration Coverage", () => {
 
 **Tests expecting wrong values (lower bound instead of max):**
 
-- [ ] Open `lib/timer-parser.test.ts`
-- [ ] Line 28: Change `expect(matches[0].durationSeconds).toBe(5 * 60)` → `toBe(10 * 60)`
-- [ ] Line 29: Update `originalText` expectation if needed
-- [ ] Line 35: Change `expect(matches[0].durationSeconds).toBe(5 * 60)` → `toBe(10 * 60)`
-- [ ] Line 36: Update `originalText` expectation if needed
+- [x] Open `lib/timer-parser.test.ts`
+- [x] Line 28: Change `expect(matches[0].durationSeconds).toBe(5 * 60)` → `toBe(10 * 60)`
+- [x] Line 29: Update `originalText` expectation if needed
+- [x] Line 35: Change `expect(matches[0].durationSeconds).toBe(5 * 60)` → `toBe(10 * 60)`
+- [x] Line 36: Update `originalText` expectation if needed
 
 **Comment to add:**
 
@@ -243,9 +243,9 @@ describe("Units Configuration Coverage", () => {
 
 ### 4.2 Delete "more minutes" Test (2 min)
 
-- [ ] Delete test at lines 39-44: `it("detects 'more minutes' pattern", ...)`
-- [ ] Reason: Pattern `"5 to 10 more minutes"` not supported by design
-- [ ] Word "more" breaks the number+unit pattern matching
+- [x] Delete test at lines 39-44: `it("detects 'more minutes' pattern", ...)`
+- [x] Reason: Pattern `"5 to 10 more minutes"` not supported by design
+- [x] Word "more" breaks the number+unit pattern matching
 
 ### 4.3 Fix Comma Handling Bug (20 min)
 
@@ -269,10 +269,10 @@ const priorNumberPattern = /(\d+(?:\.\d+)?)\s*[^\s,]*\s*$/;
 //                                              ^^^^^^ exclude commas from range detection
 ```
 
-- [ ] Update regex pattern at line 76
-- [ ] Add comment explaining comma exclusion
-- [ ] Test with: `parseTimerDurations("10 mins, 5 hrs")`
-- [ ] Expect: 2 timers - [10 mins, 5 hrs] (not 10 hrs)
+- [x] Update regex pattern at line 76
+- [x] Add comment explaining comma exclusion
+- [x] Test with: `parseTimerDurations("10 mins, 5 hrs")`
+- [x] Expect: 2 timers - [10 mins, 5 hrs] (not 10 hrs)
 
 ### 4.4 Add HH:MM Time Format Support (45 min)
 
@@ -353,10 +353,10 @@ while ((colonMatch = colonPattern.exec(text)) !== null) {
 
 **Notes:**
 
-- [ ] Use existing `hourKeywords` and `minuteKeywords` from lines 39-40
-- [ ] Default to hours:minutes when no unit specified (safer for cooking)
-- [ ] Handle HH:MM:SS as always hours:minutes:seconds
-- [ ] Look ahead up to 20 chars for unit keyword after colon pattern
+- [x] Use existing `hourKeywords` and `minuteKeywords` from lines 39-40
+- [x] Default to hours:minutes when no unit specified (safer for cooking)
+- [x] Handle HH:MM:SS as always hours:minutes:seconds
+- [x] Look ahead up to 20 chars for unit keyword after colon pattern
 
 **Add Tests:**
 
@@ -400,9 +400,9 @@ describe("colon time formats", () => {
 
 **Current failure:** `"10 mins, 5 hrs"` returns wrong duration for second timer
 
-- [ ] After comma fix, verify test passes
-- [ ] If still failing, check default keywords include "mins" and "hrs"
-- [ ] Line 39-40: Verify keywords include abbreviations
+- [x] After comma fix, verify test passes
+- [x] If still failing, check default keywords include "mins" and "hrs"
+- [x] Line 39-40: Verify keywords include abbreviations
 
 **Validation:**
 
@@ -427,13 +427,13 @@ pnpm test:run lib/timer-parser.test.ts
 
 ### 5.1 Add Categories Field to Test Expectations
 
-- [ ] Open `__tests__/ai/features/recipe-extraction/normalizer.test.ts`
-- [ ] Find test ~line 220: "returns basic context when normalized is null"
-- [ ] Add `categories: null` to expected object
-- [ ] Find test ~line 230: "includes normalized recipe details when available"
-- [ ] Add `categories: null` to expected object
-- [ ] Find test ~line 240: "handles missing arrays in output gracefully"
-- [ ] Add `categories: null` to expected object
+- [x] Open `__tests__/ai/features/recipe-extraction/normalizer.test.ts`
+- [x] Find test ~line 220: "returns basic context when normalized is null"
+- [x] Add `categories: null` to expected object
+- [x] Find test ~line 230: "includes normalized recipe details when available"
+- [x] Add `categories: null` to expected object
+- [x] Find test ~line 240: "handles missing arrays in output gracefully"
+- [x] Add `categories: null` to expected object
 
 **Example fix:**
 
@@ -458,8 +458,8 @@ expect(context).toEqual({
 
 ### 5.2 Validation
 
-- [ ] Run: `pnpm test:run __tests__/ai/features/recipe-extraction/normalizer.test.ts`
-- [ ] Expect: **17/17 tests pass** (currently 3 failures)
+- [x] Run: `pnpm test:run __tests__/ai/features/recipe-extraction/normalizer.test.ts`
+- [x] Expect: **17/17 tests pass** (currently 3 failures)
 
 **Success Criteria:** All normalizer tests pass
 
@@ -471,18 +471,18 @@ expect(context).toEqual({
 
 ### 6.1 Investigate Current Implementation (10 min)
 
-- [ ] Open `app/(app)/calendar/context.tsx`
-- [ ] Find `expandRange` function
-- [ ] Review date calculation logic
-- [ ] Check if using `addWeeks` helper from `lib/helpers.ts`
+- [x] Open `app/(app)/calendar/context.tsx`
+- [x] Find `expandRange` function
+- [x] Review date calculation logic
+- [x] Check if using `addWeeks` helper from `lib/helpers.ts`
 
 ### 6.2 Debug Date Calculation (10 min)
 
-- [ ] Add logging to see actual vs expected dates
-- [ ] Run failing test: `pnpm test:run __tests__/app/calendar/context.test.tsx`
-- [ ] Compare expected (14 days) vs actual days added
-- [ ] Check for timezone/DST issues
-- [ ] Verify week boundaries handled correctly
+- [x] Add logging to see actual vs expected dates
+- [x] Run failing test: `pnpm test:run __tests__/app/calendar/context.test.tsx`
+- [x] Compare expected (14 days) vs actual days added
+- [x] Check for timezone/DST issues
+- [x] Verify week boundaries handled correctly
 
 ### 6.3 Fix Implementation (10 min)
 
@@ -510,15 +510,15 @@ const expandRange = (direction: "past" | "future") => {
 };
 ```
 
-- [ ] Update function to add/subtract exactly 14 days
-- [ ] Ensure using `setDate` with `getDate() ± 14`
-- [ ] Avoid week-based calculations if causing rounding issues
+- [x] Update function to add/subtract exactly 14 days
+- [x] Ensure using `setDate` with `getDate() ± 14`
+- [x] Avoid week-based calculations if causing rounding issues
 
 ### 6.4 Validation
 
-- [ ] Run: `pnpm test:run __tests__/app/calendar/context.test.tsx`
-- [ ] Expect: **9/9 tests pass** (currently 2 failures)
-- [ ] Manually test infinite scroll in calendar UI
+- [x] Run: `pnpm test:run __tests__/app/calendar/context.test.tsx`
+- [x] Expect: **9/9 tests pass** (currently 2 failures)
+- [x] Manually test infinite scroll in calendar UI
 
 **Success Criteria:** Both expandRange tests pass with exactly 14 days
 
@@ -530,16 +530,16 @@ const expandRange = (direction: "past" | "future") => {
 
 ### 7.1 Understand Current Bug (5 min)
 
-- [ ] Input: `<p>&ldquo;Hello&nbsp;<b>World</b>&rdquo;</p>`
-- [ ] Expected: `"Hello World"` (smart quotes, single space)
-- [ ] Received: `"Hello World "` (extra trailing space)
-- [ ] Root cause: `&nbsp;` decoded to space before tags removed
+- [x] Input: `<p>&ldquo;Hello&nbsp;<b>World</b>&rdquo;</p>`
+- [x] Expected: `"Hello World"` (smart quotes, single space)
+- [x] Received: `"Hello World "` (extra trailing space)
+- [x] Root cause: `&nbsp;` decoded to space before tags removed
 
 ### 7.2 Review Current Implementation (5 min)
 
-- [ ] Open `lib/helpers.ts`
-- [ ] Find `stripHtmlTags` function
-- [ ] Identify order of operations:
+- [x] Open `lib/helpers.ts`
+- [x] Find `stripHtmlTags` function
+- [x] Identify order of operations:
   1. Current: Decode entities → Remove tags → Normalize whitespace
   2. Correct: Remove tags → Decode entities → Normalize whitespace
 
@@ -586,15 +586,15 @@ export function stripHtmlTags(html: string): string {
 }
 ```
 
-- [ ] Reorder operations: tags → entities → whitespace
-- [ ] Ensure all entity replacements happen after tag removal
-- [ ] Test with problematic input
+- [x] Reorder operations: tags → entities → whitespace
+- [x] Ensure all entity replacements happen after tag removal
+- [x] Test with problematic input
 
 ### 7.4 Validation
 
-- [ ] Run: `pnpm test:run __tests__/helpers.test.ts`
-- [ ] Expect: **45/45 tests pass** (currently 1 failure)
-- [ ] Specifically verify "handles mixed entities and HTML tags" passes
+- [x] Run: `pnpm test:run __tests__/helpers.test.ts`
+- [x] Expect: **45/45 tests pass** (currently 1 failure)
+- [x] Specifically verify "handles mixed entities and HTML tags" passes
 
 **Success Criteria:** No extra whitespace, all helpers tests pass
 
@@ -606,29 +606,29 @@ export function stripHtmlTags(html: string): string {
 
 ### 8.1 Remove Empty useEffect (5 min)
 
-- [ ] Open `components/recipe/timer-chip.tsx`
-- [ ] Delete lines 43-46:
+- [x] Open `components/recipe/timer-chip.tsx`
+- [x] Delete lines 43-46:
   ```typescript
   useEffect(() => {
     if (!timer) {
     }
   }, [timer]);
   ```
-- [ ] Verify timer functionality still works (cleanup in timer-dock.tsx:86-91)
-- [ ] Run timer tests to confirm no regression
+- [x] Verify timer functionality still works (cleanup in timer-dock.tsx:86-91)
+- [x] Run timer tests to confirm no regression
 
 ### 8.2 Replace console.warn with Logger (10 min)
 
-- [ ] Open `components/recipe/smart-instruction.tsx`
-- [ ] Add import at top:
+- [x] Open `components/recipe/smart-instruction.tsx`
+- [x] Add import at top:
   ```typescript
   import { createClientLogger } from "@/lib/logger";
   ```
-- [ ] Add logger instance below imports:
+- [x] Add logger instance below imports:
   ```typescript
   const logger = createClientLogger("smart-instruction");
   ```
-- [ ] Replace line 65:
+- [x] Replace line 65:
 
   ```typescript
   // OLD:
@@ -672,10 +672,10 @@ for (const item of plannedItems) {
 }
 ```
 
-- [ ] Import `getPlannedItemsByRecipeId` from planned-items repository
-- [ ] Remove TODO comment
-- [ ] Uncomment and update code to use planned-items API
-- [ ] Verify `syncPlannedItemToCalendar` function exists
+- [x] Import `getPlannedItemsByRecipeId` from planned-items repository
+- [x] Remove TODO comment
+- [x] Uncomment and update code to use planned-items API
+- [x] Verify `syncPlannedItemToCalendar` function exists
 
 #### 8.3.2 Re-enable syncAllFutureItems (10 min)
 
@@ -720,36 +720,36 @@ export async function syncAllFutureItems(userId: string): Promise<{
 }
 ```
 
-- [ ] Import `getFuturePlannedItems` from planned-items repository
-- [ ] Implement actual sync logic
-- [ ] Remove TODO comment
-- [ ] Add error handling for individual sync failures
+- [x] Import `getFuturePlannedItems` from planned-items repository
+- [x] Implement actual sync logic
+- [x] Remove TODO comment
+- [x] Add error handling for individual sync failures
 
 #### 8.3.3 Re-enable retryFailedSyncs (10 min)
 
 **Location:** Line 354 (similar pattern)
 
-- [ ] Check if `retryFailedSyncs` has TODO comment
-- [ ] Implement using planned-items repository
-- [ ] Remove TODO comment
-- [ ] Add proper error handling
+- [x] Check if `retryFailedSyncs` has TODO comment
+- [x] Implement using planned-items repository
+- [x] Remove TODO comment
+- [x] Add proper error handling
 
 ### 8.4 Manual CalDAV Testing (10 min)
 
-- [ ] Start dev server: `pnpm dev`
-- [ ] Configure CalDAV connection in settings
-- [ ] Test Case 1: Create calendar event → verify recipe appears
-- [ ] Test Case 2: Update recipe name → verify calendar event updates
-- [ ] Test Case 3: Delete calendar event → verify recipe removed
-- [ ] Test Case 4: Sync all future items → verify batch sync works
-- [ ] Check logs for errors
+- [x] Start dev server: `pnpm dev`
+- [x] Configure CalDAV connection in settings
+- [x] Test Case 1: Create calendar event → verify recipe appears
+- [x] Test Case 2: Update recipe name → verify calendar event updates
+- [x] Test Case 3: Delete calendar event → verify recipe removed
+- [x] Test Case 4: Sync all future items → verify batch sync works
+- [x] Check logs for errors
 
 ### 8.5 Validation
 
-- [ ] Run: `pnpm lint` → 0 errors
-- [ ] Run: `pnpm build` → success
-- [ ] Verify no `console.log` or `console.warn` in codebase
-- [ ] Manual CalDAV tests pass
+- [x] Run: `pnpm lint` → 0 errors
+- [x] Run: `pnpm build` → success
+- [x] Verify no `console.log` or `console.warn` in codebase
+- [x] Manual CalDAV tests pass
 
 **Success Criteria:**
 
@@ -772,13 +772,13 @@ pnpm test:run
 
 **Expected Results:**
 
-- [ ] 0 test failures (currently 87 failures)
-- [ ] All 39 unit-localization tests pass ✅
-- [ ] New units-coverage test passes ✅
-- [ ] All timer-parser tests pass ✅
-- [ ] All 3 normalizer tests pass ✅
-- [ ] Both calendar context tests pass ✅
-- [ ] All 45 helpers tests pass ✅
+- [x] 0 test failures (currently 87 failures)
+- [x] All 39 unit-localization tests pass ✅
+- [x] New units-coverage test passes ✅
+- [x] All timer-parser tests pass ✅
+- [x] All 3 normalizer tests pass ✅
+- [x] Both calendar context tests pass ✅
+- [x] All 45 helpers tests pass ✅
 
 ### 9.2 Verify Container Cleanup (5 min)
 
@@ -799,9 +799,9 @@ docker ps --filter "ancestor=postgres:15-alpine"
 # Expected: Still empty
 ```
 
-- [ ] No containers running after tests
-- [ ] No orphaned stopped containers
-- [ ] Container cleanup works across multiple test runs
+- [x] No containers running after tests
+- [x] No orphaned stopped containers
+- [x] Container cleanup works across multiple test runs
 
 ### 9.3 Run Quality Checks (10 min)
 
@@ -819,25 +819,25 @@ pnpm format:check
 # Expected: All files properly formatted
 ```
 
-- [ ] Linter passes
-- [ ] Build completes successfully
-- [ ] No TypeScript errors
-- [ ] Code formatting correct
+- [x] Linter passes
+- [x] Build completes successfully
+- [x] No TypeScript errors
+- [x] Code formatting correct
 
 ### 9.4 Manual Feature Testing (5 min)
 
-- [ ] Test German recipe: Parse `"2 EL Öl"` → returns `tablespoon`
-- [ ] Test timer with unit: `"Bake for 1:30 hours"` → creates 90-minute timer
-- [ ] Test timer default: `"Bake for 10:30"` → creates 10.5-hour timer
-- [ ] Test CalDAV: Create/update/delete calendar events → syncs correctly
-- [ ] Check browser console for errors
+- [x] Test German recipe: Parse `"2 EL Öl"` → returns `tablespoon`
+- [x] Test timer with unit: `"Bake for 1:30 hours"` → creates 90-minute timer
+- [x] Test timer default: `"Bake for 10:30"` → creates 10.5-hour timer
+- [x] Test CalDAV: Create/update/delete calendar events → syncs correctly
+- [x] Check browser console for errors
 
 ### 9.5 Documentation Update
 
-- [ ] Update CHANGELOG (if applicable)
-- [ ] Document CalDAV re-enabling
-- [ ] Note test suite improvements
-- [ ] List fixed bugs
+- [x] Update CHANGELOG (if applicable)
+- [x] Document CalDAV re-enabling
+- [x] Note test suite improvements
+- [x] List fixed bugs
 
 ---
 
@@ -847,35 +847,35 @@ pnpm format:check
 
 ### Test Fixes (87 → 0 failures)
 
-- [ ] ✅ unit-localization: 39 tests pass
-- [ ] ✅ units-coverage: New test passes (replaces 38 german-units tests)
-- [ ] ✅ timer-parser: All tests pass (3 updated, 1 deleted, 6 added)
-- [ ] ✅ normalizer: 3 tests pass
-- [ ] ✅ calendar-context: 2 tests pass
-- [ ] ✅ helpers: 1 test passes
+- [x] ✅ unit-localization: 39 tests pass
+- [x] ✅ units-coverage: New test passes (replaces 38 german-units tests)
+- [x] ✅ timer-parser: All tests pass (3 updated, 1 deleted, 6 added)
+- [x] ✅ normalizer: 3 tests pass
+- [x] ✅ calendar-context: 2 tests pass
+- [x] ✅ helpers: 1 test passes
 
 ### Infrastructure
 
-- [ ] ✅ No PostgreSQL containers after tests
-- [ ] ✅ Container cleanup works with parallel runs
-- [ ] ✅ Global teardown implemented
+- [x] ✅ No PostgreSQL containers after tests
+- [x] ✅ Container cleanup works with parallel runs
+- [x] ✅ Global teardown implemented
 
 ### Code Quality
 
-- [ ] ✅ Empty useEffect removed
-- [ ] ✅ console.warn replaced with logger
-- [ ] ✅ No console.log/warn in production code
-- [ ] ✅ Linter passes
-- [ ] ✅ Build succeeds
+- [x] ✅ Empty useEffect removed
+- [x] ✅ console.warn replaced with logger
+- [x] ✅ No console.log/warn in production code
+- [x] ✅ Linter passes
+- [x] ✅ Build succeeds
 
 ### Feature Completeness
 
-- [ ] ✅ CalDAV integration re-enabled
-- [ ] ✅ German locale support added (18 units)
-- [ ] ✅ Timer parser supports HH:MM with unit detection
-- [ ] ✅ Timer parser excludes commas from ranges
-- [ ] ✅ Timer parser defaults to hours when no unit specified
-- [ ] ✅ Manual testing confirms features work
+- [x] ✅ CalDAV integration re-enabled
+- [x] ✅ German locale support added (18 units)
+- [x] ✅ Timer parser supports HH:MM with unit detection
+- [x] ✅ Timer parser excludes commas from ranges
+- [x] ✅ Timer parser defaults to hours when no unit specified
+- [x] ✅ Manual testing confirms features work
 
 ### Final Validation
 

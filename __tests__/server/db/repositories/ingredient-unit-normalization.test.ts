@@ -81,7 +81,7 @@ describe("Unit Normalization - Create/Edit Recipes", () => {
       expect(ingredients[0].unit).toBe("splash");
     });
 
-    it("should normalize Dutch 'gr' to canonical 'gram'", async () => {
+    it("should normalize Dutch 'gram' to canonical 'gr'", async () => {
       const newRecipeId = crypto.randomUUID();
 
       await createRecipeWithRefs(newRecipeId, testUserId, {
@@ -92,7 +92,7 @@ describe("Unit Normalization - Create/Edit Recipes", () => {
             ingredientId: null,
             ingredientName: "olie",
             amount: 1,
-            unit: "scheut", // Dutch term
+            unit: "gram", // Dutch term
             systemUsed: "metric",
             order: 0,
           },
@@ -165,7 +165,7 @@ describe("Unit Normalization - Create/Edit Recipes", () => {
             ingredientId: null,
             ingredientName: "olie",
             amount: 1,
-            unit: "scheut", // Dutch term
+            unit: "handvol", // Dutch term
             systemUsed: "metric",
             order: 0,
           },
