@@ -368,6 +368,15 @@
         "title": "Recurrence Patterns",
         "subtitle": "Natural language patterns for recurring items",
         "description": "Define locale-specific patterns for parsing recurrence rules from natural language (e.g., 'every week', 'om de dag')."
+      },
+      "timerKeywords": {
+        "title": "Timer Keywords",
+        "subtitle": "Time unit keywords for timer detection",
+        "description": "Configure keywords used to detect timers in recipe instructions. Supports multiple languages.",
+        "enableToggle": "Enable Timer Detection",
+        "placeholder": "minute, min, hour, hr, second, sec...",
+        "inputHelp": "Enter time unit keywords separated by commas. Examples: minute, min, minuten, heure, uur",
+        "unsavedChanges": "Unsaved changes"
       }
     },
     "aiProcessing": {

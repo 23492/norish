@@ -234,7 +234,7 @@ export async function attachIngredientsToRecipeByInputTx(
   const insertedWithNames = inserted.map((ri: any) => ({
     ...ri,
     amount: ri.amount != null ? Number(ri.amount) : null,
-    ingredientName: allIngredients.find((i) => i.id === ri.ingredientId)?.name ?? "",
+    ingredientName: allIngredients.find((i: any) => i.id === ri.ingredientId)?.name ?? "",
     order: ri.order,
   }));
 

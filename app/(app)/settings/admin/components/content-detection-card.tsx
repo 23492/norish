@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { useAdminSettingsContext } from "../context";
 
 import JsonEditor from "./json-editor";
+import TimerKeywordsEditor from "./timer-keywords-editor";
 
 import { ServerConfigKeys } from "@/server/db/zodSchemas/server-config";
 
@@ -16,9 +17,11 @@ export default function ContentDetectionCard() {
     contentIndicators,
     units,
     recurrenceConfig,
+    timerKeywords,
     updateContentIndicators,
     updateUnits,
     updateRecurrenceConfig,
+    updateTimerKeywords,
     restoreDefaultConfig,
   } = useAdminSettingsContext();
 
@@ -35,24 +38,19 @@ export default function ContentDetectionCard() {
 
         <Accordion selectionMode="multiple" variant="bordered">
           <AccordionItem
-            key="timers-enabled"
-            indicator={
-              <Switch
-                isSelected={contentIndicators?.timersEnabled ?? true}
-                onValueChange={(isSelected) => {
-                  if (!contentIndicators) return;
-                  updateContentIndicators(
-                    JSON.stringify({
-                      ...contentIndicators,
-                      timersEnabled: isSelected,
-                    })
-                  );
-                }}
+            key="timer-keywords"
+            subtitle={t("timerKeywords.subtitle")}
+            title={t("timerKeywords.title")}
+          >
+            <div className="p-2">
+              <TimerKeywordsEditor
+                enabled={timerKeywords?.enabled ?? true}
+                keywords={timerKeywords?.keywords ?? []}
+                onUpdate={updateTimerKeywords}
+                onRestoreDefaults={() => restoreDefaultConfig(ServerConfigKeys.TIMER_KEYWORDS)}
               />
-            }
-            subtitle={t("contentIndicators.timersEnabled.description")}
-            title={t("contentIndicators.timersEnabled.title")}
-          />
+            </div>
+          </AccordionItem>
           <AccordionItem
             key="content-indicators"
             subtitle={t("contentIndicators.subtitle")}

@@ -366,8 +366,17 @@
       },
       "recurrence": {
         "title": "Herhalingspatronen",
-        "subtitle": "Natural language patterns voor herhalende boodschappen",
-        "description": "Definieer taalafhankelijk patronen voor het herkennen van herhalingsregels (bijv. 'elke week', 'om de dag')."
+        "subtitle": "Natuurlijke taalpatronen voor terugkerende items",
+        "description": "Definieer locale-specifieke patronen voor het parsen van herhalingsregels uit natuurlijke taal (bijv. 'elke week', 'om de dag')."
+      },
+      "timerKeywords": {
+        "title": "Timer trefwoorden",
+        "subtitle": "Tijdseenheid trefwoorden voor timer detectie",
+        "description": "Configureer trefwoorden voor het detecteren van timers in receptinstructies. Ondersteunt meerdere talen.",
+        "enableToggle": "Timer detectie inschakelen",
+        "placeholder": "minuut, min, uur, u, seconde, sec...",
+        "inputHelp": "Voer tijdseenheid trefwoorden in, gescheiden door komma's. Voorbeelden: minuut, min, uur, u, minute, heure, stunde",
+        "unsavedChanges": "Niet opgeslagen wijzigingen"
       }
     },
     "aiProcessing": {

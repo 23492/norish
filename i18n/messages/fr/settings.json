@@ -365,9 +365,18 @@
         "description": "Définissez les unités avec leurs abréviations, pluriels et variantes orthographiques. Utilisé lors de l’analyse des ingrédients."
       },
       "recurrence": {
-        "title": "Récurrences",
-        "subtitle": "Motifs de langage naturel pour les répétitions",
-        "description": "Définissez les motifs de langage pour détecter les règles comme « chaque semaine », « tous les deux jours », etc."
+        "title": "Modèles de récurrence",
+        "subtitle": "Modèles en langage naturel pour les éléments récurrents",
+        "description": "Définissez des modèles spécifiques à la langue pour analyser les règles de récurrence à partir du langage naturel (par exemple, 'chaque semaine', 'tous les jours')."
+      },
+      "timerKeywords": {
+        "title": "Mots-clés de minuterie",
+        "subtitle": "Mots-clés d'unité de temps pour la détection de minuterie",
+        "description": "Configurez les mots-clés utilisés pour détecter les minuteries dans les instructions de recette. Supporte plusieurs langues.",
+        "enableToggle": "Activer la détection de minuterie",
+        "placeholder": "minute, min, heure, h, seconde, sec...",
+        "inputHelp": "Entrez les mots-clés d'unité de temps séparés par des virgules. Exemples: minute, min, heure, h, uur, stunde",
+        "unsavedChanges": "Modifications non enregistrées"
       }
     },
     "aiProcessing": {

@@ -2,7 +2,13 @@ import { router, publicProcedure } from "../../trpc";
 import { authedProcedure } from "../../middleware";
 
 import { trpcLogger as log } from "@/server/logger";
-import { getUnits, getRecurrenceConfig, getLocaleConfig, isTimersEnabled } from "@/config/server-config-loader";
+import {
+  getUnits,
+  getRecurrenceConfig,
+  getLocaleConfig,
+  isTimersEnabled,
+  getTimerKeywords,
+} from "@/config/server-config-loader";
 import { listAllTagNames } from "@/server/db/repositories/tags";
 import { SERVER_CONFIG } from "@/config/env-config-server";
 
@@ -79,6 +85,17 @@ const timersEnabled = publicProcedure.query(async () => {
   return await isTimersEnabled();
 });
 
+/**
+ * Get timer keywords configuration
+ */
+const timerKeywords = publicProcedure.query(async () => {
+  log.debug("Getting timer keywords config");
+
+  const config = await getTimerKeywords();
+
+  return config;
+});
+
 export const configProcedures = router({
   localeConfig,
   tags,
@@ -86,4 +103,5 @@ export const configProcedures = router({
   recurrenceConfig,
   uploadLimits,
   timersEnabled,
+  timerKeywords,
 });

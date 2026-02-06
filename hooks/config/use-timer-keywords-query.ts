@@ -5,19 +5,19 @@ import { useQuery } from "@tanstack/react-query";
 import { useTRPC } from "@/app/providers/trpc-provider";
 
 /**
- * Hook to check if recipe timers are enabled globally.
+ * Hook to get timer keywords configuration.
  */
-export function useTimersEnabledQuery() {
+export function useTimerKeywordsQuery() {
   const trpc = useTRPC();
 
   const { data, error, isLoading } = useQuery({
-    ...trpc.config.timersEnabled.queryOptions(),
+    ...trpc.config.timerKeywords.queryOptions(),
     staleTime: 5 * 60 * 1000,
     gcTime: 60 * 60 * 1000,
   });
 
   return {
-    timersEnabled: data ?? true,
+    timerKeywords: data ?? { enabled: true, keywords: [], isOverridden: false },
     isLoading,
     error,
   };

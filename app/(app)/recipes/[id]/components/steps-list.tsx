@@ -91,22 +91,25 @@ export default function StepsList() {
                   {/* Step number badge */}
                   <div className="bg-primary text-primary-foreground relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
                     <span
-                      className={`absolute inset-0 flex items-center justify-center transition-all duration-200 ${isDone ? "scale-0 opacity-0" : "scale-100 opacity-100"
-                        }`}
+                      className={`absolute inset-0 flex items-center justify-center transition-all duration-200 ${
+                        isDone ? "scale-0 opacity-0" : "scale-100 opacity-100"
+                      }`}
                     >
                       {currentStepNumber}
                     </span>
                     <CheckIcon
-                      className={`h-4 w-4 transition-all duration-200 ${isDone ? "scale-100 opacity-100" : "scale-0 opacity-0"
-                        }`}
+                      className={`h-4 w-4 transition-all duration-200 ${
+                        isDone ? "scale-100 opacity-100" : "scale-0 opacity-0"
+                      }`}
                     />
                   </div>
 
                   {/* Step content */}
                   <div className="flex min-w-0 flex-1 flex-col gap-3">
                     <p
-                      className={`text-base leading-relaxed transition-all duration-200 ${isDone ? "text-default-400 line-through" : "text-foreground"
-                        }`}
+                      className={`text-base leading-relaxed transition-all duration-200 ${
+                        isDone ? "text-default-400 line-through" : "text-foreground"
+                      }`}
                     >
                       {/* Use SmartInstruction to enable timers */}
                       {isDone ? (
@@ -114,6 +117,7 @@ export default function StepsList() {
                       ) : (
                         <SmartInstruction
                           recipeId={recipe?.id || ""}
+                          recipeName={recipe?.name}
                           stepIndex={currentStepNumber - 1}
                           text={s.step}
                         />
@@ -126,10 +130,11 @@ export default function StepsList() {
                         {stepImages.map((img, imgIndex) => (
                           <button
                             key={imgIndex}
-                            className={`group/img ring-default-200 focus:ring-primary dark:ring-default-700 relative h-16 w-16 overflow-hidden rounded-lg shadow-sm ring-1 transition-all duration-200 focus:ring-2 focus:outline-none md:h-20 md:w-20 ${isDone
-                              ? "opacity-50 grayscale"
-                              : "hover:ring-primary-300 dark:hover:ring-primary-600 hover:scale-105 hover:shadow-md"
-                              }`}
+                            className={`group/img ring-default-200 focus:ring-primary dark:ring-default-700 relative h-16 w-16 overflow-hidden rounded-lg shadow-sm ring-1 transition-all duration-200 focus:ring-2 focus:outline-none md:h-20 md:w-20 ${
+                              isDone
+                                ? "opacity-50 grayscale"
+                                : "hover:ring-primary-300 dark:hover:ring-primary-600 hover:scale-105 hover:shadow-md"
+                            }`}
                             type="button"
                             onClick={(e) =>
                               openLightbox(
