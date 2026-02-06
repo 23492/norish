@@ -6,8 +6,11 @@ import ReactMarkdown from "react-markdown";
 
 import { parseTimerDurations } from "@/lib/timer-parser";
 import { useTimersEnabledQuery, useTimerKeywordsQuery } from "@/hooks/config";
+import { createClientLogger } from "@/lib/logger";
 
 import { TimerChip } from "@/components/recipe/timer-chip";
+
+const logger = createClientLogger("smart-instruction");
 
 interface SmartInstructionProps {
   text: string;
@@ -62,7 +65,7 @@ export function SmartInstruction({ text, recipeId, recipeName, stepIndex }: Smar
         });
       } catch (error) {
         // Silently handle parser errors to avoid breaking the UI
-        console.warn("Timer parsing failed:", error);
+        logger.warn({ error }, "Timer parsing failed");
       }
     }
 

@@ -40,11 +40,6 @@ export function TimerChip({
   const pauseTimer = useTimerStore((state) => state.pauseTimer);
   const resetTimer = useTimerStore((state) => state.resetTimer);
 
-  useEffect(() => {
-    if (!timer) {
-    }
-  }, [timer]);
-
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();

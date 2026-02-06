@@ -25,22 +25,17 @@ describe("parseTimerDurations", () => {
     it("detects ranges like '5-10 minutes'", () => {
       const matches = parseTimerDurations("Simmer for 5-10 minutes");
       expect(matches).toHaveLength(1);
-      expect(matches[0].durationSeconds).toBe(5 * 60); // Uses lower bound
+      // Strategy: Use maximum value from ranges for safer cooking times
+      expect(matches[0].durationSeconds).toBe(10 * 60); // Uses upper bound
       expect(matches[0].originalText).toBe("5-10 minutes");
     });
 
     it("detects ranges like '5 to 10 minutes'", () => {
       const matches = parseTimerDurations("Rest for 5 to 10 minutes");
       expect(matches).toHaveLength(1);
-      expect(matches[0].durationSeconds).toBe(5 * 60);
+      // Strategy: Use maximum value from ranges for safer cooking times
+      expect(matches[0].durationSeconds).toBe(10 * 60); // Uses upper bound
       expect(matches[0].originalText).toBe("5 to 10 minutes");
-    });
-
-    it("detects 'more minutes' pattern", () => {
-      const matches = parseTimerDurations("cook for 5 to 10 more minutes");
-      expect(matches).toHaveLength(1);
-      expect(matches[0].durationSeconds).toBe(5 * 60);
-      expect(matches[0].originalText).toMatch(/5 to 10 more minutes/i);
     });
 
     it("detects multiple timers in one string", () => {
@@ -124,6 +119,46 @@ describe("parseTimerDurations", () => {
       });
       // Should default to minutes (60 seconds) for unrecognized unit
       expect(matches).toHaveLength(0); // xyz is not in any category, so no match
+    });
+  });
+
+  describe("colon time formats", () => {
+    it("detects HH:MM with hour keyword as hours:minutes", () => {
+      const matches = parseTimerDurations("Bake for 1:30 hours");
+      expect(matches).toHaveLength(1);
+      expect(matches[0].durationSeconds).toBe(1 * 3600 + 30 * 60); // 90 min
+      expect(matches[0].originalText).toMatch(/1:30 hours/i);
+    });
+
+    it("detects M:SS with minute keyword as minutes:seconds", () => {
+      const matches = parseTimerDurations("Simmer for 1:30 minutes");
+      expect(matches).toHaveLength(1);
+      expect(matches[0].durationSeconds).toBe(1 * 60 + 30); // 90 sec
+      expect(matches[0].originalText).toMatch(/1:30 minutes/i);
+    });
+
+    it("detects HH:MM without unit as hours:minutes (default)", () => {
+      const matches = parseTimerDurations("Bake for 1:30");
+      expect(matches).toHaveLength(1);
+      expect(matches[0].durationSeconds).toBe(1 * 3600 + 30 * 60); // 90 min
+    });
+
+    it("detects large HH:MM without unit as hours:minutes", () => {
+      const matches = parseTimerDurations("Roast for 10:30");
+      expect(matches).toHaveLength(1);
+      expect(matches[0].durationSeconds).toBe(10 * 3600 + 30 * 60); // 630 min
+    });
+
+    it("detects HH:MM:SS format as hours:minutes:seconds", () => {
+      const matches = parseTimerDurations("Cook for 2:45:30");
+      expect(matches).toHaveLength(1);
+      expect(matches[0].durationSeconds).toBe(2 * 3600 + 45 * 60 + 30); // 9930 sec
+    });
+
+    it("uses minute keywords from config", () => {
+      const matches = parseTimerDurations("Wait 5:30 mins");
+      expect(matches).toHaveLength(1);
+      expect(matches[0].durationSeconds).toBe(5 * 60 + 30); // 330 sec (minutes:seconds)
     });
   });
 

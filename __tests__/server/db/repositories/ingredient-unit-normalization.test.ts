@@ -41,9 +41,9 @@ describe("Unit Normalization - Create/Edit Recipes", () => {
         recipeIngredients: [
           {
             ingredientId: null,
-            ingredientName: "bloem",
+            ingredientName: "olie",
             amount: 1,
-            unit: "handvol", // Dutch term
+            unit: "handvol", // Dutch term for handful
             systemUsed: "metric",
             order: 0,
           },
@@ -203,9 +203,25 @@ describe("Unit Normalization - Create/Edit Recipes", () => {
             ingredientId: null,
             ingredientName: "suiker",
             amount: 500,
-            unit: "gr", // Dutch abbreviation
+            unit: "gr", // Dutch → gram
             systemUsed: "metric",
             order: 0,
+          },
+          {
+            ingredientId: null,
+            ingredientName: "olie",
+            amount: 1,
+            unit: "scheut", // Dutch → splash
+            systemUsed: "metric",
+            order: 1,
+          },
+          {
+            ingredientId: null,
+            ingredientName: "noten",
+            amount: 1,
+            unit: "handvol", // Dutch → handful
+            systemUsed: "metric",
+            order: 2,
           },
         ],
       });
@@ -214,7 +230,7 @@ describe("Unit Normalization - Create/Edit Recipes", () => {
       expect(ingredients).toHaveLength(3);
       expect(ingredients.find((i) => i.order === "0")?.unit).toBe("gram");
       expect(ingredients.find((i) => i.order === "1")?.unit).toBe("splash");
-      expect(ingredients.find((i) => i.order === "2")?.unit).toBe("teaspoon");
+      expect(ingredients.find((i) => i.order === "2")?.unit).toBe("handful");
     });
   });
 });

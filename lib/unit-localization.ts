@@ -2,16 +2,16 @@ import type { UnitsMap, FlatUnitsMap } from "@/server/db/zodSchemas/server-confi
 
 /**
  * Flatten locale-aware units config to flat format for parse-ingredient library.
- * Uses the first locale's short and plural forms as defaults.
+ * Uses the first locale's short and plural forms so the parser can recognize both.
  */
 export function flattenForLibrary(config: UnitsMap): FlatUnitsMap {
   const flattened: FlatUnitsMap = {};
 
   for (const [unitId, unitDef] of Object.entries(config)) {
     flattened[unitId] = {
-      short: unitDef.short[0]?.name || unitId,
-      plural: unitDef.plural[0]?.name || unitId,
-      alternates: unitDef.alternates,
+      short: unitDef.short[0]?.name || unitId, // e.g., "tbsp"
+      plural: unitDef.plural[0]?.name || unitId, // e.g., "tablespoons"
+      alternates: unitDef.alternates, // e.g., ["T", "tb", ...]
     };
   }
 
