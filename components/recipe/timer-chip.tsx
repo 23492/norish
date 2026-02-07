@@ -107,7 +107,7 @@ export function TimerChip({
         radius="full"
         size="md"
         variant="flat"
-        className="mx-1 text-base translate-y-[1px] align-baseline pl-2.5 pr-1.5 font-lg"
+        className="mx-1 text-base align-baseline pl-2.5 pr-1 font-lg"
       >
         {t("timer.done")}
       </Chip>
@@ -123,7 +123,7 @@ export function TimerChip({
       radius="full"
       size="md"
       variant={isRunning ? "bordered" : "faded"}
-      className="mx-1 text-base translate-y-[1px] align-baseline pl-2.5 pr-1.5 font-lg"
+      className="mx-1 text-base translate-y-[-1px] align-baseline pl-2.5 pr-1.5 font-lg"
     >
       {formatTime(timer.remainingMs)}
     </Chip>
