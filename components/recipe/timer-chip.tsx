@@ -1,9 +1,8 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React from "react";
 import { ArrowPathIcon, PauseIcon, PlayIcon, ClockIcon } from "@heroicons/react/16/solid";
-import { Link, Chip } from "@heroui/react";
-import { useTranslations } from "next-intl";
+import { Chip } from "@heroui/react";
 
 import { useTimerStore } from "@/stores/timers";
 
@@ -36,7 +35,6 @@ export function TimerChip({
   durationMs,
   originalText,
 }: TimerChipProps) {
-  const t = useTranslations("common");
   const timer = useTimerStore((state) => state.timers.find((t) => t.id === id));
   const addTimer = useTimerStore((state) => state.addTimer);
   const startTimer = useTimerStore((state) => state.startTimer);
@@ -59,23 +57,6 @@ export function TimerChip({
     }
   };
 
-  // Inactive timer - show as link
-  // if (!timer) {
-  //   return (
-  //     <Link
-  //       isBlock={false}
-  //       color="primary"
-  //       href="#"
-  //       underline="always"
-  //       onClick={handleClick}
-  //       className="mx-1 inline-flex items-center gap-1"
-  //     >
-  //       {originalText}
-  //       <ClockIcon className="h-4 w-4" />
-  //     </Link>
-  //   );
-  // }
-
   if (!timer) {
     return (
       <Chip
@@ -85,10 +66,9 @@ export function TimerChip({
         color="default"
         radius="full"
         variant="bordered"
-        className="mx-1 text-base translate-y-[1px] align-baseline pl-2.5 pr-1.5 font-lg"
+        className="font-lg mx-1 translate-y-[1px] pr-1.5 pl-2.5 align-baseline text-base"
       >
         {originalText}
-        {/* <ClockIcon className="h-4 w-4" /> */}
       </Chip>
     );
   }
@@ -97,33 +77,24 @@ export function TimerChip({
   const isRunning = timer.status === "running";
 
   // Active timer - show as chip
-  if (isCompleted) {
-    return (
-      <Chip
-        as="button"
-        onClick={handleClick}
-        startContent={<ArrowPathIcon className="h-3 w-3" />}
-        color="danger"
-        radius="full"
-        size="md"
-        variant="flat"
-        className="mx-1 text-base align-baseline pl-2.5 pr-1 font-lg"
-      >
-        {t("timer.done")}
-      </Chip>
-    );
-  }
+  const icon = isCompleted ? (
+    <ArrowPathIcon className="h-3 w-3" />
+  ) : isRunning ? (
+    <PauseIcon className="h-3 w-3" />
+  ) : (
+    <PlayIcon className="h-3 w-3" />
+  );
 
   return (
     <Chip
       as="button"
       onClick={handleClick}
-      startContent={isRunning ? <PauseIcon className="h-3 w-3" /> : <PlayIcon className="h-3 w-3" />}
-      color="primary"
+      startContent={icon}
+      color={isCompleted ? "danger" : "default"}
       radius="full"
       size="md"
-      variant={isRunning ? "bordered" : "faded"}
-      className="mx-1 text-base translate-y-[-1px] align-baseline pl-2.5 pr-1.5 font-lg"
+      variant="bordered"
+      className="font-lg mx-1 translate-y-[1px] pr-1.5 pl-2.5 align-baseline text-base"
     >
       {formatTime(timer.remainingMs)}
     </Chip>
