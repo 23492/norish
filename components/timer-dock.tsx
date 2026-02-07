@@ -2,16 +2,17 @@
 
 import React, { useEffect, useState } from "react";
 import { motion } from "motion/react";
+import { Button } from "@heroui/react";
 import { useTimerStore } from "@/stores/timers";
 import {
   ChevronUpIcon,
   ChevronDownIcon,
   PlayIcon,
   PauseIcon,
-  TrashIcon,
   PlusIcon,
   MinusIcon,
 } from "@heroicons/react/24/solid";
+import { XMarkIcon } from "@heroicons/react/16/solid";
 import { useRouter } from "next/navigation";
 import useSound from "use-sound";
 import { useTimersEnabledQuery } from "@/hooks/config";
@@ -297,52 +298,70 @@ function TimerRow({
       {/* Controls */}
       <div className="flex shrink-0 items-center gap-2">
         <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => adjustTimer(timer.id, -smartIncrement)}
-            className="rounded-lg p-2 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-white"
+          <Button
+            isIconOnly
+            aria-label={`Decrease time by ${formatTime(smartIncrement)}`}
+            className="bg-content2"
+            size="sm"
             title={`-${formatTime(smartIncrement)}`}
+            variant="flat"
+            onPress={() => adjustTimer(timer.id, -smartIncrement)}
           >
             <MinusIcon className="h-4 w-4" />
-          </button>
+          </Button>
 
-          <button
-            type="button"
-            onClick={() => adjustTimer(timer.id, smartIncrement)}
-            className="rounded-lg p-2 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-white"
+          <Button
+            isIconOnly
+            aria-label={`Increase time by ${formatTime(smartIncrement)}`}
+            className="bg-content2"
+            size="sm"
             title={`+${formatTime(smartIncrement)}`}
+            variant="solid"
+            onPress={() => adjustTimer(timer.id, smartIncrement)}
           >
             <PlusIcon className="h-4 w-4" />
-          </button>
+          </Button>
         </div>
 
         <div className="h-8 w-px bg-zinc-200 dark:bg-zinc-700" />
 
         {isCompleted ? (
-          <button
-            type="button"
-            onClick={() => removeTimer(timer.id)}
-            className="rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-red-700 hover:shadow"
+          <Button
+            aria-label="Dismiss completed timer"
+            color="danger"
+            size="sm"
+            variant="solid"
+            onPress={() => removeTimer(timer.id)}
           >
             {t("timer.done_action")}
-          </button>
+          </Button>
         ) : (
           <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => (isRunning ? pauseTimer(timer.id) : startTimer(timer.id))}
-              className="rounded-lg p-2 text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-700"
+            <Button
+              isIconOnly
+              aria-label={isRunning ? "Pause timer" : "Start timer"}
+              style={{ 
+                backgroundColor: "var(--secondary-200)",
+                color: isRunning ? "" : "var(--primary)"
+              }}
+              className={isRunning ? "!bg-content2" : ""}
+              size="sm"
+              variant="solid"
+              onPress={() => (isRunning ? pauseTimer(timer.id) : startTimer(timer.id))}
             >
               {isRunning ? <PauseIcon className="h-5 w-5" /> : <PlayIcon className="h-5 w-5" />}
-            </button>
+            </Button>
 
-            <button
-              type="button"
-              onClick={() => removeTimer(timer.id)}
-              className="rounded-lg p-2 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-red-500 dark:hover:bg-zinc-700"
+            <Button
+              isIconOnly
+              aria-label="Dismiss timer"
+              color="danger"
+              size="sm"
+              variant="light"
+              onPress={() => removeTimer(timer.id)}
             >
-              <TrashIcon className="h-5 w-5" />
-            </button>
+              <XMarkIcon className="h-4 w-4" />
+            </Button>
           </div>
         )}
       </div>

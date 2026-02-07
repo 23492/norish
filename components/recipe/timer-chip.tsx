@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useEffect } from "react";
-import { ArrowPathIcon, PauseIcon, PlayIcon } from "@heroicons/react/24/solid";
+import { ArrowPathIcon, PauseIcon, PlayIcon, ClockIcon } from "@heroicons/react/16/solid";
+import { Link, Chip } from "@heroui/react";
 
 import { useTimerStore } from "@/stores/timers";
 
@@ -56,47 +57,73 @@ export function TimerChip({
     }
   };
 
+  // Inactive timer - show as link
+  // if (!timer) {
+  //   return (
+  //     <Link
+  //       isBlock={false}
+  //       color="primary"
+  //       href="#"
+  //       underline="always"
+  //       onClick={handleClick}
+  //       className="mx-1 inline-flex items-center gap-1"
+  //     >
+  //       {originalText}
+  //       <ClockIcon className="h-4 w-4" />
+  //     </Link>
+  //   );
+  // }
+
   if (!timer) {
     return (
-      <button
-        type="button"
+      <Chip
+        as="button"
         onClick={handleClick}
-        className="mx-1 inline-flex translate-y-[1px] transform items-center rounded-md bg-orange-100 px-2 py-0.5 align-baseline text-base font-medium text-orange-700 transition-colors hover:bg-orange-200"
+        startContent={<ClockIcon className="h-4 w-4" />}
+        color="default"
+        radius="full"
+        variant="bordered"
+        className="mx-1 text-base translate-y-[1px] align-baseline pl-2.5 pr-1.5 font-lg"
       >
-        <PlayIcon className="mr-1 h-3 w-3" />
         {originalText}
-      </button>
+        {/* <ClockIcon className="h-4 w-4" /> */}
+      </Chip>
     );
   }
 
   const isCompleted = timer.status === "completed";
   const isRunning = timer.status === "running";
 
-  let styles = "bg-orange-100 text-orange-700";
-  if (isRunning) styles = "bg-orange-600 text-white shadow-sm";
-  if (isCompleted) styles = "bg-red-600 text-white animate-pulse";
+  // Active timer - show as chip
+  if (isCompleted) {
+    return (
+      <Chip
+        as="button"
+        onClick={handleClick}
+        startContent={<ArrowPathIcon className="h-3 w-3" />}
+        color="danger"
+        radius="full"
+        size="md"
+        variant="flat"
+        className="mx-1 text-base translate-y-[1px] align-baseline pl-2.5 pr-1.5 font-lg"
+      >
+        DONE
+      </Chip>
+    );
+  }
 
   return (
-    <button
-      type="button"
+    <Chip
+      as="button"
       onClick={handleClick}
-      className={`mx-1 inline-flex translate-y-[1px] transform items-center rounded-md px-2 py-0.5 align-baseline font-mono text-base font-medium transition-all ${styles}`}
+      startContent={isRunning ? <PauseIcon className="h-3 w-3" /> : <PlayIcon className="h-3 w-3" />}
+      color="primary"
+      radius="full"
+      size="md"
+      variant={isRunning ? "bordered" : "faded"}
+      className="mx-1 text-base translate-y-[1px] align-baseline pl-2.5 pr-1.5 font-lg"
     >
-      {isCompleted ? (
-        <>
-          <ArrowPathIcon className="mr-1 h-3 w-3" />
-          DONE
-        </>
-      ) : (
-        <>
-          {isRunning ? (
-            <PauseIcon className="mr-1 h-3 w-3" />
-          ) : (
-            <PlayIcon className="mr-1 h-3 w-3" />
-          )}
-          {formatTime(timer.remainingMs)}
-        </>
-      )}
-    </button>
+      {formatTime(timer.remainingMs)}
+    </Chip>
   );
 }
