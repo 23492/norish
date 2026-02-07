@@ -63,6 +63,33 @@
       "title": "Importeer Receptarchief",
       "description": "Importeer recepten van Mela (.melarecipes), Mealie, Tandoor of Paprika (.zip) exports"
     },
+    "siteAuthTokens": {
+      "title": "Site-authenticatietokens",
+      "description": "Voeg headers of cookies toe die worden meegestuurd bij het importeren van recepten van specifieke sites. Handig voor sites die inloggen vereisen (bijv. Instagram, Facebook).",
+      "domain": "Domein",
+      "domainPlaceholder": "bijv. instagram.com",
+      "name": "Naam",
+      "namePlaceholder": "bijv. Cookie of Authorization",
+      "value": "Waarde",
+      "valuePlaceholder": "Token- of cookiewaarde",
+      "type": "Type",
+      "typeHeader": "Header",
+      "typeCookie": "Cookie",
+      "addButton": "Token toevoegen",
+      "noTokens": "Geen site-authenticatietokens geconfigureerd.",
+      "tableHeaders": {
+        "domain": "DOMEIN",
+        "name": "NAAM",
+        "type": "TYPE",
+        "created": "AANGEMAAKT",
+        "actions": "ACTIES"
+      },
+      "deleteModal": {
+        "title": "Token verwijderen",
+        "message": "Weet je zeker dat je dit authenticatietoken wilt verwijderen? Imports van deze site werken mogelijk niet meer.",
+        "confirmButton": "Token verwijderen"
+      }
+    },
     "dangerZone": {
       "title": "Gevaarlijke Zone",
       "description": "Zodra je je account verwijdert, is er geen weg meer terug. Wees zeker.",
