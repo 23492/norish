@@ -3,6 +3,7 @@
 import React, { useEffect } from "react";
 import { ArrowPathIcon, PauseIcon, PlayIcon, ClockIcon } from "@heroicons/react/16/solid";
 import { Link, Chip } from "@heroui/react";
+import { useTranslations } from "next-intl";
 
 import { useTimerStore } from "@/stores/timers";
 
@@ -35,6 +36,7 @@ export function TimerChip({
   durationMs,
   originalText,
 }: TimerChipProps) {
+  const t = useTranslations("common");
   const timer = useTimerStore((state) => state.timers.find((t) => t.id === id));
   const addTimer = useTimerStore((state) => state.addTimer);
   const startTimer = useTimerStore((state) => state.startTimer);
@@ -107,7 +109,7 @@ export function TimerChip({
         variant="flat"
         className="mx-1 text-base translate-y-[1px] align-baseline pl-2.5 pr-1.5 font-lg"
       >
-        DONE
+        {t("timer.done")}
       </Chip>
     );
   }

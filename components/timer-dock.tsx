@@ -184,7 +184,7 @@ export function TimerDock() {
                 aria-label="Close timer summary"
               >
                 <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                  {timerCount === 1 ? "1 Timer" : `${timerCount} Timers`}
+                  {timerCount === 1 ? t("timer.label_one") : t("timer.label_other", { count: timerCount })}
                 </h3>
                 <ChevronDownIcon className="h-4 w-4 text-zinc-500 dark:text-zinc-400" />
               </button>
@@ -216,7 +216,7 @@ export function TimerDock() {
             >
               <div className="flex flex-col items-start">
                 <span className="mb-1 max-w-[120px] truncate text-xs leading-none font-medium opacity-75">
-                  {timerCount === 1 ? topTimer.label : `${timerCount} timers`}
+                  {timerCount === 1 ? topTimer.label : t("timer.label_other", { count: timerCount })}
                 </span>
                 <span className="font-mono text-lg leading-none font-bold tabular-nums">
                   {formatTime(topTimer.remainingMs)}
