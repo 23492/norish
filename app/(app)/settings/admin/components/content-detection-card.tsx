@@ -1,6 +1,6 @@
 "use client";
 
-import { Card, CardBody, CardHeader, Accordion, AccordionItem, Switch } from "@heroui/react";
+import { Card, CardBody, CardHeader, Accordion, AccordionItem, Switch, Chip } from "@heroui/react";
 import { DocumentMagnifyingGlassIcon } from "@heroicons/react/16/solid";
 import { useTranslations } from "next-intl";
 
@@ -40,7 +40,21 @@ export default function ContentDetectionCard() {
           <AccordionItem
             key="timer-keywords"
             subtitle={t("timerKeywords.subtitle")}
-            title={t("timerKeywords.title")}
+            title={
+              <div className="flex items-center gap-2">
+                {t("timerKeywords.title")}
+                <Chip
+                  classNames={{
+                    base: "bg-linear-to-br from-indigo-500 to-pink-500 border-small border-white/50 shadow-pink-500/30",
+                    content: "drop-shadow-xs shadow-black text-white",
+                  }}
+                  variant="shadow"
+                  size="sm"
+                >
+                  New
+                </Chip>
+              </div>
+            }
           >
             <div className="p-2">
               <TimerKeywordsEditor
