@@ -11,13 +11,14 @@ import {
   PauseIcon,
   PlusIcon,
   MinusIcon,
-} from "@heroicons/react/24/solid";
-import { XMarkIcon } from "@heroicons/react/16/solid";
+  XMarkIcon,
+} from "@heroicons/react/16/solid";
 import { useRouter } from "next/navigation";
 import useSound from "use-sound";
 import { useTimersEnabledQuery } from "@/hooks/config";
 import { useTranslations } from "next-intl";
 import { createClientLogger } from "@/lib/logger";
+import { formatTimerMs } from "@/lib/helpers";
 import { useAutoHide } from "@/hooks/auto-hide";
 
 const logger = createClientLogger("timer-dock");
@@ -44,15 +45,6 @@ function TimerTicker() {
   }, [tick, hasRunningTimers]);
 
   return null;
-}
-
-function formatTime(ms: number) {
-  const totalSeconds = Math.ceil(ms / 1000);
-  const h = Math.floor(totalSeconds / 3600);
-  const m = Math.floor((totalSeconds % 3600) / 60);
-  const s = totalSeconds % 60;
-  if (h > 0) return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
-  return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
 export function TimerDock() {
@@ -184,7 +176,9 @@ export function TimerDock() {
                 aria-label="Close timer summary"
               >
                 <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                  {timerCount === 1 ? t("timer.label_one") : t("timer.label_other", { count: timerCount })}
+                  {timerCount === 1
+                    ? t("timer.label_one")
+                    : t("timer.label_other", { count: timerCount })}
                 </h3>
                 <ChevronDownIcon className="h-4 w-4 text-zinc-500 dark:text-zinc-400" />
               </button>
@@ -216,10 +210,12 @@ export function TimerDock() {
             >
               <div className="flex flex-col items-start">
                 <span className="mb-1 max-w-[120px] truncate text-xs leading-none font-medium opacity-75">
-                  {timerCount === 1 ? topTimer.label : t("timer.label_other", { count: timerCount })}
+                  {timerCount === 1
+                    ? topTimer.label
+                    : t("timer.label_other", { count: timerCount })}
                 </span>
                 <span className="font-mono text-lg leading-none font-bold tabular-nums">
-                  {formatTime(topTimer.remainingMs)}
+                  {formatTimerMs(topTimer.remainingMs)}
                 </span>
               </div>
 
@@ -291,7 +287,7 @@ function TimerRow({
             isCompleted ? "text-red-600 dark:text-red-500" : "text-zinc-900 dark:text-zinc-100"
           }`}
         >
-          {formatTime(timer.remainingMs)}
+          {formatTimerMs(timer.remainingMs)}
         </div>
       </button>
 
@@ -300,10 +296,10 @@ function TimerRow({
         <div className="flex items-center gap-1">
           <Button
             isIconOnly
-            aria-label={`Decrease time by ${formatTime(smartIncrement)}`}
+            aria-label={`Decrease time by ${formatTimerMs(smartIncrement)}`}
             className="bg-content2"
             size="sm"
-            title={`-${formatTime(smartIncrement)}`}
+            title={`-${formatTimerMs(smartIncrement)}`}
             variant="flat"
             onPress={() => adjustTimer(timer.id, -smartIncrement)}
           >
@@ -312,10 +308,10 @@ function TimerRow({
 
           <Button
             isIconOnly
-            aria-label={`Increase time by ${formatTime(smartIncrement)}`}
+            aria-label={`Increase time by ${formatTimerMs(smartIncrement)}`}
             className="bg-content2"
             size="sm"
-            title={`+${formatTime(smartIncrement)}`}
+            title={`+${formatTimerMs(smartIncrement)}`}
             variant="solid"
             onPress={() => adjustTimer(timer.id, smartIncrement)}
           >
@@ -340,16 +336,12 @@ function TimerRow({
             <Button
               isIconOnly
               aria-label={isRunning ? "Pause timer" : "Start timer"}
-              style={{ 
-                backgroundColor: "var(--secondary-200)",
-                color: isRunning ? "" : "var(--primary)"
-              }}
-              className={isRunning ? "!bg-content2" : ""}
+              className="bg-content2"
               size="sm"
-              variant="solid"
+              variant="flat"
               onPress={() => (isRunning ? pauseTimer(timer.id) : startTimer(timer.id))}
             >
-              {isRunning ? <PauseIcon className="h-5 w-5" /> : <PlayIcon className="h-5 w-5" />}
+              {isRunning ? <PauseIcon className="h-4 w-4" /> : <PlayIcon className="h-4 w-4" />}
             </Button>
 
             <Button

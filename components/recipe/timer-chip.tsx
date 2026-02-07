@@ -5,6 +5,7 @@ import { ArrowPathIcon, PauseIcon, PlayIcon, ClockIcon } from "@heroicons/react/
 import { Chip } from "@heroui/react";
 
 import { useTimerStore } from "@/stores/timers";
+import { formatTimerMs } from "@/lib/helpers";
 
 interface TimerChipProps {
   id: string;
@@ -13,18 +14,6 @@ interface TimerChipProps {
   initialLabel: string;
   durationMs: number;
   originalText: string;
-}
-
-function formatTime(ms: number) {
-  const totalSeconds = Math.ceil(ms / 1000);
-  const h = Math.floor(totalSeconds / 3600);
-  const m = Math.floor((totalSeconds % 3600) / 60);
-  const s = totalSeconds % 60;
-
-  if (h > 0) {
-    return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
-  }
-  return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
 export function TimerChip({
@@ -96,7 +85,7 @@ export function TimerChip({
       variant="bordered"
       className="font-lg mx-1 translate-y-[1px] pr-1.5 pl-2.5 align-baseline text-base"
     >
-      {formatTime(timer.remainingMs)}
+      {formatTimerMs(timer.remainingMs)}
     </Chip>
   );
 }
