@@ -6,6 +6,7 @@ import { Chip } from "@heroui/react";
 
 import { useTimerStore } from "@/stores/timers";
 import { formatTimerMs } from "@/lib/helpers";
+import { useNotificationPermission } from "@/hooks/use-notification-permission";
 
 interface TimerChipProps {
   id: string;
@@ -29,12 +30,15 @@ export function TimerChip({
   const startTimer = useTimerStore((state) => state.startTimer);
   const pauseTimer = useTimerStore((state) => state.pauseTimer);
   const resetTimer = useTimerStore((state) => state.resetTimer);
+  const { requestPermission } = useNotificationPermission();
 
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
     if (!timer) {
+      // Request notification permission on first timer interaction
+      requestPermission();
       addTimer(id, recipeId, initialLabel, durationMs, recipeName);
       startTimer(id);
     } else if (timer.status === "running") {
@@ -55,7 +59,7 @@ export function TimerChip({
         color="default"
         radius="full"
         variant="bordered"
-        className="font-lg mx-1 translate-y-[1px] pr-1.5 pl-2.5 align-baseline text-base"
+        className="mx-1 translate-y-[1px] pr-1.5 pl-2.5 align-baseline text-base"
       >
         {originalText}
       </Chip>
@@ -79,11 +83,11 @@ export function TimerChip({
       as="button"
       onClick={handleClick}
       startContent={icon}
-      color={isCompleted ? "danger" : "default"}
+      color={isCompleted ? "danger" : "primary"}
       radius="full"
       size="md"
       variant="bordered"
-      className="font-lg mx-1 translate-y-[1px] pr-1.5 pl-2.5 align-baseline text-base"
+      className="mx-1 translate-y-[1px] pr-1.5 pl-2.5 align-baseline text-base"
     >
       {formatTimerMs(timer.remainingMs)}
     </Chip>

@@ -193,6 +193,10 @@
     "one": "Timer",
     "other": "Timers",
     "label_one": "1 Timer",
-    "label_other": "{count} Timers"
+    "label_other": "{count} Timers",
+    "notification_title": "Timer afgelopen",
+    "notification_body": "{label} is klaar!",
+    "notifications_disabled": "Meldingen zijn uitgeschakeld",
+    "notifications_disabled_hint": "Schakel meldingen in via je browserinstellingen om waarschuwingen te ontvangen wanneer timers op de achtergrond aflopen."
   }
 }

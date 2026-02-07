@@ -20,6 +20,7 @@ import { useTranslations } from "next-intl";
 import { createClientLogger } from "@/lib/logger";
 import { formatTimerMs } from "@/lib/helpers";
 import { useAutoHide } from "@/hooks/auto-hide";
+import { useNotificationPermission } from "@/hooks/use-notification-permission";
 
 const logger = createClientLogger("timer-dock");
 
@@ -51,17 +52,19 @@ export function TimerDock() {
   const { timersEnabled } = useTimersEnabledQuery();
   const timers = useTimerStore((state) => state.timers);
   const clearAll = useTimerStore((state) => state.clearAll);
-  const activeTimers = timers.filter((t) => t.status !== "paused" && t.status !== "completed");
+  const runningTimers = timers.filter((t) => t.status === "running");
   const pausedTimers = timers.filter((t) => t.status === "paused");
   const completedTimers = timers.filter((t) => t.status === "completed");
 
-  const allActiveOrPaused = [...activeTimers, ...pausedTimers, ...completedTimers];
+  const allActiveOrPaused = [...runningTimers, ...pausedTimers, ...completedTimers];
   const t = useTranslations("common");
   const router = useRouter();
 
   const [isExpanded, setIsExpanded] = useState(false);
   const [isClient, setIsClient] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const { isDenied: notificationsDenied, isSupported: notificationsSupported } =
+    useNotificationPermission();
 
   // Auto-hide with nav (disabled when expanded to keep it visible)
   const { isVisible } = useAutoHide({ disabled: isExpanded });
@@ -114,7 +117,7 @@ export function TimerDock() {
   }, [stop]);
 
   if (!isClient || !timersEnabled) return null;
-  if (allActiveOrPaused.length === 0) return <TimerTicker />;
+  if (allActiveOrPaused.length === 0) return null;
 
   // Sort: completed first (to alert), then active by remaining time
   const sortedTimers = [...allActiveOrPaused].sort((a, b) => {
@@ -154,10 +157,10 @@ export function TimerDock() {
           layout
           className={`overflow-hidden shadow-xl ring-1 ring-black/5 backdrop-blur-sm ${
             isExpanded
-              ? "w-80 rounded-xl bg-white dark:bg-zinc-800 dark:ring-white/10"
+              ? "bg-content1 w-80 rounded-2xl dark:ring-white/10"
               : topTimer.status === "completed"
-                ? "rounded-full bg-red-600 ring-0"
-                : "rounded-full bg-white/90 dark:bg-zinc-800/90 dark:ring-white/10"
+                ? "bg-danger rounded-full ring-0"
+                : "bg-content1/90 rounded-full dark:ring-white/10"
           }`}
           transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
         >
@@ -171,16 +174,16 @@ export function TimerDock() {
               {/* Header */}
               <button
                 type="button"
-                className="flex w-full items-center justify-between border-b border-zinc-200/50 bg-zinc-50/80 p-4 transition-all hover:bg-zinc-100/80 dark:border-zinc-700/50 dark:bg-zinc-700/50 dark:hover:bg-zinc-600/50"
+                className="border-default-200 bg-content2 hover:bg-content2 flex w-full items-center justify-between border-b p-4 transition-all"
                 onClick={() => setIsExpanded(false)}
                 aria-label="Close timer summary"
               >
-                <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                <h3 className="text-foreground text-sm font-semibold">
                   {timerCount === 1
                     ? t("timer.label_one")
                     : t("timer.label_other", { count: timerCount })}
                 </h3>
-                <ChevronDownIcon className="h-4 w-4 text-zinc-500 dark:text-zinc-400" />
+                <ChevronDownIcon className="text-default-500 h-4 w-4" />
               </button>
 
               {/* Timer List */}
@@ -195,6 +198,13 @@ export function TimerDock() {
                   />
                 ))}
               </div>
+
+              {/* Notifications disabled hint */}
+              {notificationsSupported && notificationsDenied && (
+                <div className="border-default-200 text-default-500 border-t px-4 py-2 text-xs">
+                  {t("timer.notifications_disabled_hint")}
+                </div>
+              )}
             </motion.div>
           ) : (
             <motion.button
@@ -205,7 +215,7 @@ export function TimerDock() {
               type="button"
               onClick={() => setIsExpanded(true)}
               className={`group flex items-center gap-3 px-4 py-3 transition-all hover:shadow-xl ${
-                topTimer.status === "completed" ? "text-white" : "text-zinc-900 dark:text-white"
+                topTimer.status === "completed" ? "text-white" : "text-foreground"
               }`}
             >
               <div className="flex flex-col items-start">
@@ -264,8 +274,8 @@ function TimerRow({
   return (
     <div
       className={`flex items-center gap-4 p-4 ${
-        !isLast ? "border-b border-zinc-200/50 dark:border-zinc-700/50" : ""
-      } ${isCompleted ? "bg-red-50/50 dark:bg-red-900/10" : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"} transition-colors`}
+        !isLast ? "border-default-200 border-b" : ""
+      } ${isCompleted ? "bg-danger-50" : "hover:bg-content2"} transition-colors`}
     >
       {/* Timer Info - Clickable */}
       <button
@@ -274,17 +284,13 @@ function TimerRow({
         onClick={handleTimerClick}
         aria-label={`Go to recipe for ${timer.label}`}
       >
-        <h4 className="mb-1 truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
-          {timer.label}
-        </h4>
+        <h4 className="text-foreground mb-1 truncate text-sm font-medium">{timer.label}</h4>
         {timer.recipeName && (
-          <p className="mb-1.5 truncate text-xs text-zinc-500 dark:text-zinc-400">
-            {timer.recipeName}
-          </p>
+          <p className="text-default-500 mb-1.5 truncate text-xs">{timer.recipeName}</p>
         )}
         <div
           className={`font-mono text-xl font-semibold ${
-            isCompleted ? "text-red-600 dark:text-red-500" : "text-zinc-900 dark:text-zinc-100"
+            isCompleted ? "text-danger" : "text-foreground"
           }`}
         >
           {formatTimerMs(timer.remainingMs)}
@@ -319,7 +325,7 @@ function TimerRow({
           </Button>
         </div>
 
-        <div className="h-8 w-px bg-zinc-200 dark:bg-zinc-700" />
+        <div className="bg-default-200 h-8 w-px" />
 
         {isCompleted ? (
           <Button
