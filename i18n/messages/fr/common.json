@@ -27,7 +27,11 @@
     "test": "Test",
     "format": "Format",
     "restoreDefaults": "Recharger paramètres par défaut",
-    "saveChanges": "Sauvegarder changements"
+    "saveChanges": "Sauvegarder changements",
+    "revealSecret": "Révéler le secret",
+    "hideSecret": "Masquer le secret",
+    "enterNewValue": "Saisir une nouvelle valeur",
+    "cancelEditing": "Annuler la modification"
   },
   "status": {
     "loading": "Chargement...",
@@ -62,7 +66,7 @@
   },
   "time": {
     "minutes": "min",
-    "hours": "hr"
+    "hours": "h"
   },
   "validation": {
     "required": "Ce champ est requis",

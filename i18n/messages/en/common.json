@@ -27,7 +27,11 @@
     "test": "Test",
     "format": "Format",
     "restoreDefaults": "Restore Defaults",
-    "saveChanges": "Save Changes"
+    "saveChanges": "Save Changes",
+    "revealSecret": "Reveal secret",
+    "hideSecret": "Hide secret",
+    "enterNewValue": "Enter new value",
+    "cancelEditing": "Cancel editing"
   },
   "status": {
     "loading": "Loading...",

@@ -27,7 +27,11 @@
     "test": "Testen",
     "format": "Formatieren",
     "restoreDefaults": "Auf Standard zurücksetzen",
-    "saveChanges": "Änderungen speichern"
+    "saveChanges": "Änderungen speichern",
+    "revealSecret": "Geheimnis anzeigen",
+    "hideSecret": "Geheimnis verbergen",
+    "enterNewValue": "Neuen Wert eingeben",
+    "cancelEditing": "Bearbeitung abbrechen"
   },
   "status": {
     "loading": "Wird geladen...",
