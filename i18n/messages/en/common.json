@@ -172,6 +172,9 @@
       "6": "Saturday"
     }
   },
+  "badges": {
+    "new": "New"
+  },
   "timer": {
     "done": "Done",
     "done_action": "Done",

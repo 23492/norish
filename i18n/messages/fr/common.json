@@ -172,6 +172,9 @@
       "6": "Samedi"
     }
   },
+  "badges": {
+    "new": "Nouveau"
+  },
   "timer": {
     "done": "Terminé",
     "done_action": "Terminé",

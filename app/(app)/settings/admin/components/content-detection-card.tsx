@@ -13,6 +13,7 @@ import { ServerConfigKeys } from "@/server/db/zodSchemas/server-config";
 
 export default function ContentDetectionCard() {
   const t = useTranslations("settings.admin.contentDetection");
+  const tCommon = useTranslations("common");
   const {
     contentIndicators,
     units,
@@ -51,7 +52,7 @@ export default function ContentDetectionCard() {
                   variant="shadow"
                   size="sm"
                 >
-                  New
+                  {tCommon("badges.new")}
                 </Chip>
               </div>
             }

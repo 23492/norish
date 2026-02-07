@@ -172,6 +172,9 @@
       "6": "zaterdag"
     }
   },
+  "badges": {
+    "new": "Nieuw"
+  },
   "timer": {
     "done": "Klaar",
     "done_action": "Klaar",
