@@ -83,7 +83,7 @@ export function TimerChip({
       as="button"
       onClick={handleClick}
       startContent={icon}
-      color={isCompleted ? "danger" : "primary"}
+      color={isCompleted ? "danger" : isRunning ? "primary" : "warning"}
       radius="full"
       size="md"
       variant="bordered"
