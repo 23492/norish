@@ -158,9 +158,7 @@ export function TimerDock() {
           className={`overflow-hidden shadow-xl ring-1 ring-black/5 backdrop-blur-sm ${
             isExpanded
               ? "bg-content1 w-80 rounded-2xl dark:ring-white/10"
-              : topTimer.status === "completed"
-                ? "bg-danger rounded-full ring-0"
-                : "bg-content1/90 rounded-full dark:ring-white/10"
+              : "bg-content1/90 rounded-full dark:ring-white/10"
           }`}
           transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
         >
@@ -174,7 +172,7 @@ export function TimerDock() {
               {/* Header */}
               <button
                 type="button"
-                className="border-default-200 bg-content2 hover:bg-content2 flex w-full items-center justify-between border-b p-4 transition-all"
+                className="border-default-100 flex w-full cursor-pointer items-center justify-between border-b p-4"
                 onClick={() => setIsExpanded(false)}
                 aria-label="Close timer summary"
               >
@@ -214,9 +212,7 @@ export function TimerDock() {
               transition={{ duration: 0.15, delay: 0.2 }}
               type="button"
               onClick={() => setIsExpanded(true)}
-              className={`group flex items-center gap-3 px-4 py-3 transition-all hover:shadow-xl ${
-                topTimer.status === "completed" ? "text-white" : "text-foreground"
-              }`}
+              className={`group text-foreground flex items-center gap-3 px-4 py-3 transition-all hover:shadow-xl`}
             >
               <div className="flex flex-col items-start">
                 <span className="mb-1 max-w-[120px] truncate text-xs leading-none font-medium opacity-75">
@@ -224,7 +220,11 @@ export function TimerDock() {
                     ? topTimer.label
                     : t("timer.label_other", { count: timerCount })}
                 </span>
-                <span className="font-mono text-lg leading-none font-bold tabular-nums">
+                <span
+                  className={`font-mono text-lg leading-none font-bold tabular-nums ${
+                    topTimer.status === "completed" ? "text-danger" : ""
+                  }`}
+                >
                   {formatTimerMs(topTimer.remainingMs)}
                 </span>
               </div>
@@ -274,17 +274,21 @@ function TimerRow({
   return (
     <div
       className={`flex items-center gap-4 p-4 ${
-        !isLast ? "border-default-200 border-b" : ""
-      } ${isCompleted ? "bg-danger-50" : "hover:bg-content2"} transition-colors`}
+        !isLast ? "border-default-100 border-b" : ""
+      } hover:bg-default-100/50 transition-colors`}
     >
       {/* Timer Info - Clickable */}
       <button
         type="button"
-        className="min-w-0 flex-1 text-left transition-opacity hover:opacity-70"
+        className="min-w-0 flex-1 cursor-pointer text-left transition-opacity hover:opacity-80"
         onClick={handleTimerClick}
         aria-label={`Go to recipe for ${timer.label}`}
       >
-        <h4 className="text-foreground mb-1 truncate text-sm font-medium">{timer.label}</h4>
+        <h4
+          className={`mb-1 truncate text-sm font-medium ${isCompleted ? "text-danger" : "text-foreground"}`}
+        >
+          {timer.label}
+        </h4>
         {timer.recipeName && (
           <p className="text-default-500 mb-1.5 truncate text-xs">{timer.recipeName}</p>
         )}
@@ -303,10 +307,9 @@ function TimerRow({
           <Button
             isIconOnly
             aria-label={`Decrease time by ${formatTimerMs(smartIncrement)}`}
-            className="bg-content2"
             size="sm"
             title={`-${formatTimerMs(smartIncrement)}`}
-            variant="flat"
+            variant="light"
             onPress={() => adjustTimer(timer.id, -smartIncrement)}
           >
             <MinusIcon className="h-4 w-4" />
@@ -315,10 +318,9 @@ function TimerRow({
           <Button
             isIconOnly
             aria-label={`Increase time by ${formatTimerMs(smartIncrement)}`}
-            className="bg-content2"
             size="sm"
             title={`+${formatTimerMs(smartIncrement)}`}
-            variant="solid"
+            variant="light"
             onPress={() => adjustTimer(timer.id, smartIncrement)}
           >
             <PlusIcon className="h-4 w-4" />
@@ -332,7 +334,7 @@ function TimerRow({
             aria-label="Dismiss completed timer"
             color="danger"
             size="sm"
-            variant="solid"
+            variant="flat"
             onPress={() => removeTimer(timer.id)}
           >
             {t("timer.done_action")}
@@ -342,9 +344,8 @@ function TimerRow({
             <Button
               isIconOnly
               aria-label={isRunning ? "Pause timer" : "Start timer"}
-              className="bg-content2"
               size="sm"
-              variant="flat"
+              variant="light"
               onPress={() => (isRunning ? pauseTimer(timer.id) : startTimer(timer.id))}
             >
               {isRunning ? <PauseIcon className="h-4 w-4" /> : <PlayIcon className="h-4 w-4" />}
