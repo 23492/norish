@@ -10,6 +10,8 @@ import { useTranslations } from "next-intl";
 
 import { useUserSettingsContext } from "../context";
 
+import { getAvatarFallbackStyle } from "@/lib/avatar-color";
+
 function withQueryParams(url: string, params: Record<string, string | number>) {
   const [path, hash = ""] = url.split("#");
   const separator = path.includes("?") ? "&" : "?";
@@ -104,6 +106,12 @@ export default function ProfileCard() {
 
   const hasPendingChanges = name !== user?.name || pendingImageFile !== null;
   const hasImage = imagePreview || user?.image;
+  const avatarSrc =
+    imagePreview || !user?.image
+      ? imagePreview || undefined
+      : withQueryParams(user.image, { v: avatarRefreshKey });
+  const fallbackSeed = user?.id || user?.email || user?.name || "U";
+  const fallbackStyle = getAvatarFallbackStyle(fallbackSeed);
 
   return (
     <Card>
@@ -118,13 +126,10 @@ export default function ProfileCard() {
           <div className="relative">
             <Avatar
               isBordered
-              className="h-24 w-24 cursor-pointer text-2xl transition-opacity hover:opacity-80"
+              className={`h-24 w-24 cursor-pointer border border-black/30 text-2xl font-semibold transition-opacity hover:opacity-80 dark:border-white/25 ${avatarSrc ? "bg-white dark:bg-black" : ""}`}
               name={user?.name?.[0]?.toUpperCase() || "U"}
-              src={
-                imagePreview || !user?.image
-                  ? imagePreview || undefined
-                  : withQueryParams(user.image, { v: avatarRefreshKey })
-              }
+              src={avatarSrc}
+              style={avatarSrc ? undefined : fallbackStyle}
               onClick={() => fileInputRef.current?.click()}
             />
             <input

@@ -21,6 +21,7 @@ import { LanguageSwitch } from "@/components/shared/language-switch";
 import { cssButtonPill, cssButtonPillDanger } from "@/config/css-tokens";
 import { useUserContext } from "@/context/user-context";
 import { useVersionQuery } from "@/hooks/config";
+import { getAvatarFallbackStyle } from "@/lib/avatar-color";
 
 type TriggerVariant = "avatar" | "ellipsis";
 
@@ -70,6 +71,13 @@ export default function NavbarUserMenu({ trigger = "avatar" }: NavbarUserMenuPro
 
   if (!user) return null;
 
+  const avatarSrc =
+    !imageError && user.image
+      ? withQueryParams(user.image, { retry: retryCount, v: avatarRefreshKey })
+      : undefined;
+  const fallbackSeed = user.id || user.email || user.name || "U";
+  const fallbackStyle = getAvatarFallbackStyle(fallbackSeed);
+
   return (
     <>
       <Dropdown placement="bottom-end" onOpenChange={setUserMenuOpen}>
@@ -77,17 +85,13 @@ export default function NavbarUserMenu({ trigger = "avatar" }: NavbarUserMenuPro
           {trigger === "avatar" ? (
             <button aria-label="Open user menu" className="relative rounded-full" type="button">
               <Avatar
-                className="isBordered h-13 w-13 cursor-pointer text-lg"
-                color="warning"
+                className={`isBordered h-13 w-13 cursor-pointer border border-black/30 text-lg font-semibold dark:border-white/25 ${avatarSrc ? "bg-white dark:bg-black" : ""}`}
                 imgProps={{
                   onError: handleImageError,
                 }}
                 name={user?.name || user?.email || "U"}
-                src={
-                  !imageError && user?.image
-                    ? withQueryParams(user.image, { retry: retryCount, v: avatarRefreshKey })
-                    : undefined
-                }
+                src={avatarSrc}
+                style={avatarSrc ? undefined : fallbackStyle}
               />
               {updateAvailable && (
                 <span className="absolute -top-0.5 -right-0.5 flex h-3 w-3">
