@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from "@heroui/dropdown";
 import { Avatar } from "@heroui/avatar";
 import { Button } from "@heroui/react";
@@ -21,22 +21,12 @@ import { LanguageSwitch } from "@/components/shared/language-switch";
 import { cssButtonPill, cssButtonPillDanger } from "@/config/css-tokens";
 import { useUserContext } from "@/context/user-context";
 import { useVersionQuery } from "@/hooks/config";
-import { getAvatarFallbackStyle } from "@/lib/avatar-color";
+import { useUserAvatar } from "@/hooks/use-user-avatar";
 
 type TriggerVariant = "avatar" | "ellipsis";
 
 interface NavbarUserMenuProps {
   trigger?: TriggerVariant;
-}
-
-function withQueryParams(url: string, params: Record<string, string | number>) {
-  const [path, hash = ""] = url.split("#");
-  const separator = path.includes("?") ? "&" : "?";
-  const query = Object.entries(params)
-    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
-    .join("&");
-
-  return `${path}${separator}${query}${hash ? `#${hash}` : ""}`;
 }
 
 export default function NavbarUserMenu({ trigger = "avatar" }: NavbarUserMenuProps) {
@@ -45,38 +35,18 @@ export default function NavbarUserMenu({ trigger = "avatar" }: NavbarUserMenuPro
   const router = useRouter();
   const [showUrlModal, setShowUrlModal] = useState(false);
   const [imageError, setImageError] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
-  const [avatarRefreshKey, setAvatarRefreshKey] = useState(() => Date.now());
   const { currentVersion, latestVersion, updateAvailable, releaseUrl } = useVersionQuery();
-
-  useEffect(() => {
-    if (user) {
-      setImageError(false);
-      setRetryCount(0);
-      setAvatarRefreshKey(Date.now());
-    }
-  }, [user]);
+  const { avatarSrc, fallbackStyle } = useUserAvatar({
+    image: user?.image,
+    fallbackSeed: user?.id || user?.email || user?.name || "U",
+    disabled: imageError,
+  });
 
   const handleImageError = () => {
-    if (retryCount < 2) {
-      // Retry up to 2 times with a small delay
-      setTimeout(() => {
-        setRetryCount((prev) => prev + 1);
-      }, 1000);
-    } else {
-      // After retries, show fallback
-      setImageError(true);
-    }
+    setImageError(true);
   };
 
   if (!user) return null;
-
-  const avatarSrc =
-    !imageError && user.image
-      ? withQueryParams(user.image, { retry: retryCount, v: avatarRefreshKey })
-      : undefined;
-  const fallbackSeed = user.id || user.email || user.name || "U";
-  const fallbackStyle = getAvatarFallbackStyle(fallbackSeed);
 
   return (
     <>

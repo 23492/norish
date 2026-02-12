@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
 
 const mockPush = vi.hoisted(() => vi.fn());
@@ -79,24 +79,11 @@ describe("NavbarUserMenu avatar src", () => {
     };
   });
 
-  it("changes avatar src when user object updates with same image path", async () => {
-    const { rerender } = render(<NavbarUserMenu />);
+  it("uses plain avatar URL without cache-busting query params", () => {
+    render(<NavbarUserMenu />);
 
-    const firstSrc = screen.getByAltText("user avatar").getAttribute("src");
+    const src = screen.getByAltText("user avatar").getAttribute("src");
 
-    mockUser = {
-      id: "user-1",
-      name: "User Updated",
-      email: "user@example.com",
-      image: "/avatars/user-1.png",
-    };
-
-    rerender(<NavbarUserMenu />);
-
-    await waitFor(() => {
-      const secondSrc = screen.getByAltText("user avatar").getAttribute("src");
-
-      expect(secondSrc).not.toBe(firstSrc);
-    });
+    expect(src).toBe("/avatars/user-1.png");
   });
 });

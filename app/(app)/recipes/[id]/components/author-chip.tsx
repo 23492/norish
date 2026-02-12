@@ -1,7 +1,7 @@
 "use client";
 import { Avatar } from "@heroui/react";
 
-import { getAvatarFallbackStyle } from "@/lib/avatar-color";
+import { useUserAvatar } from "@/hooks/use-user-avatar";
 
 type Props = {
   userId?: string;
@@ -9,9 +9,10 @@ type Props = {
   image?: string | null;
 };
 export default function AuthorChip({ userId, name, image }: Props) {
-  const avatarSrc = image || undefined;
-  const fallbackSeed = userId || name || "U";
-  const fallbackStyle = getAvatarFallbackStyle(fallbackSeed);
+  const { avatarSrc, fallbackStyle } = useUserAvatar({
+    image,
+    fallbackSeed: userId || name || "U",
+  });
 
   return (
     <div className="flex items-center gap-2 rounded-full bg-black/40 py-1 pr-3 pl-2 shadow-sm backdrop-blur-md">

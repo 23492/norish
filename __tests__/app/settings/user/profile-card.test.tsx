@@ -90,29 +90,17 @@ describe("ProfileCard", () => {
     expect(mockContext.updateName).not.toHaveBeenCalled();
   });
 
-  it("refreshes avatar src when user updates with same image path", async () => {
+  it("uses plain avatar URL without cache-busting query params", () => {
     mockUser = {
       name: "Alice",
       email: "alice@example.com",
       image: "/avatars/user-1.png",
     };
 
-    const { rerender } = render(<ProfileCard />);
+    render(<ProfileCard />);
 
-    const firstSrc = screen.getByAltText("profile avatar").getAttribute("src");
+    const src = screen.getByAltText("profile avatar").getAttribute("src");
 
-    mockUser = {
-      name: "Alice Updated",
-      email: "alice@example.com",
-      image: "/avatars/user-1.png",
-    };
-
-    rerender(<ProfileCard />);
-
-    await waitFor(() => {
-      const secondSrc = screen.getByAltText("profile avatar").getAttribute("src");
-
-      expect(secondSrc).not.toBe(firstSrc);
-    });
+    expect(src).toBe("/avatars/user-1.png");
   });
 });
