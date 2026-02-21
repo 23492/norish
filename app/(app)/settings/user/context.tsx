@@ -2,13 +2,15 @@
 
 import type { User } from "@/types";
 import type { ApiKeyMetadataDto } from "@/server/trpc/routers/user/types";
+import type { UserPreferencesDto } from "@/server/db/zodSchemas/user";
 
 import { createContext, useContext, ReactNode, useCallback } from "react";
-import { addToast } from "@heroui/react";
+// Use centralized error toast helper instead of manual toasts
+import { useTranslations } from "next-intl";
 
 import { useUserSettingsQuery } from "@/hooks/user/use-user-query";
 import { useUserMutations } from "@/hooks/user/use-user-mutations";
-import { useUserContext } from "@/context/user-context";
+import { showSafeErrorToast } from "@/lib/ui/safe-error-toast";
 
 type UserSettingsContextType = {
   user: User | null;
@@ -25,6 +27,7 @@ type UserSettingsContextType = {
   toggleApiKey: (keyId: string, enabled: boolean) => void;
   deleteAccount: () => void;
   updateAllergies: (allergies: string[]) => Promise<void>;
+  updatePreferences: (preferences: Partial<UserPreferencesDto>) => Promise<void>;
 
   // Loading states
   isUpdatingName: boolean;
@@ -32,23 +35,37 @@ type UserSettingsContextType = {
   isDeletingAvatar: boolean;
   isDeletingAccount: boolean;
   isUpdatingAllergies: boolean;
+  isUpdatingPreferences: boolean;
 };
 
 const UserSettingsContext = createContext<UserSettingsContextType | null>(null);
 
 export function UserSettingsProvider({ children }: { children: ReactNode }) {
+  const tErrors = useTranslations("common.errors");
   const { user, apiKeys, allergies, isLoading } = useUserSettingsQuery();
   const mutations = useUserMutations();
-  const { setUser } = useUserContext();
+
+  const showSettingsError = useCallback(
+    (error: unknown, context: string) => {
+      showSafeErrorToast({
+        title: tErrors("operationFailed"),
+        description: tErrors("technicalDetails"),
+        color: "danger",
+        error,
+        context,
+      });
+    },
+    [tErrors]
+  );
 
   const updateName = useCallback(
     async (name: string) => {
       if (!name.trim()) {
-        addToast({
-          title: "Name cannot be empty",
+        showSafeErrorToast({
+          title: tErrors("nameCannotBeEmpty"),
+          description: "",
+          context: "user-settings:update-name",
           color: "danger",
-          shouldShowTimeoutProgress: true,
-          radius: "full",
         });
 
         return;
@@ -57,28 +74,14 @@ export function UserSettingsProvider({ children }: { children: ReactNode }) {
       try {
         const result = await mutations.updateName(name);
 
-        if (result.success && result.user) {
-          setUser(result.user);
-        } else if (result.error) {
-          addToast({
-            title: "Failed to update profile",
-            description: result.error,
-            color: "danger",
-            shouldShowTimeoutProgress: true,
-            radius: "full",
-          });
+        if (!result.success && result.error) {
+          showSettingsError(result.error, "user-settings:update-name");
         }
       } catch (error) {
-        addToast({
-          title: "Failed to update profile",
-          description: (error as Error).message,
-          color: "danger",
-          shouldShowTimeoutProgress: true,
-          radius: "full",
-        });
+        showSettingsError(error, "user-settings:update-name");
       }
     },
-    [mutations, setUser]
+    [mutations, showSettingsError, tErrors]
   );
 
   const updateImage = useCallback(
@@ -86,30 +89,16 @@ export function UserSettingsProvider({ children }: { children: ReactNode }) {
       try {
         const result = await mutations.uploadAvatar(file);
 
-        if (result.success && result.user) {
-          setUser(result.user);
-        } else if (result.error) {
-          addToast({
-            title: "Failed to upload image",
-            description: result.error,
-            color: "danger",
-            shouldShowTimeoutProgress: true,
-            radius: "full",
-          });
+        if (!result.success && result.error) {
+          showSettingsError(result.error, "user-settings:upload-avatar");
           throw new Error(result.error);
         }
       } catch (error) {
-        addToast({
-          title: "Failed to upload image",
-          description: (error as Error).message,
-          color: "danger",
-          shouldShowTimeoutProgress: true,
-          radius: "full",
-        });
+        showSettingsError(error, "user-settings:upload-avatar");
         throw error;
       }
     },
-    [mutations, setUser]
+    [mutations, showSettingsError]
   );
 
   const generateApiKey = useCallback(
@@ -121,47 +110,29 @@ export function UserSettingsProvider({ children }: { children: ReactNode }) {
       } else {
         const errorMsg = result.error || "Failed to generate API key";
 
-        addToast({
-          title: "Failed to generate API key",
-          description: errorMsg,
-          color: "danger",
-          shouldShowTimeoutProgress: true,
-          radius: "full",
-        });
+        showSettingsError(errorMsg, "user-settings:create-api-key");
         throw new Error(errorMsg);
       }
     },
-    [mutations]
+    [mutations, showSettingsError]
   );
 
   const deleteApiKey = useCallback(
     (keyId: string) => {
       mutations.deleteApiKey(keyId).catch((error) => {
-        addToast({
-          title: "Failed to delete API key",
-          description: (error as Error).message,
-          color: "danger",
-          shouldShowTimeoutProgress: true,
-          radius: "full",
-        });
+        showSettingsError(error, "user-settings:delete-api-key");
       });
     },
-    [mutations]
+    [mutations, showSettingsError]
   );
 
   const toggleApiKey = useCallback(
     (keyId: string, enabled: boolean) => {
       mutations.toggleApiKey(keyId, enabled).catch((error) => {
-        addToast({
-          title: `Failed to ${enabled ? "enable" : "disable"} API key`,
-          description: (error as Error).message,
-          color: "danger",
-          shouldShowTimeoutProgress: true,
-          radius: "full",
-        });
+        showSettingsError(error, "user-settings:toggle-api-key");
       });
     },
-    [mutations]
+    [mutations, showSettingsError]
   );
 
   const deleteAccount = useCallback(() => {
@@ -171,70 +142,55 @@ export function UserSettingsProvider({ children }: { children: ReactNode }) {
         if (result.success) {
           window.location.href = "/login";
         } else if (result.error) {
-          addToast({
-            title: "Failed to delete account",
-            description: result.error,
-            color: "danger",
-            shouldShowTimeoutProgress: true,
-            radius: "full",
-          });
+          showSettingsError(result.error, "user-settings:delete-account");
         }
       })
       .catch((error) => {
-        addToast({
-          title: "Failed to delete account",
-          description: (error as Error).message,
-          color: "danger",
-          shouldShowTimeoutProgress: true,
-          radius: "full",
-        });
+        showSettingsError(error, "user-settings:delete-account");
       });
-  }, [mutations]);
+  }, [mutations, showSettingsError]);
 
   const updateAllergies = useCallback(
     async (newAllergies: string[]) => {
       try {
         await mutations.setAllergies(newAllergies);
       } catch (error) {
-        addToast({
-          title: "Failed to update allergies",
-          description: (error as Error).message,
-          color: "danger",
-          shouldShowTimeoutProgress: true,
-          radius: "full",
-        });
+        showSettingsError(error, "user-settings:update-allergies");
       }
     },
-    [mutations]
+    [mutations, showSettingsError]
+  );
+
+  const updatePreferences = useCallback(
+    async (preferences: Partial<UserPreferencesDto>) => {
+      try {
+        const result = await mutations.updatePreferences(preferences);
+
+        if (!result.success && result.error) {
+          showSettingsError(result.error, "user-settings:update-preferences");
+        }
+
+        return;
+      } catch (error) {
+        showSettingsError(error, "user-settings:update-preferences");
+      }
+    },
+    [mutations, showSettingsError]
   );
 
   const deleteImage = useCallback(async () => {
     try {
       const result = await mutations.deleteAvatar();
 
-      if (result.success && result.user) {
-        setUser(result.user);
-      } else if (result.error) {
-        addToast({
-          title: "Failed to delete image",
-          description: result.error,
-          color: "danger",
-          shouldShowTimeoutProgress: true,
-          radius: "full",
-        });
+      if (!result.success && result.error) {
+        showSettingsError(result.error, "user-settings:delete-avatar");
         throw new Error(result.error);
       }
     } catch (error) {
-      addToast({
-        title: "Failed to delete image",
-        description: (error as Error).message,
-        color: "danger",
-        shouldShowTimeoutProgress: true,
-        radius: "full",
-      });
+      showSettingsError(error, "user-settings:delete-avatar");
       throw error;
     }
-  }, [mutations, setUser]);
+  }, [mutations, showSettingsError]);
 
   return (
     <UserSettingsContext.Provider
@@ -251,11 +207,13 @@ export function UserSettingsProvider({ children }: { children: ReactNode }) {
         toggleApiKey,
         deleteAccount,
         updateAllergies,
+        updatePreferences,
         isUpdatingName: mutations.isUpdatingName,
         isUploadingAvatar: mutations.isUploadingAvatar,
         isDeletingAvatar: mutations.isDeletingAvatar,
         isDeletingAccount: mutations.isDeletingAccount,
         isUpdatingAllergies: mutations.isUpdatingAllergies,
+        isUpdatingPreferences: mutations.isUpdatingPreferences,
       }}
     >
       {children}

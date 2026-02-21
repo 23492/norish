@@ -19,7 +19,9 @@ import SearchFieldToggles from "@/components/dashboard/search-field-toggles";
 import ChipSkeleton from "@/components/skeleton/chip-skeleton";
 import RatingStars from "@/components/shared/rating-stars";
 import { useRecipesFiltersContext } from "@/context/recipes-filters-context";
+import { useUserContext } from "@/context/user-context";
 import { useTagsQuery } from "@/hooks/config";
+import { getShowFavoritesPreference, getShowRatingsPreference } from "@/lib/user-preferences";
 
 const ALL_CATEGORIES: RecipeCategory[] = ["Breakfast", "Lunch", "Dinner", "Snack"];
 
@@ -30,6 +32,20 @@ const COOKING_TIME_OPTIONS: Array<{ value: number; labelKey: string }> = [
   { value: 120, labelKey: "cookingTimeUnder120" },
 ];
 
+function normalizeSortMode(sortMode: SortOrder | null | undefined): SortOrder {
+  if (
+    sortMode === "titleAsc" ||
+    sortMode === "titleDesc" ||
+    sortMode === "dateAsc" ||
+    sortMode === "dateDesc" ||
+    sortMode === "none"
+  ) {
+    return sortMode;
+  }
+
+  return "none";
+}
+
 type FiltersPanelProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -37,15 +53,20 @@ type FiltersPanelProps = {
 
 function FiltersPanelContent({ onOpenChange }: { onOpenChange: (open: boolean) => void }) {
   const { filters, setFilters, clearFilters } = useRecipesFiltersContext();
+  const { user } = useUserContext();
   const t = useTranslations("common.filters");
   const tActions = useTranslations("common.actions");
   const tRecipes = useTranslations("recipes.dashboard");
+  const showRatings = getShowRatingsPreference(user);
+  const showFavorites = getShowFavoritesPreference(user);
 
   const [tagFilter, setTagFilter] = useState("");
   const [workingTags, setWorkingTags] = useState<string[]>(filters.searchTags);
   const [workingCategories, setWorkingCategories] = useState<RecipeCategory[]>(filters.categories);
   const [localFilterMode, setLocalFilterMode] = useState<FilterMode>(filters.filterMode);
-  const [localSortMode, setLocalSortMode] = useState<SortOrder>(filters.sortMode);
+  const [localSortMode, setLocalSortMode] = useState<SortOrder>(
+    normalizeSortMode(filters.sortMode)
+  );
   const [localInput, setLocalInput] = useState(filters.rawInput);
   const [localFavoritesOnly, setLocalFavoritesOnly] = useState(filters.showFavoritesOnly);
   const [localMinRating, setLocalMinRating] = useState<number | null>(filters.minRating);
@@ -59,7 +80,7 @@ function FiltersPanelContent({ onOpenChange }: { onOpenChange: (open: boolean) =
     setWorkingTags(filters.searchTags);
     setWorkingCategories(filters.categories);
     setLocalFilterMode(filters.filterMode);
-    setLocalSortMode(filters.sortMode);
+    setLocalSortMode(normalizeSortMode(filters.sortMode));
     setLocalInput(filters.rawInput);
     setLocalFavoritesOnly(filters.showFavoritesOnly);
     setLocalMinRating(filters.minRating);
@@ -120,8 +141,8 @@ function FiltersPanelContent({ onOpenChange }: { onOpenChange: (open: boolean) =
       filterMode: localFilterMode,
       sortMode: localSortMode,
       rawInput: localInput,
-      showFavoritesOnly: localFavoritesOnly,
-      minRating: localMinRating,
+      showFavoritesOnly: showFavorites ? localFavoritesOnly : false,
+      minRating: showRatings ? localMinRating : null,
       maxCookingTime: localMaxCookingTime,
     });
 
@@ -136,6 +157,8 @@ function FiltersPanelContent({ onOpenChange }: { onOpenChange: (open: boolean) =
     localFavoritesOnly,
     localMinRating,
     localMaxCookingTime,
+    showFavorites,
+    showRatings,
     close,
   ]);
 
@@ -227,26 +250,30 @@ function FiltersPanelContent({ onOpenChange }: { onOpenChange: (open: boolean) =
       </section>
 
       {/* Favorites & Rating */}
-      <section>
-        <h3 className="text-default-500 mb-2 text-[11px] font-medium tracking-wide uppercase">
-          {t("favoritesAndRating")}
-        </h3>
-        <div className="flex items-center gap-4">
-          <Button
-            className="h-9 px-3 text-xs"
-            color={localFavoritesOnly ? "danger" : "default"}
-            radius="full"
-            size="sm"
-            startContent={<HeartIcon className="size-3.5" />}
-            variant={localFavoritesOnly ? "solid" : "flat"}
-            onPress={() => setLocalFavoritesOnly(!localFavoritesOnly)}
-          >
-            {t("favorites")}
-          </Button>
+      {(showFavorites || showRatings) && (
+        <section>
+          <h3 className="text-default-500 mb-2 text-[11px] font-medium tracking-wide uppercase">
+            {t("favoritesAndRating")}
+          </h3>
+          <div className="flex items-center gap-4">
+            {showFavorites && (
+              <Button
+                className="h-9 px-3 text-xs"
+                color={localFavoritesOnly ? "danger" : "default"}
+                radius="full"
+                size="sm"
+                startContent={<HeartIcon className="size-3.5" />}
+                variant={localFavoritesOnly ? "solid" : "flat"}
+                onPress={() => setLocalFavoritesOnly(!localFavoritesOnly)}
+              >
+                {t("favorites")}
+              </Button>
+            )}
 
-          <RatingStars value={localMinRating} onChange={setLocalMinRating} />
-        </div>
-      </section>
+            {showRatings && <RatingStars value={localMinRating} onChange={setLocalMinRating} />}
+          </div>
+        </section>
+      )}
 
       {/* Cooking time */}
       <section>

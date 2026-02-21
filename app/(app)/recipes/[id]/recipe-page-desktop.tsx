@@ -34,6 +34,8 @@ import StarRating from "@/components/shared/star-rating";
 import { useFavoritesQuery, useFavoritesMutation } from "@/hooks/favorites";
 import { useRatingQuery, useRatingsMutation } from "@/hooks/ratings";
 import NutritionCard from "@/components/recipes/nutrition-card";
+import { useUserContext } from "@/context/user-context";
+import { getShowFavoritesPreference, getShowRatingsPreference } from "@/lib/user-preferences";
 
 export default function RecipePageDesktop() {
   const {
@@ -46,7 +48,11 @@ export default function RecipePageDesktop() {
   const { toggleFavorite } = useFavoritesMutation();
   const { userRating, averageRating, isLoading: isRatingLoading } = useRatingQuery(recipe.id);
   const { rateRecipe, isRating } = useRatingsMutation();
+  const { user } = useUserContext();
   const t = useTranslations("recipes.detail");
+  const tForm = useTranslations("recipes.form");
+  const showRatings = getShowRatingsPreference(user);
+  const showFavorites = getShowFavoritesPreference(user);
 
   const isFavorite = checkFavorite(recipe.id);
   const handleToggleFavorite = () => toggleFavorite(recipe.id);
@@ -120,7 +126,7 @@ export default function RecipePageDesktop() {
                     return (
                       <span key={category} className="flex items-center gap-1">
                         <IconComponent className="h-4 w-4" />
-                        {category}
+                        {tForm(`category.${category.toLowerCase()}`)}
                       </span>
                     );
                   })}
@@ -202,24 +208,35 @@ export default function RecipePageDesktop() {
         <div className="flex flex-col gap-6 md:col-span-1 lg:col-span-3">
           {/* Hero image/video carousel - wrapped to match Card styling */}
           <div className="relative overflow-hidden rounded-2xl shadow-md">
-            <DoubleTapContainer onDoubleTap={handleToggleFavorite}>
+            <DoubleTapContainer
+              doubleTapEnabled={showFavorites}
+              onDoubleTap={() => {
+                if (showFavorites) handleToggleFavorite();
+              }}
+            >
               <MediaCarousel className="min-h-[400px]" items={mediaItems} rounded={false} />
             </DoubleTapContainer>
 
             {/* Heart button - top right (always visible) */}
-            <div className="absolute top-4 right-4 z-50">
-              <HeartButton
-                showBackground
-                isFavorite={isFavorite}
-                size="lg"
-                onToggle={handleToggleFavorite}
-              />
-            </div>
+            {showFavorites && (
+              <div className="absolute top-4 right-4 z-50">
+                <HeartButton
+                  showBackground
+                  isFavorite={isFavorite}
+                  size="lg"
+                  onToggle={handleToggleFavorite}
+                />
+              </div>
+            )}
 
             {/* Author badge */}
             {recipe.author && (
               <div className="absolute top-4 left-4 z-50">
-                <AuthorChip image={recipe.author.image} name={recipe.author.name} />
+                <AuthorChip
+                  image={recipe.author.image}
+                  name={recipe.author.name}
+                  userId={recipe.author.id}
+                />
               </div>
             )}
           </div>
@@ -247,14 +264,16 @@ export default function RecipePageDesktop() {
             </CardBody>
 
             {/* Rating Section */}
-            <div className="bg-default-100 mx-3 mt-4 mb-3 flex flex-col items-center gap-4 rounded-xl py-6">
-              <p className="text-default-600 font-medium">{t("ratingPrompt")}</p>
-              <StarRating
-                isLoading={isRating || isRatingLoading}
-                value={userRating ?? averageRating}
-                onChange={handleRateRecipe}
-              />
-            </div>
+            {showRatings && (
+              <div className="bg-default-100 mx-3 mt-4 mb-3 flex flex-col items-center gap-4 rounded-xl py-6">
+                <p className="text-default-600 font-medium">{t("ratingPrompt")}</p>
+                <StarRating
+                  isLoading={isRating || isRatingLoading}
+                  value={userRating ?? averageRating}
+                  onChange={handleRateRecipe}
+                />
+              </div>
+            )}
           </Card>
         </div>
       </div>

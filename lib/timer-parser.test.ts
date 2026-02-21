@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 
 import { parseTimerDurations } from "./timer-parser";
 
+import defaultTimerKeywords from "@/config/timer-keywords.default.json";
+
 describe("parseTimerDurations", () => {
   describe("default keywords", () => {
     it("detects simple minutes", () => {
@@ -58,6 +60,30 @@ describe("parseTimerDurations", () => {
       expect(matches).toHaveLength(2);
       expect(matches[0].durationSeconds).toBe(600);
       expect(matches[1].durationSeconds).toBe(5 * 3600);
+    });
+
+    it("detects Korean minute keyword from timer config", () => {
+      const matches = parseTimerDurations("5분 끓이기", defaultTimerKeywords);
+
+      expect(matches).toHaveLength(1);
+      expect(matches[0].durationSeconds).toBe(5 * 60);
+      expect(matches[0].originalText).toBe("5분");
+    });
+
+    it("detects Korean hour keyword from timer config", () => {
+      const matches = parseTimerDurations("1시간 숙성", defaultTimerKeywords);
+
+      expect(matches).toHaveLength(1);
+      expect(matches[0].durationSeconds).toBe(3600);
+      expect(matches[0].originalText).toBe("1시간");
+    });
+
+    it("detects Korean second keyword from timer config", () => {
+      const matches = parseTimerDurations("30초 저어주세요", defaultTimerKeywords);
+
+      expect(matches).toHaveLength(1);
+      expect(matches[0].durationSeconds).toBe(30);
+      expect(matches[0].originalText).toBe("30초");
     });
   });
 

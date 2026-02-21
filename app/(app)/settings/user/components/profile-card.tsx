@@ -10,15 +10,7 @@ import { useTranslations } from "next-intl";
 
 import { useUserSettingsContext } from "../context";
 
-function withQueryParams(url: string, params: Record<string, string | number>) {
-  const [path, hash = ""] = url.split("#");
-  const separator = path.includes("?") ? "&" : "?";
-  const query = Object.entries(params)
-    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
-    .join("&");
-
-  return `${path}${separator}${query}${hash ? `#${hash}` : ""}`;
-}
+import { useUserAvatar } from "@/hooks/use-user-avatar";
 
 export default function ProfileCard() {
   const t = useTranslations("settings.user.profile");
@@ -27,7 +19,6 @@ export default function ProfileCard() {
   const [saving, setSaving] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
-  const [avatarRefreshKey, setAvatarRefreshKey] = useState(() => Date.now());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Update name when user data loads
@@ -36,12 +27,6 @@ export default function ProfileCard() {
       setName(user.name);
     }
   }, [user?.name]);
-
-  useEffect(() => {
-    if (user) {
-      setAvatarRefreshKey(Date.now());
-    }
-  }, [user]);
 
   const handleSaveProfile = async () => {
     const hasNameChanges = name !== user?.name;
@@ -104,6 +89,10 @@ export default function ProfileCard() {
 
   const hasPendingChanges = name !== user?.name || pendingImageFile !== null;
   const hasImage = imagePreview || user?.image;
+  const { avatarSrc, fallbackStyle } = useUserAvatar({
+    image: imagePreview || user?.image,
+    fallbackSeed: user?.id || user?.email || user?.name || "U",
+  });
 
   return (
     <Card>
@@ -118,13 +107,10 @@ export default function ProfileCard() {
           <div className="relative">
             <Avatar
               isBordered
-              className="h-24 w-24 cursor-pointer text-2xl transition-opacity hover:opacity-80"
+              className={`h-24 w-24 cursor-pointer border border-black/30 text-2xl font-semibold transition-opacity hover:opacity-80 dark:border-white/25 ${avatarSrc ? "bg-white dark:bg-black" : ""}`}
               name={user?.name?.[0]?.toUpperCase() || "U"}
-              src={
-                imagePreview || !user?.image
-                  ? imagePreview || undefined
-                  : withQueryParams(user.image, { v: avatarRefreshKey })
-              }
+              src={avatarSrc}
+              style={avatarSrc ? undefined : fallbackStyle}
               onClick={() => fileInputRef.current?.click()}
             />
             <input

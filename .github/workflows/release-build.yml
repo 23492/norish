@@ -28,12 +28,12 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 24.13.0
+          node-version: 24.13.1
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10.29.2
+          version: 10.30.1
           run_install: false
       - name: Verify pnpm installation
         run: pnpm --version
@@ -141,3 +141,14 @@ jobs:
             ghcr.io/norish-recipes/norish:${{ steps.image_tags.outputs.latest_tag }}
             docker.io/norishapp/norish:${{ steps.image_tags.outputs.version_tag }}
             docker.io/norishapp/norish:${{ steps.image_tags.outputs.latest_tag }}
+
+      - name: Create GitHub Release
+        if: steps.check_tag.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.compute_tag.outputs.tag }}"
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --generate-notes \
+            --latest

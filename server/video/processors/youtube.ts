@@ -37,7 +37,7 @@ export class YouTubeProcessor extends BaseVideoProcessor {
 
       try {
         log.info({ url }, "Attempting to download captions");
-        const captionResult = await downloadCaptions(url, tokens);
+        const captionResult = await downloadCaptions(url, tokens, metadata.language);
 
         if (captionResult.found && captionResult.filePath) {
           captionPath = captionResult.filePath;

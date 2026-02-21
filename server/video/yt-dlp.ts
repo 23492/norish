@@ -154,6 +154,27 @@ export async function buildAuthArgs(
   const args: string[] = [];
   let cookieFilePath: string | null = null;
 
+  const parseHostname = (value: string): string => {
+    try {
+      return new URL(value).hostname;
+    } catch {
+      return value;
+    }
+  };
+
+  const isIpAddress = (value: string): boolean =>
+    /^(?:\d{1,3}\.){3}\d{1,3}$/.test(value) || value.includes(":");
+
+  const toNetscapeDomain = (value: string): { domain: string; includeSubdomains: boolean } => {
+    const normalized = parseHostname(value).trim().replace(/^\.+/, "").toLowerCase();
+
+    if (!normalized || normalized === "localhost" || isIpAddress(normalized)) {
+      return { domain: normalized || value, includeSubdomains: false };
+    }
+
+    return { domain: `.${normalized}`, includeSubdomains: true };
+  };
+
   const headerTokens = tokens.filter((t) => t.type === "header");
 
   for (const token of headerTokens) {
@@ -163,20 +184,28 @@ export async function buildAuthArgs(
   const cookieTokens = tokens.filter((t) => t.type === "cookie");
 
   if (cookieTokens.length > 0) {
-    let domain: string;
+    let fallbackDomain: string;
+    let secureFlag = "FALSE";
 
     try {
-      domain = new URL(url).hostname;
+      const parsedUrl = new URL(url);
+
+      fallbackDomain = parsedUrl.hostname;
+      secureFlag = parsedUrl.protocol === "https:" ? "TRUE" : "FALSE";
     } catch {
-      domain = url;
+      fallbackDomain = url;
     }
 
     // Write Netscape cookie file format
     const lines = ["# Netscape HTTP Cookie File", "# https://curl.se/docs/http-cookies.html", ""];
 
     for (const token of cookieTokens) {
+      const { domain, includeSubdomains } = toNetscapeDomain(token.domain || fallbackDomain);
+
       // Format: domain  flag  path  secure  expiry  name  value
-      lines.push(`${domain}\tTRUE\t/\tFALSE\t0\t${token.name}\t${token.value}`);
+      lines.push(
+        `${domain}\t${includeSubdomains ? "TRUE" : "FALSE"}\t/\t${secureFlag}\t0\t${token.name}\t${token.value}`
+      );
     }
 
     cookieFilePath = path.join(
@@ -222,6 +251,7 @@ export async function getVideoMetadata(
       thumbnail: info.thumbnail || "",
       uploader: info.uploader || info.channel || undefined,
       uploadDate: info.upload_date || undefined,
+      language: info.language || undefined,
     };
   } catch (error: unknown) {
     log.error({ err: error }, "Failed to get video metadata");
@@ -352,10 +382,15 @@ export interface CaptionResult {
 /**
  * Download auto-generated captions/subtitles for a video.
  * Returns the path to the VTT file if available, null otherwise.
+ *
+ * @param subLang - BCP-47 language code to download subtitles for (e.g. "en", "es").
+ *   Pass the `language` from the video's metadata to avoid an extra network call.
+ *   Defaults to "en" if omitted.
  */
 export async function downloadCaptions(
   url: string,
-  tokens?: SiteAuthTokenDecryptedDto[]
+  tokens?: SiteAuthTokenDecryptedDto[],
+  subLang?: string
 ): Promise<CaptionResult> {
   await ensureYtDlpBinary();
   await fs.mkdir(outputDir, { recursive: true });
@@ -367,11 +402,17 @@ export async function downloadCaptions(
 
   const auth = tokens?.length ? await buildAuthArgs(tokens, url) : null;
 
+  const resolvedSubLang = subLang ?? "en";
+
+  log.debug({ subLang, resolvedSubLang, url }, "Using language for subtitle download");
+
   try {
     const args = [
       url,
       "--write-auto-sub", // Download auto-generated subtitles
       "--skip-download", // Don't download the video itself
+      "--sub-langs",
+      resolvedSubLang, // Use detected original language (fixes yt-dlp#13831)
       "--convert-subs",
       "vtt", // Convert to VTT format
       "-o",
