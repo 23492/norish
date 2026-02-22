@@ -157,6 +157,8 @@
       "teel",
       "teel.",
       "teelöffel",
+      "teelöff.",
+      "teelöff",
       "theelepel",
       "theelepels",
       "tl",
@@ -212,6 +214,8 @@
       "el.",
       "essl",
       "essl.",
+      "teelöff",
+      "teelöff.",
       "esslöffel",
       "큰술",
       "테이블스푼",
@@ -1994,7 +1998,7 @@
       },
       {
         "locale": "de",
-        "name": "gehäufter EL"
+        "name": "geh. EL"
       },
       {
         "locale": "nl",
@@ -2012,7 +2016,7 @@
       },
       {
         "locale": "de",
-        "name": "gehäufte EL"
+        "name": "geh. EL"
       },
       {
         "locale": "nl",
@@ -2026,7 +2030,12 @@
     "alternates": [
       "gehäufte esslöffel",
       "gehäufter esslöffel",
+      "gehäufte el",
+      "gehäufter el",
       "el, gehäuft",
+      "el, geh.",
+      "el gehäuft",
+      "el geh.",
       "großzügige el",
       "großzügige esslöffel",
       "großzügiger el",
@@ -2076,6 +2085,9 @@
     ],
     "alternates": [
       "el, gestr.",
+      "el, gestrichen",
+      "el gestr.",
+      "el gestrichen",
       "gestrichene el",
       "gestrichene esslöffel",
       "gestrichener el",
@@ -2164,7 +2176,7 @@
       },
       {
         "locale": "de",
-        "name": "große Schuss"
+        "name": "große Schüsse"
       },
       {
         "locale": "nl",
@@ -2249,7 +2261,7 @@
       },
       {
         "locale": "de",
-        "name": "kleine Schuss"
+        "name": "kleine Schüsse"
       },
       {
         "locale": "nl",
@@ -2377,7 +2389,14 @@
         "name": "기호에 맞게"
       }
     ],
-    "alternates": ["nach bedarf", "nach belieben", "nach geschmack", "기호에 맞게", "취향껏"]
+    "alternates": [
+      "n.b.",
+      "nach bedarf",
+      "nach belieben",
+      "nach geschmack",
+      "기호에 맞게",
+      "취향껏"
+    ]
   },
   "pound": {
     "short": [
@@ -2504,7 +2523,7 @@
       },
       {
         "locale": "de",
-        "name": "gehäufter TL"
+        "name": "geh. TL"
       },
       {
         "locale": "nl",
@@ -2522,7 +2541,7 @@
       },
       {
         "locale": "de",
-        "name": "gehäufte TL"
+        "name": "geh. TL"
       },
       {
         "locale": "nl",
@@ -2535,6 +2554,9 @@
     ],
     "alternates": [
       "tl, gehäuft",
+      "tl, geh.",
+      "tl gehäuft",
+      "tl geh.",
       "gehäufte teelöffel",
       "gehäufter teelöffel",
       "großzügige teelöffel",
@@ -2584,11 +2606,14 @@
     ],
     "alternates": [
       "tl, gestr.",
+      "tl, gestrichen",
+      "tl gestr.",
+      "tl gestrichen",
       "gestrichene teelöffel",
       "gestrichene tl",
       "gestrichener teelöffel",
       "gestrichener tl",
-      "kanpper tl",
+      "knapper tl",
       "knappe teelöffel",
       "knappe tl",
       "knapper teelöffel",
@@ -2671,7 +2696,7 @@
         "name": "방울"
       }
     ],
-    "alternates": ["tr", "tr.", "trpf", "trpf.", "tröpfchen", "방울", "한방울"]
+    "alternates": ["tropfen", "tropf", "tr", "tr.", "trpf", "trpf.", "tröpfchen", "방울", "한방울"]
   },
   "ounce": {
     "short": [
@@ -2799,5 +2824,44 @@
       }
     ],
     "alternates": ["liter", "liters", "litre", "litres", "l", "l.", "L", "리터"]
+  },
+  "centimeter": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "cm"
+      },
+      {
+        "locale": "de",
+        "name": "cm"
+      },
+      {
+        "locale": "nl",
+        "name": "cm"
+      },
+      {
+        "locale": "ko",
+        "name": "cm"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "centimeters"
+      },
+      {
+        "locale": "de",
+        "name": "cm"
+      },
+      {
+        "locale": "nl",
+        "name": "centimeter"
+      },
+      {
+        "locale": "ko",
+        "name": "센티미터"
+      }
+    ],
+    "alternates": ["centimeter", "centimeters", "zentimeter", "cm.", "센티미터"]
   }
 }
