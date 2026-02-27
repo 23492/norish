@@ -731,7 +731,10 @@ async function resolveFfprobePath(ffmpegPath: string): Promise<string> {
   return ffprobeBinary;
 }
 
-async function probeVideoCodecs(inputPath: string, ffmpegPath: string): Promise<VideoCodecInfo | null> {
+async function probeVideoCodecs(
+  inputPath: string,
+  ffmpegPath: string
+): Promise<VideoCodecInfo | null> {
   const ffprobePath = await resolveFfprobePath(ffmpegPath);
 
   return new Promise((resolve) => {
