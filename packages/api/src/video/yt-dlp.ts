@@ -104,7 +104,7 @@ function getFfmpegPath(): string | null {
 const ytDlpFilename = process.platform === "win32" ? "yt-dlp.exe" : "yt-dlp";
 
 export const DOWNLOAD_VIDEO_FORMAT_SELECTOR =
-  "best[ext=mp4]/bestvideo[vcodec^=avc1][ext=mp4]+bestaudio[ext=m4a]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best";
+  "best[vcodec^=avc1][ext=mp4]/bestvideo[vcodec^=avc1][ext=mp4]+bestaudio[ext=m4a]/bestvideo[vcodec^=avc1]+bestaudio[acodec^=mp4a]/best[ext=mp4]/best";
 
 // In production (Docker), binary is pre-downloaded during build to /app/bin
 // In development, download to the configured runtime bin directory on first use
