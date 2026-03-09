@@ -1,0 +1,54 @@
+{
+  "allowedRootDependencies": [
+    "@norish/api",
+    "@norish/auth",
+    "@norish/config",
+    "@norish/db",
+    "@norish/i18n",
+    "@norish/queue",
+    "@norish/shared",
+    "@norish/ui",
+    "@norish/web"
+  ],
+  "allowedRootDevDependencies": [
+    "@norish/prettier-config",
+    "turbo",
+    "typescript"
+  ],
+  "allowedRootFiles": [
+    ".dockerignore",
+    ".env.example",
+    ".gitignore",
+    ".npmrc",
+    ".nvmrc",
+    "AGENTS.md",
+    "CONTRIBUTING.md",
+    "LICENSE",
+    "README.md",
+    "docker-compose.local.yml",
+    "package.json",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    "turbo.json"
+  ],
+  "allowedRootDirectories": [
+    ".github",
+    ".vscode",
+    "apps",
+    "docker",
+    "openspec",
+    "packages",
+    "tooling",
+    "tooling/github"
+  ],
+  "forbiddenRootFiles": ["next.config.js", "postcss.config.js", "i18n/request.ts"],
+  "disallowedNpmrcSettings": ["shamefully-hoist=true", "strict-peer-dependencies=false"],
+  "temporaryShims": [],
+  "requiredToolingWorkspacePackages": [
+    "tooling/eslint/package.json",
+    "tooling/prettier/package.json",
+    "tooling/typescript/package.json",
+    "tooling/tailwind/package.json"
+  ],
+  "dependencyExceptions": []
+}

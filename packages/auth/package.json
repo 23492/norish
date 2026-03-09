@@ -1,0 +1,42 @@
+{
+  "name": "@norish/auth",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./auth": "./src/auth.ts",
+    "./crypto": "./src/crypto.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.json --noCheck",
+    "lint": "eslint --flag unstable_native_nodejs_ts_config",
+    "format": "prettier --check . --ignore-path ../../.gitignore",
+    "typecheck": "tsc --noEmit --noCheck",
+    "clean": "git clean -xdf .cache .turbo node_modules dist",
+    "test": "vitest run --config ./vitest.config.ts"
+  },
+  "dependencies": {
+    "@better-auth/expo": "catalog:",
+    "@norish/config": "workspace:*",
+    "@norish/db": "workspace:*",
+    "@norish/queue": "workspace:*",
+    "@norish/shared": "workspace:*",
+    "better-auth": "catalog:",
+    "next": "catalog:"
+  },
+  "peerDependencies": {
+    "@norish/api": "workspace:*",
+    "@norish/trpc": "workspace:*"
+  },
+  "devDependencies": {
+    "@norish/eslint-config": "workspace:*",
+    "@norish/prettier-config": "workspace:*",
+    "@norish/tsconfig": "workspace:*",
+    "eslint": "catalog:",
+    "prettier": "catalog:",
+    "vitest": "catalog:"
+  },
+  "prettier": "@norish/prettier-config"
+}
