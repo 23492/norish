@@ -8,7 +8,7 @@ context: |
   Tech stack:
   - Runtime: Node.js 22.x with TypeScript 5.9
   - Framework: Next.js 16 (App Router) with custom Node server
-  - Mobile: Expo with React Native
+  - Mobile: Expo with React native, HeroUI native, Expo UI, Expo SDK55. 
   - Package Manager: pnpm 10.x (monorepo with Turborepo)
   - Frontend: React 19, HeroUI, Tailwind CSS v4, Motion, TanStack Query
   - Backend: tRPC with WebSocket subscriptions, PostgreSQL + Drizzle ORM, Redis + BullMQ

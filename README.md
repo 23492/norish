@@ -371,11 +371,8 @@ pnpm run dev:mobile
 
 ### Frontend
 
-- Next.js 16
-- Tailwind CSS 4
-- HeroUI
-- Framer Motion
-- TanStack Query
+- Web: Next.js 16 App Router, React 19, HeroUI v2, Tailwind CSS v4, Motion, TanStack Query
+- Mobile: Expo SDK 55, Expo Router, React Native 0.83, React 19, HeroUI Native v1 RC3, Uniwind, Tailwind CSS v4 theme tokens
 
 ### Backend
 
@@ -423,5 +420,4 @@ This list is not limited to the below but the ones I know:
 Last but not least, a picture of our lovely dog Nora:
 
 <img src="./apps/web/public/nora.jpg" width="25%" alt="Nora" />
-
 
