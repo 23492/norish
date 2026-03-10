@@ -15,7 +15,7 @@ on:
       - "rc/**"
   push:
     branches:
-      - "*"
+      - "**"
 
 permissions:
   contents: read
@@ -115,3 +115,17 @@ jobs:
 
       - name: Check locale keys
         run: pnpm run i18n:check
+
+  monorepo-check:
+    name: Monorepo Integrity
+    runs-on: ubuntu-latest
+    needs: install
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup toolchain and install dependencies
+        uses: ./tooling/github/setup
+
+      - name: Run monorepo check
+        run: pnpm run monorepo:check

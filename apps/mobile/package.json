@@ -1,7 +1,7 @@
 {
   "name": "@norish/mobile",
   "main": "expo-router/entry",
-  "version": "1.0.0",
+  "version": "0.0.1-beta",
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
@@ -27,6 +27,7 @@
     "@react-navigation/native": "^7.1.28",
     "@shopify/flash-list": "2.0.2",
     "@tanstack/react-query": "catalog:",
+    "@trpc/client": "catalog:",
     "better-auth": "catalog:",
     "eslint": "catalog:",
     "expo": "~55.0.3",

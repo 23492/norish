@@ -119,8 +119,8 @@ for (const disallowedSetting of policy.disallowedNpmrcSettings ?? []) {
   }
 }
 
-if (!npmrcLines.includes("hoist=false")) {
-  errors.push("Missing required .npmrc setting: hoist=false");
+if (!npmrcLines.includes("node-linker=hoisted")) {
+  errors.push("Missing required .npmrc setting: node-linker=hoisted");
 }
 
 if (!npmrcLines.includes("strict-peer-dependencies=true")) {

@@ -206,6 +206,9 @@ importers:
       '@tanstack/react-query':
         specifier: 'catalog:'
         version: 5.90.21(react@19.2.0)
+      '@trpc/client':
+        specifier: 'catalog:'
+        version: 11.10.0(@trpc/server@11.10.0(typescript@5.9.3))(typescript@5.9.3)
       better-auth:
         specifier: 'catalog:'
         version: 1.4.20(5d7c3b5a85b247d544fb8ac93434a821)

@@ -61,26 +61,27 @@ Norish is a real-time recipe sharing application designed for household collabor
 
 ### File Organization
 
-| Task           | Location                        | Pattern                            |
-| -------------- | ------------------------------- | ---------------------------------- |
-| tRPC endpoint  | `server/trpc/routers/<domain>/` | Merge into `router.ts`             |
-| React hook     | `hooks/<domain>/`               | `use-{domain}-{type}.ts`           |
-| Background job | `server/queue/<job-name>/`      | `queue.ts` + `worker.ts`           |
-| DB table       | `server/db/schema/`             | Then repository in `repositories/` |
-| Page           | `app/(app)/<path>/`             | Next.js App Router conventions     |
+| Task           | Location                                     | Pattern                            |
+| -------------- | -------------------------------------------- | ---------------------------------- |
+| tRPC endpoint  | `packages/trpc/src/routers/<domain>/`         | Merge into `router.ts`             |
+| React hook     | `packages/shared-react/src/hooks/<domain>/`   | `use-{domain}-{type}.ts`           |
+| Background job | `packages/queue/src/<job-name>/`              | `queue.ts` + `worker.ts`           |
+| DB table       | `packages/db/src/schema/`                     | Then repository in `repositories/` |
+| Page           | `apps/web/app/(app)/<path>/`                  | Next.js App Router conventions     |
 
 ### Testing Strategy
 
 - **Framework:** Vitest with jsdom environment (default)
 - **Server tests:** Add `// @vitest-environment node` comment at top of file
-- **Setup:** Configured in `tooling/vitest/setup.ts`
+- **Setup:** Configured in per-workspace `vitest.config.ts`
 - **Coverage:** V8 provider with text, JSON, and HTML reporters
-- **Commands:** `pnpm test` (watch), `pnpm test:run` (single run)
+- **Commands:** `pnpm test` runs `turbo run test` across all workspaces
 
 ### Git Workflow
 
 - **CI Trigger:** PRs to main, pushes to any branch
-- **Pipeline:** install => build => (tests, lint, format:check) in parallel
+- **Pipeline:** install => build => (tests, lint, format, i18n, monorepo-check) in parallel
+- **CI Caching:** pnpm store cached across jobs to avoid redundant downloads
 - **Quality gates:** All checks must pass before merge
 
 ## Domain Context

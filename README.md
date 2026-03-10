@@ -328,7 +328,7 @@ These are only used when claim mapping is enabled.
 
 ```bash
 # Clone the repository
-git clone https://github.com/mikeve97/norish.git
+git clone https://github.com/norish-recipes/norish.git
 cd norish
 
 # Install dependencies
@@ -355,13 +355,13 @@ pnpm run dev:mobile
 | `pnpm run dev:mobile`    | Start Expo mobile workspace (`apps/mobile`)               |
 | `pnpm run build:web`     | Build Next.js app workspace (`apps/web`)                  |
 | `pnpm run build`         | Full production build (Next.js + server + service worker) |
-| `pnpm run test`          | Run tests in watch mode                                   |
-| `pnpm run test:run`      | Run tests once                                            |
+| `pnpm run test`          | Run tests via Turbo across all workspaces                 |
+| `pnpm run test:run`      | Run tests once via Turbo                                  |
 | `pnpm run test:coverage` | Run tests with coverage report                            |
-| `pnpm run lint`          | Lint and auto-fix issues                                  |
-| `pnpm run lint:check`    | Lint TypeScript files                                     |
-| `pnpm run format`        | Format files with Prettier                                |
-| `pnpm run format:check`  | Check formatting without changing files                   |
+| `pnpm run lint`          | Check for linting errors across all workspaces            |
+| `pnpm run lint:check`    | Lint all workspaces and run monorepo integrity checks     |
+| `pnpm run format`        | Check formatting across all workspaces (no auto-fix)      |
+| `pnpm run typecheck`     | Run type checking across all workspaces                   |
 | `pnpm run docker:up`     | Start local dependency stack via Compose                  |
 | `pnpm run docker:down`   | Stop local dependency stack                               |
 

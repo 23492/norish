@@ -121,8 +121,6 @@ export function createUseRecipesQuery(
     const { data, error, isLoading, isFetching, hasNextPage, fetchNextPage } =
       useInfiniteQuery(infiniteQueryOptions);
 
-    console.log("Recipes query data:", data, data?.pages?.[0]?.recipes[0]);
-
     const recipes = useMemo(() => {
       if (!data?.pages) return [];
 

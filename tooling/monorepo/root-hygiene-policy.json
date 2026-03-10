@@ -36,8 +36,10 @@
     ".vscode",
     "apps",
     "docker",
+    "docs",
     "openspec",
     "packages",
+    "patches",
     "tooling",
     "tooling/github"
   ],
