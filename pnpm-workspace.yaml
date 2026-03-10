@@ -44,6 +44,10 @@ catalog:
   zod: 4.3.6
 
 nodeLinker: hoisted
+injectWorkspacePackages: true
+
+syncInjectedDepsAfterScripts:
+  - build
 
 onlyBuiltDependencies:
   - '@tailwindcss/oxide'

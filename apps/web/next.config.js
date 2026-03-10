@@ -19,7 +19,7 @@ const workspacePackages = Array.from(
       .map((entry) => resolve(workspacePackagesDirectory, entry.name, "package.json"))
       .map((packagePath) => JSON.parse(readFileSync(packagePath, "utf-8")).name)
       .filter((packageName) => packageName.startsWith("@norish/")),
-  ]),
+  ])
 );
 
 const withNextIntl = createNextIntlPlugin(getNextIntlRequestConfigPath());

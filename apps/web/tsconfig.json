@@ -13,6 +13,7 @@
     "paths": {
       "@/*": ["./*"],
       "~/*": ["./*"],
+      "@norish/web/*": ["./*"],
       "@norish/auth/*": ["../../packages/auth/src/*"],
       "@norish/queue/*": ["../../packages/queue/src/*"]
     }

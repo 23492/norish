@@ -73,6 +73,13 @@ COPY --from=deps /app/node_modules ./node_modules
 
 COPY . .
 
+# With injectWorkspacePackages enabled, workspace packages are copied into
+# node_modules during install. Re-run install after copying the full repo so
+# injected workspace deps include non-package.json files (tsconfig presets,
+# source files, message JSON, etc.) before the build runs.
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile --ignore-scripts --child-concurrency=1
+
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" \
     SKIP_ENV_VALIDATION=1
 
@@ -84,10 +91,7 @@ RUN pnpm run build && \
 
 # Create isolated production deployment with pnpm deploy.
 # This gives us a minimal node_modules with only @norish/web's runtime deps.
-# Remove mobile-only patch reference from both workspace yaml and lockfile.
-RUN sed -i '/expo-widgets/d' pnpm-workspace.yaml && \
-    sed -i '/expo-widgets/d' pnpm-lock.yaml && \
-    pnpm deploy --legacy --filter @norish/web --prod /app/deploy && \
+RUN pnpm deploy --filter @norish/web --prod /app/deploy && \
     cd /app/deploy/node_modules && \
     # Remove duplicated workspace packages (we copy packages/ separately)
     rm -rf @norish && \
