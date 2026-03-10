@@ -84,8 +84,9 @@ RUN pnpm run build && \
 
 # Create isolated production deployment with pnpm deploy.
 # This gives us a minimal node_modules with only @norish/web's runtime deps.
-# Remove mobile-only patch reference first.
+# Remove mobile-only patch reference from both workspace yaml and lockfile.
 RUN sed -i '/expo-widgets/d' pnpm-workspace.yaml && \
+    sed -i '/expo-widgets/d' pnpm-lock.yaml && \
     pnpm deploy --legacy --filter @norish/web --prod /app/deploy && \
     cd /app/deploy/node_modules && \
     # Remove duplicated workspace packages (we copy packages/ separately)
