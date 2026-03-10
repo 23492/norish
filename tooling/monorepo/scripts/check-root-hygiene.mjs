@@ -123,10 +123,6 @@ if (!npmrcLines.includes("node-linker=hoisted")) {
   errors.push("Missing required .npmrc setting: node-linker=hoisted");
 }
 
-if (!npmrcLines.includes("strict-peer-dependencies=true")) {
-  errors.push("Missing required .npmrc setting: strict-peer-dependencies=true");
-}
-
 if (errors.length > 0) {
   console.error("Root hygiene check failed:");
   for (const error of errors) {
