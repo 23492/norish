@@ -15,7 +15,7 @@ on:
       - "rc/**"
   push:
     branches:
-      - "**"
+      - main
 
 permissions:
   contents: read
@@ -71,7 +71,7 @@ jobs:
         uses: ./tooling/github/setup
 
       - name: Run tests
-        run: turbo run test
+        run: pnpm run test
 
   lint:
     name: Lint
@@ -85,7 +85,7 @@ jobs:
         uses: ./tooling/github/setup
 
       - name: Run lint
-        run: turbo run lint
+        run: pnpm run lint
 
 
   format:
@@ -100,7 +100,7 @@ jobs:
         uses: ./tooling/github/setup
 
       - name: Run format check
-        run: turbo run format
+        run: pnpm run format
 
   i18n:
     name: Locale Keys Check
