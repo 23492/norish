@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import createNextIntlPlugin from "next-intl/plugin";
@@ -7,12 +7,26 @@ import { getNextIntlRequestConfigPath } from "./config/next-intl-request-config-
 
 const configDirectory = dirname(fileURLToPath(import.meta.url));
 const rootPackageJsonPath = resolve(configDirectory, "../../package.json");
+const webPackageJsonPath = resolve(configDirectory, "./package.json");
+const workspacePackagesDirectory = resolve(configDirectory, "../../packages");
 const packageJson = JSON.parse(readFileSync(rootPackageJsonPath, "utf-8"));
+const webPackageJson = JSON.parse(readFileSync(webPackageJsonPath, "utf-8"));
+const workspacePackages = Array.from(
+  new Set([
+    webPackageJson.name,
+    ...readdirSync(workspacePackagesDirectory, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => resolve(workspacePackagesDirectory, entry.name, "package.json"))
+      .map((packagePath) => JSON.parse(readFileSync(packagePath, "utf-8")).name)
+      .filter((packageName) => packageName.startsWith("@norish/")),
+  ]),
+);
 
 const withNextIntl = createNextIntlPlugin(getNextIntlRequestConfigPath());
 
 export default withNextIntl({
   output: "standalone",
+  transpilePackages: workspacePackages,
   turbopack: {
     root: resolve(configDirectory, "../.."),
   },

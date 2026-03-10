@@ -6,6 +6,6 @@ declare global {
   var __caldavEmitter__: TypedEmitter<CaldavSubscriptionEvents> | undefined;
 }
 
-export const caldavEmitter =
+export const caldavEmitter: TypedEmitter<CaldavSubscriptionEvents> =
   globalThis.__caldavEmitter__ ||
   (globalThis.__caldavEmitter__ = createTypedEmitter<CaldavSubscriptionEvents>("caldav"));

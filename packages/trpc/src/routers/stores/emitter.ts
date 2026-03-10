@@ -6,6 +6,6 @@ declare global {
   var __storeEmitter__: TypedEmitter<StoreSubscriptionEvents> | undefined;
 }
 
-export const storeEmitter =
+export const storeEmitter: TypedEmitter<StoreSubscriptionEvents> =
   globalThis.__storeEmitter__ ||
   (globalThis.__storeEmitter__ = createTypedEmitter<StoreSubscriptionEvents>("store"));

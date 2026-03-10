@@ -6,6 +6,6 @@ declare global {
   var __groceryEmitter__: TypedEmitter<GrocerySubscriptionEvents> | undefined;
 }
 
-export const groceryEmitter =
+export const groceryEmitter: TypedEmitter<GrocerySubscriptionEvents> =
   globalThis.__groceryEmitter__ ||
   (globalThis.__groceryEmitter__ = createTypedEmitter<GrocerySubscriptionEvents>("grocery"));
