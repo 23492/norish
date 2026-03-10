@@ -95,6 +95,10 @@ RUN pnpm deploy --filter @norish/web --prod /app/deploy && \
     cd /app/deploy/node_modules && \
     # Remove duplicated workspace packages (we copy packages/ separately)
     rm -rf @norish && \
+    # Remove mobile-only auth deps pulled in via @better-auth/expo peer resolution
+    rm -rf @expo @expo-google-fonts expo expo-* \
+           @react-native @react-navigation react-native react-native-* \
+           hermes-compiler fb-dotslash react-devtools-core && \
     # Remove build-only tools that leak through transitive deps
     rm -rf typescript @esbuild esbuild tsx \
            @prisma prisma drizzle-kit \
