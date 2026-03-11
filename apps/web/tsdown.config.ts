@@ -44,6 +44,7 @@ export default defineConfig({
     "kysely",
     // --- Auth ---
     "better-auth",
+    "@better-auth/api-key",
     "@better-auth/core",
     "@better-auth/utils",
     "@better-auth/expo",

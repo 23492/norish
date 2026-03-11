@@ -47,6 +47,7 @@
     "@trpc/client": "catalog:",
     "@trpc/server": "catalog:",
     "@trpc/tanstack-react-query": "catalog:",
+    "@better-auth/api-key": "catalog:",
     "better-auth": "catalog:",
     "date-fns": "catalog:",
     "motion": "12.34.2",

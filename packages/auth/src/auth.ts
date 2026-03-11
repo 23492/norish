@@ -5,7 +5,8 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
-import { apiKey, genericOAuth } from "better-auth/plugins";
+import { apiKey } from "@better-auth/api-key";
+import { genericOAuth } from "better-auth/plugins";
 
 import type { ApiKeyAuthService } from "@norish/shared/contracts/dto/auth";
 import { authLogger } from "@norish/api/logger";

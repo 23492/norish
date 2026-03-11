@@ -1,7 +1,7 @@
 ##############################
 # Base image (minimal, no pnpm needed at runtime)
 ##############################
-FROM node:25-alpine3.21 AS base
+FROM node:22-alpine3.21 AS base
 
 # Security: upgrade all packages to latest versions to fix CVEs
 RUN apk upgrade --no-cache && \
@@ -168,7 +168,7 @@ ENV NODE_ENV=production \
     HOST="0.0.0.0"
 
 # Use non-root user for runtime.
-# node:25-alpine already has user 'node' with UID/GID 1000.
+# node:22-alpine already has user 'node' with UID/GID 1000.
 # For custom UID/GID, create a new user; otherwise reuse 'node'.
 ARG UID=1000
 ARG GID=1000
@@ -178,8 +178,13 @@ RUN if [ "${UID}" != "1000" ] || [ "${GID}" != "1000" ]; then \
       adduser -u ${UID} -S norish -G $(getent group ${GID} | cut -d: -f1) 2>/dev/null; \
     fi
 
-# --- Next.js standalone output (app structure + traced deps) ---
-COPY --from=build --chown=${UID}:${GID} /app/apps/web/.next/standalone/ ./
+# --- Minimal Next.js runtime files for the custom server ---
+# We run our own bundled server from dist-server, so we only need the built
+# `.next` output plus the small config files Next reads at startup.
+COPY --from=build --chown=${UID}:${GID} /app/apps/web/.next/standalone/apps/web/.next/ ./apps/web/.next/
+COPY --from=build --chown=${UID}:${GID} /app/apps/web/package.json ./apps/web/package.json
+COPY --from=build --chown=${UID}:${GID} /app/apps/web/next.config.js ./apps/web/next.config.js
+COPY --from=build --chown=${UID}:${GID} /app/apps/web/config/next-intl-request-config-path.js ./apps/web/config/next-intl-request-config-path.js
 # Root package.json needed by next.config.js (reads version from ../../package.json)
 COPY --from=build --chown=${UID}:${GID} /app/package.json ./package.json
 

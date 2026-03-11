@@ -147,9 +147,11 @@ export const apiKeys = pgTable(
     id: text("id")
       .primaryKey()
       .$defaultFn(() => crypto.randomUUID()),
-    userId: text("userId")
+    // better-auth 1.5 renamed userId → referenceId; keep DB column as "userId"
+    referenceId: text("userId")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
+    configId: text("configId").notNull().default("default"),
 
     // Key info
     name: text("name"),
@@ -185,7 +187,7 @@ export const apiKeys = pgTable(
       .$onUpdate(() => new Date())
       .notNull(),
   },
-  (t) => [index("apikey_key_idx").on(t.key), index("apikey_user_id_idx").on(t.userId)]
+  (t) => [index("apikey_key_idx").on(t.key), index("apikey_user_id_idx").on(t.referenceId)]
 );
 
 // Relations
@@ -211,7 +213,7 @@ export const accountRelations = relations(accounts, ({ one }) => ({
 
 export const apiKeyRelations = relations(apiKeys, ({ one }) => ({
   user: one(users, {
-    fields: [apiKeys.userId],
+    fields: [apiKeys.referenceId],
     references: [users.id],
   }),
 }));

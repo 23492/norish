@@ -18,6 +18,7 @@
     "test": "vitest run --config ./vitest.config.ts"
   },
   "dependencies": {
+    "@better-auth/api-key": "catalog:",
     "@better-auth/expo": "catalog:",
     "@norish/config": "workspace:*",
     "@norish/db": "workspace:*",

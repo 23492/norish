@@ -69,7 +69,7 @@ export async function verifyApiKey(key: string): Promise<string | null> {
     });
 
     if (result.valid && result.key) {
-      return result.key.userId;
+      return result.key.referenceId;
     }
 
     return null;
@@ -92,7 +92,7 @@ export async function getApiKeysForUser(userId: string): Promise<ApiKeyMetadata[
       enabled: apiKeys.enabled,
     })
     .from(apiKeys)
-    .where(eq(apiKeys.userId, userId));
+    .where(eq(apiKeys.referenceId, userId));
 
   return rows.map((row) => ({
     id: row.id,
@@ -108,7 +108,7 @@ export async function getApiKeysForUser(userId: string): Promise<ApiKeyMetadata[
  * Delete/revoke an API key
  */
 export async function deleteApiKey(keyId: string, userId: string): Promise<void> {
-  await db.delete(apiKeys).where(and(eq(apiKeys.id, keyId), eq(apiKeys.userId, userId)));
+  await db.delete(apiKeys).where(and(eq(apiKeys.id, keyId), eq(apiKeys.referenceId, userId)));
 }
 
 /**
@@ -118,7 +118,7 @@ export async function disableApiKey(keyId: string, userId: string): Promise<void
   await db
     .update(apiKeys)
     .set({ enabled: false })
-    .where(and(eq(apiKeys.id, keyId), eq(apiKeys.userId, userId)));
+    .where(and(eq(apiKeys.id, keyId), eq(apiKeys.referenceId, userId)));
 }
 
 /**
@@ -128,5 +128,5 @@ export async function enableApiKey(keyId: string, userId: string): Promise<void>
   await db
     .update(apiKeys)
     .set({ enabled: true })
-    .where(and(eq(apiKeys.id, keyId), eq(apiKeys.userId, userId)));
+    .where(and(eq(apiKeys.id, keyId), eq(apiKeys.referenceId, userId)));
 }
