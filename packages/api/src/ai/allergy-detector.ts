@@ -5,13 +5,13 @@
  * Only detects allergens from the provided list (household allergies).
  */
 
+import type { AIResult } from "./core/types";
+
 import { generateText, Output } from "ai";
 import { z } from "zod";
-
 import { aiLogger } from "@norish/api/logger";
 import { getAIConfig, isAIEnabled } from "@norish/config/server-config-loader";
 
-import type { AIResult } from "./core/types";
 import { aiError, aiSuccess, getErrorMessage, mapErrorToCode } from "./core/types";
 import { getGenerationSettings, getModels } from "./providers";
 

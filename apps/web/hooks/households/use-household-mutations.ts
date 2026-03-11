@@ -1,12 +1,15 @@
 "use client";
 
-import { useTRPC } from "@/app/providers/trpc-provider";
-import { useUserContext } from "@/context/user-context";
-import { useMutation } from "@tanstack/react-query";
-
 import type { HouseholdSettingsDto } from "@norish/shared/contracts/dto/household";
 
+import { useMutation } from "@tanstack/react-query";
+
 import { useHouseholdQuery } from "./use-household-query";
+
+import { useTRPC } from "@/app/providers/trpc-provider";
+import { useUserContext } from "@/context/user-context";
+
+
 
 export type HouseholdMutationsResult = {
   createHousehold: (name: string) => void;

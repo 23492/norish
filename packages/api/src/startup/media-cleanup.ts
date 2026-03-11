@@ -1,6 +1,7 @@
+import type { Dirent } from "node:fs";
+
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { Dirent } from "node:fs";
 
 import { schedulerLogger } from "@norish/api/logger";
 import { SERVER_CONFIG } from "@norish/config/env-config-server";

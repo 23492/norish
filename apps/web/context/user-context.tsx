@@ -1,38 +1,41 @@
 "use client";
 
-import { createContext, ReactNode, useCallback, useContext, useMemo, useState } from "react";
-import { useTRPC } from "@/app/providers/trpc-provider";
-import { useQuery } from "@tanstack/react-query";
 
 import type { UserContextValue } from "@norish/shared-react/contexts";
-import type { User } from "@norish/shared/contracts";
+
+import { useQuery } from "@tanstack/react-query";
+import { createContext, ReactNode, useCallback, useContext, useMemo, useState } from "react";
 import { createUserContext } from "@norish/shared-react/contexts";
 import { useUser } from "@norish/shared-react/hooks";
 import { signOut as betterAuthSignOut } from "@norish/shared/lib/auth/client";
 
+import { useTRPC } from "@/app/providers/trpc-provider";
+
 // Create the shared base context
 const shared = createUserContext({
   useSessionUser: () => {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
+     
     const { user, isLoading } = useUser();
+
     return { user, isLoading };
   },
   useSignOut: () => {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
+     
     return useCallback(async () => {
       await betterAuthSignOut();
       window.location.href = "/login?logout=true";
     }, []);
   },
   useFreshUserQuery: (userId) => {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
+     
     const trpc = useTRPC();
-    // eslint-disable-next-line react-hooks/rules-of-hooks
+     
     const { data } = useQuery({
       ...trpc.user.get.queryOptions(),
       enabled: Boolean(userId),
       select: (data) => data.user,
     });
+
     return { user: data };
   },
 });
@@ -50,7 +53,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   return (
     <shared.UserProvider>
-      <WebUserProviderInner userMenuOpen={userMenuOpen} setUserMenuOpen={setUserMenuOpen}>
+      <WebUserProviderInner setUserMenuOpen={setUserMenuOpen} userMenuOpen={userMenuOpen}>
         {children}
       </WebUserProviderInner>
     </shared.UserProvider>

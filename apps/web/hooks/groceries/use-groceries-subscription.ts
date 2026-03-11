@@ -1,11 +1,12 @@
 "use client";
 
-import { useTRPC } from "@/app/providers/trpc-provider";
-import { showSafeErrorToast } from "@/lib/ui/safe-error-toast";
 import { useSubscription } from "@trpc/tanstack-react-query";
 import { useTranslations } from "next-intl";
 
 import { useGroceriesCacheHelpers } from "./use-groceries-cache";
+
+import { showSafeErrorToast } from "@/lib/ui/safe-error-toast";
+import { useTRPC } from "@/app/providers/trpc-provider";
 
 /**
  * Hook that subscribes to all grocery-related WebSocket events

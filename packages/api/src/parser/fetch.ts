@@ -1,6 +1,6 @@
 import type { BrowserContext } from "playwright-core";
-
 import type { SiteAuthTokenDecryptedDto } from "@norish/shared/contracts/dto/site-auth-tokens";
+
 import { parserLogger as log } from "@norish/api/logger";
 import { getBrowser } from "@norish/api/playwright";
 

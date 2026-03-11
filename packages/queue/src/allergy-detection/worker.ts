@@ -7,9 +7,9 @@
  */
 
 import type { Job } from "bullmq";
-
 import type { AllergyDetectionJobData } from "@norish/queue/contracts/job-types";
 import type { PolicyEmitContext } from "@norish/trpc/helpers";
+
 import { detectAllergiesInRecipe } from "@norish/api/ai/allergy-detector";
 import { createLogger } from "@norish/api/logger";
 import { getRecipePermissionPolicy } from "@norish/config/server-config-loader";

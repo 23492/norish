@@ -1,9 +1,10 @@
 "use client";
 
-import { useTRPC } from "@/app/providers/trpc-provider";
 import { useSubscription } from "@trpc/tanstack-react-query";
 
 import { useStoresCacheHelpers } from "./use-stores-cache";
+
+import { useTRPC } from "@/app/providers/trpc-provider";
 
 /**
  * Hook that subscribes to all store-related WebSocket events

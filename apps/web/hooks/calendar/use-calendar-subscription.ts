@@ -1,11 +1,13 @@
 "use client";
 
-import { useTRPC } from "@/app/providers/trpc-provider";
-import { useSubscription } from "@trpc/tanstack-react-query";
-
 import type { PlannedItemFromQuery } from "@norish/shared/contracts";
 
+import { useSubscription } from "@trpc/tanstack-react-query";
+
+
 import { useCalendarCacheHelpers } from "./use-calendar-cache";
+
+import { useTRPC } from "@/app/providers/trpc-provider";
 
 export function useCalendarSubscription(startISO: string, endISO: string) {
   const trpc = useTRPC();

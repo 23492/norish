@@ -1,6 +1,5 @@
 import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
-
 import { auth } from "@norish/auth/auth";
 import { SERVER_CONFIG } from "@norish/config/env-config-server";
 

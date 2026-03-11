@@ -1,8 +1,8 @@
-import { useMutation } from "@tanstack/react-query";
 
 import type { StoreCreateDto, StoreDto, StoreUpdateInput } from "@norish/shared/contracts";
-
 import type { CreateStoresHooksOptions, StoresMutationsResult, StoresQueryResult } from "./types";
+
+import { useMutation } from "@tanstack/react-query";
 
 type CreateUseStoresMutationsOptions = CreateStoresHooksOptions & {
   useStoresQuery: () => StoresQueryResult;

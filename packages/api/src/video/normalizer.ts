@@ -1,7 +1,8 @@
-import { generateText, Output } from "ai";
-
 import type { AIResult } from "@norish/api/ai/types/result";
 import type { FullRecipeInsertDTO } from "@norish/shared/contracts/dto/recipe";
+import type { VideoMetadata } from "./types";
+
+import { generateText, Output } from "ai";
 import {
   getExtractionLogContext,
   normalizeExtractionOutput,
@@ -15,7 +16,6 @@ import { downloadImage } from "@norish/api/downloader";
 import { videoLogger } from "@norish/api/logger";
 import { isAIEnabled } from "@norish/config/server-config-loader";
 
-import type { VideoMetadata } from "./types";
 
 /**
  * Extract recipe from video transcript using AI.

@@ -1,9 +1,11 @@
 "use client";
 
 import { useMemo } from "react";
-import { useHouseholdContext } from "@/context/household-context";
 
 import { useUserAllergiesQuery } from "./use-user-allergies-query";
+
+import { useHouseholdContext } from "@/context/household-context";
+
 
 /**
  * Returns the active allergies for the current user.

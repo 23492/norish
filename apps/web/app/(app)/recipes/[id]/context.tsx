@@ -1,5 +1,9 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
+import { TRPCClientError } from "@trpc/client";
+import { createRecipeDetailContext } from "@norish/shared-react/hooks";
+
 import { useTRPC } from "@/app/providers/trpc-provider";
 import { useRecipesContext } from "@/context/recipes-context";
 import { useFavoritesMutation } from "@/hooks/favorites";
@@ -18,10 +22,6 @@ import {
   useRecipeSubscription,
 } from "@/hooks/recipes";
 import { useActiveAllergies } from "@/hooks/user";
-import { useMutation } from "@tanstack/react-query";
-import { TRPCClientError } from "@trpc/client";
-
-import { createRecipeDetailContext } from "@norish/shared-react/hooks";
 
 const {
   RecipeDetailProvider: RecipeContextProvider,
@@ -41,16 +41,18 @@ const {
   useAllergyDetection,
   useActiveAllergies,
   useConvertMutation: () => {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
+     
     const trpc = useTRPC();
-    // eslint-disable-next-line react-hooks/rules-of-hooks
+
+     
     return useMutation(trpc.recipes.convertMeasurements.mutationOptions());
   },
   useRatingQuery,
   useRatingsMutation,
   useFavoriteIds: () => {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
+     
     const { favoriteIds } = useRecipesContext();
+
     return favoriteIds;
   },
   useFavoritesMutation,

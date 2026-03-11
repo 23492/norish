@@ -1,6 +1,6 @@
 import type { Job } from "bullmq";
-import { Worker } from "bullmq";
 
+import { Worker } from "bullmq";
 import { createLogger } from "@norish/api/logger";
 import {
   cleanupOrphanedAvatars,

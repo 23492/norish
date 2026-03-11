@@ -1,11 +1,11 @@
-import { eq } from "drizzle-orm";
-
 import type {
   SaveCaldavConfigInputDto,
   UserCaldavConfigDecryptedDto,
   UserCaldavConfigDto,
   UserCaldavConfigInsertDto,
 } from "@norish/shared/contracts/dto/caldav-config";
+
+import { eq } from "drizzle-orm";
 import { decrypt, encrypt } from "@norish/auth/crypto";
 import { db } from "@norish/db/drizzle";
 import { userCaldavConfig } from "@norish/db/schema";

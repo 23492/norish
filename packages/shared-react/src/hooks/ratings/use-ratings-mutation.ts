@@ -1,6 +1,7 @@
+import type { CreateRatingsHooksOptions } from "./types";
+
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import type { CreateRatingsHooksOptions } from "./types";
 
 type UserRatingData = { recipeId: string; userRating: number | null };
 

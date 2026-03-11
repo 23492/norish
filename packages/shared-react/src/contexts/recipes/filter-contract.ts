@@ -128,6 +128,7 @@ export function toRecipesQueryFilters(filters: CanonicalRecipeFilters) {
 
 export function serializeRecipeFilters(filters: CanonicalRecipeFilters) {
   const queryFilters = toRecipesQueryFilters(filters);
+
   return JSON.stringify(queryFilters);
 }
 

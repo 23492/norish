@@ -2,8 +2,8 @@ import { createReadStream, existsSync, statSync } from "fs";
 import { IncomingMessage, ServerResponse } from "http";
 import { extname, join } from "path";
 import { createGzip } from "zlib";
-import mime from "mime";
 
+import mime from "mime";
 import { resolveExistingWorkspacePath } from "@norish/api/lib/workspace-paths";
 import { serverLogger } from "@norish/api/logger";
 import { SERVER_CONFIG } from "@norish/config/env-config-server";

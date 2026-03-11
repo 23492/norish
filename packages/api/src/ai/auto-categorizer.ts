@@ -1,11 +1,12 @@
+import type { RecipeCategory } from "@norish/shared/contracts";
+import type { AIResult } from "./types/result";
+
 import { generateText, Output } from "ai";
 import { z } from "zod";
-
-import type { RecipeCategory } from "@norish/shared/contracts";
 import { aiLogger } from "@norish/api/logger";
 import { isAIEnabled } from "@norish/config/server-config-loader";
 
-import type { AIResult } from "./types/result";
+
 import { getGenerationSettings, getModels } from "./providers";
 import { aiError, aiSuccess, getErrorMessage, mapErrorToCode } from "./types/result";
 import { matchCategory } from "./utils/category-matcher";

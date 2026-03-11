@@ -3,9 +3,10 @@
  */
 
 import type { TranscriptionProvider } from "@norish/config/zod/server-config";
+import type { AIProvider, AvailableModel } from "./types";
+
 import { aiLogger } from "@norish/shared-server/logger";
 
-import type { AIProvider, AvailableModel } from "./types";
 
 // ============================================================================
 // Constants

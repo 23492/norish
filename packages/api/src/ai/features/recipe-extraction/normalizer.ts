@@ -5,10 +5,11 @@
  * a FullRecipeInsertDTO with both measurement systems.
  */
 
-import { decode } from "html-entities";
 
 import type { RecipeExtractionOutput } from "@norish/api/ai/schemas/recipe.schema";
 import type { FullRecipeInsertDTO, RecipeCategory } from "@norish/shared/contracts/dto/recipe";
+
+import { decode } from "html-entities";
 import { matchCategory } from "@norish/api/ai/utils/category-matcher";
 import { aiLogger } from "@norish/api/logger";
 import { normalizeRecipeFromJson } from "@norish/api/parser/normalize";

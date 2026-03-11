@@ -1,15 +1,16 @@
 "use client";
 
-import { useTRPC } from "@/app/providers/trpc-provider";
-import { showSafeErrorToast } from "@/lib/ui/safe-error-toast";
+import type { HouseholdAdminSettingsDto } from "@norish/shared/contracts/dto/household";
+
 import { addToast } from "@heroui/react";
 import { useSubscription } from "@trpc/tanstack-react-query";
 import { useTranslations } from "next-intl";
-
-import type { HouseholdAdminSettingsDto } from "@norish/shared/contracts/dto/household";
 import { useUser } from "@norish/shared-react/hooks";
 
 import { useHouseholdCacheHelpers } from "./use-household-cache";
+
+import { showSafeErrorToast } from "@/lib/ui/safe-error-toast";
+import { useTRPC } from "@/app/providers/trpc-provider";
 
 /**
  * Hook that subscribes to all household-related WebSocket events.

@@ -1,3 +1,28 @@
+import {
+  ArrowLeftIcon,
+  ArrowTopRightOnSquareIcon,
+  CakeIcon,
+  ClockIcon,
+  FireIcon,
+  MoonIcon,
+  SunIcon,
+} from "@heroicons/react/16/solid";
+import { Card, CardBody, Chip, Divider, Link } from "@heroui/react";
+import { useTranslations } from "next-intl";
+import {
+  formatMinutesHM,
+  isAllergenTag,
+  sortTagsWithAllergyPriority,
+} from "@norish/shared/lib/helpers";
+import {
+  getShowFavoritesPreference,
+  getShowRatingsPreference,
+} from "@norish/shared/lib/user-preferences";
+import StarRating from "@norish/ui/star-rating";
+
+import AuthorChip from "./components/author-chip";
+import { useRecipeContextRequired } from "./context";
+
 import ActionsMenu from "@/app/(app)/recipes/[id]/components/actions-menu";
 import AddToGroceries from "@/app/(app)/recipes/[id]/components/add-to-groceries-button";
 import AmountDisplayToggle from "@/app/(app)/recipes/[id]/components/amount-display-toggle";
@@ -15,31 +40,7 @@ import SmartMarkdownRenderer from "@/components/shared/smart-markdown-renderer";
 import { useUserContext } from "@/context/user-context";
 import { useFavoritesMutation, useFavoritesQuery } from "@/hooks/favorites";
 import { useRatingQuery, useRatingsMutation } from "@/hooks/ratings";
-import {
-  ArrowLeftIcon,
-  ArrowTopRightOnSquareIcon,
-  CakeIcon,
-  ClockIcon,
-  FireIcon,
-  MoonIcon,
-  SunIcon,
-} from "@heroicons/react/16/solid";
-import { Card, CardBody, Chip, Divider, Link } from "@heroui/react";
-import { useTranslations } from "next-intl";
 
-import {
-  formatMinutesHM,
-  isAllergenTag,
-  sortTagsWithAllergyPriority,
-} from "@norish/shared/lib/helpers";
-import {
-  getShowFavoritesPreference,
-  getShowRatingsPreference,
-} from "@norish/shared/lib/user-preferences";
-import StarRating from "@norish/ui/star-rating";
-
-import AuthorChip from "./components/author-chip";
-import { useRecipeContextRequired } from "./context";
 
 export default function RecipePageMobile() {
   const {

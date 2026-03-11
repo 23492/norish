@@ -6,8 +6,8 @@
  */
 
 import type { Job, Queue } from "bullmq";
-
 import type { CaldavSyncJobData } from "@norish/queue/contracts/job-types";
+
 import { createLogger } from "@norish/api/logger";
 
 import { sanitizeUrlForJobId } from "../helpers";

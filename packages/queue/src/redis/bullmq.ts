@@ -10,8 +10,8 @@
  */
 
 import type { RedisOptions } from "ioredis";
-import Redis from "ioredis";
 
+import Redis from "ioredis";
 import { createLogger } from "@norish/api/logger";
 import { SERVER_CONFIG } from "@norish/config/env-config-server";
 

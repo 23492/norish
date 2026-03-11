@@ -9,14 +9,16 @@
  *
  * For reading data + cache manipulation, use the caldav query hooks instead.
  */
-import { useCallback } from "react";
-import { useTRPC } from "@/app/providers/trpc-provider";
-import { useQueryClient } from "@tanstack/react-query";
-
 import type {
   CaldavSyncStatusViewDto,
   UserCaldavConfigWithoutPasswordDto,
 } from "@norish/shared/contracts";
+
+import { useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+
+import { useTRPC } from "@/app/providers/trpc-provider";
+
 
 export type CaldavCacheHelpers = {
   setConfig: (

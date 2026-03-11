@@ -1,10 +1,12 @@
 "use client";
 
 import type { QueryKey } from "@tanstack/react-query";
-import { useTRPC } from "@/app/providers/trpc-provider";
+import type { StoreDto } from "@norish/shared/contracts";
+
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-import type { StoreDto } from "@norish/shared/contracts";
+import { useTRPC } from "@/app/providers/trpc-provider";
+
 
 export type StoresData = StoreDto[];
 

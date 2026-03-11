@@ -2,6 +2,8 @@
  * AI Provider Factory - Creates AI model instances from configuration.
  */
 
+import type { AIProvider, GenerationSettings, ModelConfig } from "./types";
+
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createAzure } from "@ai-sdk/azure";
 import { createDeepSeek } from "@ai-sdk/deepseek";
@@ -12,11 +14,9 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { createPerplexity } from "@ai-sdk/perplexity";
 import { createOllama } from "ollama-ai-provider-v2";
-
 import { aiLogger } from "@norish/api/logger";
 import { getAIConfig } from "@norish/config/server-config-loader";
 
-import type { AIProvider, GenerationSettings, ModelConfig } from "./types";
 
 /**
  * Get configured AI models.

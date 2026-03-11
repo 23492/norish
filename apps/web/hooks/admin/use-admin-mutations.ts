@@ -1,8 +1,5 @@
 "use client";
 
-import { useTRPC } from "@/app/providers/trpc-provider";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-
 import type {
   AIConfig,
   AuthProviderGitHubInput,
@@ -15,7 +12,12 @@ import type {
   VideoConfig,
 } from "@norish/config/zod/server-config";
 
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+
+
 import { useAdminConfigsQuery } from "./use-admin-query";
+
+import { useTRPC } from "@/app/providers/trpc-provider";
 
 export type AdminMutationsResult = {
   // Registration

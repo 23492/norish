@@ -1,20 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import ActionsMenu from "@/app/(app)/recipes/[id]/components/actions-menu";
-import AddToGroceries from "@/app/(app)/recipes/[id]/components/add-to-groceries-button";
-import IngredientsList from "@/app/(app)/recipes/[id]/components/ingredient-list";
-import StepsList from "@/app/(app)/recipes/[id]/components/steps-list";
-import SystemConvertMenu from "@/app/(app)/recipes/[id]/components/system-convert-menu";
-import WakeLockToggle from "@/app/(app)/recipes/[id]/components/wake-lock-toggle";
-import NutritionCard from "@/components/recipes/nutrition-card";
-import DoubleTapContainer from "@/components/shared/double-tap-container";
-import HeartButton from "@/components/shared/heart-button";
-import MediaCarousel, { buildMediaItems } from "@/components/shared/media-carousel";
-import SmartMarkdownRenderer from "@/components/shared/smart-markdown-renderer";
-import { useUserContext } from "@/context/user-context";
-import { useFavoritesMutation, useFavoritesQuery } from "@/hooks/favorites";
-import { useRatingQuery, useRatingsMutation } from "@/hooks/ratings";
 import {
   ArrowLeftIcon,
   ArrowTopRightOnSquareIcon,
@@ -27,7 +13,6 @@ import {
 } from "@heroicons/react/16/solid";
 import { Card, CardBody, CardHeader, Chip } from "@heroui/react";
 import { useTranslations } from "next-intl";
-
 import {
   formatMinutesHM,
   isAllergenTag,
@@ -42,7 +27,23 @@ import StarRating from "@norish/ui/star-rating";
 import AmountDisplayToggle from "./components/amount-display-toggle";
 import AuthorChip from "./components/author-chip";
 import ServingsControl from "./components/servings-control";
+
 import { useRecipeContextRequired } from "./context";
+import ActionsMenu from "@/app/(app)/recipes/[id]/components/actions-menu";
+import AddToGroceries from "@/app/(app)/recipes/[id]/components/add-to-groceries-button";
+import IngredientsList from "@/app/(app)/recipes/[id]/components/ingredient-list";
+import StepsList from "@/app/(app)/recipes/[id]/components/steps-list";
+import SystemConvertMenu from "@/app/(app)/recipes/[id]/components/system-convert-menu";
+import WakeLockToggle from "@/app/(app)/recipes/[id]/components/wake-lock-toggle";
+import NutritionCard from "@/components/recipes/nutrition-card";
+import DoubleTapContainer from "@/components/shared/double-tap-container";
+import HeartButton from "@/components/shared/heart-button";
+import MediaCarousel, { buildMediaItems } from "@/components/shared/media-carousel";
+import SmartMarkdownRenderer from "@/components/shared/smart-markdown-renderer";
+import { useUserContext } from "@/context/user-context";
+import { useFavoritesMutation, useFavoritesQuery } from "@/hooks/favorites";
+import { useRatingQuery, useRatingsMutation } from "@/hooks/ratings";
+
 
 export default function RecipePageDesktop() {
   const {

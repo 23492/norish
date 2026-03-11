@@ -1,5 +1,3 @@
-import { and, eq } from "drizzle-orm";
-
 import type {
   CreateSiteAuthTokenInputDto,
   SiteAuthTokenDecryptedDto,
@@ -7,6 +5,8 @@ import type {
   SiteAuthTokenSafeDto,
   UpdateSiteAuthTokenInputDto,
 } from "@norish/shared/contracts/dto/site-auth-tokens";
+
+import { and, eq } from "drizzle-orm";
 import { decrypt, encrypt } from "@norish/auth/crypto";
 import { db } from "@norish/db/drizzle";
 import { siteAuthTokens } from "@norish/db/schema";

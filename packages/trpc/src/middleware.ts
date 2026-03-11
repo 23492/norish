@@ -1,12 +1,13 @@
-import { TRPCError } from "@trpc/server";
-
 import type { SubscriptionMultiplexer } from "@norish/queue/redis/subscription-multiplexer";
 import type { HouseholdWithUsersNamesDto, User } from "@norish/shared/contracts";
+import type { Context } from "./context";
+
+import { TRPCError } from "@trpc/server";
 import { isUserServerAdmin } from "@norish/db";
 import { getCachedHouseholdForUser } from "@norish/db/cached-household";
 import { getOrCreateMultiplexer } from "@norish/queue/redis/subscription-multiplexer";
 
-import type { Context } from "./context";
+
 import { middleware, publicProcedure } from "./trpc";
 
 /**

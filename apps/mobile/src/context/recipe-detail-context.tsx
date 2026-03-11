@@ -40,15 +40,15 @@ const {
   useAllergyDetection,
   useActiveAllergies,
   useConvertMutation: () => {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
+     
     const trpc = useTRPC();
-    // eslint-disable-next-line react-hooks/rules-of-hooks
+     
     return useMutation(trpc.recipes.convertMeasurements.mutationOptions());
   },
   useRatingQuery,
   useRatingsMutation,
   useFavoriteIds: () => {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
+     
     const { favoriteIds } = useRecipesContext();
     return favoriteIds;
   },

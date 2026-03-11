@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
 
+import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { resolveExistingWorkspacePath } from "@norish/api/lib/workspace-paths";
 import { dbLogger } from "@norish/api/logger";
 import { db } from "@norish/db";

@@ -1,7 +1,8 @@
 "use client";
 
-import { useTRPC } from "@/app/providers/trpc-provider";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+
+import { useTRPC } from "@/app/providers/trpc-provider";
 
 type UserRatingData = { recipeId: string; userRating: number | null };
 

@@ -15,8 +15,10 @@ export type RecipeToastAdapter = {
 function readMessage(payload: unknown): string | undefined {
   if (!payload || typeof payload !== "object") return undefined;
   const candidate = payload as Record<string, unknown>;
+
   if (typeof candidate.message === "string") return candidate.message;
   if (typeof candidate.description === "string") return candidate.description;
+
   return undefined;
 }
 

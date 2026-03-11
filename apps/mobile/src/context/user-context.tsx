@@ -20,7 +20,7 @@ import { useTRPC } from '@/providers/trpc-provider';
  */
 const shared = createUserContext({
   useSessionUser: () => {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
+     
     const { user, isLoading } = useAuth();
 
     const sessionUser: User | null = user
@@ -35,17 +35,17 @@ const shared = createUserContext({
     return { user: sessionUser, isLoading };
   },
   useSignOut: () => {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
+     
     const { signOut } = useAuth();
-    // eslint-disable-next-line react-hooks/rules-of-hooks
+     
     return useCallback(() => {
       void signOut();
     }, [signOut]);
   },
   useFreshUserQuery: (userId) => {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
+     
     const trpc = useTRPC();
-    // eslint-disable-next-line react-hooks/rules-of-hooks
+     
     const { data } = useQuery({
       ...trpc.user.get.queryOptions(),
       enabled: Boolean(userId),
