@@ -89,7 +89,7 @@ norish/
 ├── tooling/          # Repo tooling
 │   ├── eslint/        # @norish/eslint-config
 │   ├── github/        # Shared GitHub Actions composite actions
-│   ├── monorepo/      # Root hygiene + dependency checks
+│   ├── monorepo/      # Circular dependency checks
 │   ├── prettier/      # @norish/prettier-config
 │   ├── tailwind/      # @norish/tailwind-config
 │   └── typescript/    # @norish/tsconfig
@@ -118,7 +118,7 @@ norish/
 1. Create or update a workspace package under `tooling/` with a `package.json` and explicit `exports`.
 2. Add the package to `pnpm-workspace.yaml` and consume it via `workspace:*` from each owning workspace.
 3. Wire each workspace through local `package.json` scripts (for example `lint`, `format`, `typecheck`) and local config files that import shared config exports.
-4. Run `pnpm run hygiene:root`, `pnpm run deps:workspace`, and relevant `turbo run` checks before opening a PR.
+4. Run `pnpm run deps:cycles` and relevant `turbo run` checks before opening a PR.
 
 ## Code Style Guidelines
 

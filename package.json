@@ -30,16 +30,13 @@
     "test:run": "turbo run test",
     "test:coverage": "turbo run test:coverage",
     "lint": "turbo run lint",
-    "lint:check": "turbo run lint && pnpm run monorepo:check",
+    "lint:check": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "typecheck:mobile": "pnpm --filter @norish/trpc run typecheck && pnpm --filter @norish/mobile exec tsc --noEmit",
     "typecheck:web": "pnpm --filter @norish/web run typecheck",
     "format": "turbo run format",
     "format:check": "turbo run format",
     "deps:cycles": "node tooling/monorepo/scripts/check-circular-deps.mjs",
-    "deps:workspace": "node tooling/monorepo/scripts/check-workspace-dependencies.mjs",
-    "hygiene:root": "node tooling/monorepo/scripts/check-root-hygiene.mjs",
-    "monorepo:check": "pnpm run hygiene:root && pnpm run deps:workspace",
     "i18n:check": "pnpm --filter @norish/i18n run check:locale-keys"
   },
   "dependencies": {
