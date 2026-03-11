@@ -27,10 +27,6 @@
     "better-auth": "catalog:",
     "next": "catalog:"
   },
-  "peerDependencies": {
-    "@norish/api": "workspace:*",
-    "@norish/trpc": "workspace:*"
-  },
   "devDependencies": {
     "@norish/eslint-config": "workspace:*",
     "@norish/prettier-config": "workspace:*",

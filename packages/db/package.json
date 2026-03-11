@@ -28,13 +28,6 @@
     "superjson": "catalog:",
     "zod": "catalog:"
   },
-  "peerDependencies": {
-    "@norish/api": "workspace:*",
-    "@norish/auth": "workspace:*",
-    "@norish/config": "workspace:*",
-    "@norish/queue": "workspace:*",
-    "@norish/shared": "workspace:*"
-  },
   "devDependencies": {
     "@norish/eslint-config": "workspace:*",
     "@norish/prettier-config": "workspace:*",

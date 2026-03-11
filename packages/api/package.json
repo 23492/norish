@@ -67,11 +67,10 @@
     "@norish/prettier-config": "workspace:*",
     "@norish/shared-server": "workspace:*",
     "@norish/tsconfig": "workspace:*",
+    "@types/heic-convert": "^2.1.0",
+    "@types/ws": "8.18.1",
     "eslint": "catalog:",
     "prettier": "catalog:",
-    "@types/heic-convert": "^2.1.0",
-    "@types/uuid": "^11.0.0",
-    "@types/ws": "8.18.1",
     "vitest": "catalog:"
   },
   "prettier": "@norish/prettier-config"

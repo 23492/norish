@@ -90,10 +90,9 @@ RUN pnpm run build && \
            apps/web/.next/standalone/node_modules/ffmpeg-static
 
 # Create isolated production deployment with pnpm deploy.
-# This gives us a minimal node_modules with only @norish/web's runtime deps.
 RUN pnpm deploy --filter @norish/web --prod /app/deploy && \
     cd /app/deploy/node_modules && \
-    # Remove duplicated workspace packages (we copy packages/ separately)
+    # Remove workspace copies (source is in packages/, server code in dist-server/)
     rm -rf @norish && \
     # Remove mobile-only auth deps pulled in via @better-auth/expo peer resolution
     rm -rf @expo @expo-google-fonts expo expo-* \
@@ -112,7 +111,7 @@ RUN pnpm deploy --filter @norish/web --prod /app/deploy && \
            turbo turbo-* && \
     # Remove packages superseded by system binaries (apk add ffmpeg)
     rm -rf ffmpeg-static && \
-    # Remove wrong-platform binaries
+    # Remove wrong-platform binaries (keep only linux-arm64-musl for Alpine)
     rm -rf @next/swc-darwin-* @next/swc-win32-* @next/swc-linux-x64-gnu \
            @swc/core-darwin-* @swc/core-win32-* @swc/core-linux-x64-* \
            @img/sharp-darwin-* @img/sharp-win32-* @img/sharp-linux-x64 \
