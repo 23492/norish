@@ -57,7 +57,7 @@
     "ioredis": "catalog:",
     "jszip": "catalog:",
     "superjson": "catalog:",
-    "ws": "8.19.0",
+    "ws": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
