@@ -18,9 +18,8 @@ services:
       DATABASE_URL: postgres://postgres:norish@db:5432/norish
       REDIS_URL: redis://redis:6379
       AUTH_URL: http://localhost:3000
-      # Include host LAN IP for mobile app access (find yours with: ipconfig getifaddr en0)
-      # Include exp:// for Expo dev builds (production builds use mobile:// which is always trusted)
-      TRUSTED_ORIGINS: http://localhost:3000,http://192.168.2.25:3000,exp://,exp://**,exp://192.168.*.*:*/**
+      # Include host LAN IP for mobile app access
+      TRUSTED_ORIGINS: http://localhost:3000,http://192.168.*.*:3000,exp://,exp://**,exp://192.168.*.*:*/**
       MASTER_KEY: X4fjLgB8egCPwlOQW8iC3JGXAtUIMUOGmk/y29n+YSw=
       CHROME_WS_ENDPOINT: ws://chrome-headless:3000
       PASSWORD_AUTH_ENABLED: "true"
