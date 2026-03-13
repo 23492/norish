@@ -57,6 +57,6 @@
 - [x] 9.2 Write unit tests for cache hydration bootstrap (restore-before-render behavior and cache-clear paths)
 - [x] 9.3 Write unit tests for `useNetworkStatus` / `NetworkProvider` (mock `expo-network`, health probes, app foreground, failure thresholds, and the `offline | backend-unreachable | online` state matrix)
 - [x] 9.4 Write unit tests for `useSessionRevalidation` (mock app-online transitions, verify signOut called on invalid session, no signOut on ambiguous reachability failure)
-- [ ] 9.5 Manual verification: kill device network in iOS simulator -> confirm offline banner appears, cached data stays visible, new queries pause
-- [ ] 9.6 Manual verification: keep device online but stop/repoint backend -> confirm server-unreachable banner appears, cached data stays visible, new queries pause without hammering the backend
-- [ ] 9.7 Manual verification: restore backend reachability -> confirm queries refresh, session revalidates, and banner disappears
+- [x] 9.5 Manual verification: kill device network in iOS simulator -> confirm offline banner appears, cached data stays visible, new queries pause
+- [x] 9.6 Manual verification: keep device online but stop/repoint backend -> confirm server-unreachable banner appears, cached data stays visible, new queries pause without hammering the backend
+- [x] 9.7 Manual verification: restore backend reachability -> confirm queries refresh, session revalidates, and banner disappears
