@@ -8,6 +8,7 @@ import React from 'react';
 import { StyleSheet, useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { useUserLocaleSync } from '@/hooks/use-user-locale-sync';
 import {
   AppearancePreferenceProvider,
   useAppearancePreference,
@@ -25,28 +26,6 @@ import { useCacheInvalidationOnReconnect } from '@/hooks/use-cache-lifecycle';
 import { useMutationMessageResolver } from '@/hooks/use-mutation-message-resolver';
 import { useSessionRevalidation } from '@/hooks/use-session-revalidation';
 import { TrpcProvider } from '@/providers/trpc-provider';
-
-// ============================================================================
-// Root layout — entry point
-// ============================================================================
-//
-// Provider hierarchy (outermost → innermost):
-//
-//   GestureHandlerRootView
-//   └─ HeroUINativeProvider           (heroui-native theme primitives)
-//      └─ AppearancePreferenceProvider (light / dark / system preference)
-//         └─ ThemeProvider             (react-navigation theme)
-//            └─ NetworkProvider        (reachability & health checks)
-//               └─ TrpcProvider        (tRPC client, WebSocket, QueryClient)
-//                  └─ AuthProvider     (session & sign-out)
-//                     └─ MobileIntlProvider  (locale, handles auth/unauth internally)
-//                        └─ DomainProviders  (permissions, user, recipes — auth only)
-//
-// Boot sequence gates (RootLayoutContent renders null until all resolve):
-//   1. Appearance preference hydrated from MMKV
-//   2. Backend base URL loaded from storage
-//   3. Persisted query cache restored
-//
 
 // ============================================================================
 // Entry point
@@ -146,6 +125,7 @@ function AuthenticatedProviders({ children }: { children: React.ReactNode }) {
     <RecipeFiltersProvider>
       <PermissionsProvider>
         <UserProvider>
+          <AuthenticatedEffects />
           <RecipesProvider>
             {children}
           </RecipesProvider>
@@ -153,6 +133,12 @@ function AuthenticatedProviders({ children }: { children: React.ReactNode }) {
       </PermissionsProvider>
     </RecipeFiltersProvider>
   );
+}
+
+/** Hooks that require UserProvider + MobileIntlProvider. */
+function AuthenticatedEffects() {
+  useUserLocaleSync();
+  return null;
 }
 
 /** Side-effects that require useIntl() — runs inside MobileIntlProvider. */
