@@ -4,6 +4,12 @@ import { createClientLogger } from '@norish/shared/lib/logger';
 import React, { useMemo } from 'react';
 
 import { getAuthClient } from '@/lib/auth-client';
+import { notifyBackendDisconnect } from '@/context/network-context';
+import {
+  getMutationBlockedMessage,
+  isAppReachableForLiveWork,
+} from '@/lib/network/reachability-store';
+import { createPersistedQueryClient } from '@/lib/query-cache/create-persisted-query-client';
 
 const log = createClientLogger('mobile-trpc');
 
@@ -51,6 +57,15 @@ function trpcBundleGetHeaders() {
   return { Cookie: cookies };
 }
 
+const { queryClient: persistedQueryClient, restorePromise: queryCacheRestorePromise } =
+  createPersistedQueryClient();
+export { queryCacheRestorePromise };
+export { persistedQueryClient };
+
+// ---------------------------------------------------------------------------
+// tRPC bundle
+// ---------------------------------------------------------------------------
+
 const trpcBundle = createTRPCProviderBundle<AppRouter>({
   logger: log,
   getBaseUrl: () => currentBaseUrl,
@@ -58,6 +73,10 @@ const trpcBundle = createTRPCProviderBundle<AppRouter>({
   getHeaders: trpcBundleGetHeaders,
   getWebSocketImpl: createMobileWebSocket,
   enableLoggerLink: false,
+  getQueryClient: () => persistedQueryClient,
+  shouldAllowMutation: () => isAppReachableForLiveWork(),
+  getMutationBlockMessage: () => getMutationBlockedMessage(),
+  onWebSocketClose: notifyBackendDisconnect,
 });
 
 export const useTRPC = trpcBundle.useTRPC;

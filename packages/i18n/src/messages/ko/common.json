@@ -94,7 +94,12 @@
     "connecting": "Norish에 연결 중...",
     "syncing": "동기화 중입니다. 잠시 기다려 주세요...",
     "checkInternet": "인터넷 연결을 확인해주세요",
-    "gettingUpdates": "최신 업데이트를 받는 동안 잠시만 기다려 주세요."
+    "gettingUpdates": "최신 업데이트를 받는 동안 잠시만 기다려 주세요.",
+    "offlineBanner": "오프라인 상태입니다 캐시된 데이터를 표시합니다",
+    "serverUnreachableBanner": "Norish 서버에 연결할 수 없습니다 캐시된 데이터를 표시합니다",
+    "mutationBlockedInitializing": "Norish가 캐시된 데이터를 복원하는 중입니다. 잠시 후 다시 시도해 주세요.",
+    "mutationBlockedServerUnreachable": "Norish 서버에 연결할 수 없습니다. 변경하기 전에 연결을 복원해 주세요.",
+    "mutationBlockedOffline": "오프라인 상태입니다. 변경하기 전에 연결을 복원해 주세요."
   },
   "language": {
     "title": "언어"

@@ -94,7 +94,12 @@
     "connecting": "Verbinden met Norish...",
     "syncing": "Synchroniseren, even geduld...",
     "checkInternet": "Controleer uw internetverbinding",
-    "gettingUpdates": "Even geduld terwijl we de laatste updates ophalen"
+    "gettingUpdates": "Even geduld terwijl we de laatste updates ophalen",
+    "offlineBanner": "Je bent offline, opgeslagen gegevens worden getoond",
+    "serverUnreachableBanner": "Kan de Norish-server niet bereiken, opgeslagen gegevens worden getoond",
+    "mutationBlockedInitializing": "Norish is nog bezig met het herstellen van opgeslagen gegevens. Probeer het zo opnieuw.",
+    "mutationBlockedServerUnreachable": "Kan de Norish-server niet bereiken. Maak opnieuw verbinding voordat je wijzigingen aanbrengt.",
+    "mutationBlockedOffline": "Je bent offline. Maak opnieuw verbinding voordat je wijzigingen aanbrengt."
   },
   "language": {
     "title": "Taal"

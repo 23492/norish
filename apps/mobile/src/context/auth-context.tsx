@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
 
 import { getAuthClient } from '@/lib/auth-client';
+import { clearAllQueryCaches } from '@/hooks/use-cache-lifecycle';
 
 type AuthContextValue = {
   backendBaseUrl: string | null;
@@ -30,6 +31,7 @@ function AuthProviderInner({
   const isLoading = isPending;
 
   const signOut = useCallback(async () => {
+    clearAllQueryCaches();
     await authClient.signOut();
     setJustLoggedOut(true);
   }, [authClient]);

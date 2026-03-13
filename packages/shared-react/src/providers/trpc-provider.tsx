@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
+  TRPCClientError,
   createTRPCClient,
   createWSClient,
   httpBatchLink,
@@ -14,8 +15,10 @@ import {
   isNonJsonSerializable,
   loggerLink,
   splitLink,
+  type TRPCLink,
   wsLink,
 } from "@trpc/client";
+import { observable } from "@trpc/server/observable";
 import { createTRPCContext } from "@trpc/tanstack-react-query";
 import superjson from "superjson";
 
@@ -32,6 +35,11 @@ type ConnectionContextValue = {
   isConnected: boolean;
 };
 
+export type MutationGuardContext = {
+  path: string;
+  input: unknown;
+};
+
 type CreateTRPCProviderBundleOptions = {
   logger: TrpcLogger;
   getBaseUrl?: () => string;
@@ -41,7 +49,55 @@ type CreateTRPCProviderBundleOptions = {
   maxRetries?: number;
   /** Set to false to disable tRPC loggerLink (defaults to true) */
   enableLoggerLink?: boolean;
+  /** Optional callback that returns a pre-configured QueryClient (e.g. with persistence). */
+  getQueryClient?: () => QueryClient;
+  /** Optional guard used to block mutations before they hit the network. */
+  shouldAllowMutation?: (context: MutationGuardContext) => boolean;
+  /** Optional message used when a mutation is blocked by the guard. */
+  getMutationBlockMessage?: (context: MutationGuardContext) => string;
+  /** Called when the tRPC WebSocket closes (for any reason). */
+  onWebSocketClose?: () => void;
 };
+
+const DEFAULT_MUTATION_BLOCK_MESSAGE =
+  "You're offline. Reconnect before making changes.";
+
+export function createMutationGuardLink<TRouter extends AnyTRPCRouter>(opts: {
+  shouldAllowMutation: (context: MutationGuardContext) => boolean;
+  getMutationBlockMessage?: (context: MutationGuardContext) => string;
+}): TRPCLink<TRouter> {
+  return () => {
+    return ({ op, next }) => {
+      if (op.type !== "mutation") {
+        return next(op);
+      }
+
+      const context: MutationGuardContext = {
+        path: op.path,
+        input: op.input,
+      };
+
+      if (opts.shouldAllowMutation(context)) {
+        return next(op);
+      }
+
+      const message =
+        opts.getMutationBlockMessage?.(context) ?? DEFAULT_MUTATION_BLOCK_MESSAGE;
+
+      return observable((observer) => {
+        observer.error(
+          new TRPCClientError(message, {
+            cause: new Error(`Mutation blocked by reachability guard: ${op.path}`),
+            meta: {
+              guard: "mutation-reachability",
+              mutationPath: op.path,
+            },
+          }),
+        );
+      });
+    };
+  };
+}
 
 const defaultGetBaseUrl = () => {
   if (typeof window !== "undefined") {
@@ -71,6 +127,10 @@ export function createTRPCProviderBundle<TRouter extends AnyTRPCRouter>({
   getWebSocketImpl,
   maxRetries = 10,
   enableLoggerLink = true,
+  getQueryClient: externalGetQueryClient,
+  shouldAllowMutation,
+  getMutationBlockMessage,
+  onWebSocketClose,
 }: CreateTRPCProviderBundleOptions) {
   const { TRPCProvider, useTRPC } = createTRPCContext<TRouter>();
   const ConnectionContext = createContext<ConnectionContextValue>({
@@ -88,17 +148,19 @@ export function createTRPCProviderBundle<TRouter extends AnyTRPCRouter>({
     const queryClientRef = useRef<QueryClient | null>(null);
 
     const [{ queryClient, trpcClient }] = useState(() => {
-      const qc = new QueryClient({
-        defaultOptions: {
-          queries: {
-            staleTime: 1000 * 60 * 5,
-            gcTime: 1000 * 60 * 10,
-            refetchOnWindowFocus: true,
-            refetchOnMount: "always",
-            retry: 1,
-          },
-        },
-      });
+      const qc = externalGetQueryClient
+        ? externalGetQueryClient()
+        : new QueryClient({
+            defaultOptions: {
+              queries: {
+                staleTime: 1000 * 60 * 5,
+                gcTime: 1000 * 60 * 10,
+                refetchOnWindowFocus: true,
+                refetchOnMount: "always",
+                retry: 1,
+              },
+            },
+          });
 
       queryClientRef.current = qc;
 
@@ -129,6 +191,7 @@ export function createTRPCProviderBundle<TRouter extends AnyTRPCRouter>({
         onClose: (cause) => {
           logger.info(`WebSocket closed: ${JSON.stringify(cause)}`);
           setStatus("disconnected");
+          onWebSocketClose?.();
         },
       });
 
@@ -140,6 +203,14 @@ export function createTRPCProviderBundle<TRouter extends AnyTRPCRouter>({
                   enabled: (opts) =>
                     process.env.NODE_ENV === "development" ||
                     (opts.direction === "down" && opts.result instanceof Error),
+                }),
+              ]
+            : []),
+          ...(shouldAllowMutation
+            ? [
+                createMutationGuardLink<TRouter>({
+                  shouldAllowMutation,
+                  getMutationBlockMessage,
                 }),
               ]
             : []),

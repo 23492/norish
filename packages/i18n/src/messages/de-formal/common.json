@@ -94,7 +94,12 @@
     "connecting": "Verbindung zu Norish wird hergestellt...",
     "syncing": "Wird synchronisiert, bitte warten...",
     "checkInternet": "Bitte überprüfen Sie Ihre Internetverbindung",
-    "gettingUpdates": "Einen Moment, während wir die neuesten Updates abrufen"
+    "gettingUpdates": "Einen Moment, während wir die neuesten Updates abrufen",
+    "offlineBanner": "Sie sind offline, zwischengespeicherte Daten werden angezeigt",
+    "serverUnreachableBanner": "Der Norish-Server ist nicht erreichbar, zwischengespeicherte Daten werden angezeigt",
+    "mutationBlockedInitializing": "Norish stellt noch zwischengespeicherte Daten wieder her. Bitte versuchen Sie es gleich erneut.",
+    "mutationBlockedServerUnreachable": "Der Norish-Server ist nicht erreichbar. Bitte stellen Sie die Verbindung wieder her, bevor Sie Änderungen vornehmen.",
+    "mutationBlockedOffline": "Sie sind offline. Bitte stellen Sie die Verbindung wieder her, bevor Sie Änderungen vornehmen."
   },
   "language": {
     "title": "Sprache"
