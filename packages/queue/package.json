@@ -22,6 +22,7 @@
     "@norish/config": "workspace:*",
     "@norish/db": "workspace:*",
     "@norish/shared": "workspace:*",
+    "@norish/shared-server": "workspace:*",
     "bullmq": "catalog:",
     "date-fns": "catalog:",
     "drizzle-orm": "catalog:",

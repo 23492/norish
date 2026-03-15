@@ -1,8 +1,10 @@
 import type { TRPCSubscriptionProcedure } from "@trpc/server";
 import type { PermissionLevel } from "@norish/config/zod/server-config";
 import type { SubscriptionMultiplexer } from "@norish/queue/redis/subscription-multiplexer";
+import type { RealtimeEventEnvelope } from "@norish/shared/contracts/realtime-envelope";
 import type { TypedEmitter } from "./emitter";
 
+import { unwrapPayload } from "@norish/shared/lib/operation-helpers";
 import { trpcLogger as log } from "@norish/shared-server/logger";
 
 import { authedProcedure } from "./middleware";
@@ -232,6 +234,10 @@ export function createPolicyAwareIterables<TEvents extends Record<string, unknow
   ];
 }
 
+/**
+ * Compatibility subscription: unwraps envelopes and yields raw domain payloads.
+ * All existing subscription procedures use this path.
+ */
 export function createPolicyAwareSubscription<
   TEvents extends Record<string, unknown>,
   K extends keyof TEvents & string,
@@ -252,12 +258,55 @@ export function createPolicyAwareSubscription<
       const iterables = createPolicyAwareIterables(emitter, policyCtx, eventName, signal);
 
       for await (const data of mergeAsyncIterables(iterables, signal)) {
-        yield data as TEvents[K];
+        // Unwrap envelope for backward compatibility —
+        // existing subscription consumers expect raw domain payloads.
+        yield unwrapPayload<TEvents[K]>(data);
       }
     } finally {
       log.trace(
         { userId: ctx.user.id, householdKey: ctx.householdKey },
         `Unsubscribed from ${logMessage}`
+      );
+    }
+  });
+}
+
+/**
+ * Envelope-aware subscription: yields full RealtimeEventEnvelope objects.
+ * Use this for future offline work that needs operationId and event metadata.
+ *
+ * @example
+ * ```ts
+ * const onImported = createEnvelopeAwareSubscription(recipeEmitter, "imported", "recipe imports");
+ * ```
+ */
+export function createEnvelopeAwareSubscription<
+  TEvents extends Record<string, unknown>,
+  K extends keyof TEvents & string,
+>(emitter: TypedEmitter<TEvents>, eventName: K, logMessage: string): AuthedSubscriptionProcedure {
+  return authedProcedure.subscription(async function* ({ ctx, signal }) {
+    const policyCtx: PolicySubscribeContext = {
+      userId: ctx.user.id,
+      householdKey: ctx.householdKey,
+      multiplexer: ctx.multiplexer,
+    };
+
+    log.trace(
+      { userId: ctx.user.id, householdKey: ctx.householdKey, hasMultiplexer: !!ctx.multiplexer },
+      `Subscribed (envelope-aware) to ${logMessage}`
+    );
+
+    try {
+      const iterables = createPolicyAwareIterables(emitter, policyCtx, eventName, signal);
+
+      for await (const data of mergeAsyncIterables(iterables, signal)) {
+        // Yield the full envelope — consumers get { meta, payload }
+        yield data as RealtimeEventEnvelope<TEvents[K]>;
+      }
+    } finally {
+      log.trace(
+        { userId: ctx.user.id, householdKey: ctx.householdKey },
+        `Unsubscribed (envelope-aware) from ${logMessage}`
       );
     }
   });

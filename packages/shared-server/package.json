@@ -16,7 +16,8 @@
     "./ai/providers": "./src/ai/providers/index.ts",
     "./ai/unit-converter": "./src/ai/unit-converter.ts",
     "./ai/utils/category-matcher": "./src/ai/utils/category-matcher.ts",
-    "./lib/workspace-paths": "./src/lib/workspace-paths.ts"
+    "./lib/workspace-paths": "./src/lib/workspace-paths.ts",
+    "./lib/operation-context": "./src/lib/operation-context.ts"
   },
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.json --noCheck",

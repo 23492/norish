@@ -22,6 +22,12 @@ import { observable } from "@trpc/server/observable";
 import { createTRPCContext } from "@trpc/tanstack-react-query";
 import superjson from "superjson";
 
+import { createOperationIdLink } from "./operation-id-link";
+import {
+  createBatchRequestHeadersResolver,
+  createRequestHeadersResolver,
+} from "./request-headers";
+
 type TrpcLogger = {
   info: (message: string) => void;
   warn: (meta: unknown, message: string) => void;
@@ -206,6 +212,7 @@ export function createTRPCProviderBundle<TRouter extends AnyTRPCRouter>({
                 }),
               ]
             : []),
+          createOperationIdLink<TRouter>(),
           ...(shouldAllowMutation
             ? [
                 createMutationGuardLink<TRouter>({
@@ -218,18 +225,26 @@ export function createTRPCProviderBundle<TRouter extends AnyTRPCRouter>({
             condition: (op) => op.type === "subscription",
             true: wsLink({ client: wsClient, transformer: superjson as any }),
             false: splitLink({
-              condition: (op) => isNonJsonSerializable(op.input),
-              true: httpLink({
-                url: `${getBaseUrl()}/api/trpc`,
-                headers: getHeaders,
-                transformer: {
-                  serialize: (data: unknown) => data,
-                  deserialize: superjson.deserialize,
-                } as any,
+              condition: (op) => op.type === "mutation",
+              true: splitLink({
+                condition: (op) => isNonJsonSerializable(op.input),
+                true: httpLink({
+                  url: `${getBaseUrl()}/api/trpc`,
+                  headers: createRequestHeadersResolver(getHeaders),
+                  transformer: {
+                    serialize: (data: unknown) => data,
+                    deserialize: superjson.deserialize,
+                  } as any,
+                }),
+                false: httpLink({
+                  url: `${getBaseUrl()}/api/trpc`,
+                  headers: createRequestHeadersResolver(getHeaders),
+                  transformer: superjson as any,
+                }),
               }),
               false: httpBatchLink({
                 url: `${getBaseUrl()}/api/trpc`,
-                headers: getHeaders,
+                headers: createBatchRequestHeadersResolver(getHeaders),
                 transformer: superjson as any,
               }),
             }),

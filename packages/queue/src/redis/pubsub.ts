@@ -9,8 +9,12 @@ import { on } from "node:events";
 
 import superjson from "superjson";
 import { redisLogger } from "@norish/api/logger";
+import type { RealtimeEventEnvelope } from "@norish/shared/contracts/realtime-envelope";
+import { ENVELOPE_VERSION } from "@norish/shared/contracts/realtime-envelope";
+import { getCurrentOperationId } from "@norish/shared-server/lib/operation-context";
 
 import { createSubscriberClient, getPublisherClient } from "./client";
+import { parseChannelMetadata } from "./channel-metadata";
 
 const CHANNEL_PREFIX = "norish";
 
@@ -93,7 +97,9 @@ export class TypedRedisEmitter<TEvents extends Record<string, unknown>> {
       for await (const [receivedChannel, message] of on(subscriber, "message", { signal })) {
         if (receivedChannel === channel) {
           try {
-            yield superjson.parse<TEvents[K]>(message);
+            const parsed = superjson.parse<TEvents[K]>(message);
+
+            yield parsed;
           } catch (err) {
             redisLogger.error({ err, channel }, "Failed to parse Redis message");
           }
@@ -118,7 +124,36 @@ export class TypedRedisEmitter<TEvents extends Record<string, unknown>> {
   private async publish(channel: string, data: unknown): Promise<boolean> {
     try {
       const client = await getPublisherClient();
-      const message = superjson.stringify(data);
+
+      // Create envelope metadata from channel and operation context
+      const channelMeta = parseChannelMetadata(channel);
+      const operationId = getCurrentOperationId();
+
+      let message: string;
+
+      if (channelMeta) {
+        const envelope: RealtimeEventEnvelope = {
+          meta: {
+            version: ENVELOPE_VERSION,
+            eventId: crypto.randomUUID(),
+            eventName: channelMeta.eventName,
+            namespace: channelMeta.namespace,
+            scope: channelMeta.scope,
+            channel,
+            occurredAt: new Date().toISOString(),
+            ...(operationId ? { operationId } : {}),
+            ...(channelMeta.householdKey ? { householdKey: channelMeta.householdKey } : {}),
+            ...(channelMeta.userId ? { userId: channelMeta.userId } : {}),
+          },
+          payload: data,
+        };
+
+        message = superjson.stringify(envelope);
+      } else {
+        // Fallback for non-standard channels: publish raw data
+        message = superjson.stringify(data);
+      }
+
       const subscribers = await client.publish(channel, message);
 
       redisLogger.debug({ channel, subscribers }, "Published message");
