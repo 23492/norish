@@ -86,7 +86,7 @@ vi.mock("child_process", () => ({
   spawn: mockState.spawnMock,
 }));
 
-import { convertToMp4 } from "@/server/downloader";
+import { convertToMp4 } from "@norish/api/downloader";
 
 describe("convertToMp4", () => {
   const normalizePath = (value: string) => value.replaceAll("\\", "/");

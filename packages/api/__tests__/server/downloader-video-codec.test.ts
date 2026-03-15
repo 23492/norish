@@ -31,7 +31,7 @@ vi.mock("heic-convert", () => ({
   default: vi.fn(),
 }));
 
-import { isWebPlayableMp4CodecPair } from "@/server/downloader";
+import { isWebPlayableMp4CodecPair } from "@norish/api/downloader";
 
 describe("isWebPlayableMp4CodecPair", () => {
   it("accepts H.264 video with AAC audio", () => {
