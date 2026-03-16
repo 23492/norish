@@ -15,7 +15,7 @@
     "test:coverage": "vitest run --coverage --config ./vitest.config.ts",
     "lint": "eslint --flag unstable_native_nodejs_ts_config",
     "format": "prettier --check . --ignore-path ../../.gitignore",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "pnpm exec tsc --noEmit",
     "clean": "git clean -xdf .cache .next .turbo node_modules dist"
   },
   "dependencies": {
