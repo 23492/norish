@@ -63,6 +63,8 @@ type CreateTRPCProviderBundleOptions = {
   getMutationBlockMessage?: (context: MutationGuardContext) => string;
   /** Called when the tRPC WebSocket closes (for any reason). */
   onWebSocketClose?: () => void;
+  /** Called when the tRPC WebSocket opens successfully. */
+  onWebSocketOpen?: () => void;
 };
 
 type SubscriptionObserverOptions = {
@@ -216,6 +218,7 @@ export function createTRPCProviderBundle<TRouter extends AnyTRPCRouter>({
   shouldAllowMutation,
   getMutationBlockMessage,
   onWebSocketClose,
+  onWebSocketOpen,
 }: CreateTRPCProviderBundleOptions) {
   const { TRPCProvider, useTRPC: useRawTRPC } = createTRPCContext<TRouter>();
   const useTRPC = createNormalizedUseTRPC<TRouter>(useRawTRPC);
@@ -273,6 +276,7 @@ export function createTRPCProviderBundle<TRouter extends AnyTRPCRouter>({
         onOpen: () => {
           logger.info("WebSocket connected");
           setStatus("connected");
+          onWebSocketOpen?.();
         },
         onClose: (cause) => {
           logger.info(`WebSocket closed: ${JSON.stringify(cause)}`);

@@ -4,7 +4,7 @@ import { createClientLogger } from '@norish/shared/lib/logger';
 import React, { useMemo } from 'react';
 
 import { getAuthClient } from '@/lib/auth-client';
-import { notifyBackendDisconnect } from '@/context/network-context';
+import { notifyBackendDisconnect, notifyBackendConnect } from '@/context/network-context';
 import {
   getMutationBlockedMessage,
   isAppReachableForLiveWork,
@@ -77,6 +77,7 @@ const trpcBundle = createTRPCProviderBundle<AppRouter>({
   shouldAllowMutation: () => isAppReachableForLiveWork(),
   getMutationBlockMessage: () => getMutationBlockedMessage(),
   onWebSocketClose: notifyBackendDisconnect,
+  onWebSocketOpen: notifyBackendConnect,
 });
 
 export const useTRPC = trpcBundle.useTRPC;
