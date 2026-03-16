@@ -94,6 +94,9 @@ _Note: AI feature speed can vary by provider, model, and region._
 
 ### Minimal Docker Compose
 
+For a full template, see [docker-compose.example.yml](docker/docker-compose.example.yml).
+
+
 ```yaml
 services:
   norish:
@@ -119,7 +122,6 @@ services:
       # YT_DLP_BIN_DIR: /app/bin
 
       # First-user auth setup (choose one)
-      # PASSWORD_AUTH_ENABLED=false
       # OIDC_NAME: NoraId
       # OIDC_ISSUER: https://auth.example.com
       # OIDC_CLIENT_ID: <client-id>
@@ -131,11 +133,10 @@ services:
       # GOOGLE_CLIENT_SECRET: <google-client-secret>
     healthcheck:
       test:
-        test:
-          [
-            "CMD-SHELL",
-            'node -e "require(''http'').get(''http://localhost:3000/api/health'', r => process.exit(r.statusCode===200?0:1))"',
-          ]
+        [
+          "CMD-SHELL",
+          'node -e "require(''http'').get(''http://localhost:3000/api/health'', r => process.exit(r.statusCode===200?0:1))"',
+        ]
       interval: 1m
       timeout: 15s
       retries: 3
