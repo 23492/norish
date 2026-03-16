@@ -117,7 +117,7 @@ export function createUseRecipesSubscription(
     useSubscription(
       asSubscriptionOptions(
         trpc.recipes.onCreated.subscriptionOptions(undefined, {
-          onData: (payload: any) => {
+          onData: ({ payload }: any) => {
             removePendingRecipe(payload.recipe.id);
             addRecipeToList(payload.recipe);
           },
@@ -128,7 +128,7 @@ export function createUseRecipesSubscription(
     useSubscription(
       asSubscriptionOptions(
         trpc.recipes.onImportStarted.subscriptionOptions(undefined, {
-          onData: (payload: any) => {
+          onData: ({ payload }: any) => {
             addPendingRecipe(payload.recipeId);
           },
         })
@@ -138,7 +138,7 @@ export function createUseRecipesSubscription(
     useSubscription(
       asSubscriptionOptions(
         trpc.recipes.onImported.subscriptionOptions(undefined, {
-          onData: (payload: any) => {
+          onData: ({ payload }: any) => {
             const pendingId = payload.pendingRecipeId ?? payload.recipe.id;
 
             removePendingRecipe(pendingId);
@@ -152,7 +152,7 @@ export function createUseRecipesSubscription(
     useSubscription(
       asSubscriptionOptions(
         trpc.recipes.onUpdated.subscriptionOptions(undefined, {
-          onData: (payload: any) => {
+          onData: ({ payload }: any) => {
             updateRecipeInList(payload.recipe);
             queryClient.invalidateQueries({
               queryKey: [["recipes", "get"], { input: { id: payload.recipe.id }, type: "query" }],
@@ -166,7 +166,7 @@ export function createUseRecipesSubscription(
     useSubscription(
       asSubscriptionOptions(
         trpc.recipes.onDeleted.subscriptionOptions(undefined, {
-          onData: (payload: any) => {
+          onData: ({ payload }: any) => {
             removeRecipeFromList(payload.id);
             queryClient.invalidateQueries({
               queryKey: [["recipes", "get"], { input: { id: payload.id }, type: "query" }],
@@ -179,7 +179,7 @@ export function createUseRecipesSubscription(
     useSubscription(
       asSubscriptionOptions(
         trpc.recipes.onConverted.subscriptionOptions(undefined, {
-          onData: (payload: any) => {
+          onData: ({ payload }: any) => {
             updateRecipeInList(payload.recipe);
             queryClient.invalidateQueries({
               queryKey: [["recipes", "get"], { input: { id: payload.recipe.id }, type: "query" }],
@@ -193,7 +193,7 @@ export function createUseRecipesSubscription(
     useSubscription(
       asSubscriptionOptions(
         trpc.recipes.onFailed.subscriptionOptions(undefined, {
-          onData: (payload: any) => {
+          onData: ({ payload }: any) => {
             if (payload.recipeId) {
               removePendingRecipe(payload.recipeId);
               removeAutoTaggingRecipe(payload.recipeId);
@@ -210,7 +210,7 @@ export function createUseRecipesSubscription(
     useSubscription(
       asSubscriptionOptions(
         trpc.recipes.onAutoTaggingStarted.subscriptionOptions(undefined, {
-          onData: (payload: any) => {
+          onData: ({ payload }: any) => {
             addAutoTaggingRecipe(payload.recipeId);
           },
         })
@@ -220,7 +220,7 @@ export function createUseRecipesSubscription(
     useSubscription(
       asSubscriptionOptions(
         trpc.recipes.onAllergyDetectionStarted.subscriptionOptions(undefined, {
-          onData: (payload: any) => {
+          onData: ({ payload }: any) => {
             addAllergyDetectionRecipe(payload.recipeId);
           },
         })
@@ -230,7 +230,7 @@ export function createUseRecipesSubscription(
     useSubscription(
       asSubscriptionOptions(
         trpc.recipes.onAutoTaggingCompleted.subscriptionOptions(undefined, {
-          onData: (payload: any) => {
+          onData: ({ payload }: any) => {
             removeAutoTaggingRecipe(payload.recipeId);
           },
         })
@@ -240,7 +240,7 @@ export function createUseRecipesSubscription(
     useSubscription(
       asSubscriptionOptions(
         trpc.recipes.onAllergyDetectionCompleted.subscriptionOptions(undefined, {
-          onData: (payload: any) => {
+          onData: ({ payload }: any) => {
             removeAllergyDetectionRecipe(payload.recipeId);
           },
         })
@@ -250,7 +250,7 @@ export function createUseRecipesSubscription(
     useSubscription(
       asSubscriptionOptions(
         trpc.recipes.onProcessingToast.subscriptionOptions(undefined, {
-          onData: (payload: any) => {
+          onData: ({ payload }: any) => {
             callbacks.onProcessingToast?.(payload);
           },
         })
@@ -260,7 +260,7 @@ export function createUseRecipesSubscription(
     useSubscription(
       asSubscriptionOptions(
         trpc.recipes.onRecipeBatchCreated.subscriptionOptions(undefined, {
-          onData: (payload: any) => {
+          onData: ({ payload }: any) => {
             setAllRecipesData(
               (prev: InfiniteRecipeData | undefined): InfiniteRecipeData | undefined => {
                 if (!prev?.pages?.length) {

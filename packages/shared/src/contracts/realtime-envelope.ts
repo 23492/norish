@@ -43,10 +43,6 @@ export interface RealtimeEventMeta {
   namespace: string;
   /** Routing scope. */
   scope: RealtimeEventScope;
-  /** Household key when scope is "household". */
-  householdKey?: string;
-  /** User ID when scope is "user". */
-  userId?: string;
   /** Full resolved Redis channel string. */
   channel: string;
   /** ISO 8601 timestamp of when the event occurred. */

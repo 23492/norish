@@ -1,6 +1,3 @@
-/**
- * Tests for operation helpers: operationId generation, envelope detection, normalization.
- */
 import { describe, expect, it } from "vitest";
 
 import type { RealtimeEventEnvelope } from "@norish/shared/contracts/realtime-envelope";
@@ -31,9 +28,7 @@ describe("generateOperationId", () => {
   it("generates UUIDs", () => {
     const id = generateOperationId();
 
-    expect(id).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-    );
+    expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
   });
 });
 
@@ -77,7 +72,7 @@ describe("isEventEnvelope", () => {
     expect(isEventEnvelope({ recipeId: "r-1" })).toBe(false);
   });
 
-  it("rejects null/undefined", () => {
+  it("rejects nullish values", () => {
     expect(isEventEnvelope(null)).toBe(false);
     expect(isEventEnvelope(undefined)).toBe(false);
   });
@@ -91,9 +86,7 @@ describe("isEventEnvelope", () => {
   });
 
   it("rejects objects with meta missing version", () => {
-    expect(
-      isEventEnvelope({ meta: { eventId: "1" }, payload: {} })
-    ).toBe(false);
+    expect(isEventEnvelope({ meta: { eventId: "1" }, payload: {} })).toBe(false);
   });
 });
 
@@ -178,13 +171,12 @@ describe("extractMeta", () => {
 
 describe("preserving precomputed operationIds", () => {
   it("an existing operationId passes isOperationId check", () => {
-    // Simulate an offline outbox precomputed operationId
     const precomputed = generateOperationId();
 
     expect(isOperationId(precomputed)).toBe(true);
   });
 
-  it("generateOperationId produces IDs that are preserved through JSON round-trip", () => {
+  it("generateOperationId survives JSON round-trip", () => {
     const original = generateOperationId();
     const roundTripped = JSON.parse(JSON.stringify(original));
 

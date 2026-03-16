@@ -4,7 +4,7 @@ import type { HTTPHeaders } from "@trpc/client";
 import type { AnyTRPCRouter } from "@trpc/server";
 import type { ReactNode } from "react";
 
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   TRPCClientError,
@@ -12,7 +12,6 @@ import {
   createWSClient,
   httpBatchLink,
   httpLink,
-  isNonJsonSerializable,
   loggerLink,
   splitLink,
   type TRPCLink,
@@ -20,6 +19,7 @@ import {
 } from "@trpc/client";
 import { observable } from "@trpc/server/observable";
 import { createTRPCContext } from "@trpc/tanstack-react-query";
+import { normalizeSubscriptionData } from "@norish/shared/lib/operation-helpers";
 import superjson from "superjson";
 
 import { createOperationIdLink } from "./operation-id-link";
@@ -65,6 +65,74 @@ type CreateTRPCProviderBundleOptions = {
   onWebSocketClose?: () => void;
 };
 
+type SubscriptionObserverOptions = {
+  onData?: (data: unknown) => void;
+};
+
+export function wrapSubscriptionObserverOptions(options: unknown): unknown {
+  if (!options || typeof options !== "object") {
+    return options;
+  }
+
+  const observerOptions = options as SubscriptionObserverOptions;
+
+  if (typeof observerOptions.onData !== "function") {
+    return options;
+  }
+
+  return {
+    ...observerOptions,
+    onData: (data: unknown) => observerOptions.onData?.(normalizeSubscriptionData(data)),
+  };
+}
+
+export function wrapTrpcProxy<T>(value: T, cache: WeakMap<object, unknown>): T {
+  if ((typeof value !== "object" && typeof value !== "function") || value === null) {
+    return value;
+  }
+
+  const cached = cache.get(value as object);
+
+  if (cached) {
+    return cached as T;
+  }
+
+  const proxy = new Proxy(value as object, {
+    get(target, prop, receiver) {
+      const result = Reflect.get(target, prop, receiver);
+
+      if (prop === "subscriptionOptions" && typeof result === "function") {
+        return (...args: unknown[]) => {
+          if (args.length === 0) {
+            return Reflect.apply(result, target, args);
+          }
+
+          const wrappedArgs = [...args];
+          const lastArgIndex = wrappedArgs.length - 1;
+
+          wrappedArgs[lastArgIndex] = wrapSubscriptionObserverOptions(wrappedArgs[lastArgIndex]);
+
+          return Reflect.apply(result, target, wrappedArgs);
+        };
+      }
+
+      return wrapTrpcProxy(result, cache);
+    },
+  });
+
+  cache.set(value as object, proxy);
+
+  return proxy as T;
+}
+
+function createNormalizedUseTRPC<TRouter extends AnyTRPCRouter>(useRawTRPC: () => unknown) {
+  return function useNormalizedTRPC() {
+    const trpc = useRawTRPC();
+
+    return useMemo(() => wrapTrpcProxy(trpc, new WeakMap()), [trpc]);
+  };
+}
+
 const DEFAULT_MUTATION_BLOCK_MESSAGE =
   "You're offline. Reconnect before making changes.";
 
@@ -105,6 +173,17 @@ export function createMutationGuardLink<TRouter extends AnyTRPCRouter>(opts: {
   };
 }
 
+function createHttpMutationLink(getBaseUrl: () => string, getHeaders: () => HTTPHeaders): TRPCLink<any> {
+  return httpLink({
+    url: `${getBaseUrl()}/api/trpc`,
+    headers: createRequestHeadersResolver(getHeaders),
+    transformer: {
+      serialize: (data: unknown) => data,
+      deserialize: superjson.deserialize,
+    } as any,
+  });
+}
+
 const defaultGetBaseUrl = () => {
   if (typeof window !== "undefined") {
     return "";
@@ -138,7 +217,8 @@ export function createTRPCProviderBundle<TRouter extends AnyTRPCRouter>({
   getMutationBlockMessage,
   onWebSocketClose,
 }: CreateTRPCProviderBundleOptions) {
-  const { TRPCProvider, useTRPC } = createTRPCContext<TRouter>();
+  const { TRPCProvider, useTRPC: useRawTRPC } = createTRPCContext<TRouter>();
+  const useTRPC = createNormalizedUseTRPC<TRouter>(useRawTRPC);
   const ConnectionContext = createContext<ConnectionContextValue>({
     status: "idle",
     isConnected: false,
@@ -226,22 +306,7 @@ export function createTRPCProviderBundle<TRouter extends AnyTRPCRouter>({
             true: wsLink({ client: wsClient, transformer: superjson as any }),
             false: splitLink({
               condition: (op) => op.type === "mutation",
-              true: splitLink({
-                condition: (op) => isNonJsonSerializable(op.input),
-                true: httpLink({
-                  url: `${getBaseUrl()}/api/trpc`,
-                  headers: createRequestHeadersResolver(getHeaders),
-                  transformer: {
-                    serialize: (data: unknown) => data,
-                    deserialize: superjson.deserialize,
-                  } as any,
-                }),
-                false: httpLink({
-                  url: `${getBaseUrl()}/api/trpc`,
-                  headers: createRequestHeadersResolver(getHeaders),
-                  transformer: superjson as any,
-                }),
-              }),
+              true: createHttpMutationLink(getBaseUrl, getHeaders),
               false: httpBatchLink({
                 url: `${getBaseUrl()}/api/trpc`,
                 headers: createBatchRequestHeadersResolver(getHeaders),

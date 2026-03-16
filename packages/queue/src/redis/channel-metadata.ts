@@ -23,9 +23,6 @@ export interface ChannelMetadata {
   namespace: string;
   scope: RealtimeEventScope;
   eventName: string;
-  householdKey?: string;
-  userId?: string;
-  channel: string;
 }
 
 /**
@@ -60,7 +57,6 @@ export function parseChannelMetadata(channel: string): ChannelMetadata | null {
         namespace,
         scope: scope as RealtimeEventScope,
         eventName,
-        channel,
       };
     }
 
@@ -74,8 +70,6 @@ export function parseChannelMetadata(channel: string): ChannelMetadata | null {
         namespace,
         scope: "household",
         eventName,
-        householdKey,
-        channel,
       };
     }
 
@@ -89,8 +83,6 @@ export function parseChannelMetadata(channel: string): ChannelMetadata | null {
         namespace,
         scope: "user",
         eventName,
-        userId,
-        channel,
       };
     }
 

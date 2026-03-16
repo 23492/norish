@@ -142,8 +142,6 @@ export class TypedRedisEmitter<TEvents extends Record<string, unknown>> {
             channel,
             occurredAt: new Date().toISOString(),
             ...(operationId ? { operationId } : {}),
-            ...(channelMeta.householdKey ? { householdKey: channelMeta.householdKey } : {}),
-            ...(channelMeta.userId ? { userId: channelMeta.userId } : {}),
           },
           payload: data,
         };

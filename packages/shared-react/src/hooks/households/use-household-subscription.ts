@@ -30,7 +30,7 @@ export function createUseHouseholdSubscription({
     // onCreated user-scoped: when current user creates or joins a household
     useSubscription(
       trpc.households.onCreated.subscriptionOptions(undefined, {
-        onData: (payload: any) => {
+        onData: ({ payload }: any) => {
           setHouseholdData((prev) => ({
             household: payload.household,
             currentUserId: prev?.currentUserId ?? currentUserId ?? "",
@@ -57,7 +57,7 @@ export function createUseHouseholdSubscription({
     // onFailed user-scoped: error notifications
     useSubscription(
       trpc.households.onFailed.subscriptionOptions(undefined, {
-        onData: (payload: any) => {
+        onData: ({ payload }: any) => {
           toastAdapter.showErrorToast(payload.reason);
           invalidate();
         },
@@ -67,7 +67,7 @@ export function createUseHouseholdSubscription({
     // onUserJoined household-scoped: when another user joins
     useSubscription(
       trpc.households.onUserJoined.subscriptionOptions(undefined, {
-        onData: (payload: any) => {
+        onData: ({ payload }: any) => {
           setHouseholdData((prev) => {
             if (!prev?.household) return prev;
 
@@ -98,7 +98,7 @@ export function createUseHouseholdSubscription({
     // onUserLeft user-scoped: when another user leaves
     useSubscription(
       trpc.households.onUserLeft.subscriptionOptions(undefined, {
-        onData: (payload: any) => {
+        onData: ({ payload }: any) => {
           setHouseholdData((prev) => {
             if (!prev?.household) return prev;
 
@@ -117,7 +117,7 @@ export function createUseHouseholdSubscription({
     // onMemberRemoved household-scoped: when a member is kicked (for remaining members)
     useSubscription(
       trpc.households.onMemberRemoved.subscriptionOptions(undefined, {
-        onData: (payload: any) => {
+        onData: ({ payload }: any) => {
           setHouseholdData((prev) => {
             if (!prev?.household) return prev;
 
@@ -136,7 +136,7 @@ export function createUseHouseholdSubscription({
     // onAdminTransferred household-scoped: when admin is transferred
     useSubscription(
       trpc.households.onAdminTransferred.subscriptionOptions(undefined, {
-        onData: (payload: any) => {
+        onData: ({ payload }: any) => {
           setHouseholdData((prev) => {
             if (!prev?.household) return prev;
 
@@ -173,7 +173,7 @@ export function createUseHouseholdSubscription({
     // onJoinCodeRegenerated household-scoped: when join code is regenerated
     useSubscription(
       trpc.households.onJoinCodeRegenerated.subscriptionOptions(undefined, {
-        onData: (payload: any) => {
+        onData: ({ payload }: any) => {
           setHouseholdData((prev) => {
             if (!prev?.household) return prev;
 
@@ -200,7 +200,7 @@ export function createUseHouseholdSubscription({
 
     useSubscription(
       trpc.households.onAllergiesUpdated.subscriptionOptions(undefined, {
-        onData: (payload: any) => {
+        onData: ({ payload }: any) => {
           setHouseholdData((prev) => {
             if (!prev?.household) return prev;
 

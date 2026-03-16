@@ -32,8 +32,8 @@ export function useCaldavSubscription() {
   // Subscribe to all CalDAV sync events
   useSubscription(
     trpc.caldavSubscriptions.onSyncEvent.subscriptionOptions(undefined, {
-      onData: (event: SyncEventPayload) => {
-        const { type, data } = event;
+      onData: ({ payload }: { payload: SyncEventPayload }) => {
+        const { type, data } = payload;
 
         if (type === "configSaved") {
           const payload = data as CaldavSubscriptionEvents["configSaved"];
@@ -109,7 +109,8 @@ export function useCaldavItemStatusSubscription() {
 
   useSubscription(
     trpc.caldavSubscriptions.onItemStatusUpdated.subscriptionOptions(undefined, {
-      onData: (data) => {
+      onData: ({ payload }: any) => {
+        const data = payload;
         const { itemId, itemType, syncStatus, errorMessage, caldavEventUid } = data;
 
         setStatuses((prev) => {
@@ -149,7 +150,8 @@ export function useCaldavSyncCompleteSubscription() {
 
   useSubscription(
     trpc.caldavSubscriptions.onInitialSyncComplete.subscriptionOptions(undefined, {
-      onData: (data) => {
+      onData: ({ payload }: any) => {
+        const data = payload;
         addToast({
           title: "CalDAV Sync Complete",
           description: `Synced ${data.totalSynced} items${data.totalFailed > 0 ? `, ${data.totalFailed} failed` : ""}`,

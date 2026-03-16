@@ -1,9 +1,6 @@
-/**
- * Tests for channel metadata parsing.
- */
 import { describe, expect, it } from "vitest";
 
-import { parseChannelMetadata } from "./channel-metadata";
+import { parseChannelMetadata } from "../../src/redis/channel-metadata";
 
 describe("parseChannelMetadata", () => {
   describe("broadcast channels", () => {
@@ -14,7 +11,6 @@ describe("parseChannelMetadata", () => {
         namespace: "recipes",
         scope: "broadcast",
         eventName: "created",
-        channel: "norish:recipes:broadcast:created",
       });
     });
 
@@ -25,7 +21,6 @@ describe("parseChannelMetadata", () => {
         namespace: "recipes",
         scope: "broadcast",
         eventName: "importStarted",
-        channel: "norish:recipes:broadcast:importStarted",
       });
     });
   });
@@ -38,15 +33,12 @@ describe("parseChannelMetadata", () => {
         namespace: "recipes",
         scope: "household",
         eventName: "imported",
-        householdKey: "hh-123",
-        channel: "norish:recipes:household:hh-123:imported",
       });
     });
 
-    it("includes householdKey in result", () => {
+    it("ignores the scope identifier in the parsed result", () => {
       const result = parseChannelMetadata("norish:groceries:household:abc:created");
 
-      expect(result?.householdKey).toBe("abc");
       expect(result?.namespace).toBe("groceries");
       expect(result?.eventName).toBe("created");
     });
@@ -60,15 +52,12 @@ describe("parseChannelMetadata", () => {
         namespace: "recipes",
         scope: "user",
         eventName: "updated",
-        userId: "usr-456",
-        channel: "norish:recipes:user:usr-456:updated",
       });
     });
 
-    it("includes userId in result", () => {
+    it("preserves the scope", () => {
       const result = parseChannelMetadata("norish:caldav:user:u1:syncStarted");
 
-      expect(result?.userId).toBe("u1");
       expect(result?.scope).toBe("user");
     });
   });
@@ -81,7 +70,6 @@ describe("parseChannelMetadata", () => {
         namespace: "recipes",
         scope: "global",
         eventName: "created",
-        channel: "norish:recipes:global:created",
       });
     });
   });
@@ -101,7 +89,6 @@ describe("parseChannelMetadata", () => {
     });
 
     it("returns null for household channels missing identifier", () => {
-      // norish:recipes:household should need at least hh-key:event
       expect(parseChannelMetadata("norish:recipes:household:only")).toBeNull();
     });
 

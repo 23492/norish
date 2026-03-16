@@ -1,6 +1,3 @@
-/**
- * Tests for queue operation context propagation.
- */
 import { describe, expect, it, vi } from "vitest";
 
 import { generateOperationId } from "@norish/shared/lib/operation-helpers";
@@ -10,7 +7,7 @@ import {
   createContextAwareProcessor,
   extractJobOperationId,
   withJobOperationContext,
-} from "./queue-operation-context";
+} from "../../src/queue-operation-context";
 
 vi.mock("bullmq", async (importOriginal) => {
   const actual = await importOriginal<typeof import("bullmq")>();
@@ -38,7 +35,7 @@ vi.mock("bullmq", async (importOriginal) => {
   };
 });
 
-import { createOperationAwareQueue } from "./operation-aware-queue";
+import { createOperationAwareQueue } from "../../src/operation-aware-queue";
 
 describe("withJobOperationContext", () => {
   it("attaches the current operationId to job data", () => {
@@ -116,7 +113,7 @@ describe("extractJobOperationId", () => {
     expect(extractJobOperationId({ recipeId: "r-1" })).toBeUndefined();
   });
 
-  it("returns undefined for null/undefined", () => {
+  it("returns undefined for nullish values", () => {
     expect(extractJobOperationId(null)).toBeUndefined();
     expect(extractJobOperationId(undefined)).toBeUndefined();
   });
@@ -128,9 +125,7 @@ describe("createContextAwareProcessor", () => {
     let capturedOpId: string | undefined;
 
     const processor = createContextAwareProcessor(async (job) => {
-      const { getCurrentOperationId } = await import(
-        "@norish/shared-server/lib/operation-context"
-      );
+      const { getCurrentOperationId } = await import("@norish/shared-server/lib/operation-context");
 
       capturedOpId = getCurrentOperationId();
 
@@ -150,9 +145,7 @@ describe("createContextAwareProcessor", () => {
     let capturedOpId: string | undefined;
 
     const processor = createContextAwareProcessor(async (job) => {
-      const { getCurrentOperationId } = await import(
-        "@norish/shared-server/lib/operation-context"
-      );
+      const { getCurrentOperationId } = await import("@norish/shared-server/lib/operation-context");
 
       capturedOpId = getCurrentOperationId();
 

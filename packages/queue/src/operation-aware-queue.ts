@@ -1,4 +1,4 @@
-import type { BulkJobOptions, Queue, QueueOptions } from "bullmq";
+import type { Queue, QueueOptions } from "bullmq";
 
 import { Queue as BullQueue } from "bullmq";
 
@@ -11,7 +11,7 @@ type QueueAddOptions<TQueue extends Queue<any, any, any>> = Parameters<TQueue["a
 type QueueBulkJob<TQueue extends Queue<any, any, any>> = {
   name: QueueName<TQueue>;
   data: QueueData<TQueue>;
-  opts?: BulkJobOptions;
+  opts?: QueueAddOptions<TQueue>;
 };
 
 function bindQueueMethod<TValue>(target: object, value: TValue): TValue {
@@ -20,6 +20,27 @@ function bindQueueMethod<TValue>(target: object, value: TValue): TValue {
   }
 
   return value.bind(target) as TValue;
+}
+
+function addWithOperationContext<TQueue extends Queue<any, any, any>>(
+  target: TQueue,
+  jobName: QueueName<TQueue>,
+  data: QueueData<TQueue>,
+  jobOptions?: QueueAddOptions<TQueue>
+) {
+  return target.add(jobName, withJobOperationContext(data) as QueueData<TQueue>, jobOptions);
+}
+
+function addBulkWithOperationContext<TQueue extends Queue<any, any, any>>(
+  target: TQueue,
+  jobs: QueueBulkJob<TQueue>[]
+) {
+  return target.addBulk(
+    jobs.map((job) => ({
+      ...job,
+      data: withJobOperationContext(job.data) as QueueData<TQueue>,
+    }))
+  );
 }
 
 export function createOperationAwareQueue<
@@ -36,17 +57,11 @@ export function createOperationAwareQueue<
           jobName: QueueName<typeof target>,
           data: QueueData<typeof target>,
           jobOptions?: QueueAddOptions<typeof target>
-        ) => target.add(jobName, withJobOperationContext(data) as QueueData<typeof target>, jobOptions);
+        ) => addWithOperationContext(target, jobName, data, jobOptions);
       }
 
       if (prop === "addBulk") {
-        return (jobs: QueueBulkJob<typeof target>[]) =>
-          target.addBulk(
-            jobs.map((job) => ({
-              ...job,
-              data: withJobOperationContext(job.data) as QueueData<typeof target>,
-            }))
-          );
+        return (jobs: QueueBulkJob<typeof target>[]) => addBulkWithOperationContext(target, jobs);
       }
 
       return bindQueueMethod(target, Reflect.get(target, prop, receiver));

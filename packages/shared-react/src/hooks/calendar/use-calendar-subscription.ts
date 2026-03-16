@@ -22,7 +22,7 @@ export function createUseCalendarSubscription({
 
     useSubscription(
       trpc.calendar.onItemCreated.subscriptionOptions(undefined, {
-        onData: (payload: any) => {
+        onData: ({ payload }: any) => {
           setItems((prev) => {
             const exists = prev.some((item) => item.id === payload.item.id);
 
@@ -58,7 +58,7 @@ export function createUseCalendarSubscription({
 
     useSubscription(
       trpc.calendar.onItemDeleted.subscriptionOptions(undefined, {
-        onData: (payload: any) => {
+        onData: ({ payload }: any) => {
           setItems((prev) => prev.filter((item) => item.id !== payload.itemId));
         },
       })
@@ -66,7 +66,7 @@ export function createUseCalendarSubscription({
 
     useSubscription(
       trpc.calendar.onItemMoved.subscriptionOptions(undefined, {
-        onData: (payload: any) => {
+        onData: ({ payload }: any) => {
           setItems((prev) => {
             const targetSortMap = new Map(
               payload.targetSlotItems.map((i: any) => [i.id, i.sortOrder])
@@ -116,7 +116,7 @@ export function createUseCalendarSubscription({
 
     useSubscription(
       trpc.calendar.onItemUpdated.subscriptionOptions(undefined, {
-        onData: (payload: any) => {
+        onData: ({ payload }: any) => {
           setItems((prev) =>
             prev.map((item) => {
               if (item.id === payload.item.id) {

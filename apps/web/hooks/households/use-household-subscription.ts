@@ -28,7 +28,7 @@ export function useHouseholdSubscription() {
   // onCreated user-scoped: when current user creates or joins a household
   useSubscription(
     trpc.households.onCreated.subscriptionOptions(undefined, {
-      onData: (payload: any) => {
+      onData: ({ payload }: any) => {
         setHouseholdData((prev) => ({
           household: payload.household,
           currentUserId: prev?.currentUserId ?? currentUserId ?? "",
@@ -61,7 +61,7 @@ export function useHouseholdSubscription() {
   // onFailed user-scoped: error notifications
   useSubscription(
     trpc.households.onFailed.subscriptionOptions(undefined, {
-      onData: (payload: any) => {
+      onData: ({ payload }: any) => {
         showSafeErrorToast({
           title: tErrors("operationFailed"),
           description: tErrors("technicalDetails"),
@@ -77,7 +77,7 @@ export function useHouseholdSubscription() {
   // onUserJoined household-scoped: when another user joins
   useSubscription(
     trpc.households.onUserJoined.subscriptionOptions(undefined, {
-      onData: (payload: any) => {
+      onData: ({ payload }: any) => {
         setHouseholdData((prev) => {
           if (!prev?.household) return prev;
 
@@ -108,7 +108,7 @@ export function useHouseholdSubscription() {
   // onUserLeft user-scoped: when another user leaves
   useSubscription(
     trpc.households.onUserLeft.subscriptionOptions(undefined, {
-      onData: (payload: any) => {
+      onData: ({ payload }: any) => {
         setHouseholdData((prev) => {
           if (!prev?.household) return prev;
 
@@ -127,7 +127,7 @@ export function useHouseholdSubscription() {
   // onMemberRemoved household-scoped: when a member is kicked (for remaining members)
   useSubscription(
     trpc.households.onMemberRemoved.subscriptionOptions(undefined, {
-      onData: (payload: any) => {
+      onData: ({ payload }: any) => {
         setHouseholdData((prev) => {
           if (!prev?.household) return prev;
 
@@ -146,7 +146,7 @@ export function useHouseholdSubscription() {
   // onAdminTransferred household-scoped: when admin is transferred
   useSubscription(
     trpc.households.onAdminTransferred.subscriptionOptions(undefined, {
-      onData: (payload: any) => {
+      onData: ({ payload }: any) => {
         setHouseholdData((prev) => {
           if (!prev?.household) return prev;
 
@@ -183,7 +183,7 @@ export function useHouseholdSubscription() {
   // onJoinCodeRegenerated household-scoped: when join code is regenerated
   useSubscription(
     trpc.households.onJoinCodeRegenerated.subscriptionOptions(undefined, {
-      onData: (payload: any) => {
+      onData: ({ payload }: any) => {
         setHouseholdData((prev) => {
           if (!prev?.household) return prev;
 
@@ -210,7 +210,7 @@ export function useHouseholdSubscription() {
 
   useSubscription(
     trpc.households.onAllergiesUpdated.subscriptionOptions(undefined, {
-      onData: (payload: any) => {
+      onData: ({ payload }: any) => {
         setHouseholdData((prev) => {
           if (!prev?.household) return prev;
 

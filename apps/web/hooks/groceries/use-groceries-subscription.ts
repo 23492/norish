@@ -23,7 +23,7 @@ export function useGroceriesSubscription() {
   // onCreated
   useSubscription(
     trpc.groceries.onCreated.subscriptionOptions(undefined, {
-      onData: (payload: any) => {
+      onData: ({ payload }: any) => {
         setGroceriesData((prev) => {
           if (!prev) return prev;
 
@@ -42,7 +42,7 @@ export function useGroceriesSubscription() {
   // onUpdated
   useSubscription(
     trpc.groceries.onUpdated.subscriptionOptions(undefined, {
-      onData: (payload: any) => {
+      onData: ({ payload }: any) => {
         setGroceriesData((prev) => {
           if (!prev) return prev;
 
@@ -62,7 +62,7 @@ export function useGroceriesSubscription() {
   // onDeleted
   useSubscription(
     trpc.groceries.onDeleted.subscriptionOptions(undefined, {
-      onData: (payload: any) => {
+      onData: ({ payload }: any) => {
         setGroceriesData((prev) => {
           if (!prev) return prev;
 
@@ -79,7 +79,7 @@ export function useGroceriesSubscription() {
   // onRecurringCreated
   useSubscription(
     trpc.groceries.onRecurringCreated.subscriptionOptions(undefined, {
-      onData: (payload: any) => {
+      onData: ({ payload }: any) => {
         setGroceriesData((prev) => {
           if (!prev) return prev;
 
@@ -102,7 +102,7 @@ export function useGroceriesSubscription() {
   // onRecurringUpdated
   useSubscription(
     trpc.groceries.onRecurringUpdated.subscriptionOptions(undefined, {
-      onData: (payload: any) => {
+      onData: ({ payload }: any) => {
         setGroceriesData((prev) => {
           if (!prev) return prev;
 
@@ -123,7 +123,7 @@ export function useGroceriesSubscription() {
   // onRecurringDeleted
   useSubscription(
     trpc.groceries.onRecurringDeleted.subscriptionOptions(undefined, {
-      onData: (payload: any) => {
+      onData: ({ payload }: any) => {
         setGroceriesData((prev) => {
           if (!prev) return prev;
 
@@ -144,7 +144,7 @@ export function useGroceriesSubscription() {
   // onFailed
   useSubscription(
     trpc.groceries.onFailed.subscriptionOptions(undefined, {
-      onData: (payload: any) => {
+      onData: ({ payload }: any) => {
         showSafeErrorToast({
           title: tErrors("operationFailed"),
           description: tErrors("technicalDetails"),
