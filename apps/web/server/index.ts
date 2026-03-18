@@ -9,6 +9,7 @@ import { registerShutdownHandlers } from "@norish/api/startup/shutdown";
 import { initializeVideoProcessing } from "@norish/api/startup/video-processing";
 import { initializeServerConfig, SERVER_CONFIG } from "@norish/config/env-config-server";
 import { startWorkers } from "@norish/queue/start-workers";
+import { redactUrl } from "@norish/shared-server/lib/redact-url";
 
 async function main() {
   const config = initializeServerConfig();
@@ -16,7 +17,7 @@ async function main() {
   log.info("-".repeat(50));
   log.info("Server configuration loaded:");
   log.info(`  Environment: ${config.NODE_ENV}`);
-  log.info(`  Database: ${config.DATABASE_URL}`);
+  log.info(`  Database: ${redactUrl(config.DATABASE_URL)}`);
   log.info(`  Auth URL: ${config.AUTH_URL}`);
   log.info(`  Upload dir: ${config.UPLOADS_DIR}`);
   log.info("-".repeat(50));
