@@ -12,7 +12,8 @@ import {
   normalizeExtractionOutput,
   validateExtractionOutput,
 } from "./features/recipe-extraction/normalizer";
-import { extractImageCandidates, extractSanitizedBody } from "@norish/shared-server/ai/helpers";
+import { extractSanitizedBody } from "@norish/shared-server/ai/helpers";
+import { extractImageCandidates } from "../parser/parsers";
 import { buildRecipeExtractionPrompt } from "./prompts/builder";
 import { getGenerationSettings, getModels } from "@norish/shared-server/ai/providers";
 import { recipeExtractionSchema } from "./schemas/recipe.schema";
@@ -33,7 +34,8 @@ export async function extractRecipeWithAI(
   html: string,
   recipeId: string,
   url?: string,
-  allergies?: string[]
+  allergies?: string[],
+  originalHtml?: string
 ): Promise<AIResult<FullRecipeInsertDTO>> {
   // Guard: AI must be enabled
   const aiEnabled = await isAIEnabled();
@@ -89,7 +91,7 @@ export async function extractRecipeWithAI(
     aiLogger.debug({ url, ...getExtractionLogContext(jsonLd!, null) }, "AI response received");
 
     // Extract image candidates from HTML
-    const imageCandidates = extractImageCandidates(html);
+    const imageCandidates = extractImageCandidates(originalHtml ?? html, url);
 
     // Normalize using shared normalizer
     const normalized = await normalizeExtractionOutput(jsonLd!, {

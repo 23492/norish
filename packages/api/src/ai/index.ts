@@ -140,7 +140,8 @@ export { autoTaggingSchema } from "./schemas/auto-tagging.schema";
 
 export {
   extractSanitizedBody,
-  extractImageCandidates,
   normalizeIngredient,
   normalizeStep,
 } from "@norish/shared-server/ai/helpers";
+
+export { extractImageCandidates } from "../parser/parsers";
