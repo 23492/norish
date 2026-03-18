@@ -5,9 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./logger": "./src/logger.ts",
     "./parser": "./src/parser/index.ts",
-    "./ai/providers": "./src/ai/providers/index.ts",
     "./*": "./src/*.ts"
   },
   "scripts": {
@@ -34,6 +32,7 @@
     "@norish/i18n": "workspace:*",
     "@norish/queue": "workspace:*",
     "@norish/shared": "workspace:*",
+    "@norish/shared-server": "workspace:*",
     "@norish/trpc": "workspace:*",
     "@trpc/server": "catalog:",
     "ai": "^6.0.95",
@@ -65,7 +64,6 @@
   "devDependencies": {
     "@norish/eslint-config": "workspace:*",
     "@norish/prettier-config": "workspace:*",
-    "@norish/shared-server": "workspace:*",
     "@norish/tsconfig": "workspace:*",
     "@types/heic-convert": "^2.1.0",
     "@types/ws": "8.18.1",

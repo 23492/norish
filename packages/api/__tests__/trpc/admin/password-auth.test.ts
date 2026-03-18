@@ -13,7 +13,7 @@ import { isUserServerAdmin } from "../../mocks/users";
 // Setup mocks
 vi.mock("@norish/db/repositories/server-config", () => import("../../mocks/server-config"));
 vi.mock("@norish/db/repositories/users", () => import("../../mocks/users"));
-vi.mock("@norish/api/logger", () => ({
+vi.mock("@norish/shared-server/logger", () => ({
   trpcLogger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 

@@ -8,7 +8,7 @@ import os from "node:os";
 import path from "node:path";
 
 import YTDlpWrapModule from "yt-dlp-wrap";
-import { videoLogger as log } from "@norish/api/logger";
+import { videoLogger as log } from "@norish/shared-server/logger";
 import { SERVER_CONFIG } from "@norish/config/env-config-server";
 import { getVideoConfig } from "@norish/config/server-config-loader";
 

@@ -1,18 +1,18 @@
 import JSZip from "jszip";
 import { describe, expect, it, vi } from "vitest";
 
-import type { MealieLegacyRecipe } from "@norish/api/importers/mealie-legacy-parser";
+import type { MealieLegacyRecipe } from "@norish/shared-server/archive/mealie-legacy-parser";
 import {
   detectMealieLegacyArchive,
   extractMealieLegacyImage,
   extractMealieLegacyRecipes,
   parseMealieLegacyRecipeToDTO,
-} from "@norish/api/importers/mealie-legacy-parser";
+} from "@norish/shared-server/archive/mealie-legacy-parser";
 import { ArchiveFormat, getArchiveInfo } from "@norish/api/importers/archive-parser";
 
 // @vitest-environment node
 
-vi.mock("@norish/api/downloader", () => ({
+vi.mock("@norish/shared-server/media/storage", () => ({
   saveImageBytes: vi.fn().mockResolvedValue("mocked-image-guid"),
 }));
 

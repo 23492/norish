@@ -4,7 +4,7 @@
  * Handles downloading and normalizing images from JSON-LD image fields.
  */
 
-import { downloadAllImagesFromJsonLd } from "@norish/api/downloader";
+import { downloadAllImagesFromJsonLd } from "@norish/shared-server/media/storage";
 import { MAX_RECIPE_IMAGES } from "@norish/shared/contracts/zod";
 
 export interface ParsedImage {

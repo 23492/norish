@@ -24,24 +24,24 @@ vi.mock("@norish/db/repositories/ratings", () => ({
   rateRecipe: mockRateRecipe,
 }));
 
-vi.mock("@norish/api/importers/mela-parser", () => ({
+vi.mock("@norish/shared-server/archive/mela-parser", () => ({
   parseMelaArchive: mockParseMelaArchive,
   parseMelaRecipeToDTO: mockParseMelaRecipeToDTO,
 }));
 
-vi.mock("@norish/api/importers/mealie-parser", () => ({
+vi.mock("@norish/shared-server/archive/mealie-parser", () => ({
   parseMealieArchive: vi.fn(),
   parseMealieRecipeToDTO: vi.fn(),
   extractMealieRecipeImage: vi.fn(),
   buildMealieLookups: vi.fn(),
 }));
 
-vi.mock("@norish/api/importers/tandoor-parser", () => ({
+vi.mock("@norish/shared-server/archive/tandoor-parser", () => ({
   extractTandoorRecipes: vi.fn(),
   parseTandoorRecipeToDTO: vi.fn(),
 }));
 
-vi.mock("@norish/api/importers/paprika-parser", () => ({
+vi.mock("@norish/shared-server/archive/paprika-parser", () => ({
   extractPaprikaRecipes: mockExtractPaprikaRecipes,
   parsePaprikaRecipeToDTO: mockParsePaprikaRecipeToDTO,
 }));

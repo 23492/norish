@@ -24,6 +24,7 @@
     "@norish/db": "workspace:*",
     "@norish/queue": "workspace:*",
     "@norish/shared": "workspace:*",
+    "@norish/shared-server": "workspace:*",
     "better-auth": "catalog:",
     "next": "catalog:"
   },

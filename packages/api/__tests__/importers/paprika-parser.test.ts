@@ -3,12 +3,12 @@ import { gzip } from "zlib";
 import JSZip from "jszip";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { PaprikaRecipe } from "@norish/api/importers/paprika-parser";
+import type { PaprikaRecipe } from "@norish/shared-server/archive/paprika-parser";
 import {
   extractPaprikaRecipes,
   PaprikaRecipeSchema,
   parsePaprikaRecipeToDTO,
-} from "@norish/api/importers/paprika-parser";
+} from "@norish/shared-server/archive/paprika-parser";
 
 // @vitest-environment node
 
@@ -32,7 +32,7 @@ vi.mock("@norish/config/server-config-loader", () => ({
 }));
 
 // Mock the downloader to avoid actual image saving
-vi.mock("@norish/api/downloader", () => ({
+vi.mock("@norish/shared-server/media/storage", () => ({
   saveImageBytes: vi.fn().mockResolvedValue("mocked-image-guid"),
 }));
 

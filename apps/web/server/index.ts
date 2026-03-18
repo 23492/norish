@@ -1,5 +1,5 @@
 import { initCaldavSync } from "@norish/api/caldav/event-listener";
-import { serverLogger as log } from "@norish/api/logger";
+import { serverLogger as log } from "@norish/shared-server/logger";
 import { createServer } from "@norish/api/startup/http-server";
 import { runStartupMaintenanceCleanup } from "@norish/api/startup/maintenance-cleanup";
 import { migrateGalleryImages } from "@norish/api/startup/migrate-gallery-images";

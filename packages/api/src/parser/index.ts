@@ -2,7 +2,7 @@ import type { SiteAuthTokenDecryptedDto } from "@norish/shared/contracts/dto/sit
 
 import { extractRecipeWithAI } from "@norish/api/ai/recipe-parser";
 import { isVideoUrl } from "@norish/api/helpers";
-import { parserLogger as log } from "@norish/api/logger";
+import { parserLogger as log } from "@norish/shared-server/logger";
 import {
   extractRecipeNodesFromJsonLd,
   tryExtractRecipeFromJsonLd,

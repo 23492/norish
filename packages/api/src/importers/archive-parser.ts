@@ -13,16 +13,16 @@ import {
   extractMealieRecipeImage,
   parseMealieArchive,
   parseMealieRecipeToDTO,
-} from "./mealie-parser";
+} from "@norish/shared-server/archive/mealie-parser";
 import {
   detectMealieLegacyArchive,
   extractMealieLegacyImage,
   extractMealieLegacyRecipes,
   parseMealieLegacyRecipeToDTO,
-} from "./mealie-legacy-parser";
-import { parseMelaArchive, parseMelaRecipeToDTO } from "./mela-parser";
-import { extractPaprikaRecipes, parsePaprikaRecipeToDTO } from "./paprika-parser";
-import { extractTandoorRecipes, parseTandoorRecipeToDTO } from "./tandoor-parser";
+} from "@norish/shared-server/archive/mealie-legacy-parser";
+import { parseMelaArchive, parseMelaRecipeToDTO } from "@norish/shared-server/archive/mela-parser";
+import { extractPaprikaRecipes, parsePaprikaRecipeToDTO } from "@norish/shared-server/archive/paprika-parser";
+import { extractTandoorRecipes, parseTandoorRecipeToDTO } from "@norish/shared-server/archive/tandoor-parser";
 
 export enum ArchiveFormat {
   MELA = "mela",

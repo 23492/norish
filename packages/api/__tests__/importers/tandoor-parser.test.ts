@@ -1,12 +1,12 @@
 import JSZip from "jszip";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { TandoorRecipe } from "@norish/api/importers/tandoor-parser";
+import type { TandoorRecipe } from "@norish/shared-server/archive/tandoor-parser";
 import {
   extractTandoorRecipes,
   parseTandoorRecipeToDTO,
   TandoorRecipeSchema,
-} from "@norish/api/importers/tandoor-parser";
+} from "@norish/shared-server/archive/tandoor-parser";
 
 // @vitest-environment node
 
@@ -23,7 +23,7 @@ vi.mock("@norish/config/server-config-loader", () => ({
 }));
 
 // Mock the downloader to avoid actual image saving
-vi.mock("@norish/api/downloader", () => ({
+vi.mock("@norish/shared-server/media/storage", () => ({
   saveImageBytes: vi.fn().mockResolvedValue("mocked-image-guid"),
 }));
 

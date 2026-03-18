@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PromptsConfig, PromptsConfigInput } from "@norish/config/zod/server-config";
 // Import mocks for assertions
-import { loadDefaultPrompts } from "@norish/api/ai/prompts/loader";
+import { loadDefaultPrompts } from "@norish/shared-server/ai/prompts/loader";
 import {
   PromptsConfigInputSchema,
   PromptsConfigSchema,
@@ -24,7 +24,7 @@ import {
 // Setup mocks before any imports that use them
 vi.mock("@norish/db/repositories/server-config", () => import("../../mocks/server-config"));
 vi.mock("@norish/db/repositories/users", () => import("../../mocks/users"));
-vi.mock("@norish/api/ai/prompts/loader", () => ({
+vi.mock("@norish/shared-server/ai/prompts/loader", () => ({
   loadDefaultPrompts: vi.fn().mockReturnValue({
     recipeExtraction: "Default recipe extraction prompt",
     unitConversion: "Default unit conversion prompt",

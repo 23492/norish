@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
 
-import { buildRecipeDTO } from "@norish/api/importers/parser-helpers";
+import { buildRecipeDTO } from "@norish/shared-server/archive/parser-helpers";
 
 vi.mock("@norish/config/server-config-loader", () => ({
   getUnits: vi.fn().mockResolvedValue({}),

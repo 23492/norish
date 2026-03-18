@@ -25,6 +25,7 @@
     "drizzle-orm": "catalog:",
     "fuse.js": "catalog:",
     "pg": "catalog:",
+    "pino": "^10.3.0",
     "superjson": "catalog:",
     "zod": "catalog:"
   },

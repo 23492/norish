@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMockAuthedContext } from "./test-utils";
 
 // Mock logger
-vi.mock("@norish/api/logger", () => ({
+vi.mock("@norish/shared-server/logger", () => ({
   trpcLogger: {
     info: vi.fn(),
     debug: vi.fn(),
@@ -65,7 +65,7 @@ describe("recipes.reserveId", () => {
 
   describe("logging", () => {
     it("logs the reserved recipe ID", async () => {
-      const { trpcLogger } = await import("@norish/api/logger");
+      const { trpcLogger } = await import("@norish/shared-server/logger");
 
       const recipeId = globalThis.crypto.randomUUID();
 
@@ -269,7 +269,7 @@ describe("recipe creation with reserved ID", () => {
   });
 
   it("logs both provided and used recipe IDs", async () => {
-    const { trpcLogger } = await import("@norish/api/logger");
+    const { trpcLogger } = await import("@norish/shared-server/logger");
     const providedId = "provided-123";
 
     trpcLogger.info(
@@ -286,7 +286,7 @@ describe("recipe creation with reserved ID", () => {
   });
 
   it("detects ID mismatch when they differ", async () => {
-    const { trpcLogger } = await import("@norish/api/logger");
+    const { trpcLogger } = await import("@norish/shared-server/logger");
     const inputId: string = "input-id";
     const generatedId: string = "different-id";
 

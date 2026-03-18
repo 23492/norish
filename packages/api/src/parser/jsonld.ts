@@ -1,6 +1,6 @@
 /** JSON-LD helpers: scan HTML, collect structured data, and return Recipe nodes. */
 import * as cheerio from "cheerio";
-import { parserLogger as log } from "@norish/api/logger";
+import { parserLogger as log } from "@norish/shared-server/logger";
 import { normalizeRecipeFromJson } from "@norish/api/parser/normalize";
 import { FullRecipeInsertDTO } from "@norish/shared/contracts/dto/recipe";
 import { parseJsonWithRepair } from "@norish/shared/lib/helpers";
