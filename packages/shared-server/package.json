@@ -30,8 +30,7 @@
     "./ai/unit-converter": "./src/ai/unit-converter.ts",
     "./ai/utils/category-matcher": "./src/ai/utils/category-matcher.ts",
     "./caldav/ics-helpers": "./src/caldav/ics-helpers.ts",
-    "./lib/workspace-paths": "./src/lib/workspace-paths.ts",
-    "./lib/redact-url": "./src/lib/redact-url.ts"
+    "./lib/workspace-paths": "./src/lib/workspace-paths.ts"
   },
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.json --noCheck",

@@ -1,5 +1,5 @@
 import { initCaldavSync } from "@norish/api/caldav/event-listener";
-import { serverLogger as log } from "@norish/shared-server/logger";
+import { redactUrl, serverLogger as log } from "@norish/shared-server/logger";
 import { createServer } from "@norish/api/startup/http-server";
 import { runStartupMaintenanceCleanup } from "@norish/api/startup/maintenance-cleanup";
 import { migrateGalleryImages } from "@norish/api/startup/migrate-gallery-images";
@@ -9,7 +9,6 @@ import { registerShutdownHandlers } from "@norish/api/startup/shutdown";
 import { initializeVideoProcessing } from "@norish/api/startup/video-processing";
 import { initializeServerConfig, SERVER_CONFIG } from "@norish/config/env-config-server";
 import { startWorkers } from "@norish/queue/start-workers";
-import { redactUrl } from "@norish/shared-server/lib/redact-url";
 
 async function main() {
   const config = initializeServerConfig();

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { redactUrl } from "../../src/lib/redact-url";
+import { redactUrl } from "../../src/logger";
 
 describe("redactUrl", () => {
   it("redacts password from a PostgreSQL connection string", () => {
