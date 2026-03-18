@@ -5,7 +5,7 @@ import {
   ArchiveFormat,
   calculateBatchSize,
   getArchiveInfo,
-} from "@norish/api/importers/archive-parser";
+} from "@norish/shared-server/archive/parser";
 
 // @vitest-environment node
 

@@ -8,7 +8,7 @@ import {
   extractMealieLegacyRecipes,
   parseMealieLegacyRecipeToDTO,
 } from "@norish/shared-server/archive/mealie-legacy-parser";
-import { ArchiveFormat, getArchiveInfo } from "@norish/api/importers/archive-parser";
+import { ArchiveFormat, getArchiveInfo } from "@norish/shared-server/archive/parser";
 
 // @vitest-environment node
 

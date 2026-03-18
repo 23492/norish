@@ -53,9 +53,49 @@ export type ArchiveInfo = {
 };
 
 /**
+ * If every entry in the zip lives under a single top-level directory,
+ * return a JSZip scoped to that directory ("unwrapping" it).
+ * This handles the common case where zip tools wrap all content in a
+ * root folder (e.g. `mealie-export-2024/recipe-slug/recipe.json`).
+ */
+function unwrapSingleRootFolder(zip: JSZip): JSZip {
+  const topLevelNames = new Set<string>();
+  let hasRootFiles = false;
+
+  zip.forEach((relativePath) => {
+    // Ignore directory entries themselves (they end with /)
+    if (relativePath.endsWith("/") && !relativePath.includes("/", 0)) {
+      // top-level directory entry like "mealie-export/"
+      return;
+    }
+
+    const firstSlash = relativePath.indexOf("/");
+
+    if (firstSlash === -1) {
+      // File at root level (not inside any folder)
+      hasRootFiles = true;
+    } else {
+      topLevelNames.add(relativePath.slice(0, firstSlash));
+    }
+  });
+
+  // If there's exactly one top-level folder and no root-level files, unwrap
+  if (topLevelNames.size === 1 && !hasRootFiles) {
+    const wrapperName = [...topLevelNames][0]!;
+    const inner = zip.folder(wrapperName);
+
+    if (inner) return inner;
+  }
+
+  return zip;
+}
+
+/**
  * Detect archive format and count recipes in one pass
  */
-export async function getArchiveInfo(zip: JSZip): Promise<ArchiveInfo> {
+export async function getArchiveInfo(rawZip: JSZip): Promise<ArchiveInfo> {
+  // Unwrap single root directory wrapper if present
+  const zip = unwrapSingleRootFolder(rawZip);
   // Check for Mealie format (database.json)
   const databaseFile = zip.file("database.json");
 
@@ -431,7 +471,10 @@ export async function importArchive(
     zipBytes.byteOffset,
     zipBytes.byteOffset + zipBytes.byteLength
   ) as ArrayBuffer;
-  const zip = await JSZip.loadAsync(arrayBuffer);
+  const rawZip = await JSZip.loadAsync(arrayBuffer);
+
+  // Unwrap single root directory wrapper if present
+  const zip = unwrapSingleRootFolder(rawZip);
 
   const { format } = await getArchiveInfo(zip);
 

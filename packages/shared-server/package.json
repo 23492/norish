@@ -36,6 +36,7 @@
     "build": "rm -rf dist && tsc -p tsconfig.json --noCheck",
     "lint": "eslint --flag unstable_native_nodejs_ts_config",
     "format": "prettier --check . --ignore-path ../../.gitignore",
+    "test": "vitest run --config ./vitest.config.ts",
     "typecheck": "tsc --noEmit --noCheck",
     "clean": "git clean -xdf .cache .turbo node_modules dist"
   },
@@ -71,7 +72,8 @@
     "@norish/prettier-config": "workspace:*",
     "@norish/tsconfig": "workspace:*",
     "eslint": "catalog:",
-    "prettier": "catalog:"
+    "prettier": "catalog:",
+    "vitest": "catalog:"
   },
   "prettier": "@norish/prettier-config"
 }
