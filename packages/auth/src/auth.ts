@@ -293,6 +293,10 @@ function createAuth() {
       ...(process.env.NODE_ENV === "development" && {
         skipStateCookieCheck: true,
       }),
+      accountLinking: {
+        enabled: true,
+        trustedProviders: ["oidc", "google", "github"],
+      },
     },
     socialProviders: buildSocialProviders(),
     databaseHooks: {
