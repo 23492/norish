@@ -7,12 +7,12 @@ import { z } from "zod";
 // Import mocks
 import { ServerConfigKeys } from "@norish/config/zod/server-config";
 
-import { configExists, setConfig } from "../../mocks/server-config";
-import { isUserServerAdmin } from "../../mocks/users";
+import { configExists, setConfig } from "../mocks/server-config";
+import { isUserServerAdmin } from "../mocks/users";
 
 // Setup mocks
-vi.mock("@norish/db/repositories/server-config", () => import("../../mocks/server-config"));
-vi.mock("@norish/db/repositories/users", () => import("../../mocks/users"));
+vi.mock("@norish/db/repositories/server-config", () => import("../mocks/server-config"));
+vi.mock("@norish/db/repositories/users", () => import("../mocks/users"));
 vi.mock("@norish/shared-server/logger", () => ({
   trpcLogger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));

@@ -12,8 +12,8 @@ import {
   ServerConfigKeys,
 } from "@norish/config/zod/server-config";
 
-import { getConfig, setConfig } from "../../mocks/server-config";
-import { isUserServerAdmin } from "../../mocks/users";
+import { getConfig, setConfig } from "../mocks/server-config";
+import { isUserServerAdmin } from "../mocks/users";
 import {
   createMockAdminContext,
   createMockAdminUser,
@@ -22,8 +22,8 @@ import {
 } from "./test-utils";
 
 // Setup mocks before any imports that use them
-vi.mock("@norish/db/repositories/server-config", () => import("../../mocks/server-config"));
-vi.mock("@norish/db/repositories/users", () => import("../../mocks/users"));
+vi.mock("@norish/db/repositories/server-config", () => import("../mocks/server-config"));
+vi.mock("@norish/db/repositories/users", () => import("../mocks/users"));
 vi.mock("@norish/shared-server/ai/prompts/loader", () => ({
   loadDefaultPrompts: vi.fn().mockReturnValue({
     recipeExtraction: "Default recipe extraction prompt",

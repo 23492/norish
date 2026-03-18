@@ -2,15 +2,15 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { retryFailedSyncs, syncAllFutureItems } from "../../mocks/caldav-calendar-sync";
+import { retryFailedSyncs, syncAllFutureItems } from "../mocks/caldav-calendar-sync";
 import {
   deleteCaldavConfig,
   getCaldavConfigDecrypted,
   getCaldavConfigWithoutPassword,
   saveCaldavConfig,
-} from "../../mocks/caldav-config";
-import { caldavEmitter } from "../../mocks/caldav-emitter";
-import { getCaldavSyncStatusesByUser, getSyncStatusSummary } from "../../mocks/caldav-sync-status";
+} from "../mocks/caldav-config";
+import { caldavEmitter } from "../mocks/caldav-emitter";
+import { getCaldavSyncStatusesByUser, getSyncStatusSummary } from "../mocks/caldav-sync-status";
 import {
   createMockAuthedContext,
   createMockCaldavConfig,
@@ -23,14 +23,14 @@ import {
 // @vitest-environment node
 
 // Setup mocks before any imports that use them
-vi.mock("@norish/db/repositories/caldav-config", () => import("../../mocks/caldav-config"));
+vi.mock("@norish/db/repositories/caldav-config", () => import("../mocks/caldav-config"));
 vi.mock(
   "@norish/db/repositories/caldav-sync-status",
-  () => import("../../mocks/caldav-sync-status")
+  () => import("../mocks/caldav-sync-status")
 );
-vi.mock("@norish/trpc/routers/caldav/emitter", () => import("../../mocks/caldav-emitter"));
-vi.mock("@norish/api/caldav/event-listener", () => import("../../mocks/caldav-calendar-sync"));
-vi.mock("@norish/config/server-config-loader", () => import("../../mocks/config"));
+vi.mock("@norish/trpc/routers/caldav/emitter", () => import("../mocks/caldav-emitter"));
+vi.mock("@norish/api/caldav/event-listener", () => import("../mocks/caldav-calendar-sync"));
+vi.mock("@norish/config/server-config-loader", () => import("../mocks/config"));
 
 // Mock global fetch for connection testing
 const mockFetch = vi.fn();

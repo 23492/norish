@@ -16,7 +16,7 @@ import {
   resetUserMocks,
   updateUserName,
   updateUserPreferences,
-} from "../../mocks/user-repository";
+} from "../mocks/user-repository";
 // Import test utilities
 import {
   createMockApiKey,
@@ -26,7 +26,7 @@ import {
 } from "./test-utils";
 
 // Setup mocks before any imports that use them
-vi.mock("@norish/db", () => import("../../mocks/user-repository"));
+vi.mock("@norish/db", () => import("../mocks/user-repository"));
 vi.mock("@norish/config/env-config-server", () => ({
   SERVER_CONFIG: {
     UPLOADS_DIR: "/tmp/uploads",

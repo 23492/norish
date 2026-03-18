@@ -1,15 +1,15 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { groceryEmitter } from "../../mocks/grocery-emitter";
-import { calculateNextOccurrence } from "../../mocks/recurrence";
+import { groceryEmitter } from "../mocks/grocery-emitter";
+import { calculateNextOccurrence } from "../mocks/recurrence";
 // Import mocks for assertions
 import {
   createRecurringGrocery,
   deleteRecurringGroceryById,
   getRecurringGroceryById,
   updateRecurringGrocery,
-} from "../../mocks/recurring-groceries";
+} from "../mocks/recurring-groceries";
 // Import test utilities
 import {
   createMockAuthedContext,
@@ -20,13 +20,13 @@ import {
 } from "./test-utils";
 
 // Setup mocks
-vi.mock("@norish/db", () => import("../../mocks/db"));
+vi.mock("@norish/db", () => import("../mocks/db"));
 vi.mock(
   "@norish/db/repositories/recurring-groceries",
-  () => import("../../mocks/recurring-groceries")
+  () => import("../mocks/recurring-groceries")
 );
-vi.mock("@norish/trpc/routers/groceries/emitter", () => import("../../mocks/grocery-emitter"));
-vi.mock("@norish/shared/lib/recurrence/calculator", () => import("../../mocks/recurrence"));
+vi.mock("@norish/trpc/routers/groceries/emitter", () => import("../mocks/grocery-emitter"));
+vi.mock("@norish/shared/lib/recurrence/calculator", () => import("../mocks/recurrence"));
 
 describe("recurring groceries procedures", () => {
   const mockUser = createMockUser();

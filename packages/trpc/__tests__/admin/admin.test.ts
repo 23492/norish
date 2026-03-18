@@ -12,8 +12,8 @@ import {
   ServerConfigKeys,
 } from "@norish/config/zod/server-config";
 
-import { testAIEndpoint } from "../../mocks/connection-tests";
-import { permissionsEmitter } from "../../mocks/permissions-emitter";
+import { testAIEndpoint } from "../mocks/connection-tests";
+import { permissionsEmitter } from "../mocks/permissions-emitter";
 import {
   configExists,
   deleteConfig,
@@ -21,8 +21,8 @@ import {
   getConfig,
   getConfigSecret,
   setConfig,
-} from "../../mocks/server-config";
-import { getUserServerRole, isUserServerAdmin } from "../../mocks/users";
+} from "../mocks/server-config";
+import { getUserServerRole, isUserServerAdmin } from "../mocks/users";
 import {
   createMockAdminContext,
   createMockAdminUser,
@@ -31,12 +31,12 @@ import {
 } from "./test-utils";
 
 // Setup mocks before any imports that use them
-vi.mock("@norish/db/repositories/server-config", () => import("../../mocks/server-config"));
-vi.mock("@norish/db/repositories/users", () => import("../../mocks/users"));
-vi.mock("@norish/auth/connection-tests", () => import("../../mocks/connection-tests"));
+vi.mock("@norish/db/repositories/server-config", () => import("../mocks/server-config"));
+vi.mock("@norish/db/repositories/users", () => import("../mocks/users"));
+vi.mock("@norish/auth/connection-tests", () => import("../mocks/connection-tests"));
 vi.mock(
   "@norish/trpc/routers/permissions/emitter",
-  () => import("../../mocks/permissions-emitter")
+  () => import("../mocks/permissions-emitter")
 );
 vi.mock("@norish/config/server-config-loader", () => ({
   getRecipePermissionPolicy: vi.fn().mockResolvedValue({

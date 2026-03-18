@@ -11,10 +11,10 @@ import {
   getGroceryOwnerIds,
   listGroceriesByUsers,
   updateGroceries,
-} from "../../mocks/db";
-import { groceryEmitter } from "../../mocks/grocery-emitter";
-import { assertHouseholdAccess } from "../../mocks/permissions";
-import { listRecurringGroceriesByUsers } from "../../mocks/recurring-groceries";
+} from "../mocks/db";
+import { groceryEmitter } from "../mocks/grocery-emitter";
+import { assertHouseholdAccess } from "../mocks/permissions";
+import { listRecurringGroceriesByUsers } from "../mocks/recurring-groceries";
 // Import test utilities
 import {
   createMockAuthedContext,
@@ -24,15 +24,15 @@ import {
 } from "./test-utils";
 
 // Setup mocks before any imports that use them
-vi.mock("@norish/db", () => import("../../mocks/db"));
+vi.mock("@norish/db", () => import("../mocks/db"));
 vi.mock(
   "@norish/db/repositories/recurring-groceries",
-  () => import("../../mocks/recurring-groceries")
+  () => import("../mocks/recurring-groceries")
 );
-vi.mock("@norish/auth/permissions", () => import("../../mocks/permissions"));
-vi.mock("@norish/trpc/routers/groceries/emitter", () => import("../../mocks/grocery-emitter"));
-vi.mock("@norish/config/server-config-loader", () => import("../../mocks/config"));
-vi.mock("@norish/shared/lib/helpers", () => import("../../mocks/helpers"));
+vi.mock("@norish/auth/permissions", () => import("../mocks/permissions"));
+vi.mock("@norish/trpc/routers/groceries/emitter", () => import("../mocks/grocery-emitter"));
+vi.mock("@norish/config/server-config-loader", () => import("../mocks/config"));
+vi.mock("@norish/shared/lib/helpers", () => import("../mocks/helpers"));
 
 // Create a test tRPC instance
 const t = initTRPC.context<ReturnType<typeof createMockAuthedContext>>().create({

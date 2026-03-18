@@ -3,20 +3,20 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { assertHouseholdAccess } from "../../mocks/permissions";
+import { assertHouseholdAccess } from "../mocks/permissions";
 import {
   createPlannedItem,
   deletePlannedItem,
   getPlannedItemById,
   getPlannedItemOwnerId,
   moveItem,
-} from "../../mocks/planned-items";
+} from "../mocks/planned-items";
 import { createMockAuthedContext, createMockHousehold, createMockUser } from "./test-utils";
 
-vi.mock("@norish/db/repositories/planned-items", () => import("../../mocks/planned-items"));
-vi.mock("@norish/auth/permissions", () => import("../../mocks/permissions"));
-vi.mock("@norish/trpc/routers/calendar/emitter", () => import("../../mocks/calendar-emitter"));
-vi.mock("@norish/config/server-config-loader", () => import("../../mocks/config"));
+vi.mock("@norish/db/repositories/planned-items", () => import("../mocks/planned-items"));
+vi.mock("@norish/auth/permissions", () => import("../mocks/permissions"));
+vi.mock("@norish/trpc/routers/calendar/emitter", () => import("../mocks/calendar-emitter"));
+vi.mock("@norish/config/server-config-loader", () => import("../mocks/config"));
 
 const t = initTRPC.context<ReturnType<typeof createMockAuthedContext>>().create({
   transformer: superjson,
