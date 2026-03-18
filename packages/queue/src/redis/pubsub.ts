@@ -8,7 +8,7 @@
 import { on } from "node:events";
 
 import superjson from "superjson";
-import { redisLogger } from "@norish/api/logger";
+import { redisLogger } from "@norish/shared-server/logger";
 import type { RealtimeEventEnvelope } from "@norish/shared/contracts/realtime-envelope";
 import { ENVELOPE_VERSION } from "@norish/shared/contracts/realtime-envelope";
 import { getCurrentOperationId } from "@norish/shared-server/lib/operation-context";
@@ -22,7 +22,7 @@ const CHANNEL_PREFIX = "norish";
  * Redis-backed typed event emitter.
  */
 export class TypedRedisEmitter<TEvents extends Record<string, unknown>> {
-  constructor(private readonly namespace: string = "default") {}
+  constructor(private readonly namespace: string = "default") { }
 
   async emitToHousehold<K extends keyof TEvents & string>(
     householdKey: string,
