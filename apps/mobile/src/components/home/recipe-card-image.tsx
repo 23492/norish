@@ -2,9 +2,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { Chip } from 'heroui-native';
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 
+import { NoImagePlaceholder } from '@/components/shared/no-image-placeholder';
 import type { RecipeCardItem } from '@/lib/recipes/recipe-card.types';
 import { styles } from '@/styles/recipe-card.styles';
 
@@ -16,6 +17,12 @@ type RecipeCardImageProps = {
 };
 
 export function RecipeCardImage({ recipe, likedColor }: RecipeCardImageProps) {
+  const [hasError, setHasError] = useState(false);
+
+  const handleError = useCallback(() => {
+    setHasError(true);
+  }, []);
+
   const allergies = recipe.allergies ?? [];
   const allergySet = React.useMemo(
     () => new Set(allergies.map((item) => item.toLowerCase())),
@@ -35,16 +42,23 @@ export function RecipeCardImage({ recipe, likedColor }: RecipeCardImageProps) {
     return [...sorted.slice(0, allergyCount), 'favorite', ...sorted.slice(allergyCount)];
   }, [recipe.tags, recipe.liked, allergies, allergySet]);
 
+  const showPlaceholder = hasError || !recipe.imageUrl;
+
   return (
     <View className="relative w-full overflow-hidden bg-black" style={styles.imageContainer}>
-      <Image
-        source={
-          recipe.imageHeaders ? { uri: recipe.imageUrl, headers: recipe.imageHeaders } : { uri: recipe.imageUrl }
-        }
-        contentFit="cover"
-        transition={300}
-        style={styles.imageFill}
-      />
+      {showPlaceholder ? (
+        <NoImagePlaceholder variant="card" />
+      ) : (
+        <Image
+          source={
+            recipe.imageHeaders ? { uri: recipe.imageUrl, headers: recipe.imageHeaders } : { uri: recipe.imageUrl }
+          }
+          contentFit="cover"
+          transition={300}
+          style={styles.imageFill}
+          onError={handleError}
+        />
+      )}
 
       {recipe.liked ? (
         <View className="absolute left-2.5 top-2.5">
