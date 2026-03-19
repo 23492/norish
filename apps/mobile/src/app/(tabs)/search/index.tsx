@@ -25,6 +25,11 @@ import { canShowDeleteAction } from '@/lib/permissions/mobile-action-visibility'
 import { createRefreshRequestHandler } from '@/lib/refresh/create-refresh-request-handler';
 import { buildRecipeListRows, type RecipeListRow } from '@/lib/recipes/build-recipe-list-rows';
 import { createNextDeletingIds } from '@/lib/recipes/create-next-deleting-ids';
+import { useRecipePrefetch } from '@/hooks/recipes/use-recipe-prefetch';
+import {
+  viewabilityConfig,
+  useViewableItemsRef,
+} from '@/hooks/recipes/use-viewability-config';
 import { styles } from '@/styles/index.styles';
 
 import { hasAppliedRecipeFilters } from '@norish/shared-react/contexts';
@@ -42,6 +47,9 @@ export default function SearchScreen() {
     deleteRecipe,
     invalidate,
   } = useRecipesContext();
+
+  const { onViewableItemsChanged } = useRecipePrefetch();
+  const viewableItemsRef = useViewableItemsRef(onViewableItemsChanged);
   const { canDeleteRecipe, isLoading: isLoadingPermissions } = usePermissionsContext();
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
   const [deletingIds, setDeletingIds] = useState<ReadonlySet<string>>(new Set());
@@ -191,6 +199,8 @@ export default function SearchScreen() {
         ItemSeparatorComponent={() => <View style={recipeListScreenStyles.rowSeparator} />}
         ListHeaderComponent={<FilterChipRow filters={filters} onFiltersChange={setFilters} />}
         ListEmptyComponent={renderEmpty}
+        onViewableItemsChanged={viewableItemsRef.current}
+        viewabilityConfig={viewabilityConfig}
         contentContainerStyle={[styles.listContent, recipeListScreenStyles.searchListInset]}
         contentInsetAdjustmentBehavior="automatic"
         automaticallyAdjustsScrollIndicatorInsets

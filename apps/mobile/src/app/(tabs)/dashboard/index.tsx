@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
+
 import { ActivityIndicator, FlatList, RefreshControl, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useIntl } from 'react-intl';
@@ -15,6 +16,11 @@ import { canShowDeleteAction } from '@/lib/permissions/mobile-action-visibility'
 import { createRefreshRequestHandler } from '@/lib/refresh/create-refresh-request-handler';
 import { createNextDeletingIds } from '@/lib/recipes/create-next-deleting-ids';
 import { buildRecipeListRows, type RecipeListRow } from '@/lib/recipes/build-recipe-list-rows';
+import { useRecipePrefetch } from '@/hooks/recipes/use-recipe-prefetch';
+import {
+  viewabilityConfig,
+  useViewableItemsRef,
+} from '@/hooks/recipes/use-viewability-config';
 import { styles } from '@/styles/index.styles';
 
 export default function RecipesScreen() {
@@ -32,6 +38,9 @@ export default function RecipesScreen() {
     deleteRecipe,
     invalidate,
   } = useRecipesContext();
+
+  const { onViewableItemsChanged } = useRecipePrefetch();
+  const viewableItemsRef = useViewableItemsRef(onViewableItemsChanged);
   const { canDeleteRecipe, isLoading: isLoadingPermissions } = usePermissionsContext();
 
   const [deletingIds, setDeletingIds] = useState<ReadonlySet<string>>(new Set());
@@ -164,6 +173,8 @@ export default function RecipesScreen() {
       ListFooterComponent={renderFooter}
       onEndReached={handleLoadMore}
       onEndReachedThreshold={0.6}
+      onViewableItemsChanged={viewableItemsRef.current}
+      viewabilityConfig={viewabilityConfig}
       contentContainerStyle={[styles.listContent, recipeListScreenStyles.dashboardListInset]}
       contentInsetAdjustmentBehavior="automatic"
       automaticallyAdjustsScrollIndicatorInsets
