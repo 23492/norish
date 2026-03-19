@@ -12,6 +12,7 @@ import {
   createWSClient,
   httpBatchLink,
   httpLink,
+  isNonJsonSerializable,
   loggerLink,
   splitLink,
   type TRPCLink,
@@ -52,6 +53,10 @@ type CreateTRPCProviderBundleOptions = {
   getWsUrl?: () => string;
   getHeaders?: () => HTTPHeaders;
   getWebSocketImpl?: () => typeof WebSocket | undefined;
+  /** Whether the tRPC WebSocket should be lazy (defaults to true). */
+  wsLazyEnabled?: boolean;
+  /** Delay before closing lazy WebSocket when idle (defaults to 0ms). */
+  wsLazyCloseMs?: number;
   maxRetries?: number;
   /** Set to false to disable tRPC loggerLink (defaults to true) */
   enableLoggerLink?: boolean;
@@ -61,7 +66,7 @@ type CreateTRPCProviderBundleOptions = {
   shouldAllowMutation?: (context: MutationGuardContext) => boolean;
   /** Optional message used when a mutation is blocked by the guard. */
   getMutationBlockMessage?: (context: MutationGuardContext) => string;
-  /** Called when the tRPC WebSocket closes (for any reason). */
+  /** Called when the tRPC WebSocket closes unexpectedly. */
   onWebSocketClose?: () => void;
   /** Called when the tRPC WebSocket opens successfully. */
   onWebSocketOpen?: () => void;
@@ -70,6 +75,28 @@ type CreateTRPCProviderBundleOptions = {
 type SubscriptionObserverOptions = {
   onData?: (data: unknown) => void;
 };
+
+function getWebSocketCloseCode(cause: unknown): number | null {
+  if (!cause || typeof cause !== "object") {
+    return null;
+  }
+
+  const event = cause as { code?: unknown; _code?: unknown };
+
+  if (typeof event.code === "number") {
+    return event.code;
+  }
+
+  if (typeof event._code === "number") {
+    return event._code;
+  }
+
+  return null;
+}
+
+function isNormalWebSocketClose(cause: unknown): boolean {
+  return getWebSocketCloseCode(cause) === 1000;
+}
 
 export function wrapSubscriptionObserverOptions(options: unknown): unknown {
   if (!options || typeof options !== "object") {
@@ -179,6 +206,17 @@ function createHttpMutationLink(getBaseUrl: () => string, getHeaders: () => HTTP
   return httpLink({
     url: `${getBaseUrl()}/api/trpc`,
     headers: createRequestHeadersResolver(getHeaders),
+    transformer: superjson as any,
+  });
+}
+
+function createHttpFormDataMutationLink(
+  getBaseUrl: () => string,
+  getHeaders: () => HTTPHeaders
+): TRPCLink<any> {
+  return httpLink({
+    url: `${getBaseUrl()}/api/trpc`,
+    headers: createRequestHeadersResolver(getHeaders),
     transformer: {
       serialize: (data: unknown) => data,
       deserialize: superjson.deserialize,
@@ -212,6 +250,8 @@ export function createTRPCProviderBundle<TRouter extends AnyTRPCRouter>({
   getWsUrl = defaultGetWsUrl,
   getHeaders = defaultGetHeaders,
   getWebSocketImpl,
+  wsLazyEnabled = true,
+  wsLazyCloseMs = 0,
   maxRetries = 10,
   enableLoggerLink = true,
   getQueryClient: externalGetQueryClient,
@@ -257,8 +297,8 @@ export function createTRPCProviderBundle<TRouter extends AnyTRPCRouter>({
         url: getWsUrl,
         WebSocket: getWebSocketImpl?.(),
         lazy: {
-          enabled: true,
-          closeMs: 0,
+          enabled: wsLazyEnabled,
+          closeMs: wsLazyCloseMs,
         },
         retryDelayMs: (attemptIndex) => {
           if (attemptIndex >= maxRetries) {
@@ -280,6 +320,13 @@ export function createTRPCProviderBundle<TRouter extends AnyTRPCRouter>({
         },
         onClose: (cause) => {
           logger.info(`WebSocket closed: ${JSON.stringify(cause)}`);
+
+          if (isNormalWebSocketClose(cause)) {
+            setStatus("idle");
+
+            return;
+          }
+
           setStatus("disconnected");
           onWebSocketClose?.();
         },
@@ -310,7 +357,11 @@ export function createTRPCProviderBundle<TRouter extends AnyTRPCRouter>({
             true: wsLink({ client: wsClient, transformer: superjson as any }),
             false: splitLink({
               condition: (op) => op.type === "mutation",
-              true: createHttpMutationLink(getBaseUrl, getHeaders),
+              true: splitLink({
+                condition: (op) => isNonJsonSerializable(op.input),
+                true: createHttpFormDataMutationLink(getBaseUrl, getHeaders),
+                false: createHttpMutationLink(getBaseUrl, getHeaders),
+              }),
               false: httpBatchLink({
                 url: `${getBaseUrl()}/api/trpc`,
                 headers: createBatchRequestHeadersResolver(getHeaders),
@@ -325,7 +376,7 @@ export function createTRPCProviderBundle<TRouter extends AnyTRPCRouter>({
     });
 
     useEffect(() => {
-      const wasDisconnected = previousStatusRef.current !== "connected";
+      const wasDisconnected = previousStatusRef.current === "disconnected";
 
       previousStatusRef.current = status;
 

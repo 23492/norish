@@ -1,7 +1,13 @@
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+
+import { createClientLogger } from '@norish/shared/lib/logger';
 
 import { getAuthClient } from '@/lib/auth-client';
+import { type PersistedUser, readPersistedSession } from '@/lib/auth-storage';
 import { clearAllQueryCaches } from '@/hooks/use-cache-lifecycle';
+import { useNetworkStatus } from '@/context/network-context';
+
+const log = createClientLogger('auth');
 
 type AuthContextValue = {
   backendBaseUrl: string | null;
@@ -27,27 +33,70 @@ function AuthProviderInner({
   const { data: session, isPending } = authClient.useSession();
   const [justLoggedOut, setJustLoggedOut] = useState(false);
 
-  const isAuthenticated = !!session?.user;
-  const isLoading = isPending;
+  // Network awareness
+  const { backendReachable, runtimeState } = useNetworkStatus();
+
+  // Persisted session state (loaded once when backend is unreachable)
+  const [persistedUser, setPersistedUser] = useState<PersistedUser | null>(null);
+  const [persistedSessionStatus, setPersistedSessionStatus] = useState<'idle' | 'loading' | 'loaded'>('idle');
+
+  const usePersistedAuth = runtimeState === 'ready' && !backendReachable;
+
+  useEffect(() => {
+    if (!usePersistedAuth || persistedSessionStatus !== 'idle') {
+      return;
+    }
+
+    setPersistedSessionStatus('loading');
+
+    void readPersistedSession().then((user) => {
+      setPersistedUser(user);
+      setPersistedSessionStatus('loaded');
+    });
+  }, [persistedSessionStatus, usePersistedAuth]);
+
+  const { isAuthenticated, isLoading, user } = useMemo(() => {
+    if (runtimeState === 'initializing') {
+      return {
+        isAuthenticated: false,
+        isLoading: true,
+        user: null,
+      };
+    }
+
+    if (usePersistedAuth) {
+      return {
+        isAuthenticated: !!persistedUser,
+        isLoading: persistedSessionStatus === 'loading',
+        user: persistedUser,
+      };
+    }
+
+    return {
+      isAuthenticated: !!session?.user,
+      isLoading: isPending,
+      user: session?.user
+        ? {
+          id: session.user.id,
+          email: session.user.email,
+          name: session.user.name,
+          image: session.user.image,
+        }
+        : null,
+    };
+  }, [isPending, persistedSessionStatus, persistedUser, runtimeState, session, usePersistedAuth]);
 
   const signOut = useCallback(async () => {
     clearAllQueryCaches();
     await authClient.signOut();
+    setPersistedUser(null);
+    setPersistedSessionStatus('idle');
     setJustLoggedOut(true);
   }, [authClient]);
 
   const consumeLogoutFlag = useCallback(() => {
     setJustLoggedOut(false);
   }, []);
-
-  const user = session?.user
-    ? {
-        id: session.user.id,
-        email: session.user.email,
-        name: session.user.name,
-        image: session.user.image,
-      }
-    : null;
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -81,8 +130,8 @@ export function AuthProvider({
       isLoading: false,
       justLoggedOut: false,
       user: null,
-      signOut: async () => {},
-      consumeLogoutFlag: () => {},
+      signOut: async () => { },
+      consumeLogoutFlag: () => { },
     }),
     [],
   );

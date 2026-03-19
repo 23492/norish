@@ -1,5 +1,10 @@
 ## 1. Offline Auth Bypass — Session Snapshot
 
+> **Cross-change note (`offline-auth-bypass`):** The `offline-auth-bypass` change already implements SecureStore-based offline session reading in `AuthProviderInner` via `readPersistedSession()`. This section's MMKV session snapshot is intended to **supersede** that approach by providing a richer, version-busted session cache. When implementing this section:
+> - Replace the `readPersistedSession()` SecureStore path in `AuthProviderInner` with `loadSessionSnapshot()` from MMKV.
+> - Remove the `readPersistedSession()` helper from `auth-storage.ts` (or keep it only for migration).
+> - Ensure a single source of truth for offline session data (MMKV snapshot, not both SecureStore and MMKV).
+
 - [ ] 1.1 Create `apps/mobile/src/lib/auth/session-snapshot.ts` — MMKV-backed store for the last-known session (user object + timestamp), with `saveSessionSnapshot`, `loadSessionSnapshot`, `clearSessionSnapshot`, and version-busting logic (discard if app version differs)
 - [ ] 1.2 Update `AuthProviderInner` in `apps/mobile/src/context/auth-context.tsx` to persist a session snapshot on every successful `useSession()` resolution (i.e., whenever `session?.user` is truthy)
 - [ ] 1.3 Update `AuthProviderInner` to load the cached session snapshot on mount and use it as the initial `isAuthenticated: true` / `user` value when `appOnline === false` and `useSession()` is still pending or failed

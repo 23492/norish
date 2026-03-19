@@ -37,7 +37,16 @@ function createMobileWebSocket(): typeof WebSocket | undefined {
     constructor(url: string | URL, protocols?: string | string[]) {
       const headers = trpcBundleGetHeaders();
 
-      super(url, protocols, { headers });
+      if (Object.keys(headers).length === 0) {
+        super(url, protocols);
+        return;
+      }
+
+      try {
+        super(url, protocols, { headers });
+      } catch {
+        super(url, protocols);
+      }
     }
   } as unknown as typeof WebSocket;
 }
@@ -72,6 +81,7 @@ const trpcBundle = createTRPCProviderBundle<AppRouter>({
   getWsUrl: () => toWsUrl(currentBaseUrl),
   getHeaders: trpcBundleGetHeaders,
   getWebSocketImpl: createMobileWebSocket,
+  wsLazyEnabled: false,
   enableLoggerLink: false,
   getQueryClient: () => persistedQueryClient,
   shouldAllowMutation: () => isAppReachableForLiveWork(),

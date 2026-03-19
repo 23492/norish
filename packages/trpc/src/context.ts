@@ -72,7 +72,17 @@ export async function createContext(opts: FetchCreateContextFnOptions): Promise<
       isServerAdmin: sessionUser.isServerOwner || sessionUser.isServerAdmin || false,
     };
 
-    const household = await getHouseholdForUser(user.id);
+    const dbHousehold = await getHouseholdForUser(user.id);
+    const household: ContextHousehold | null = dbHousehold
+      ? {
+          id: dbHousehold.id,
+          name: dbHousehold.name,
+          users: dbHousehold.users.map((householdUser) => ({
+            id: householdUser.id,
+            name: householdUser.name ?? "",
+          })),
+        }
+      : null;
 
     return { user, household, connectionId: null, multiplexer: null, operationId };
   } catch {
