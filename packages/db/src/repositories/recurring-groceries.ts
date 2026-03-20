@@ -168,6 +168,7 @@ export async function deleteRecurringGroceryByIds(ids: string[]): Promise<void> 
 export type DueRecurringGrocery = {
   recurringGrocery: {
     id: string;
+    version: number;
     userId: string;
     name: string;
     unit: string | null;
@@ -180,6 +181,7 @@ export type DueRecurringGrocery = {
   };
   grocery: {
     id: string;
+    version: number;
     name: string | null;
     unit: string | null;
     isDone: boolean;
@@ -247,9 +249,13 @@ export async function getDueRecurringGroceries(): Promise<DueRecurringGrocery[]>
       results.push({
         recurringGrocery: {
           ...recurringParsed.data,
+          version: recurringParsed.data.version,
           userId: recurringRow.userId, // Include userId from raw row
         },
-        grocery: groceryParsed.data,
+        grocery: {
+          ...groceryParsed.data,
+          version: groceryParsed.data.version,
+        },
       });
     }
   }

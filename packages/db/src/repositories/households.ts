@@ -13,6 +13,7 @@ import {
   HouseholdInsertBaseSchema,
   HouseholdSelectBaseSchema,
   HouseholdUserInsertBaseSchema,
+  HouseholdUserSelectBaseSchema,
   HouseholdWithUsersNamesSchema,
 } from "@norish/shared/contracts/zod/household";
 
@@ -81,7 +82,7 @@ export async function getHouseholdForUser(
         },
         with: {
           users: {
-            columns: { userId: true },
+            columns: { userId: true, version: true },
           },
         },
       },
@@ -91,7 +92,8 @@ export async function getHouseholdForUser(
   if (!rows?.household) return null;
 
   const h = rows.household;
-  const allUserIds = (h.users ?? []).map((m: any) => m.userId);
+  const members = (h.users ?? []) as Array<{ userId: string; version: number }>;
+  const allUserIds = members.map((m) => m.userId);
 
   const usersRows = await getUsersByIds(allUserIds);
 
@@ -106,10 +108,11 @@ export async function getHouseholdForUser(
     updatedAt: h.updatedAt,
     joinCode: h.joinCode,
     joinCodeExpiresAt: h.joinCodeExpiresAt,
-    users: allUserIds.map((uid: string) => ({
-      id: uid,
-      name: idToName.get(uid) ?? null,
-      isAdmin: uid === h.adminUserId,
+    users: members.map((member) => ({
+      id: member.userId,
+      name: idToName.get(member.userId) ?? null,
+      isAdmin: member.userId === h.adminUserId,
+      version: member.version,
     })),
   };
 
@@ -164,14 +167,18 @@ export async function addUserToHousehold(input: HouseholdUserInsertDto): Promise
           .limit(1)
       )[0];
 
-  const validated = HouseholdUserInsertBaseSchema.safeParse(resolved);
+  const validated = HouseholdUserSelectBaseSchema.safeParse(resolved);
 
   if (!validated.success) throw new Error("Failed to add user to household");
 
-  return validated.data as HouseholdUserDto;
+  return validated.data;
 }
 
-export async function removeUserFromHousehold(householdId: string, userId: string): Promise<void> {
+export async function removeUserFromHousehold(
+  householdId: string,
+  userId: string,
+  _version?: number
+): Promise<void> {
   await db.transaction(async (tx) => {
     await tx
       .delete(householdUsers)
@@ -215,7 +222,7 @@ export async function joinHouseholdByCode(
 /**
  * Regenerates the join code for a household with a new 10-minute expiration
  */
-export async function regenerateJoinCode(householdId: string): Promise<HouseholdDto> {
+export async function regenerateJoinCode(householdId: string, _version?: number): Promise<HouseholdDto> {
   const code = await generateUniqueJoinCode();
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
@@ -247,7 +254,8 @@ export async function isUserHouseholdAdmin(householdId: string, userId: string):
 export async function kickUserFromHousehold(
   householdId: string,
   userIdToKick: string,
-  adminUserId: string
+  adminUserId: string,
+  version?: number
 ): Promise<void> {
   // Verify admin
   const isAdmin = await isUserHouseholdAdmin(householdId, adminUserId);
@@ -261,7 +269,7 @@ export async function kickUserFromHousehold(
     throw new Error("Admin cannot kick themselves. Transfer admin first or leave the household.");
   }
 
-  await removeUserFromHousehold(householdId, userIdToKick);
+  await removeUserFromHousehold(householdId, userIdToKick, version);
 }
 
 /**
@@ -270,7 +278,8 @@ export async function kickUserFromHousehold(
 export async function transferHouseholdAdmin(
   householdId: string,
   currentAdminId: string,
-  newAdminId: string
+  newAdminId: string,
+  _version?: number
 ): Promise<HouseholdDto> {
   // Verify current admin
   const isAdmin = await isUserHouseholdAdmin(householdId, currentAdminId);

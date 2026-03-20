@@ -11,7 +11,8 @@ export interface RatingStats {
 export async function rateRecipe(
   userId: string,
   recipeId: string,
-  rating: number
+  rating: number,
+  _version?: number
 ): Promise<{ rating: number; isNew: boolean }> {
   const existing = await db
     .select({ id: recipeRatings.id })
@@ -41,6 +42,22 @@ export async function getUserRating(userId: string, recipeId: string): Promise<n
     .limit(1);
 
   return result[0]?.rating ?? null;
+}
+
+export async function getUserRatingWithVersion(
+  userId: string,
+  recipeId: string
+): Promise<{ rating: number | null; version: number | null }> {
+  const result = await db
+    .select({ rating: recipeRatings.rating, version: recipeRatings.version })
+    .from(recipeRatings)
+    .where(and(eq(recipeRatings.userId, userId), eq(recipeRatings.recipeId, recipeId)))
+    .limit(1);
+
+  return {
+    rating: result[0]?.rating ?? null,
+    version: result[0]?.version ?? null,
+  };
 }
 
 export async function getAverageRating(recipeId: string): Promise<RatingStats> {

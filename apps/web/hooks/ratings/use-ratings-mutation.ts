@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { useTRPC } from "@/app/providers/trpc-provider";
 
-type UserRatingData = { recipeId: string; userRating: number | null };
+type UserRatingData = { recipeId: string; userRating: number | null; version?: number | null };
 
 export function useRatingsMutation() {
   const trpc = useTRPC();
@@ -22,6 +22,7 @@ export function useRatingsMutation() {
         queryClient.setQueryData<UserRatingData>(userRatingQueryKey, {
           recipeId,
           userRating: rating,
+          version: previousUserRating?.version,
         });
 
         return { previousUserRating, userRatingQueryKey };
@@ -30,7 +31,12 @@ export function useRatingsMutation() {
   );
 
   return {
-    rateRecipe: (recipeId: string, rating: number) => rateMutation.mutate({ recipeId, rating }),
+    rateRecipe: (recipeId: string, rating: number) => {
+      const userRatingQueryKey = trpc.ratings.getUserRating.queryKey({ recipeId });
+      const previousUserRating = queryClient.getQueryData<UserRatingData>(userRatingQueryKey);
+
+      rateMutation.mutate({ recipeId, rating, version: previousUserRating?.version ?? undefined });
+    },
     isRating: rateMutation.isPending,
   };
 }

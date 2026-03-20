@@ -10,6 +10,8 @@ import { ServerConfigKeys } from "../zodSchemas/server-config";
 
 import { setConfig } from "./server-config";
 
+type VersionedUser = User & { version: number };
+
 // BetterAuth-compatible user type for adapter operations
 // Note: emailVerified is now a boolean in BetterAuth, not a Date
 export interface AdapterUser {
@@ -83,7 +85,12 @@ export async function updateUser(
     payload.emailVerified = user.emailVerified;
   }
 
-  await db.update(users).set(payload).where(eq(users.id, user.id));
+  if (Object.keys(payload).length > 0) {
+    await db
+      .update(users)
+      .set({ ...payload, version: sql`${users.version} + 1` })
+      .where(eq(users.id, user.id));
+  }
 
   const updated = await getAdapterUserById(user.id);
 
@@ -103,6 +110,7 @@ export async function getAdapterUserById(userId: string): Promise<AdapterUser | 
       name: true,
       image: true,
       emailVerified: true,
+      version: true,
     },
   });
 
@@ -129,6 +137,7 @@ export async function getAdapterUserByEmail(email: string): Promise<AdapterUser 
       name: true,
       image: true,
       emailVerified: true,
+      version: true,
     },
   });
 
@@ -145,7 +154,7 @@ export async function getAdapterUserByEmail(email: string): Promise<AdapterUser 
   };
 }
 
-export async function getUserById(userId: string): Promise<User | null> {
+export async function getUserById(userId: string): Promise<VersionedUser | null> {
   const user = await db.query.users.findFirst({
     where: eq(users.id, userId),
     columns: {
@@ -154,6 +163,7 @@ export async function getUserById(userId: string): Promise<User | null> {
       name: true,
       image: true,
       emailVerified: true,
+      version: true,
     },
   });
 
@@ -166,10 +176,11 @@ export async function getUserById(userId: string): Promise<User | null> {
     email: decrypt(user.email),
     name: user.name ? decrypt(user.name) : "",
     image: user.image ? decrypt(user.image) : null,
+    version: user.version,
   };
 }
 
-export async function getUserByEmail(email: string): Promise<User | null> {
+export async function getUserByEmail(email: string): Promise<VersionedUser | null> {
   const lookup = hmacIndex(email);
   const user = await db.query.users.findFirst({
     where: eq(users.emailHmac, lookup),
@@ -179,6 +190,7 @@ export async function getUserByEmail(email: string): Promise<User | null> {
       name: true,
       image: true,
       emailVerified: true,
+      version: true,
     },
   });
 
@@ -191,13 +203,17 @@ export async function getUserByEmail(email: string): Promise<User | null> {
     email: decrypt(user.email),
     name: user.name ? decrypt(user.name) : "",
     image: user.image ? decrypt(user.image) : null,
+    version: user.version,
   };
 }
 
 export async function updateUserAvatar(userId: string, protectedPath: string): Promise<void> {
   const encryptedImage = encrypt(protectedPath);
 
-  await db.update(users).set({ image: encryptedImage }).where(eq(users.id, userId));
+  await db
+    .update(users)
+    .set({ image: encryptedImage, version: sql`${users.version} + 1` })
+    .where(eq(users.id, userId));
 }
 
 export async function getUserAvatarPath(userId: string): Promise<string | null> {
@@ -232,7 +248,10 @@ export async function getAllUserAvatars(): Promise<
 }
 
 export async function clearUserAvatar(userId: string): Promise<void> {
-  await db.update(users).set({ image: null }).where(eq(users.id, userId));
+  await db
+    .update(users)
+    .set({ image: null, version: sql`${users.version} + 1` })
+    .where(eq(users.id, userId));
 }
 
 export async function getAdapterUserByAccount(
@@ -270,7 +289,10 @@ export async function getAdapterUserByAccount(
 export async function updateUserName(userId: string, name: string): Promise<void> {
   const encryptedName = encrypt(name);
 
-  await db.update(users).set({ name: encryptedName }).where(eq(users.id, userId));
+  await db
+    .update(users)
+    .set({ name: encryptedName, version: sql`${users.version} + 1` })
+    .where(eq(users.id, userId));
 }
 
 export async function deleteUser(userId: string): Promise<void> {
@@ -303,13 +325,14 @@ export async function getUsersByIds(
 
 export async function getUserAuthorInfo(
   userId: string
-): Promise<{ id: string; name: string | null; image: string | null } | null> {
+): Promise<{ id: string; name: string | null; image: string | null; version: number } | null> {
   const user = await db.query.users.findFirst({
     where: eq(users.id, userId),
     columns: {
       id: true,
       name: true,
       image: true,
+      version: true,
     },
   });
 
@@ -321,6 +344,7 @@ export async function getUserAuthorInfo(
     id: user.id,
     name: user.name ? decrypt(user.name) : null,
     image: user.image ? decrypt(user.image) : null,
+    version: user.version,
   };
 }
 
@@ -367,12 +391,16 @@ export async function setUserAsOwnerAndAdmin(userId: string): Promise<void> {
     .set({
       isServerOwner: true,
       isServerAdmin: true,
+      version: sql`${users.version} + 1`,
     })
     .where(eq(users.id, userId));
 }
 
 export async function setUserAdminStatus(userId: string, isAdmin: boolean): Promise<void> {
-  await db.update(users).set({ isServerAdmin: isAdmin }).where(eq(users.id, userId));
+  await db
+    .update(users)
+    .set({ isServerAdmin: isAdmin, version: sql`${users.version} + 1` })
+    .where(eq(users.id, userId));
 }
 
 export async function countUsers(): Promise<number> {
@@ -415,12 +443,13 @@ export async function updateUserPreferences(
   const updatesJson = JSON.stringify(updates ?? {});
 
   try {
-    // Parameterized SQL: merge updates into preferences safely.
-    await db.execute(sql`
-      UPDATE "user"
-      SET preferences = coalesce(preferences, '{}'::jsonb) || ${updatesJson}::jsonb
-      WHERE id = ${userId}
-    `);
+    await db
+      .update(users)
+      .set({
+        preferences: sql`coalesce(${users.preferences}, '{}'::jsonb) || ${updatesJson}::jsonb`,
+        version: sql`${users.version} + 1`,
+      })
+      .where(eq(users.id, userId));
   } catch (error) {
     // Migration/column may be missing: warn and rethrow
     try {

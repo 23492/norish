@@ -47,13 +47,19 @@ describe("useFavoritesMutation", () => {
         await mutationOpts.onMutate({ recipeId: "recipe-1" });
       });
 
-      const cachedData = queryClient.getQueryData<{ favoriteIds: string[] }>(mockQueryKey);
+      const cachedData = queryClient.getQueryData<{
+        favoriteIds: string[];
+        favoriteVersions: Record<string, number>;
+      }>(mockQueryKey);
 
       expect(cachedData?.favoriteIds).toContain("recipe-1");
     });
 
     it("optimistically removes recipe from favorites", async () => {
-      queryClient.setQueryData(mockQueryKey, createMockFavoritesData(["recipe-1", "recipe-2"]));
+      queryClient.setQueryData(
+        mockQueryKey,
+        createMockFavoritesData(["recipe-1", "recipe-2"], { "recipe-1": 4, "recipe-2": 6 })
+      );
 
       const { renderHook, act } = require("@testing-library/react");
       const { result: _result } = renderHook(() => useFavoritesMutation(), {
@@ -66,10 +72,14 @@ describe("useFavoritesMutation", () => {
         await mutationOpts.onMutate({ recipeId: "recipe-1" });
       });
 
-      const cachedData = queryClient.getQueryData<{ favoriteIds: string[] }>(mockQueryKey);
+      const cachedData = queryClient.getQueryData<{
+        favoriteIds: string[];
+        favoriteVersions: Record<string, number>;
+      }>(mockQueryKey);
 
       expect(cachedData?.favoriteIds).not.toContain("recipe-1");
       expect(cachedData?.favoriteIds).toContain("recipe-2");
+      expect(cachedData?.favoriteVersions).toEqual({ "recipe-2": 6 });
     });
 
     it("rolls back on error", async () => {
@@ -91,7 +101,10 @@ describe("useFavoritesMutation", () => {
       });
 
       // Verify optimistic update happened
-      let cachedData = queryClient.getQueryData<{ favoriteIds: string[] }>(mockQueryKey);
+      let cachedData = queryClient.getQueryData<{
+        favoriteIds: string[];
+        favoriteVersions: Record<string, number>;
+      }>(mockQueryKey);
 
       expect(cachedData?.favoriteIds).toContain("recipe-2");
 
@@ -100,7 +113,10 @@ describe("useFavoritesMutation", () => {
         mutationOpts.onError(new Error("Failed"), { recipeId: "recipe-2" }, context);
       });
 
-      cachedData = queryClient.getQueryData<{ favoriteIds: string[] }>(mockQueryKey);
+      cachedData = queryClient.getQueryData<{
+        favoriteIds: string[];
+        favoriteVersions: Record<string, number>;
+      }>(mockQueryKey);
       expect(cachedData?.favoriteIds).not.toContain("recipe-2");
       expect(cachedData?.favoriteIds).toContain("recipe-1");
     });
@@ -119,7 +135,10 @@ describe("useFavoritesMutation", () => {
         await mutationOpts.onMutate({ recipeId: "recipe-1" });
       });
 
-      const cachedData = queryClient.getQueryData<{ favoriteIds: string[] }>(mockQueryKey);
+      const cachedData = queryClient.getQueryData<{
+        favoriteIds: string[];
+        favoriteVersions: Record<string, number>;
+      }>(mockQueryKey);
 
       expect(cachedData?.favoriteIds).toContain("recipe-1");
     });

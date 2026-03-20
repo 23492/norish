@@ -41,6 +41,7 @@ export const StoreCreateSchema = z.object({
 // Store update schema
 export const StoreUpdateBaseSchema = z.object({
   id: z.uuid(),
+  version: z.number().int().positive().optional(),
   name: z.string().min(1).max(100).optional(),
   color: StoreColorSchema.optional(),
   icon: z.string().optional(),
@@ -50,6 +51,7 @@ export const StoreUpdateBaseSchema = z.object({
 // Store update input schema (tRPC)
 export const StoreUpdateInputSchema = z.object({
   id: z.uuid(),
+  version: z.number().int().positive(),
   name: z.string().min(1).max(100).optional(),
   color: StoreColorSchema.optional(),
   icon: z.string().optional(),
@@ -58,12 +60,18 @@ export const StoreUpdateInputSchema = z.object({
 // Store delete schema with option to delete groceries
 export const StoreDeleteSchema = z.object({
   storeId: z.uuid(),
+  version: z.number().int().positive(),
   deleteGroceries: z.boolean().default(false),
 });
 
 // Store reorder schema
 export const StoreReorderSchema = z.object({
-  storeIds: z.array(z.uuid()),
+  stores: z.array(
+    z.object({
+      id: z.uuid(),
+      version: z.number().int().positive(),
+    })
+  ),
 });
 
 // Ingredient store preference schemas

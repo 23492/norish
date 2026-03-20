@@ -182,7 +182,8 @@ export async function createPlannedItem(input: PlannedItemInsert): Promise<Plann
 
 export async function updatePlannedItem(
   id: string,
-  updates: PlannedItemUpdate
+  updates: PlannedItemUpdate,
+  _version?: number
 ): Promise<PlannedItem | null> {
   const [row] = await db
     .update(plannedItems)
@@ -193,7 +194,7 @@ export async function updatePlannedItem(
   return row ?? null;
 }
 
-export async function deletePlannedItem(id: string): Promise<PlannedItem[]> {
+export async function deletePlannedItem(id: string, _version?: number): Promise<PlannedItem[]> {
   return await db.transaction(async (trx) => {
     const [current] = await trx.select().from(plannedItems).where(eq(plannedItems.id, id)).limit(1);
 
@@ -236,7 +237,8 @@ export async function moveItem(
   itemId: string,
   targetDate: string,
   targetSlot: PlannedItemSlot,
-  targetIndex: number
+  targetIndex: number,
+  _version?: number
 ): Promise<PlannedItem | null> {
   return await db.transaction(async (trx) => {
     const [current] = await trx

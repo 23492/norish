@@ -7,6 +7,7 @@ import { createUseStoresSubscription } from "./use-stores-subscription";
 
 export type {
   CreateStoresHooksOptions,
+  StoreUpdateDraft,
   StoresCacheHelpers,
   StoresData,
   StoresMutationsResult,

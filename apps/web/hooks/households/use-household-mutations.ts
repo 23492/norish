@@ -22,8 +22,11 @@ export type HouseholdMutationsResult = {
 
 export function useHouseholdMutations(): HouseholdMutationsResult {
   const trpc = useTRPC();
-  const { setHouseholdData, invalidate, currentUserId } = useHouseholdQuery();
+  const { household, setHouseholdData, invalidate, currentUserId } = useHouseholdQuery();
   const { user } = useUserContext();
+
+  const getHouseholdVersion = (householdId: string): number =>
+    household?.id === householdId ? household.version : 1;
 
   const createMutation = useMutation(trpc.households.create.mutationOptions());
   const joinMutation = useMutation(trpc.households.join.mutationOptions());
@@ -49,11 +52,13 @@ export function useHouseholdMutations(): HouseholdMutationsResult {
           const optimisticHousehold: HouseholdSettingsDto = {
             id,
             name: name.trim(),
+            version: 1,
             users: [
               {
                 id: currentUserId,
                 name: user?.name ?? null,
                 isAdmin: true,
+                version: 1,
               },
             ],
             allergies: [],
@@ -88,8 +93,13 @@ export function useHouseholdMutations(): HouseholdMutationsResult {
   };
 
   const leaveHousehold = (householdId: string): void => {
+    const currentMembershipVersion =
+      household?.id === householdId
+        ? household.users.find((member) => member.id === currentUserId)?.version ?? 1
+        : 1;
+
     leaveMutation.mutate(
-      { householdId },
+      { householdId, version: currentMembershipVersion },
       {
         onSuccess: () => {
           // Clear household from cache
@@ -104,8 +114,13 @@ export function useHouseholdMutations(): HouseholdMutationsResult {
   };
 
   const kickUser = (householdId: string, userId: string): void => {
+    const memberVersion =
+      household?.id === householdId
+        ? household.users.find((member) => member.id === userId)?.version ?? 1
+        : 1;
+
     kickMutation.mutate(
-      { householdId, userId },
+      { householdId, userId, version: memberVersion },
       {
         onSuccess: () => {
           // Optimistically remove the user from the list
@@ -128,7 +143,7 @@ export function useHouseholdMutations(): HouseholdMutationsResult {
 
   const regenerateJoinCode = (householdId: string): void => {
     regenerateCodeMutation.mutate(
-      { householdId },
+      { householdId, version: getHouseholdVersion(householdId) },
       {
         // The new join code will come from the subscription
         onError: () => invalidate(),
@@ -138,7 +153,7 @@ export function useHouseholdMutations(): HouseholdMutationsResult {
 
   const transferAdmin = (householdId: string, newAdminId: string): void => {
     transferAdminMutation.mutate(
-      { householdId, newAdminId },
+      { householdId, newAdminId, version: getHouseholdVersion(householdId) },
       {
         onSuccess: () => {
           // Optimistically update admin status
@@ -150,6 +165,7 @@ export function useHouseholdMutations(): HouseholdMutationsResult {
             const updatedHousehold: HouseholdSettingsDto = {
               id: prev.household.id,
               name: prev.household.name,
+              version: prev.household.version,
               users: prev.household.users.map((u) => ({
                 ...u,
                 isAdmin: u.id === newAdminId,

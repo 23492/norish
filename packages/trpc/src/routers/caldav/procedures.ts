@@ -86,6 +86,7 @@ export const caldavRouter = router({
       }
 
       await saveCaldavConfig(userId, {
+        version: input.version,
         serverUrl: input.serverUrl,
         calendarUrl: input.calendarUrl ?? null,
         username: input.username,
@@ -197,7 +198,7 @@ export const caldavRouter = router({
 
       log.info({ userId, deleteEvents: input.deleteEvents }, "Deleting CalDAV configuration");
 
-      await deleteCaldavConfig(userId);
+      await deleteCaldavConfig(userId, input.version);
 
       // Emit config deleted event
       caldavEmitter.emitToUser(userId, "configSaved", { config: null });

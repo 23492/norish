@@ -4,6 +4,25 @@ const slotSchema = z.enum(["Breakfast", "Lunch", "Dinner", "Snack"]);
 
 const plannedItemTypeSchema = z.enum(["recipe", "note"]);
 
+export const PlannedItemMoveInputSchema = z.object({
+  itemId: z.string().uuid(),
+  version: z.number().int().positive(),
+  targetDate: z.string(),
+  targetSlot: slotSchema,
+  targetIndex: z.number().int().min(0),
+});
+
+export const PlannedItemDeleteInputSchema = z.object({
+  itemId: z.string().uuid(),
+  version: z.number().int().positive(),
+});
+
+export const PlannedItemUpdateInputSchema = z.object({
+  itemId: z.string().uuid(),
+  version: z.number().int().positive(),
+  title: z.string().min(1),
+});
+
 export const PlannedItemEventPayloadSchema = z.object({
   id: z.string(),
   date: z.string(),

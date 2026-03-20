@@ -16,6 +16,11 @@ import {
   moveItem,
   updatePlannedItem,
 } from "@norish/db/repositories/planned-items";
+import {
+  PlannedItemDeleteInputSchema,
+  PlannedItemMoveInputSchema,
+  PlannedItemUpdateInputSchema,
+} from "@norish/shared/contracts/zod";
 import { trpcLogger as log } from "@norish/shared-server/logger";
 
 import { authedProcedure } from "../../middleware";
@@ -29,13 +34,6 @@ const itemTypeSchema = z.enum(["recipe", "note"]);
 const listItemsInput = z.object({
   startISO: z.string(),
   endISO: z.string(),
-});
-
-const moveItemInput = z.object({
-  itemId: z.string().uuid(),
-  targetDate: z.string(),
-  targetSlot: slotSchema,
-  targetIndex: z.number().int().min(0),
 });
 
 const createItemInput = z
@@ -53,15 +51,6 @@ const createItemInput = z
     message: "title is required for note items",
   });
 
-const deleteItemInput = z.object({
-  itemId: z.string().uuid(),
-});
-
-const updateItemInput = z.object({
-  itemId: z.string().uuid(),
-  title: z.string().min(1),
-});
-
 export const plannedItemsProcedures = router({
   listItems: authedProcedure.input(listItemsInput).query(async ({ ctx, input }) => {
     const { startISO, endISO } = input;
@@ -69,8 +58,8 @@ export const plannedItemsProcedures = router({
     return listPlannedItemsByUserAndDateRange(ctx.userIds, startISO, endISO);
   }),
 
-  moveItem: authedProcedure.input(moveItemInput).mutation(async ({ ctx, input }) => {
-    const { itemId, targetDate, targetSlot, targetIndex } = input;
+  moveItem: authedProcedure.input(PlannedItemMoveInputSchema).mutation(async ({ ctx, input }) => {
+    const { itemId, targetDate, targetSlot, targetIndex, version } = input;
 
     const item = await getPlannedItemById(itemId);
 
@@ -87,7 +76,7 @@ export const plannedItemsProcedures = router({
       return { success: true, moved: false };
     }
 
-    const movedItem = await moveItem(itemId, targetDate, targetSlot, targetIndex);
+    const movedItem = await moveItem(itemId, targetDate, targetSlot, targetIndex, version);
 
     if (!movedItem) {
       throw new TRPCError({
@@ -197,8 +186,8 @@ export const plannedItemsProcedures = router({
     return { id: newItem.id };
   }),
 
-  deleteItem: authedProcedure.input(deleteItemInput).mutation(async ({ ctx, input }) => {
-    const { itemId } = input;
+  deleteItem: authedProcedure.input(PlannedItemDeleteInputSchema).mutation(async ({ ctx, input }) => {
+    const { itemId, version } = input;
 
     const item = await getPlannedItemById(itemId);
 
@@ -211,7 +200,7 @@ export const plannedItemsProcedures = router({
 
     await assertHouseholdAccess(ctx.user.id, item.userId);
 
-    await deletePlannedItem(itemId);
+    await deletePlannedItem(itemId, version);
 
     calendarEmitter.emitToHousehold(ctx.householdKey, "itemDeleted", {
       itemId,
@@ -222,8 +211,8 @@ export const plannedItemsProcedures = router({
     return { success: true };
   }),
 
-  updateItem: authedProcedure.input(updateItemInput).mutation(async ({ ctx, input }) => {
-    const { itemId, title } = input;
+  updateItem: authedProcedure.input(PlannedItemUpdateInputSchema).mutation(async ({ ctx, input }) => {
+    const { itemId, title, version } = input;
     const householdKey = ctx.householdKey;
     const userId = ctx.user.id;
 
@@ -238,7 +227,7 @@ export const plannedItemsProcedures = router({
 
     await assertHouseholdAccess(ctx.user.id, item.userId);
 
-    updatePlannedItem(itemId, { title })
+    updatePlannedItem(itemId, { title }, version)
       .then(async (updatedItem) => {
         if (!updatedItem) {
           throw new Error("Failed to update item");

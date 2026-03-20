@@ -18,7 +18,8 @@ export async function removeFavorite(userId: string, recipeId: string): Promise<
 
 export async function toggleFavorite(
   userId: string,
-  recipeId: string
+  recipeId: string,
+  _version?: number
 ): Promise<{ isFavorite: boolean }> {
   const existing = await db
     .select({ id: recipeFavorites.id })
@@ -54,6 +55,15 @@ export async function getFavoriteRecipeIds(userId: string): Promise<string[]> {
     .where(eq(recipeFavorites.userId, userId));
 
   return results.map((r) => r.recipeId);
+}
+
+export async function getFavoriteRecipesWithVersions(
+  userId: string
+): Promise<Array<{ recipeId: string; version: number }>> {
+  return await db
+    .select({ recipeId: recipeFavorites.recipeId, version: recipeFavorites.version })
+    .from(recipeFavorites)
+    .where(eq(recipeFavorites.userId, userId));
 }
 
 export async function getFavoritesByRecipeIds(

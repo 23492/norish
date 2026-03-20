@@ -92,13 +92,14 @@ export function useHouseholdSubscription() {
               ...prev.household,
               users: [
                 ...prev.household.users,
-                {
-                  id: payload.user.id,
-                  name: payload.user.name,
-                  isAdmin: payload.user.isAdmin,
-                },
-              ],
-            },
+                  {
+                    id: payload.user.id,
+                    name: payload.user.name,
+                    isAdmin: payload.user.isAdmin,
+                    version: payload.user.version,
+                  },
+                ],
+              },
           };
         });
       },
@@ -151,26 +152,33 @@ export function useHouseholdSubscription() {
           if (!prev?.household) return prev;
 
           const isCurrentUserNewAdmin = payload.newAdminId === prev.currentUserId;
-
-          // If current user became admin, we need to refetch to get joinCode
-          if (isCurrentUserNewAdmin) {
-            invalidate();
-
-            return prev;
-          }
-
-          // If current user was admin and lost it, update to non-admin view
-          // (remove joinCode fields if they exist)
           const updatedUsers = prev.household.users.map((u) => ({
             ...u,
             isAdmin: u.id === payload.newAdminId,
           }));
 
+          // If current user became admin, we need to refetch to get joinCode
+          if (isCurrentUserNewAdmin) {
+            invalidate();
+
+            return {
+              ...prev,
+              household: {
+                ...prev.household,
+                version: payload.version,
+                users: updatedUsers,
+              },
+            };
+          }
+
+          // If current user was admin and lost it, update to non-admin view
+          // (remove joinCode fields if they exist)
           return {
             ...prev,
             household: {
               id: prev.household.id,
               name: prev.household.name,
+              version: payload.version,
               users: updatedUsers,
               allergies: prev.household.allergies,
             },
@@ -191,14 +199,20 @@ export function useHouseholdSubscription() {
           const adminHousehold = prev.household as HouseholdAdminSettingsDto;
 
           if (!("joinCode" in adminHousehold)) {
-            // Non-admin user, nothing to update
-            return prev;
+            return {
+              ...prev,
+              household: {
+                ...prev.household,
+                version: payload.version,
+              },
+            };
           }
 
           return {
             ...prev,
             household: {
               ...prev.household,
+              version: payload.version,
               joinCode: payload.joinCode,
               joinCodeExpiresAt: new Date(payload.joinCodeExpiresAt),
             },

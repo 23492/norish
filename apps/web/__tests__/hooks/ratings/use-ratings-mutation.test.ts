@@ -45,7 +45,7 @@ describe("useRatingsMutation", () => {
 
   describe("optimistic updates", () => {
     it("optimistically updates user rating", async () => {
-      queryClient.setQueryData(userRatingQueryKey, createMockUserRatingData(testRecipeId, null));
+      queryClient.setQueryData(userRatingQueryKey, createMockUserRatingData(testRecipeId, null, null));
 
       const { renderHook, act } = require("@testing-library/react");
       const { result: _result } = renderHook(() => useRatingsMutation(), {
@@ -58,15 +58,17 @@ describe("useRatingsMutation", () => {
         await mutationOpts.onMutate({ recipeId: testRecipeId, rating: 5 });
       });
 
-      const cachedData = queryClient.getQueryData<{ recipeId: string; userRating: number | null }>(
-        userRatingQueryKey
-      );
+      const cachedData = queryClient.getQueryData<{
+        recipeId: string;
+        userRating: number | null;
+        version?: number | null;
+      }>(userRatingQueryKey);
 
       expect(cachedData?.userRating).toBe(5);
     });
 
     it("updates existing rating", async () => {
-      queryClient.setQueryData(userRatingQueryKey, createMockUserRatingData(testRecipeId, 3));
+      queryClient.setQueryData(userRatingQueryKey, createMockUserRatingData(testRecipeId, 3, 9));
 
       const { renderHook, act } = require("@testing-library/react");
       const { result: _result } = renderHook(() => useRatingsMutation(), {
@@ -79,11 +81,14 @@ describe("useRatingsMutation", () => {
         await mutationOpts.onMutate({ recipeId: testRecipeId, rating: 5 });
       });
 
-      const cachedData = queryClient.getQueryData<{ recipeId: string; userRating: number | null }>(
-        userRatingQueryKey
-      );
+      const cachedData = queryClient.getQueryData<{
+        recipeId: string;
+        userRating: number | null;
+        version?: number | null;
+      }>(userRatingQueryKey);
 
       expect(cachedData?.userRating).toBe(5);
+      expect(cachedData?.version).toBe(9);
     });
   });
 

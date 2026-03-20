@@ -8,6 +8,11 @@ export type FavoritesMutationResult = {
   isToggling: boolean;
 };
 
+type FavoritesListData = {
+  favoriteIds: string[];
+  favoriteVersions: Record<string, number>;
+};
+
 export function createUseFavoritesMutation({ useTRPC }: CreateRecipeHooksOptions) {
   return function useFavoritesMutation(): FavoritesMutationResult {
     const trpc = useTRPC();
@@ -19,10 +24,12 @@ export function createUseFavoritesMutation({ useTRPC }: CreateRecipeHooksOptions
         onMutate: async ({ recipeId }) => {
           await queryClient.cancelQueries({ queryKey });
 
-          const previousData = queryClient.getQueryData<{ favoriteIds: string[] }>(queryKey);
+          const previousData = queryClient.getQueryData<FavoritesListData>(queryKey);
 
-          queryClient.setQueryData<{ favoriteIds: string[] }>(queryKey, (old) => {
-            if (!old) return { favoriteIds: [recipeId] };
+          queryClient.setQueryData<FavoritesListData>(queryKey, (old) => {
+            if (!old) {
+              return { favoriteIds: [recipeId], favoriteVersions: {} };
+            }
 
             const isFavorite = old.favoriteIds.includes(recipeId);
 
@@ -30,6 +37,11 @@ export function createUseFavoritesMutation({ useTRPC }: CreateRecipeHooksOptions
               favoriteIds: isFavorite
                 ? old.favoriteIds.filter((id) => id !== recipeId)
                 : [...old.favoriteIds, recipeId],
+              favoriteVersions: isFavorite
+                ? Object.fromEntries(
+                    Object.entries(old.favoriteVersions).filter(([id]) => id !== recipeId)
+                  )
+                : old.favoriteVersions,
             };
           });
 
@@ -47,7 +59,12 @@ export function createUseFavoritesMutation({ useTRPC }: CreateRecipeHooksOptions
     );
 
     const toggleFavorite = (recipeId: string) => {
-      toggleMutation.mutate({ recipeId });
+      const favorites = queryClient.getQueryData<FavoritesListData>(queryKey);
+
+      toggleMutation.mutate({
+        recipeId,
+        version: favorites?.favoriteVersions[recipeId],
+      });
     };
 
     return {

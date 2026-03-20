@@ -8,7 +8,7 @@ import enNavbarMessages from '@norish/i18n/messages/en/navbar.json';
 import enRecipesMessages from '@norish/i18n/messages/en/recipes.json';
 import enSettingsMessages from '@norish/i18n/messages/en/settings.json';
 import type { EnabledLocale } from '@norish/shared-react/hooks';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { IntlProvider } from 'react-intl';
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
@@ -85,6 +85,11 @@ function MobileLocaleProviderInner({ children }: { children: React.ReactNode }) 
 
 
   const updatePreferencesMutation = useMutation(trpc.user.updatePreferences.mutationOptions());
+  const { data: userSettings } = useQuery({
+    ...trpc.user.get.queryOptions(),
+    enabled: isAuthenticated,
+    staleTime: 60_000,
+  });
 
   const localeOptions = BUNDLED_LOCALES;
   const effectiveDefaultLocale = DEFAULT_LOCALE;
@@ -152,6 +157,7 @@ function MobileLocaleProviderInner({ children }: { children: React.ReactNode }) 
 
         if (isAuthenticated) {
           void updatePreferencesMutation.mutateAsync({
+            version: userSettings?.user.version ?? 1,
             preferences: { locale: nextResolved },
           });
         }
@@ -165,6 +171,7 @@ function MobileLocaleProviderInner({ children }: { children: React.ReactNode }) 
       localeNames,
       localeOptions,
       updatePreferencesMutation,
+      userSettings?.user.version,
     ]
   );
 

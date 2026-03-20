@@ -152,9 +152,11 @@ const remove = authedProcedure.input(StoreDeleteSchema).mutation(async ({ ctx, i
 });
 
 const reorder = authedProcedure.input(StoreReorderSchema).mutation(async ({ ctx, input }) => {
-  log.debug({ userId: ctx.user.id, storeCount: input.storeIds.length }, "Reordering stores");
+  const storeIds = input.stores.map((store) => store.id);
 
-  reorderStores(input.storeIds)
+  log.debug({ userId: ctx.user.id, storeCount: storeIds.length }, "Reordering stores");
+
+  reorderStores(storeIds)
     .then((reorderedStores) => {
       log.info({ userId: ctx.user.id, storeCount: reorderedStores.length }, "Stores reordered");
       storeEmitter.emitToHousehold(ctx.householdKey, "reordered", {
@@ -165,7 +167,7 @@ const reorder = authedProcedure.input(StoreReorderSchema).mutation(async ({ ctx,
       log.error({ err, userId: ctx.user.id }, "Failed to reorder stores");
     });
 
-  return input.storeIds;
+  return storeIds;
 });
 
 const getGroceryCount = authedProcedure

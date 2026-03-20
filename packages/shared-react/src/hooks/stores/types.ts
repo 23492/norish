@@ -22,9 +22,11 @@ export type StoresCacheHelpers = {
   invalidate: () => void;
 };
 
+export type StoreUpdateDraft = Omit<StoreUpdateInput, "version">;
+
 export type StoresMutationsResult = {
   createStore: (data: StoreCreateDto) => Promise<string>;
-  updateStore: (data: StoreUpdateInput) => void;
+  updateStore: (data: StoreUpdateDraft) => void;
   deleteStore: (storeId: string, deleteGroceries: boolean) => void;
   reorderStores: (storeIds: string[]) => void;
   isCreating: boolean;

@@ -68,7 +68,7 @@ export type RecipeDetailAdapters = {
   useActiveAllergies: () => { allergies: string[]; allergySet: Set<string> };
   useConvertMutation: () => {
     mutate: (
-      input: { recipeId: string; targetSystem: MeasurementSystem },
+      input: { recipeId: string; targetSystem: MeasurementSystem; version: number },
       opts: { onSuccess: () => void; onError: () => void }
     ) => void;
   };
@@ -238,7 +238,7 @@ export function createRecipeDetailContext(adapters: RecipeDetailAdapters) {
     const startConversion = useCallback(
       (target: MeasurementSystem) => {
         convertMutation.mutate(
-          { recipeId: recipe!.id, targetSystem: target },
+          { recipeId: recipe!.id, targetSystem: target, version: recipe!.version },
           {
             onSuccess: () => {
               setConvertingTo(target);

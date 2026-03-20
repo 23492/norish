@@ -18,6 +18,7 @@ import {
 import { useTRPC } from "@/app/providers/trpc-provider";
 
 export type SaveCaldavConfigInput = {
+  version?: number;
   serverUrl: string;
   calendarUrl?: string | null;
   username: string;
@@ -61,9 +62,10 @@ export type CaldavMutationsResult = {
  */
 export function useCaldavMutations(): CaldavMutationsResult {
   const trpc = useTRPC();
-  const { setConfig, invalidate: invalidateConfig } = useCaldavConfigQuery();
+  const { config, setConfig, invalidate: invalidateConfig } = useCaldavConfigQuery();
   const { invalidate: invalidateSyncStatus } = useCaldavSyncStatusQuery();
   const { invalidate: invalidateSummary } = useCaldavSummaryQuery();
+  const currentConfigVersion = config?.version;
 
   const saveConfigMutation = useMutation(trpc.caldav.saveConfig.mutationOptions());
   const testConnectionMutation = useMutation(trpc.caldav.testConnection.mutationOptions());
@@ -75,7 +77,10 @@ export function useCaldavMutations(): CaldavMutationsResult {
   const saveConfig = async (
     input: SaveCaldavConfigInput
   ): Promise<UserCaldavConfigWithoutPasswordDto> => {
-    const result = await saveConfigMutation.mutateAsync(input);
+    const result = await saveConfigMutation.mutateAsync({
+      ...input,
+      version: input.version ?? currentConfigVersion,
+    });
 
     // Update cache optimistically
     setConfig(() => result);
@@ -96,7 +101,7 @@ export function useCaldavMutations(): CaldavMutationsResult {
   };
 
   const deleteConfig = async (deleteEvents: boolean = false): Promise<void> => {
-    await deleteConfigMutation.mutateAsync({ deleteEvents });
+    await deleteConfigMutation.mutateAsync({ deleteEvents, version: currentConfigVersion });
 
     // Update cache
     setConfig(() => null);

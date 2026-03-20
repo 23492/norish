@@ -15,7 +15,7 @@ import {
   saveStepImageBytes,
 } from "@norish/shared-server/media/storage";
 import { ALLOWED_IMAGE_MIME_SET } from "@norish/shared/contracts";
-import { MAX_RECIPE_IMAGES } from "@norish/shared/contracts/zod";
+import { DeleteRecipeImageInputSchema, MAX_RECIPE_IMAGES } from "@norish/shared/contracts/zod";
 
 import { authedProcedure } from "../../middleware";
 import { router } from "../../trpc";
@@ -227,12 +227,24 @@ const uploadGalleryImage = authedProcedure
         // Recipe exists, add to database
         const [imageRecord] = await addRecipeImages(recipeId, [{ image: url, order }]);
 
+        if (!imageRecord) {
+          return { success: false, error: "Failed to create image record" };
+        }
+
+        const versionedImageRecord = imageRecord as typeof imageRecord & { version: number };
+
         log.info(
           { userId: ctx.user.id, recipeId, url, imageId: imageRecord.id },
           "Gallery image uploaded"
         );
 
-        return { success: true, url, id: imageRecord.id, order: imageRecord.order };
+        return {
+          success: true,
+          url,
+          id: imageRecord.id,
+          order: imageRecord.order,
+          version: versionedImageRecord.version,
+        };
       } else {
         // Recipe doesn't exist yet (new recipe form), just return the URL
         // The image will be linked when the recipe is created
@@ -257,7 +269,7 @@ const uploadGalleryImage = authedProcedure
  * Removes from database and filesystem
  */
 const deleteGalleryImage = authedProcedure
-  .input(z.object({ imageId: z.string().uuid() }))
+  .input(DeleteRecipeImageInputSchema)
   .mutation(async ({ ctx, input }) => {
     log.debug({ userId: ctx.user.id, imageId: input.imageId }, "Deleting gallery image");
 
@@ -281,7 +293,7 @@ const deleteGalleryImage = authedProcedure
       }
 
       // Delete from database
-      await deleteRecipeImageById(input.imageId);
+      await deleteRecipeImageById(input.imageId, input.version);
 
       log.info(
         { userId: ctx.user.id, imageId: input.imageId, url: imageRecord.image },

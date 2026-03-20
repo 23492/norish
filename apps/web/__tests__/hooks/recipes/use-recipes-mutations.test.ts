@@ -132,8 +132,8 @@ describe("useRecipesMutations", () => {
       expect(result.current.importRecipeFromPasteWithAI.length).toBe(1); // Takes text
       expect(result.current.createRecipe.length).toBe(1); // Takes input
       expect(result.current.updateRecipe.length).toBe(2); // Takes id, input
-      expect(result.current.deleteRecipe.length).toBe(1); // Takes id
-      expect(result.current.convertMeasurements.length).toBe(2); // Takes recipeId, system
+      expect(result.current.deleteRecipe.length).toBe(2); // Takes id, version
+      expect(result.current.convertMeasurements.length).toBe(3); // Takes recipeId, system, version
     });
   });
 

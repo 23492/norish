@@ -3,7 +3,7 @@ import type { CreateRatingsHooksOptions } from "./types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 
-type UserRatingData = { recipeId: string; userRating: number | null };
+type UserRatingData = { recipeId: string; userRating: number | null; version?: number | null };
 
 export function createUseRatingsMutation({ useTRPC }: CreateRatingsHooksOptions) {
   return function useRatingsMutation() {
@@ -22,6 +22,7 @@ export function createUseRatingsMutation({ useTRPC }: CreateRatingsHooksOptions)
           queryClient.setQueryData<UserRatingData>(userRatingQueryKey, {
             recipeId,
             userRating: rating,
+            version: previousUserRating?.version,
           });
 
           return { previousUserRating, userRatingQueryKey };
@@ -30,7 +31,12 @@ export function createUseRatingsMutation({ useTRPC }: CreateRatingsHooksOptions)
     );
 
     return {
-      rateRecipe: (recipeId: string, rating: number) => rateMutation.mutate({ recipeId, rating }),
+      rateRecipe: (recipeId: string, rating: number) => {
+        const userRatingQueryKey = trpc.ratings.getUserRating.queryKey({ recipeId });
+        const previousUserRating = queryClient.getQueryData<UserRatingData>(userRatingQueryKey);
+
+        rateMutation.mutate({ recipeId, rating, version: previousUserRating?.version ?? undefined });
+      },
       isRating: rateMutation.isPending,
     };
   };

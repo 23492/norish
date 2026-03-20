@@ -84,9 +84,9 @@ export default function SearchScreen() {
   const handleDelete = useCallback(
     (id: string) => {
       setDeletingIds((prev) => createNextDeletingIds(prev, id));
-      deleteRecipe(id);
+      deleteRecipe(id, recipeCards.find((recipe) => recipe.id === id)?.version ?? 1);
     },
-    [deleteRecipe],
+    [deleteRecipe, recipeCards],
   );
 
   const canDeleteOwnerRecipe = useCallback(

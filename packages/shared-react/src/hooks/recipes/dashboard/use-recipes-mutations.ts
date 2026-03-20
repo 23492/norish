@@ -17,8 +17,8 @@ export type RecipesMutationsResult = {
   importRecipeFromPasteWithAI: (text: string) => void;
   createRecipe: (input: FullRecipeInsertDTO) => void;
   updateRecipe: (id: string, input: FullRecipeUpdateDTO) => void;
-  deleteRecipe: (id: string) => void;
-  convertMeasurements: (recipeId: string, system: MeasurementSystem) => void;
+  deleteRecipe: (id: string, version: number) => void;
+  convertMeasurements: (recipeId: string, system: MeasurementSystem, version: number) => void;
 };
 
 export type RecipesMutationErrorHandler = (error: unknown, operation: string) => void;
@@ -84,7 +84,7 @@ export function createUseRecipesMutations(
 
     const updateRecipe = (id: string, input: FullRecipeUpdateDTO): void => {
       updateMutation.mutate(
-        { id, data: input },
+        { id, version: input.version ?? 1, data: input },
         {
           onError: (e) => {
             onError?.(e, "update");
@@ -94,9 +94,9 @@ export function createUseRecipesMutations(
       );
     };
 
-    const deleteRecipe = (id: string): void => {
+    const deleteRecipe = (id: string, version: number): void => {
       deleteMutation.mutate(
-        { id },
+        { id, version },
         {
           onError: (e) => {
             onError?.(e, "delete");
@@ -106,9 +106,13 @@ export function createUseRecipesMutations(
       );
     };
 
-    const convertMeasurements = (recipeId: string, targetSystem: MeasurementSystem): void => {
+    const convertMeasurements = (
+      recipeId: string,
+      targetSystem: MeasurementSystem,
+      version: number
+    ): void => {
       convertMutation.mutate(
-        { recipeId, targetSystem },
+        { recipeId, targetSystem, version },
         {
           onError: (e) => {
             onError?.(e, "convertMeasurements");

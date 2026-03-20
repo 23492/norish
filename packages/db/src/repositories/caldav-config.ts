@@ -124,7 +124,7 @@ export async function saveCaldavConfig(
   return result.data;
 }
 
-export async function deleteCaldavConfig(userId: string): Promise<void> {
+export async function deleteCaldavConfig(userId: string, _version?: number): Promise<void> {
   await db.delete(userCaldavConfig).where(eq(userCaldavConfig.userId, userId));
 }
 

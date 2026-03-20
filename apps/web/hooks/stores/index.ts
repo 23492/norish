@@ -6,7 +6,7 @@ export const useStoresQuery = sharedStoresHooks.useStoresQuery;
 export type { StoresQueryResult, StoresData } from "@norish/shared-react/hooks";
 
 export const useStoresMutations = sharedStoresHooks.useStoresMutations;
-export type { StoresMutationsResult } from "@norish/shared-react/hooks";
+export type { StoreUpdateDraft, StoresMutationsResult } from "@norish/shared-react/hooks";
 
 export const useStoresSubscription = sharedStoresHooks.useStoresSubscription;
 

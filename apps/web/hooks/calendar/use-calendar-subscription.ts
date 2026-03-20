@@ -78,6 +78,7 @@ export function useCalendarSubscription(startISO: string, endISO: string) {
                 date: payload.item.date,
                 slot: payload.item.slot,
                 sortOrder: payload.item.sortOrder,
+                version: payload.item.version ?? item.version,
                 updatedAt: new Date(),
               };
             }
@@ -129,6 +130,7 @@ export function useCalendarSubscription(startISO: string, endISO: string) {
                 recipeImage: payload.item.recipeImage,
                 servings: payload.item.servings,
                 calories: payload.item.calories,
+                version: payload.item.version ?? item.version,
                 updatedAt: new Date(),
               };
             }

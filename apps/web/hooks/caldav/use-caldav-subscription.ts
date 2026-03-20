@@ -56,17 +56,18 @@ export function useCaldavSubscription() {
           setStatuses((prev) => {
             if (!prev) return prev;
 
-            const { itemId, itemType, syncStatus, errorMessage, caldavEventUid } = payload;
+            const { itemId, itemType, syncStatus, errorMessage, caldavEventUid, version } = payload;
 
             const updatedStatuses = prev.statuses.map((status) => {
               if (status.itemId === itemId && status.itemType === itemType) {
                 return {
                   ...status,
-                  syncStatus: syncStatus as CaldavSyncStatus,
-                  errorMessage,
-                  caldavEventUid,
-                  lastSyncAt: new Date(),
-                } satisfies CaldavSyncStatusViewDto;
+                    syncStatus: syncStatus as CaldavSyncStatus,
+                    errorMessage,
+                    caldavEventUid,
+                    version,
+                    lastSyncAt: new Date(),
+                  } satisfies CaldavSyncStatusViewDto;
               }
 
               return status;
@@ -111,7 +112,7 @@ export function useCaldavItemStatusSubscription() {
     trpc.caldavSubscriptions.onItemStatusUpdated.subscriptionOptions(undefined, {
       onData: ({ payload }: any) => {
         const data = payload;
-        const { itemId, itemType, syncStatus, errorMessage, caldavEventUid } = data;
+        const { itemId, itemType, syncStatus, errorMessage, caldavEventUid, version } = data;
 
         setStatuses((prev) => {
           if (!prev) return prev;
@@ -123,6 +124,7 @@ export function useCaldavItemStatusSubscription() {
                 syncStatus: syncStatus as CaldavSyncStatus,
                 errorMessage,
                 caldavEventUid,
+                version,
                 lastSyncAt: new Date(),
               } satisfies CaldavSyncStatusViewDto;
             }

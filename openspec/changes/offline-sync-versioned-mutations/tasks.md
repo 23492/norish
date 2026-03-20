@@ -13,5 +13,5 @@ Owner-owned migration step: the repository owner, not the agent, will run the ro
 
 ## 3. Verification
 
-- [ ] 3.1 Add regression coverage for version initialization and increment behavior on representative mutable entity families.
-- [ ] 3.2 Add compile or contract-level verification for manual DTOs and payloads that now must carry `version`.
+- [x] 3.1 Add regression coverage for version initialization and increment behavior on representative mutable entity families.
+- [x] 3.2 Add compile or contract-level verification for manual DTOs and payloads that now must carry `version`.

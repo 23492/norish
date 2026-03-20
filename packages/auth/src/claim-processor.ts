@@ -285,7 +285,10 @@ export async function processClaimsForUser(
     const existingMemberIds = existingMembers.map((m) => m.userId);
 
     // Add user to household
-    await addUserToHousehold({ householdId: household.id, userId });
+    const membership = (await addUserToHousehold({
+      householdId: household.id,
+      userId,
+    })) as Awaited<ReturnType<typeof addUserToHousehold>> & { version: number };
 
     authLogger.info(
       { userId, householdId: household.id, householdName: claims.householdName },
@@ -294,11 +297,12 @@ export async function processClaimsForUser(
 
     // Emit WebSocket events for real-time sync
     const user = await getUserById(userId);
-    const userInfo: HouseholdUserInfo = {
+    const userInfo = {
       id: userId,
       name: user?.name ?? null,
       isAdmin: false,
-    };
+      version: membership.version,
+    } as HouseholdUserInfo;
 
     // Notify existing household members about the new user
     householdEmitter.emitToHousehold(household.id, "userJoined", { user: userInfo });

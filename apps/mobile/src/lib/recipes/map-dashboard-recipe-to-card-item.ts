@@ -17,6 +17,7 @@ export function mapDashboardRecipeToCardItem(
   const imageSource = resolveImageUrl(recipe.image, backendBaseUrl, authCookie);
   return {
     id: recipe.id,
+    version: recipe.version,
     ownerId: recipe.userId,
     imageUrl: imageSource?.uri ?? '',
     imageHeaders: imageSource?.headers,

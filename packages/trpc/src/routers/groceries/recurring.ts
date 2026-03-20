@@ -91,7 +91,9 @@ const updateRecurring = authedProcedure
   .input(
     z.object({
       recurringGroceryId: z.string(),
+      recurringVersion: z.number().int().positive(),
       groceryId: z.string(),
+      groceryVersion: z.number().int().positive(),
       data: z.object({
         name: z.string().optional(),
         amount: z.number().nullable().optional(),
@@ -104,7 +106,7 @@ const updateRecurring = authedProcedure
     })
   )
   .mutation(({ ctx, input }) => {
-    const { recurringGroceryId, groceryId, data } = input;
+    const { recurringGroceryId, recurringVersion, groceryId, groceryVersion, data } = input;
 
     log.debug({ userId: ctx.user.id, recurringGroceryId, groceryId }, "Updating recurring grocery");
 
@@ -119,10 +121,15 @@ const updateRecurring = authedProcedure
 
         await assertHouseholdAccess(ctx.user.id, ownerId);
 
-        const updated = await updateRecurringGrocery({ id: recurringGroceryId, ...data });
+        const updated = await updateRecurringGrocery({
+          id: recurringGroceryId,
+          version: recurringVersion,
+          ...data,
+        });
 
         const grocery = await updateGrocery({
           id: groceryId,
+          version: groceryVersion,
           name: updated.name,
           unit: updated.unit || null,
           amount: updated.amount,
@@ -153,7 +160,12 @@ const updateRecurring = authedProcedure
   });
 
 const deleteRecurring = authedProcedure
-  .input(z.object({ recurringGroceryId: z.string() }))
+  .input(
+    z.object({
+      recurringGroceryId: z.string(),
+      version: z.number().int().positive(),
+    })
+  )
   .mutation(({ ctx, input }) => {
     const { recurringGroceryId } = input;
 
@@ -193,12 +205,14 @@ const checkRecurring = authedProcedure
   .input(
     z.object({
       recurringGroceryId: z.string(),
+      recurringVersion: z.number().int().positive(),
       groceryId: z.string(),
+      groceryVersion: z.number().int().positive(),
       isDone: z.boolean(),
     })
   )
   .mutation(({ ctx, input }) => {
-    const { recurringGroceryId, groceryId, isDone } = input;
+    const { recurringGroceryId, recurringVersion, groceryId, groceryVersion, isDone } = input;
     const checkedDate = getTodayString();
 
     log.debug(
@@ -226,7 +240,7 @@ const checkRecurring = authedProcedure
           });
         }
 
-        const updated = await updateGrocery({ id: groceryId, isDone });
+        const updated = await updateGrocery({ id: groceryId, version: groceryVersion, isDone });
 
         if (!updated) {
           throw new TRPCError({
@@ -250,6 +264,7 @@ const checkRecurring = authedProcedure
 
           const updatedRecurring = await updateRecurringGrocery({
             id: recurringGroceryId,
+            version: recurringVersion,
             lastCheckedDate: checkedDate,
             nextPlannedFor: nextDate,
           });

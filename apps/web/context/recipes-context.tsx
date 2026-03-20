@@ -39,7 +39,7 @@ type Ctx = {
   importRecipeWithAI: (url: string) => void;
   createRecipe: (input: FullRecipeInsertDTO) => void;
   updateRecipe: (id: string, input: FullRecipeUpdateDTO) => void;
-  deleteRecipe: (id: string) => void;
+  deleteRecipe: (id: string, version: number) => void;
   invalidate: () => void;
   openRecipe: (id: string) => void;
 };

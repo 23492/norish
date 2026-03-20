@@ -20,6 +20,11 @@ import {
 import { trpcLogger as log } from "@norish/shared-server/logger";
 import { deleteAvatarByFilename } from "@norish/shared-server/media/avatar-cleanup";
 import { IMAGE_MIME_TO_EXTENSION } from "@norish/shared/contracts";
+import {
+  DeleteUserAvatarInputSchema,
+  UpdateUserNameInputSchema,
+  UpdateUserPreferencesInputSchema,
+} from "@norish/shared/contracts/zod";
 import { UpdateUserAllergiesSchema } from "@norish/shared/contracts/zod/user-allergies";
 import { buildAvatarFilename, isAvatarFilenameForUser } from "@norish/shared/lib/helpers";
 
@@ -27,8 +32,6 @@ import { emitConnectionInvalidation } from "../../connection-manager";
 import { authedProcedure } from "../../middleware";
 import { router } from "../../trpc";
 import { householdEmitter } from "../households/emitter";
-
-import { UpdateNameInputSchema, UpdatePreferencesInputSchema } from "./types";
 
 /**
  * Get current user settings (user profile + API keys)
@@ -48,6 +51,7 @@ const get = authedProcedure.query(async ({ ctx }) => {
       email: freshUser?.email ?? ctx.user.email,
       name: freshUser?.name ?? ctx.user.name,
       image: freshUser?.image ?? ctx.user.image,
+      version: freshUser?.version ?? 1,
       preferences: preferences as any,
     },
     apiKeys: apiKeys.map((k) => ({
@@ -65,7 +69,7 @@ const get = authedProcedure.query(async ({ ctx }) => {
  */
 
 const updatePreferences = authedProcedure
-  .input(UpdatePreferencesInputSchema)
+  .input(UpdateUserPreferencesInputSchema)
   .mutation(async ({ ctx, input }) => {
     log.debug({ userId: ctx.user.id, updates: input.preferences }, "Updating user preferences");
 
@@ -73,32 +77,41 @@ const updatePreferences = authedProcedure
     const merged = { ...(current ?? {}), ...(input.preferences ?? {}) };
 
     await updateUserPreferences(ctx.user.id, merged);
+    const updatedUser = await getUserById(ctx.user.id);
 
-    return { success: true, preferences: merged };
+    return {
+      success: true,
+      preferences: merged,
+      version: updatedUser?.version ?? input.version,
+    };
   });
 
 /**
  * Update user name
  */
-const updateName = authedProcedure.input(UpdateNameInputSchema).mutation(async ({ ctx, input }) => {
-  log.debug({ userId: ctx.user.id }, "Updating user name");
+const updateName = authedProcedure
+  .input(UpdateUserNameInputSchema)
+  .mutation(async ({ ctx, input }) => {
+    log.debug({ userId: ctx.user.id }, "Updating user name");
 
-  const trimmedName = input.name.trim();
+    const trimmedName = input.name.trim();
 
-  if (!trimmedName) {
-    return { success: false, error: "Name cannot be empty" };
-  }
+    if (!trimmedName) {
+      return { success: false, error: "Name cannot be empty" };
+    }
 
-  await updateUserName(ctx.user.id, trimmedName);
+    await updateUserName(ctx.user.id, trimmedName);
+    const updatedUser = await getUserById(ctx.user.id);
 
-  return {
-    success: true,
-    user: {
-      ...ctx.user,
-      name: trimmedName,
-    },
-  };
-});
+    if (!updatedUser) {
+      return { success: false, error: "User not found" };
+    }
+
+    return {
+      success: true,
+      user: updatedUser,
+    };
+  });
 
 /**
  * Upload user avatar (FormData input)
@@ -109,9 +122,14 @@ const uploadAvatar = authedProcedure
     log.debug({ userId: ctx.user.id }, "Uploading avatar");
 
     const file = input.get("file") as File | null;
+    const version = Number(input.get("version"));
 
     if (!file) {
       return { success: false, error: "No file provided" };
+    }
+
+    if (!Number.isInteger(version) || version < 1) {
+      return { success: false, error: "Current user version is required" };
     }
 
     // Validate mime type
@@ -160,23 +178,27 @@ const uploadAvatar = authedProcedure
 
     // Update database
     await updateUserAvatar(ctx.user.id, protectedPath);
+    const updatedUser = await getUserById(ctx.user.id);
+
+    if (!updatedUser) {
+      return { success: false, error: "User not found" };
+    }
 
     log.info({ userId: ctx.user.id, path: protectedPath }, "Avatar uploaded");
 
     return {
       success: true,
-      user: {
-        ...ctx.user,
-        image: protectedPath,
-      },
+      user: updatedUser,
     };
   });
 
 /**
  * Delete user avatar
  */
-const deleteAvatar = authedProcedure.mutation(async ({ ctx }) => {
-  log.debug({ userId: ctx.user.id }, "Deleting avatar");
+const deleteAvatar = authedProcedure
+  .input(DeleteUserAvatarInputSchema)
+  .mutation(async ({ ctx }) => {
+    log.debug({ userId: ctx.user.id }, "Deleting avatar");
 
   const avatarDir = path.join(SERVER_CONFIG.UPLOADS_DIR, "avatars");
 
@@ -192,19 +214,21 @@ const deleteAvatar = authedProcedure.mutation(async ({ ctx }) => {
     // Ignore errors
   }
 
-  // Clear from database
-  await clearUserAvatar(ctx.user.id);
+    // Clear from database
+    await clearUserAvatar(ctx.user.id);
+    const updatedUser = await getUserById(ctx.user.id);
 
-  log.info({ userId: ctx.user.id }, "Avatar deleted");
+    if (!updatedUser) {
+      return { success: false, error: "User not found" };
+    }
 
-  return {
-    success: true,
-    user: {
-      ...ctx.user,
-      image: null,
-    },
-  };
-});
+    log.info({ userId: ctx.user.id }, "Avatar deleted");
+
+    return {
+      success: true,
+      user: updatedUser,
+    };
+  });
 
 /**
  * Delete user account
@@ -259,7 +283,7 @@ const getAllergies = authedProcedure.query(async ({ ctx }) => {
 
   const allergies = await getUserAllergies(ctx.user.id);
 
-  return { allergies };
+  return allergies;
 });
 
 /**
@@ -270,7 +294,8 @@ const setAllergies = authedProcedure
   .mutation(async ({ ctx, input }) => {
     log.debug({ userId: ctx.user.id, count: input.allergies.length }, "Updating user allergies");
 
-    await updateUserAllergies(ctx.user.id, input.allergies);
+    await updateUserAllergies(ctx.user.id, input.allergies, input.version);
+    const updatedAllergies = await getUserAllergies(ctx.user.id);
 
     if (ctx.household) {
       const userIds = ctx.household.users.map((u) => u.id);
@@ -288,7 +313,11 @@ const setAllergies = authedProcedure
 
     log.info({ userId: ctx.user.id, allergies: input.allergies }, "User allergies updated");
 
-    return { success: true, allergies: input.allergies };
+    return {
+      success: true,
+      allergies: updatedAllergies.allergies,
+      version: updatedAllergies.version,
+    };
   });
 
 export const userProcedures = router({

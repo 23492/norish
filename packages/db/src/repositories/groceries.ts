@@ -329,7 +329,7 @@ export async function getGroceryOwnerIds(groceryIds: string[]): Promise<Map<stri
  * Optionally updates storeId for items that moved between stores
  */
 export async function reorderGroceriesInStore(
-  updates: { id: string; sortOrder: number; storeId?: string | null }[]
+  updates: { id: string; version: number; sortOrder: number; storeId?: string | null }[]
 ): Promise<GroceryDto[]> {
   if (updates.length === 0) return [];
 
@@ -374,20 +374,27 @@ export async function reorderGroceriesInStore(
  */
 export async function markAllDoneInStore(
   userIds: string[],
-  storeId: string | null
+  storeId: string | null,
+  groceriesToMark?: Array<{ id: string; version: number }>
 ): Promise<GroceryDto[]> {
   if (userIds.length === 0) return [];
+  const groceryIds = groceriesToMark?.map((grocery) => grocery.id) ?? [];
+
+  if (groceriesToMark && groceryIds.length === 0) return [];
+  const whereConditions = [
+    inArray(groceries.userId, userIds),
+    eq(groceries.isDone, false),
+    storeId ? eq(groceries.storeId, storeId) : isNull(groceries.storeId),
+  ];
+
+  if (groceryIds.length > 0) {
+    whereConditions.push(inArray(groceries.id, groceryIds));
+  }
 
   const rows = await db
     .update(groceries)
     .set({ isDone: true, updatedAt: new Date(), version: sql`${groceries.version} + 1` })
-    .where(
-      and(
-        inArray(groceries.userId, userIds),
-        eq(groceries.isDone, false),
-        storeId ? eq(groceries.storeId, storeId) : isNull(groceries.storeId)
-      )
-    )
+    .where(and(...whereConditions))
     .returning();
 
   const parsed = z.array(GrocerySelectBaseSchema).safeParse(rows);
@@ -403,19 +410,26 @@ export async function markAllDoneInStore(
  */
 export async function deleteDoneInStore(
   userIds: string[],
-  storeId: string | null
+  storeId: string | null,
+  groceriesToDelete?: Array<{ id: string; version: number }>
 ): Promise<string[]> {
   if (userIds.length === 0) return [];
+  const groceryIds = groceriesToDelete?.map((grocery) => grocery.id) ?? [];
+
+  if (groceriesToDelete && groceryIds.length === 0) return [];
+  const whereConditions = [
+    inArray(groceries.userId, userIds),
+    eq(groceries.isDone, true),
+    storeId ? eq(groceries.storeId, storeId) : isNull(groceries.storeId),
+  ];
+
+  if (groceryIds.length > 0) {
+    whereConditions.push(inArray(groceries.id, groceryIds));
+  }
 
   const rows = await db
     .delete(groceries)
-    .where(
-      and(
-        inArray(groceries.userId, userIds),
-        eq(groceries.isDone, true),
-        storeId ? eq(groceries.storeId, storeId) : isNull(groceries.storeId)
-      )
-    )
+    .where(and(...whereConditions))
     .returning({ id: groceries.id });
 
   return rows.map((r) => r.id);
@@ -427,7 +441,8 @@ export async function deleteDoneInStore(
 export async function assignGroceryToStore(
   groceryId: string,
   newStoreId: string | null,
-  _householdUserIds: string[]
+  _householdUserIds: string[],
+  _version?: number
 ): Promise<GroceryDto> {
   const [updated] = await db
     .update(groceries)

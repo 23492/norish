@@ -148,7 +148,7 @@ export async function updateSiteAuthToken(
   return toSafeToken(parsed);
 }
 
-export async function deleteSiteAuthToken(userId: string, tokenId: string): Promise<void> {
+export async function deleteSiteAuthToken(userId: string, tokenId: string, _version: number): Promise<void> {
   const result = await db
     .delete(siteAuthTokens)
     .where(and(eq(siteAuthTokens.id, tokenId), eq(siteAuthTokens.userId, userId)))

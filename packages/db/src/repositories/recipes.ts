@@ -32,6 +32,7 @@ import {
   recipes,
   recipeTags,
   recipeVideos,
+  stepImages,
   steps as stepsTable,
   tags,
 } from "../schema";
@@ -42,7 +43,7 @@ import {
   RecipeDashboardSchema,
 } from "../zodSchemas";
 
-import { attachIngredientsToRecipeByInputTx } from "./ingredients";
+import { attachIngredientsToRecipeByInputTx, getOrCreateManyIngredientsTx } from "./ingredients";
 import { getConfig } from "./server-config";
 import { createManyRecipeStepsTx } from "./steps";
 import { attachTagsToRecipeByInputTx } from "./tags";
@@ -447,7 +448,7 @@ export async function listRecipes(
       },
       with: {
         recipeTags: {
-          with: { tag: { columns: { id: true, name: true } } },
+          with: { tag: { columns: { id: true, name: true, version: true } } },
           orderBy: (rt, { asc }) => [asc(rt.order)],
         },
         ratings: {
@@ -489,10 +490,11 @@ export async function listRecipes(
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
       version: r.version,
-      tags: (r.recipeTags ?? [])
-        .map((rt: { tag?: { name?: string } | null }) => rt.tag?.name)
-        .filter((name: string | undefined | null): name is string => Boolean(name))
-        .map((name) => ({ name })),
+      tags: (r.recipeTags ?? []).flatMap((rt: { tag?: { name?: string; version?: number } | null }) =>
+        rt.tag && typeof rt.tag.name === "string" && typeof rt.tag.version === "number"
+          ? [{ name: rt.tag.name, version: rt.tag.version }]
+          : []
+      ),
       averageRating,
       ratingCount,
     };
@@ -542,7 +544,7 @@ export async function dashboardRecipe(id: string): Promise<RecipeDashboardDTO | 
       recipeTags: {
         columns: {},
         with: {
-          tag: { columns: { id: true, name: true } },
+          tag: { columns: { id: true, name: true, version: true } },
         },
         orderBy: (rt, { asc }) => [asc(rt.order)],
       },
@@ -582,9 +584,9 @@ export async function dashboardRecipe(id: string): Promise<RecipeDashboardDTO | 
     updatedAt: r.updatedAt,
     version: r.version,
     tags: (r.recipeTags ?? [])
-      .map((rt: any) => rt.tag?.name)
-      .filter(nonEmpty)
-      .map((name: string) => ({ name })),
+      .map((rt: any) => rt.tag)
+      .filter((tag: { name?: string; version?: number } | null | undefined) => tag?.name)
+      .map((tag: { name: string; version: number }) => ({ name: tag.name, version: tag.version })),
     averageRating,
     ratingCount,
   };
@@ -762,7 +764,7 @@ export async function getRecipeFull(id: string): Promise<FullRecipeDTO | null> {
     with: {
       recipeTags: {
         columns: {},
-        with: { tag: { columns: { id: true, name: true } } },
+        with: { tag: { columns: { id: true, name: true, version: true } } },
         orderBy: (rt, { asc }) => [asc(rt.order)],
       },
       ingredients: {
@@ -773,23 +775,24 @@ export async function getRecipeFull(id: string): Promise<FullRecipeDTO | null> {
           unit: true,
           systemUsed: true,
           order: true,
+          version: true,
         },
         with: { ingredient: { columns: { name: true } } },
       },
       steps: {
-        columns: { step: true, systemUsed: true, order: true },
+        columns: { step: true, systemUsed: true, order: true, version: true },
         with: {
           images: {
-            columns: { id: true, image: true, order: true },
+            columns: { id: true, image: true, order: true, version: true },
           },
         },
       },
       images: {
-        columns: { id: true, image: true, order: true },
+        columns: { id: true, image: true, order: true, version: true },
         orderBy: (images, { asc }) => [asc(images.order)],
       },
       videos: {
-        columns: { id: true, video: true, thumbnail: true, duration: true, order: true },
+        columns: { id: true, video: true, thumbnail: true, duration: true, order: true, version: true },
         orderBy: (videos, { asc }) => [asc(videos.order)],
       },
     },
@@ -798,7 +801,7 @@ export async function getRecipeFull(id: string): Promise<FullRecipeDTO | null> {
   if (!full) return null;
 
   // fetch author if exists
-  let author: { id: string; name: string | null; image: string | null } | undefined;
+  let author: { id: string; name: string | null; image: string | null; version: number } | undefined;
 
   if (full.userId) {
     const { getUserAuthorInfo } = await import("./users");
@@ -831,19 +834,21 @@ export async function getRecipeFull(id: string): Promise<FullRecipeDTO | null> {
       step: s.step,
       systemUsed: s.systemUsed,
       order: s.order,
+      version: s.version,
       images: (s.images ?? []).map((img: any) => ({
         id: img.id,
         image: img.image,
         order: Number(img.order) || 0,
+        version: img.version,
       })),
     })),
     createdAt: full.createdAt,
     updatedAt: full.updatedAt,
     version: full.version,
     tags: (full.recipeTags ?? [])
-      .map((rt: any) => rt.tag?.name)
-      .filter(nonEmpty)
-      .map((name: string) => ({ name })),
+      .map((rt: any) => rt.tag)
+      .filter((tag: { name?: string; version?: number } | null | undefined) => tag?.name)
+      .map((tag: { name: string; version: number }) => ({ name: tag.name, version: tag.version })),
     recipeIngredients: ((full.ingredients as any) ?? []).map((ri: any) => ({
       id: ri.id,
       ingredientId: ri.ingredientId,
@@ -852,12 +857,14 @@ export async function getRecipeFull(id: string): Promise<FullRecipeDTO | null> {
       systemUsed: ri.systemUsed,
       ingredientName: ri.ingredient?.name ?? "",
       order: ri.order,
+      version: ri.version,
     })),
     author,
     images: (full.images ?? []).map((img: any) => ({
       id: img.id,
       image: img.image,
       order: Number(img.order) || 0,
+      version: img.version,
     })),
     videos: (full.videos ?? []).map((vid: any) => ({
       id: vid.id,
@@ -865,6 +872,7 @@ export async function getRecipeFull(id: string): Promise<FullRecipeDTO | null> {
       thumbnail: vid.thumbnail ?? null,
       duration: vid.duration ?? null,
       order: Number(vid.order) || 0,
+      version: vid.version,
     })),
   };
 
@@ -904,6 +912,242 @@ export async function addStepsAndIngredientsToRecipeByInput(
       ingredients: createdIngredients,
     };
   });
+}
+
+async function resolveRecipeIngredientIdsTx(tx: any, inputs: NonNullable<FullRecipeUpdateDTO["recipeIngredients"]>) {
+  const names = Array.from(
+    new Set(inputs.map((item) => item.ingredientName?.trim() ?? "").filter(Boolean))
+  );
+  const resolvedIngredients = names.length > 0 ? await getOrCreateManyIngredientsTx(tx, names) : [];
+
+  return inputs.map((item) => ({
+    ...item,
+    ingredientId:
+      item.ingredientId ??
+      resolvedIngredients.find(
+        (ingredient) => ingredient.name.toLowerCase().trim() === item.ingredientName?.toLowerCase().trim()
+      )?.id ??
+      null,
+  }));
+}
+
+async function syncRecipeIngredientsTx(
+  tx: any,
+  recipeId: string,
+  systemUsed: MeasurementSystem,
+  inputs: NonNullable<FullRecipeUpdateDTO["recipeIngredients"]>
+): Promise<void> {
+  const existing = await tx
+    .select({ id: recipeIngredients.id })
+    .from(recipeIngredients)
+    .where(and(eq(recipeIngredients.recipeId, recipeId), eq(recipeIngredients.systemUsed, systemUsed)));
+  const existingById = new Map(existing.map((row: { id: string }) => [row.id, row]));
+  const resolvedInputs = await resolveRecipeIngredientIdsTx(tx, inputs);
+  const retainedIds = new Set<string>();
+
+  for (const [index, ingredient] of resolvedInputs.entries()) {
+    if (!ingredient.ingredientId) continue;
+
+    const values = {
+      ingredientId: ingredient.ingredientId,
+      amount: ingredient.amount ?? null,
+      unit: ingredient.unit ?? null,
+      order: ingredient.order ?? index,
+      systemUsed: ingredient.systemUsed ?? systemUsed,
+    };
+
+    if (ingredient.id && existingById.has(ingredient.id)) {
+      retainedIds.add(ingredient.id);
+      await tx
+        .update(recipeIngredients)
+        .set({ ...values, version: sql`${recipeIngredients.version} + 1` })
+        .where(eq(recipeIngredients.id, ingredient.id));
+      continue;
+    }
+
+    await tx.insert(recipeIngredients).values({
+      recipeId,
+      ...values,
+    });
+  }
+
+  const idsToDelete = existing
+    .map((row: { id: string }) => row.id)
+    .filter((id: string) => !retainedIds.has(id));
+
+  if (idsToDelete.length > 0) {
+    await tx.delete(recipeIngredients).where(inArray(recipeIngredients.id, idsToDelete));
+  }
+}
+
+async function syncStepImagesTx(
+  tx: any,
+  stepId: string,
+  images: Array<{ id?: string; image: string; order?: unknown; version?: number }>
+): Promise<void> {
+  const existing = await tx
+    .select({ id: stepImages.id })
+    .from(stepImages)
+    .where(eq(stepImages.stepId, stepId));
+  const existingById = new Map(existing.map((row: { id: string }) => [row.id, row]));
+  const retainedIds = new Set<string>();
+
+  for (const [index, image] of images.entries()) {
+    const values = {
+      image: image.image,
+      order: String(typeof image.order === "number" ? image.order : index),
+    };
+
+    if (image.id && existingById.has(image.id)) {
+      retainedIds.add(image.id);
+      await tx
+        .update(stepImages)
+        .set({ ...values, version: sql`${stepImages.version} + 1` })
+        .where(eq(stepImages.id, image.id));
+      continue;
+    }
+
+    await tx.insert(stepImages).values({ stepId, ...values });
+  }
+
+  const idsToDelete = existing
+    .map((row: { id: string }) => row.id)
+    .filter((id: string) => !retainedIds.has(id));
+
+  if (idsToDelete.length > 0) {
+    await tx.delete(stepImages).where(inArray(stepImages.id, idsToDelete));
+  }
+}
+
+async function syncRecipeStepsTx(
+  tx: any,
+  recipeId: string,
+  systemUsed: MeasurementSystem,
+  inputs: NonNullable<FullRecipeUpdateDTO["steps"]>
+): Promise<void> {
+  const normalized = inputs
+    .map((step, index) => ({
+      ...step,
+      order: step.order ?? index,
+      step: stripHtmlTags(step.step),
+    }))
+    .filter((step) => step.step.length > 0);
+  const existing = await tx
+    .select({ id: stepsTable.id })
+    .from(stepsTable)
+    .where(and(eq(stepsTable.recipeId, recipeId), eq(stepsTable.systemUsed, systemUsed)))
+    .orderBy(asc(stepsTable.order));
+
+  for (const [index, step] of normalized.entries()) {
+    const existingStep = existing[index];
+    const values = {
+      recipeId,
+      step: step.step,
+      order: index,
+      systemUsed: step.systemUsed ?? systemUsed,
+    };
+
+    if (existingStep) {
+      await tx
+        .update(stepsTable)
+        .set({ ...values, version: sql`${stepsTable.version} + 1` })
+        .where(eq(stepsTable.id, existingStep.id));
+      await syncStepImagesTx(tx, existingStep.id, step.images ?? []);
+      continue;
+    }
+
+    const [insertedStep] = await tx.insert(stepsTable).values(values).returning({ id: stepsTable.id });
+
+    if (insertedStep) {
+      await syncStepImagesTx(tx, insertedStep.id, step.images ?? []);
+    }
+  }
+
+  const idsToDelete = existing.slice(normalized.length).map((row: { id: string }) => row.id);
+
+  if (idsToDelete.length > 0) {
+    await tx.delete(stepsTable).where(inArray(stepsTable.id, idsToDelete));
+  }
+}
+
+async function syncRecipeImagesTx(
+  tx: any,
+  recipeId: string,
+  images: NonNullable<FullRecipeUpdateDTO["images"]>
+): Promise<void> {
+  const existing = await tx
+    .select({ id: recipeImages.id })
+    .from(recipeImages)
+    .where(eq(recipeImages.recipeId, recipeId));
+  const existingById = new Map(existing.map((row: { id: string }) => [row.id, row]));
+  const retainedIds = new Set<string>();
+
+  for (const [index, image] of images.entries()) {
+    const values = {
+      image: image.image,
+      order: String(image.order ?? index),
+    };
+
+    if (image.id && existingById.has(image.id)) {
+      retainedIds.add(image.id);
+      await tx
+        .update(recipeImages)
+        .set({ ...values, version: sql`${recipeImages.version} + 1` })
+        .where(eq(recipeImages.id, image.id));
+      continue;
+    }
+
+    await tx.insert(recipeImages).values({ recipeId, ...values });
+  }
+
+  const idsToDelete = existing
+    .map((row: { id: string }) => row.id)
+    .filter((id: string) => !retainedIds.has(id));
+
+  if (idsToDelete.length > 0) {
+    await tx.delete(recipeImages).where(inArray(recipeImages.id, idsToDelete));
+  }
+}
+
+async function syncRecipeVideosTx(
+  tx: any,
+  recipeId: string,
+  videos: NonNullable<FullRecipeUpdateDTO["videos"]>
+): Promise<void> {
+  const existing = await tx
+    .select({ id: recipeVideos.id })
+    .from(recipeVideos)
+    .where(eq(recipeVideos.recipeId, recipeId));
+  const existingById = new Map(existing.map((row: { id: string }) => [row.id, row]));
+  const retainedIds = new Set<string>();
+
+  for (const [index, video] of videos.entries()) {
+    const values = {
+      video: video.video,
+      thumbnail: video.thumbnail ?? null,
+      duration: video.duration != null ? String(video.duration) : null,
+      order: String(video.order ?? index),
+    };
+
+    if (video.id && existingById.has(video.id)) {
+      retainedIds.add(video.id);
+      await tx
+        .update(recipeVideos)
+        .set({ ...values, version: sql`${recipeVideos.version} + 1` })
+        .where(eq(recipeVideos.id, video.id));
+      continue;
+    }
+
+    await tx.insert(recipeVideos).values({ recipeId, ...values });
+  }
+
+  const idsToDelete = existing
+    .map((row: { id: string }) => row.id)
+    .filter((id: string) => !retainedIds.has(id));
+
+  if (idsToDelete.length > 0) {
+    await tx.delete(recipeVideos).where(inArray(recipeVideos.id, idsToDelete));
+  }
 }
 
 export async function updateRecipeWithRefs(
@@ -976,23 +1220,10 @@ export async function updateRecipeWithRefs(
 
       // Only delete ingredients for the system being updated (preserve other systems)
       if (systemToUpdate) {
-        await tx
-          .delete(recipeIngredients)
-          .where(
-            and(
-              eq(recipeIngredients.recipeId, recipeId),
-              eq(recipeIngredients.systemUsed, systemToUpdate)
-            )
-          );
-      } else {
-        // If we still can't determine the system, this is an error
-        throw new Error("Cannot determine which measurement system to update.");
-      }
-
-      // Add new ones
-      if (payload.recipeIngredients.length > 0) {
-        await attachIngredientsToRecipeByInputTx(
+        await syncRecipeIngredientsTx(
           tx,
+          recipeId,
+          systemToUpdate,
           payload.recipeIngredients.map((ri) => ({
             ...ri,
             recipeId,
@@ -1001,6 +1232,9 @@ export async function updateRecipeWithRefs(
             order: ri.order ?? 0,
           }))
         );
+      } else {
+        // If we still can't determine the system, this is an error
+        throw new Error("Cannot determine which measurement system to update.");
       }
     }
 
@@ -1021,60 +1255,21 @@ export async function updateRecipeWithRefs(
 
       // Only delete steps for the system being updated (preserve other systems)
       if (systemToUpdate) {
-        await tx
-          .delete(stepsTable)
-          .where(and(eq(stepsTable.recipeId, recipeId), eq(stepsTable.systemUsed, systemToUpdate)));
+        await syncRecipeStepsTx(tx, recipeId, systemToUpdate, payload.steps);
       } else {
         // If we still can't determine the system, this is an error
         throw new Error("Cannot determine which measurement system to update.");
-      }
-
-      // Add new ones
-      if (payload.steps.length > 0) {
-        await createManyRecipeStepsTx(
-          tx,
-          payload.steps.map((s) => ({
-            ...s,
-            recipeId,
-          }))
-        );
       }
     }
 
     // Replace images if provided
     if (payload.images !== undefined) {
-      // Delete existing images for this recipe
-      await tx.delete(recipeImages).where(eq(recipeImages.recipeId, recipeId));
-
-      // Add new ones
-      if (payload.images.length > 0) {
-        await tx.insert(recipeImages).values(
-          payload.images.map((img) => ({
-            recipeId,
-            image: img.image,
-            order: String(img.order ?? 0),
-          }))
-        );
-      }
+      await syncRecipeImagesTx(tx, recipeId, payload.images);
     }
 
     // Replace videos if provided
     if (payload.videos !== undefined) {
-      // Delete existing videos for this recipe
-      await tx.delete(recipeVideos).where(eq(recipeVideos.recipeId, recipeId));
-
-      // Add new ones
-      if (payload.videos.length > 0) {
-        await tx.insert(recipeVideos).values(
-          payload.videos.map((v) => ({
-            recipeId,
-            video: v.video,
-            thumbnail: v.thumbnail ?? null,
-            duration: v.duration != null ? String(v.duration) : null,
-            order: String(v.order ?? 0),
-          }))
-        );
-      }
+      await syncRecipeVideosTx(tx, recipeId, payload.videos);
     }
   });
 }
@@ -1206,7 +1401,7 @@ export interface RecipeImageInput {
 export async function addRecipeImages(
   recipeId: string,
   images: RecipeImageInput[]
-): Promise<{ id: string; image: string; order: number }[]> {
+): Promise<{ id: string; image: string; order: number; version: number }[]> {
   if (!images.length) return [];
 
   const inserted = await db
@@ -1218,19 +1413,25 @@ export async function addRecipeImages(
         order: String(img.order),
       }))
     )
-    .returning({ id: recipeImages.id, image: recipeImages.image, order: recipeImages.order });
+    .returning({
+      id: recipeImages.id,
+      image: recipeImages.image,
+      order: recipeImages.order,
+      version: recipeImages.version,
+    });
 
   return inserted.map((row) => ({
     id: row.id,
     image: row.image,
     order: Number(row.order) || 0,
+    version: row.version,
   }));
 }
 
 /**
  * Delete a recipe image by ID
  */
-export async function deleteRecipeImageById(imageId: string): Promise<void> {
+export async function deleteRecipeImageById(imageId: string, _version?: number): Promise<void> {
   await db.delete(recipeImages).where(eq(recipeImages.id, imageId));
 }
 
@@ -1239,9 +1440,14 @@ export async function deleteRecipeImageById(imageId: string): Promise<void> {
  */
 export async function getRecipeImages(
   recipeId: string
-): Promise<{ id: string; image: string; order: number }[]> {
+): Promise<{ id: string; image: string; order: number; version: number }[]> {
   const rows = await db
-    .select({ id: recipeImages.id, image: recipeImages.image, order: recipeImages.order })
+    .select({
+      id: recipeImages.id,
+      image: recipeImages.image,
+      order: recipeImages.order,
+      version: recipeImages.version,
+    })
     .from(recipeImages)
     .where(eq(recipeImages.recipeId, recipeId))
     .orderBy(asc(recipeImages.order));
@@ -1250,6 +1456,7 @@ export async function getRecipeImages(
     id: row.id,
     image: row.image,
     order: Number(row.order) || 0,
+    version: row.version,
   }));
 }
 
@@ -1259,7 +1466,7 @@ export async function getRecipeImages(
 export async function updateRecipeImageOrder(imageId: string, newOrder: number): Promise<void> {
   await db
     .update(recipeImages)
-    .set({ order: String(newOrder) })
+    .set({ order: String(newOrder), version: sql`${recipeImages.version} + 1` })
     .where(eq(recipeImages.id, imageId));
 }
 
@@ -1284,7 +1491,7 @@ export async function getRecipeImageById(
 export async function replaceRecipeImages(
   recipeId: string,
   images: RecipeImageInput[]
-): Promise<{ id: string; image: string; order: number }[]> {
+): Promise<{ id: string; image: string; order: number; version: number }[]> {
   return db.transaction(async (tx) => {
     // Delete existing images
     await tx.delete(recipeImages).where(eq(recipeImages.recipeId, recipeId));
@@ -1301,12 +1508,18 @@ export async function replaceRecipeImages(
           order: String(img.order),
         }))
       )
-      .returning({ id: recipeImages.id, image: recipeImages.image, order: recipeImages.order });
+      .returning({
+        id: recipeImages.id,
+        image: recipeImages.image,
+        order: recipeImages.order,
+        version: recipeImages.version,
+      });
 
     return inserted.map((row) => ({
       id: row.id,
       image: row.image,
       order: Number(row.order) || 0,
+      version: row.version,
     }));
   });
 }
@@ -1351,7 +1564,14 @@ export async function addRecipeVideos(
   recipeId: string,
   videos: RecipeVideoInput[]
 ): Promise<
-  { id: string; video: string; thumbnail: string | null; duration: number | null; order: number }[]
+  {
+    id: string;
+    video: string;
+    thumbnail: string | null;
+    duration: number | null;
+    order: number;
+    version: number;
+  }[]
 > {
   if (!videos.length) return [];
 
@@ -1372,6 +1592,7 @@ export async function addRecipeVideos(
       thumbnail: recipeVideos.thumbnail,
       duration: recipeVideos.duration,
       order: recipeVideos.order,
+      version: recipeVideos.version,
     });
 
   return inserted.map((row) => ({
@@ -1380,13 +1601,14 @@ export async function addRecipeVideos(
     thumbnail: row.thumbnail,
     duration: row.duration != null ? Number(row.duration) : null,
     order: Number(row.order) || 0,
+    version: row.version,
   }));
 }
 
 /**
  * Delete a recipe video by ID
  */
-export async function deleteRecipeVideoById(videoId: string): Promise<void> {
+export async function deleteRecipeVideoById(videoId: string, _version?: number): Promise<void> {
   await db.delete(recipeVideos).where(eq(recipeVideos.id, videoId));
 }
 
@@ -1396,7 +1618,14 @@ export async function deleteRecipeVideoById(videoId: string): Promise<void> {
 export async function getRecipeVideos(
   recipeId: string
 ): Promise<
-  { id: string; video: string; thumbnail: string | null; duration: number | null; order: number }[]
+  {
+    id: string;
+    video: string;
+    thumbnail: string | null;
+    duration: number | null;
+    order: number;
+    version: number;
+  }[]
 > {
   const rows = await db
     .select({
@@ -1405,6 +1634,7 @@ export async function getRecipeVideos(
       thumbnail: recipeVideos.thumbnail,
       duration: recipeVideos.duration,
       order: recipeVideos.order,
+      version: recipeVideos.version,
     })
     .from(recipeVideos)
     .where(eq(recipeVideos.recipeId, recipeId))
@@ -1416,6 +1646,7 @@ export async function getRecipeVideos(
     thumbnail: row.thumbnail,
     duration: row.duration != null ? Number(row.duration) : null,
     order: Number(row.order) || 0,
+    version: row.version,
   }));
 }
 
@@ -1425,7 +1656,7 @@ export async function getRecipeVideos(
 export async function updateRecipeVideoOrder(videoId: string, newOrder: number): Promise<void> {
   await db
     .update(recipeVideos)
-    .set({ order: String(newOrder) })
+    .set({ order: String(newOrder), version: sql`${recipeVideos.version} + 1` })
     .where(eq(recipeVideos.id, videoId));
 }
 
@@ -1451,7 +1682,14 @@ export async function replaceRecipeVideos(
   recipeId: string,
   videos: RecipeVideoInput[]
 ): Promise<
-  { id: string; video: string; thumbnail: string | null; duration: number | null; order: number }[]
+  {
+    id: string;
+    video: string;
+    thumbnail: string | null;
+    duration: number | null;
+    order: number;
+    version: number;
+  }[]
 > {
   return db.transaction(async (tx) => {
     // Delete existing videos
@@ -1477,6 +1715,7 @@ export async function replaceRecipeVideos(
         thumbnail: recipeVideos.thumbnail,
         duration: recipeVideos.duration,
         order: recipeVideos.order,
+        version: recipeVideos.version,
       });
 
     return inserted.map((row) => ({
@@ -1485,6 +1724,7 @@ export async function replaceRecipeVideos(
       thumbnail: row.thumbnail,
       duration: row.duration != null ? Number(row.duration) : null,
       order: Number(row.order) || 0,
+      version: row.version,
     }));
   });
 }

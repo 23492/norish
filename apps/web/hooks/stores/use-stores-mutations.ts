@@ -11,7 +11,7 @@ import { useTRPC } from "@/app/providers/trpc-provider";
 
 export type StoresMutationsResult = {
   createStore: (data: StoreCreateDto) => Promise<string>;
-  updateStore: (data: StoreUpdateInput) => void;
+  updateStore: (data: Omit<StoreUpdateInput, "version">) => void;
   deleteStore: (storeId: string, deleteGroceries: boolean) => void;
   reorderStores: (storeIds: string[]) => void;
   isCreating: boolean;
@@ -23,6 +23,9 @@ export type StoresMutationsResult = {
 export function useStoresMutations(): StoresMutationsResult {
   const trpc = useTRPC();
   const { setStoresData, invalidate, stores } = useStoresQuery();
+
+  const getStoreVersion = (storeId: string): number =>
+    stores.find((store) => store.id === storeId)?.version ?? 1;
 
   const createMutation = useMutation(trpc.stores.create.mutationOptions());
   const updateMutation = useMutation(trpc.stores.update.mutationOptions());
@@ -41,6 +44,7 @@ export function useStoresMutations(): StoresMutationsResult {
             color: data.color ?? "primary",
             icon: data.icon ?? "ShoppingBagIcon",
             sortOrder: stores.length,
+            version: 1,
           };
 
           setStoresData((prev) => {
@@ -62,7 +66,7 @@ export function useStoresMutations(): StoresMutationsResult {
     });
   };
 
-  const updateStore = (data: StoreUpdateInput) => {
+  const updateStore = (data: Omit<StoreUpdateInput, "version">) => {
     // Optimistically update
     setStoresData((prev) => {
       if (!prev) return prev;
@@ -70,7 +74,7 @@ export function useStoresMutations(): StoresMutationsResult {
       return prev.map((s) => (s.id === data.id ? { ...s, ...data } : s));
     });
 
-    updateMutation.mutate(data, {
+    updateMutation.mutate({ ...data, version: getStoreVersion(data.id) }, {
       onError: () => invalidate(),
     });
   };
@@ -84,7 +88,7 @@ export function useStoresMutations(): StoresMutationsResult {
     });
 
     deleteMutation.mutate(
-      { storeId, deleteGroceries },
+      { storeId, version: getStoreVersion(storeId), deleteGroceries },
       {
         onError: () => invalidate(),
       }
@@ -107,7 +111,7 @@ export function useStoresMutations(): StoresMutationsResult {
     });
 
     reorderMutation.mutate(
-      { storeIds },
+      { stores: storeIds.map((id) => ({ id, version: getStoreVersion(id) })) },
       {
         onError: () => invalidate(),
       }

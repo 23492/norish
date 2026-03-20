@@ -49,7 +49,7 @@ const remove = authedProcedure
   .input(DeleteSiteAuthTokenInputSchema)
   .mutation(async ({ ctx, input }) => {
     log.debug({ userId: ctx.user.id, tokenId: input.id }, "Deleting site auth token");
-    await deleteSiteAuthToken(ctx.user.id, input.id);
+    await deleteSiteAuthToken(ctx.user.id, input.id, input.version);
     log.info({ userId: ctx.user.id, tokenId: input.id }, "Site auth token deleted");
 
     return { success: true };

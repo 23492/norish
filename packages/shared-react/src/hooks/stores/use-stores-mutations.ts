@@ -1,6 +1,11 @@
 
-import type { StoreCreateDto, StoreDto, StoreUpdateInput } from "@norish/shared/contracts";
-import type { CreateStoresHooksOptions, StoresMutationsResult, StoresQueryResult } from "./types";
+import type { StoreCreateDto, StoreDto } from "@norish/shared/contracts";
+import type {
+  CreateStoresHooksOptions,
+  StoresMutationsResult,
+  StoresQueryResult,
+  StoreUpdateDraft,
+} from "./types";
 
 import { useMutation } from "@tanstack/react-query";
 
@@ -15,6 +20,9 @@ export function createUseStoresMutations({
   return function useStoresMutations(): StoresMutationsResult {
     const trpc = useTRPC();
     const { setStoresData, invalidate, stores } = useStoresQuery();
+
+    const getStoreVersion = (storeId: string): number =>
+      stores.find((store) => store.id === storeId)?.version ?? 1;
 
     const createMutation = useMutation(trpc.stores.create.mutationOptions());
     const updateMutation = useMutation(trpc.stores.update.mutationOptions());
@@ -54,14 +62,14 @@ export function createUseStoresMutations({
       });
     };
 
-    const updateStore = (data: StoreUpdateInput) => {
+    const updateStore = (data: StoreUpdateDraft) => {
       setStoresData((prev) => {
         if (!prev) return prev;
 
         return prev.map((s) => (s.id === data.id ? { ...s, ...data } : s));
       });
 
-      updateMutation.mutate(data, {
+      updateMutation.mutate({ ...data, version: getStoreVersion(data.id) }, {
         onError: () => invalidate(),
       });
     };
@@ -74,7 +82,7 @@ export function createUseStoresMutations({
       });
 
       deleteMutation.mutate(
-        { storeId, deleteGroceries },
+        { storeId, version: getStoreVersion(storeId), deleteGroceries },
         {
           onError: () => invalidate(),
         }
@@ -96,7 +104,9 @@ export function createUseStoresMutations({
       });
 
       reorderMutation.mutate(
-        { storeIds },
+        {
+          stores: storeIds.map((id) => ({ id, version: getStoreVersion(id) })),
+        },
         {
           onError: () => invalidate(),
         }
