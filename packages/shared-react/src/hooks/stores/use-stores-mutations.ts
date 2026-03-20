@@ -32,6 +32,7 @@ export function createUseStoresMutations({
               color: data.color ?? "primary",
               icon: data.icon ?? "ShoppingBagIcon",
               sortOrder: stores.length,
+              version: 1,
             };
 
             setStoresData((prev) => {

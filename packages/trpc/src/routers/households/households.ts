@@ -65,6 +65,7 @@ function toHouseholdDto(
     return {
       id: household.id,
       name: household.name,
+      version: household.version,
       joinCode: isJoinCodeExpired ? null : household.joinCode,
       joinCodeExpiresAt: isJoinCodeExpired ? null : household.joinCodeExpiresAt,
       users,
@@ -75,6 +76,7 @@ function toHouseholdDto(
   return {
     id: household.id,
     name: household.name,
+    version: household.version,
     users,
     allergies,
   } as HouseholdSettingsDto;

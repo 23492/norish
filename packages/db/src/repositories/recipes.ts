@@ -443,6 +443,7 @@ export async function listRecipes(
         categories: true,
         createdAt: true,
         updatedAt: true,
+        version: true,
       },
       with: {
         recipeTags: {
@@ -487,6 +488,7 @@ export async function listRecipes(
       categories: r.categories ?? [],
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
+      version: r.version,
       tags: (r.recipeTags ?? [])
         .map((rt: { tag?: { name?: string } | null }) => rt.tag?.name)
         .filter((name: string | undefined | null): name is string => Boolean(name))
@@ -534,6 +536,7 @@ export async function dashboardRecipe(id: string): Promise<RecipeDashboardDTO | 
       categories: true,
       createdAt: true,
       updatedAt: true,
+      version: true,
     },
     with: {
       recipeTags: {
@@ -577,6 +580,7 @@ export async function dashboardRecipe(id: string): Promise<RecipeDashboardDTO | 
     categories: r.categories ?? [],
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
+    version: r.version,
     tags: (r.recipeTags ?? [])
       .map((rt: any) => rt.tag?.name)
       .filter(nonEmpty)
@@ -708,7 +712,7 @@ export async function setActiveSystemForRecipe(
   recipeId: string,
   system: MeasurementSystem
 ): Promise<void> {
-  await db.update(recipes).set({ systemUsed: system }).where(eq(recipes.id, recipeId));
+  await db.update(recipes).set({ systemUsed: system, version: sql`${recipes.version} + 1` }).where(eq(recipes.id, recipeId));
 }
 
 export async function updateRecipeCategories(
@@ -717,7 +721,7 @@ export async function updateRecipeCategories(
 ): Promise<void> {
   await db
     .update(recipes)
-    .set({ categories, updatedAt: new Date() })
+    .set({ categories, updatedAt: new Date(), version: sql`${recipes.version} + 1` })
     .where(eq(recipes.id, recipeId));
 }
 
@@ -753,6 +757,7 @@ export async function getRecipeFull(id: string): Promise<FullRecipeDTO | null> {
       categories: true,
       createdAt: true,
       updatedAt: true,
+      version: true,
     },
     with: {
       recipeTags: {
@@ -834,6 +839,7 @@ export async function getRecipeFull(id: string): Promise<FullRecipeDTO | null> {
     })),
     createdAt: full.createdAt,
     updatedAt: full.updatedAt,
+    version: full.version,
     tags: (full.recipeTags ?? [])
       .map((rt: any) => rt.tag?.name)
       .filter(nonEmpty)
@@ -939,7 +945,7 @@ export async function updateRecipeWithRefs(
 
     if (Object.keys(updateData).length > 1) {
       // more than just updatedAt
-      await tx.update(recipes).set(updateData).where(eq(recipes.id, recipeId));
+      await tx.update(recipes).set({ ...updateData, version: sql`${recipes.version} + 1` }).where(eq(recipes.id, recipeId));
     }
 
     // Replace tags if provided

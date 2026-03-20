@@ -5,7 +5,7 @@ import type {
   UserCaldavConfigInsertDto,
 } from "@norish/shared/contracts/dto/caldav-config";
 
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { decrypt, encrypt } from "@norish/auth/crypto";
 import { db } from "@norish/db/drizzle";
 import { userCaldavConfig } from "@norish/db/schema";
@@ -50,6 +50,7 @@ export async function getCaldavConfigDecrypted(
     lunchTime: config.lunchTime,
     dinnerTime: config.dinnerTime,
     snackTime: config.snackTime,
+    version: config.version,
     createdAt: config.createdAt,
     updatedAt: config.updatedAt,
   };
@@ -76,6 +77,7 @@ export async function getCaldavConfigWithoutPassword(
     lunchTime: config.lunchTime,
     dinnerTime: config.dinnerTime,
     snackTime: config.snackTime,
+    version: config.version,
     createdAt: config.createdAt,
     updatedAt: config.updatedAt,
   };
@@ -110,6 +112,7 @@ export async function saveCaldavConfig(
       set: {
         ...encrypted,
         updatedAt: new Date(),
+        version: sql`${userCaldavConfig.version} + 1`,
       },
     })
     .returning();
@@ -160,6 +163,7 @@ export async function getHouseholdCaldavConfigs(
       lunchTime: row.lunchTime,
       dinnerTime: row.dinnerTime,
       snackTime: row.snackTime,
+      version: row.version,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };

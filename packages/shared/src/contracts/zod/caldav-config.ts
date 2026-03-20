@@ -27,6 +27,7 @@ export const UserCaldavConfigDecryptedSchema = z.object({
   lunchTime: z.string(),
   dinnerTime: z.string(),
   snackTime: z.string(),
+  version: z.number(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });

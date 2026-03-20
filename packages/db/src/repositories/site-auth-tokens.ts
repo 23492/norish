@@ -6,7 +6,7 @@ import type {
   UpdateSiteAuthTokenInputDto,
 } from "@norish/shared/contracts/dto/site-auth-tokens";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { decrypt, encrypt } from "@norish/auth/crypto";
 import { db } from "@norish/db/drizzle";
 import { siteAuthTokens } from "@norish/db/schema";
@@ -24,6 +24,7 @@ function decryptToken(token: SiteAuthTokenDto): SiteAuthTokenDecryptedDto {
     name: token.name,
     value: decrypt(token.valueEnc),
     type: token.type,
+    version: token.version,
     createdAt: token.createdAt,
     updatedAt: token.updatedAt,
   };
@@ -36,6 +37,7 @@ function toSafeToken(token: SiteAuthTokenDto): SiteAuthTokenSafeDto {
     domain: token.domain,
     name: token.name,
     type: token.type,
+    version: token.version,
     createdAt: token.createdAt,
     updatedAt: token.updatedAt,
   };
@@ -135,7 +137,7 @@ export async function updateSiteAuthToken(
 
   const [row] = await db
     .update(siteAuthTokens)
-    .set(updateData)
+    .set({ ...updateData, version: sql`${siteAuthTokens.version} + 1` })
     .where(and(eq(siteAuthTokens.id, validated.id), eq(siteAuthTokens.userId, userId)))
     .returning();
 

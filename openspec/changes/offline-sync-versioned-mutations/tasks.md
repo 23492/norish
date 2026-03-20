@@ -1,16 +1,17 @@
-## 1. Versioned mutation contracts
+## 1. Schema and migration foundation
 
-- [ ] 1.1 Inventory the first replay-safe mutation families and map each one to either a versioned entity contract or a desired-state idempotent contract.
-- [ ] 1.2 Add `version` columns, migrations, and read-contract exposure for the selected versioned entity families.
-- [ ] 1.3 Add shared input/output schema types for `expectedVersion` and structured replay outcomes.
+Owner-owned migration step: the repository owner, not the agent, will run the root `db:generate` script (`pnpm db:generate`) to create the Drizzle migration; the generated migration is then applied automatically on server start.
 
-## 2. Server-side replay safety
+- [x] 1.1 Inventory mutable application tables and introduce a shared versioned-column helper/base where it reduces Drizzle schema duplication.
+- [x] 1.2 Update schema definitions for non-null `version` columns and prepare the backfill expected from the owner-generated `pnpm db:generate` migration across the selected table inventory.
+- [x] 1.3 Update repository write paths so successful authoritative row changes increment `version` exactly once.
 
-- [ ] 2.1 Update repositories and services to perform compare-and-swap edit/delete behavior and increment versions on successful writes.
-- [ ] 2.2 Replace replay-unsafe toggle handlers in the first-wave families with desired-state or set-style handlers.
-- [ ] 2.3 Add operation receipt persistence keyed by `operationId` with collision validation for mismatched semantics.
+## 2. Contract propagation
 
-## 3. Router integration and verification
+- [x] 2.1 Update generated zod schemas, handwritten DTOs, and realtime payload contracts so every versioned entity shape includes `version`.
+- [x] 2.2 Update repository return types, tRPC read models, and shared consumers to preserve `version` through list, detail, and aggregate payloads.
 
-- [ ] 3.1 Update tRPC procedures for the replay-safe mutation families to return structured `applied` / `duplicate` / `conflict` / `gone` outcomes.
-- [ ] 3.2 Add regression tests for stale version, missing entity, duplicate replay, and desired-state duplicate safety.
+## 3. Verification
+
+- [ ] 3.1 Add regression coverage for version initialization and increment behavior on representative mutable entity families.
+- [ ] 3.2 Add compile or contract-level verification for manual DTOs and payloads that now must carry `version`.

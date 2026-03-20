@@ -1,27 +1,25 @@
 ## Why
 
-Mobile offline writes need more than transport correlation. Norish currently applies most cheap mutations as live, last-write-wins requests, so an outbox would replay blind into stale data, duplicate retries, and replay-unsafe toggle semantics.
+Mobile offline replay needs a stable concurrency token on every mutable entity, but Norish still relies mostly on timestamps and many shared DTOs drop that state entirely. Adding versions broadly now avoids repeated schema churn later and gives the replay-safe mutation work a consistent contract to build on.
 
 ## What Changes
 
-- Add entity `version` fields to the mutable records that participate in the first offline-write rollout and expose those versions in query DTOs.
-- **BREAKING** Add version-aware mutation inputs and structured stale-version / missing-entity responses for replay-safe edit and delete flows.
-- **BREAKING** Replace replay-unsafe toggle semantics with desired-state or set-style mutation contracts where repeated replay must remain safe.
-- Add server-side operation receipt handling keyed by `operationId` so duplicate offline replays can resolve deterministically.
-- Standardize mutation outcome metadata so mobile can distinguish applied, duplicate-applied, stale-version conflict, and missing-entity outcomes and repair state through invalidation/refetch.
+- Add non-null integer `version` columns to all Norish-owned mutable application tables; the repository owner, not the agent, will generate the migration with the root `db:generate` script (`pnpm db:generate` -> `pnpm --filter @norish/db exec drizzle-kit generate --config ./src/drizzle.config.ts`), server startup will apply the generated migration automatically, existing rows will backfill to `1`, and successful authoritative writes will increment versions thereafter.
+- Introduce a shared schema/helper pattern for versioned tables where Drizzle definitions can reuse it cleanly instead of hand-adding the same column everywhere.
+- Surface `version` through shared read contracts, manual DTO interfaces, realtime payloads, and repository return shapes for every versioned entity.
+- Narrow this change to the versioning foundation only; replay-safe mutation contracts, structured outcomes, toggle migration, and operation receipts move to a separate change.
 
 ## Capabilities
 
 ### New Capabilities
-- `offline-write-mutation-contracts`: Versioned optimistic-concurrency contracts and replay-safe mutation outcomes for offline-capable writes.
-- `operation-replay-idempotency`: Server-side operation receipt handling that deduplicates repeated offline replays by `operationId`.
+- `entity-version-contracts`: Monotonic version columns and compare-friendly DTO exposure for Norish mutable entities.
 
 ### Modified Capabilities
 None.
 
 ## Impact
 
-- `packages/db` schema, migrations, and repositories for compare-and-swap updates and version increments
-- `packages/shared` contracts and zod schemas for surfaced versions and structured replay outcomes
-- `packages/trpc` routers and procedure inputs for replay-safe edit/delete/set flows
-- Mobile and web clients that consume changed mutation contracts
+- `packages/db` schema definitions, migrations, and repositories that create or update mutable rows
+- `packages/shared` DTOs, zod schemas, and realtime payload contracts that represent mutable entities
+- `packages/trpc` procedures and read models that return versioned entities
+- Web, mobile, and shared React consumers that compile against version-aware DTOs

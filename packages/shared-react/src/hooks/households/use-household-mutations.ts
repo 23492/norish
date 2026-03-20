@@ -47,6 +47,7 @@ export function createUseHouseholdMutations({
             const optimisticHousehold: HouseholdSettingsDto = {
               id,
               name: name.trim(),
+              version: 1,
               users: [
                 {
                   id: currentUserId,
@@ -148,6 +149,7 @@ export function createUseHouseholdMutations({
               const updatedHousehold: HouseholdSettingsDto = {
                 id: prev.household.id,
                 name: prev.household.name,
+                version: (prev.household as any).version ?? 1,
                 users: prev.household.users.map((u) => ({
                   ...u,
                   isAdmin: u.id === newAdminId,

@@ -159,10 +159,8 @@ export function createUseHouseholdSubscription({
             return {
               ...prev,
               household: {
-                id: prev.household.id,
-                name: prev.household.name,
+                ...prev.household,
                 users: updatedUsers,
-                allergies: prev.household.allergies,
               },
             };
           });

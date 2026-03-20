@@ -47,6 +47,7 @@ export const SiteAuthTokenDecryptedSchema = z.object({
   name: z.string(),
   value: z.string(),
   type: z.enum(["header", "cookie"]),
+  version: z.number(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -58,6 +59,7 @@ export const SiteAuthTokenSafeSchema = z.object({
   domain: z.string(),
   name: z.string(),
   type: z.enum(["header", "cookie"]),
+  version: z.number(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });

@@ -1,108 +1,79 @@
 ## Context
 
-Norish already propagates `operationId` from client mutations through tRPC context, queue boundaries, and realtime envelopes, but that contract is explicitly transport-scoped. The server still applies most cheap mutations as ordinary live writes: mutable entities expose `updatedAt` but not a monotonic version, repositories mostly update rows without compare-and-swap checks, and some APIs use replay-unsafe toggle semantics.
+Norish already propagates `operationId` from client mutations through tRPC context, queue boundaries, and realtime envelopes, but that transport correlation still has no durable concurrency token to compare against. Most mutable tables expose only `updatedAt`, many repository updates rewrite rows without increment semantics, and several shared DTOs are manual interfaces or payload shapes that would currently drop a row version even if the database stored one.
 
-That means a mobile outbox would know which command it sent, but not whether the command still matches current server state or whether a retried request is safe to run twice. This is most acute for collaborative entities such as recipes, groceries, and planned items, where another device can change or delete data while one phone is offline.
+That makes the version foundation inconsistent before offline replay even starts. A mobile outbox can only compare safely if the server stores a monotonic version on every mutable entity the product edits and if every DTO that represents that entity actually surfaces the token.
 
 ## Goals / Non-Goals
 
 **Goals:**
-- Add explicit entity `version` tokens for the mutable entities used by the first offline-write rollout.
-- Require replay-safe edit/delete flows to carry `expectedVersion` and resolve with deterministic outcomes.
-- Replace replay-unsafe toggle semantics with desired-state semantics where retries must remain safe.
-- Add server-side operation receipts keyed by `operationId` so duplicate replays do not double-apply.
-- Give mobile a direct mutation outcome contract it can use to clear, retry, or repair outbox items without waiting for websocket timing.
+- Add explicit integer `version` columns to all Norish-owned mutable application tables instead of maintaining a first-wave allowlist.
+- Increment versions on successful authoritative writes so the stored token is usable for future compare-and-swap contracts.
+- Surface `version` through generated zod schemas, manual DTO interfaces, repository outputs, and realtime payloads for every versioned entity.
+- Reuse a shared schema/helper pattern for versioned tables where Drizzle table definitions can share the same shape cleanly.
+- Keep this change focused on the versioning foundation that later replay-safe mutation work will consume.
 
 **Non-Goals:**
-- Version every table in the database in one sweep.
-- Build field-level merge tooling or manual conflict resolution UI.
-- Use `updatedAt` or client timestamps for optimistic concurrency.
-- Cover imports, uploads, temp-ID create flows, or other long-running work in this phase.
-- Replace realtime envelopes as the transport contract for correlation.
+- Define replay-safe mutation outcomes, operation receipts, or toggle-migration behavior in this change.
+- Build conflict-resolution UI or field-level merge tooling.
+- Use `updatedAt`, transport headers, or client timestamps as the comparison token.
+- Retrofit append-only logs, auth/session records, or other infrastructure tables that are not product-level optimistic-concurrency targets.
 
 ## Decisions
 
-### 1. Use integer `version` for optimistic concurrency
+### 1. Version mutable application tables in one sweep
 
-**Decision:** Replay-safe mutable entities SHALL carry a monotonically increasing integer `version`, starting at `1` for newly-created rows and incrementing once for each successful mutation that changes authoritative state.
+**Decision:** Norish SHALL add a non-null integer `version` to every application table whose rows can be updated or deleted through normal product workflows, rather than limiting the rollout to recipes, groceries, and planned items.
 
-**Why:** Integer versions express concurrency intent directly and avoid timestamp precision, clock-skew, and serialization ambiguity. They also let the client persist a compact base version alongside an offline command.
-
-**Alternatives considered:**
-- `updatedAt` compare-and-swap: rejected because it is harder to treat as a strict concurrency token and is vulnerable to precision drift.
-- Payload hashing: rejected because minor server-side normalization would create false conflicts.
-
-### 2. Carry `expectedVersion` in replay-safe mutation inputs
-
-**Decision:** Edit and delete mutations that participate in offline replay SHALL accept an explicit `expectedVersion` in their input contract and SHALL refuse to apply when the stored entity version differs.
-
-**Why:** Norish already uses typed tRPC DTOs. Carrying the concurrency token in the mutation input keeps the rule visible at the contract boundary, easy to persist in the outbox, and simple to test.
+**Why:** The repo already has a broad set of mutable entity families. Doing this once avoids repeated migrations, partial DTO adoption, and follow-on work that has to rediscover which tables are version-ready.
 
 **Alternatives considered:**
-- Hidden headers or context-only version metadata: rejected because it obscures the contract and makes typed outbox persistence harder.
-- Query-time only detection: rejected because stale state must be caught at write time.
+- Keep a first-wave allowlist: rejected because it preserves contract inconsistency and forces later schema churn.
+- Use `updatedAt` as the universal token: rejected because timestamps are harder to compare strictly and easier to serialize inconsistently.
 
-### 3. Use set-style semantics for replay-safe toggle families
+### 2. Reuse a shared versioned-column helper where it fits
 
-**Decision:** Replay-safe mutation families SHALL express desired state rather than implicit toggles when a retried request could otherwise flip state twice. Favorites are the clearest example: the replay-safe contract should be `set favorite = true|false`, not `toggle favorite`.
+**Decision:** Schema definitions SHOULD use a shared helper or base column object for `version` and related mutable-row metadata where Drizzle table declarations can reuse that shape without making the schema harder to read.
 
-**Why:** A duplicate replay of an idempotent set command is harmless. A duplicate replay of a toggle command is not.
-
-**Alternatives considered:**
-- Keep toggles and rely only on operation receipts: rejected because set semantics are still clearer for concurrency, retries, and compaction.
-- Push toggle resolution entirely to the client: rejected because the server still needs replay-safe behavior.
-
-### 4. Add server-side operation receipts for replay-safe commands
-
-**Decision:** Replay-safe mutations SHALL persist an operation receipt keyed by at least mutation family, actor scope, and `operationId`. The receipt SHALL store the resolved outcome class and enough target metadata for a duplicate request to return the same outcome without reapplying business logic.
-
-**Why:** `operationId` propagation already exists, but it currently does not deduplicate writes. A durable receipt closes the gap between transport correlation and replay safety.
+**Why:** Many tables already repeat the same timestamp columns. Adding `version` everywhere is a good point to centralize the shared mutable-row shape and reduce copy-paste drift.
 
 **Alternatives considered:**
-- No receipt store, only compare-and-swap: rejected because a lost HTTP response could still cause duplicate application on retry.
-- Full request/response replay log: rejected as heavier than needed for cheap mutation flows.
+- Hand-add `version` to every table forever: rejected because it increases duplication and makes future consistency fixes harder.
+- Force every table through one rigid base abstraction: rejected because some tables already diverge enough that a helper should stay optional.
 
-### 5. Return structured replay outcomes instead of treating expected conflicts as opaque exceptions
+### 3. Every DTO that represents a versioned row carries `version`
 
-**Decision:** Replay-safe mutation contracts SHALL return a small discriminated outcome for expected write results such as `applied`, `duplicate`, `conflict`, and `gone`.
+**Decision:** Shared contracts SHALL expose `version` anywhere a versioned entity is serialized, including drizzle-zod select schemas, handwritten DTO interfaces, and realtime payloads.
 
-**Why:** Mobile replay needs a deterministic, non-transport-specific way to resolve an outbox item. Treating expected stale-version or missing-entity cases as ordinary typed outcomes keeps the replay engine simple and lets the app choose repair behavior through refetch.
-
-**Alternatives considered:**
-- Structured error metadata on thrown tRPC errors: workable, but it makes expected replay cases feel exceptional and complicates queue control flow.
-
-### 6. Version aggregate roots, not every child row independently
-
-**Decision:** For aggregate-style entities such as recipes, the parent entity version SHALL be the concurrency boundary even when the mutation rewrites ingredients, steps, images, or videos. For row-style entities such as groceries or planned items, the row itself remains the version boundary.
-
-**Why:** Mobile offline edit commands need one stable concurrency token per logical entity. Per-child versioning would make normal recipe edits too expensive and brittle.
+**Why:** Adding a column in the database is not enough if the version disappears at the contract boundary. The offline client needs the same token that the server stores, and manual DTO definitions are the easiest place to accidentally lose it.
 
 **Alternatives considered:**
-- Per-table child version checks: rejected because common recipe edits would need many tokens and create excessive false conflicts.
+- Only expose versions on a small subset of read models: rejected because callers would still need special-case knowledge.
+- Keep versions database-only until replay-safe writes land: rejected because it delays contract cleanup and makes the next change harder to stage.
 
-### 7. Allow versioned and idempotent rollout to be selective in v1
+### 4. Stored row versions are broader than future write boundaries
 
-**Decision:** This phase SHALL prioritize entities used by the first cheap offline mutation rollout. Collaborative entities such as recipes, groceries, and planned items should use explicit versions; single-user desired-state actions may rely on idempotent set semantics even if no standalone versioned row is exposed yet.
+**Decision:** This foundation SHALL version rows broadly even when a later replay-safe write contract chooses a coarser aggregate boundary for compare-and-swap.
 
-**Why:** The repo has many mutable domains, but mobile offline value arrives fastest by hardening the first replay-safe families rather than boiling the ocean.
+**Why:** Recipes may still use the recipe row as the main optimistic boundary, but versioning child rows now keeps the data model consistent and leaves room for future direct child edits or sync diagnostics.
+
+**Alternatives considered:**
+- Only version aggregate roots: rejected because it conflicts with the goal of making all mutable entity DTOs comparison-ready now.
+
+### 5. Replay-safe mutation contracts move to a separate change
+
+**Decision:** Structured outcomes, operation receipts, and replay-safe toggle migration SHALL be specified in a separate follow-on change that depends on this version foundation.
+
+**Why:** Splitting the work keeps this change focused on durable schema and DTO groundwork while the next change can inventory unsafe mutations and migrate them in one coordinated sweep.
 
 ## Risks / Trade-offs
 
-- **[Broad contract churn across server and clients]** -> Mitigate by routing adoption through shared hooks and by rolling out replay-safe endpoints family by family.
-- **[Version checks create more visible conflicts than last-write-wins]** -> Mitigate with coarse repair via refetch rather than trying to preserve stale local assumptions.
-- **[Operation receipt storage grows over time]** -> Mitigate with retention windows or pruning keyed to replay expectations.
-- **[Aggregate updates such as recipe edits remain complex]** -> Mitigate by anchoring concurrency at the parent entity version rather than every rewritten child table.
+- **[Broad schema and contract churn]** -> Mitigate with a shared helper, table inventory, and compile-driven DTO updates.
+- **[Manual DTOs or payloads miss the new field]** -> Mitigate with an explicit inventory of handwritten contracts and targeted tests around representative payloads.
+- **[Broad row versioning could be mistaken for immediate compare-and-swap scope]** -> Mitigate by documenting that write-boundary rules come from the follow-on replay-safe contract change.
 
 ## Migration Plan
 
-1. Add non-null `version` columns with default `1` to the selected mutable entities and backfill existing rows.
-2. Surface `version` in read contracts before switching clients to the new mutation families.
-3. Introduce replay-safe mutation contracts with structured outcomes and operation receipts.
-4. Migrate mobile/shared callers to the replay-safe contracts during the later outbox and cheap-mutation phases.
-5. Remove or de-emphasize legacy replay-unsafe mutation entry points once callers no longer depend on them.
-
-## Open Questions
-
-- Which mutation families beyond recipes, groceries, and planned items should join the first versioned rollout versus staying desired-state-only?
-- How long should operation receipts be retained before pruning?
-- Should duplicate outcomes carry the original resolved version, or is a duplicate marker plus refetch enough for the client?
+1. Inventory mutable application tables and prepare the schema changes; the repository owner, not the agent, will generate the migration via the root `db:generate` script (`pnpm db:generate`), and the existing server startup migrator will apply that generated migration automatically on start.
+2. Update schema helpers, generated zod schemas, manual DTOs, realtime payloads, and repository outputs so `version` is surfaced end to end.
+3. Add verification for version initialization and increments on representative row families, leaving replay-safe mutation contracts to the follow-on change.

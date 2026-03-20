@@ -18,6 +18,7 @@ type PlannedItemFromQuery = {
   itemType: "recipe" | "note";
   recipeId: string | null;
   title: string | null;
+  version: number;
   createdAt: Date;
   updatedAt: Date;
 };

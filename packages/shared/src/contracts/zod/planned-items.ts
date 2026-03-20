@@ -13,6 +13,7 @@ export const PlannedItemEventPayloadSchema = z.object({
   recipeId: z.string().nullable(),
   title: z.string().nullable(),
   userId: z.string(),
+  version: z.number(),
 });
 
 export const PlannedItemWithRecipePayloadSchema = PlannedItemEventPayloadSchema.extend({

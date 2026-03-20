@@ -120,7 +120,7 @@ export async function updateStore(input: StoreUpdateDto): Promise<StoreDto | nul
 
   const [row] = await db
     .update(stores)
-    .set({ ...parsed.data, updatedAt: new Date() })
+    .set({ ...parsed.data, updatedAt: new Date(), version: sql`${stores.version} + 1` })
     .where(eq(stores.id, input.id))
     .returning();
 
@@ -144,7 +144,7 @@ export async function reorderStores(storeIds: string[]): Promise<StoreDto[]> {
 
       const [row] = await trx
         .update(stores)
-        .set({ sortOrder: i, updatedAt: new Date() })
+        .set({ sortOrder: i, updatedAt: new Date(), version: sql`${stores.version} + 1` })
         .where(eq(stores.id, storeId))
         .returning();
 
@@ -182,7 +182,7 @@ export async function deleteStore(
       // Set storeId to null for groceries in this store
       await trx
         .update(groceries)
-        .set({ storeId: null, updatedAt: new Date() })
+        .set({ storeId: null, updatedAt: new Date(), version: sql`${groceries.version} + 1` })
         .where(eq(groceries.storeId, storeId));
     }
 
@@ -291,7 +291,7 @@ export async function upsertIngredientStorePreference(
     .values(parsed.data)
     .onConflictDoUpdate({
       target: [ingredientStorePreferences.userId, ingredientStorePreferences.normalizedName],
-      set: { storeId, updatedAt: new Date() },
+      set: { storeId, updatedAt: new Date(), version: sql`${ingredientStorePreferences.version} + 1` },
     })
     .returning();
 

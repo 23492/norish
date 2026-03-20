@@ -38,6 +38,7 @@ export function useCalendarSubscription(startISO: string, endISO: string) {
             recipeImage: payload.item.recipeImage,
             servings: payload.item.servings,
             calories: payload.item.calories,
+            version: payload.item.version ?? 1,
             createdAt: new Date(),
             updatedAt: new Date(),
           };

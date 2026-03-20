@@ -136,6 +136,7 @@ export async function createGroceries(
         .set({
           sortOrder: sql`${groceries.sortOrder} + ${storeItems.length}`,
           updatedAt: new Date(),
+          version: sql`${groceries.version} + 1`,
         })
         .where(
           and(
@@ -175,7 +176,7 @@ export async function createGrocery(
     // Increment sortOrder for all unchecked items in the same store (or null store)
     await trx
       .update(groceries)
-      .set({ sortOrder: sql`${groceries.sortOrder} + 1`, updatedAt: new Date() })
+      .set({ sortOrder: sql`${groceries.sortOrder} + 1`, updatedAt: new Date(), version: sql`${groceries.version} + 1` })
       .where(
         and(
           inArray(groceries.userId, householdUserIds),
@@ -205,7 +206,7 @@ export async function updateGrocery(input: GroceryUpdateDto): Promise<GroceryDto
 
   const [row] = await db
     .update(groceries)
-    .set(parsed.data as any)
+    .set({ ...(parsed.data as any), version: sql`${groceries.version} + 1` })
     .where(eq(groceries.id, input.id))
     .returning();
 
@@ -228,7 +229,7 @@ export async function updateGroceries(input: GroceryUpdateDto[]): Promise<Grocer
     for (const g of parsed.data) {
       const [row] = await trx
         .update(groceries)
-        .set(g as any)
+        .set({ ...(g as any), version: sql`${groceries.version} + 1` })
         .where(eq(groceries.id, g.id))
         .returning();
 
@@ -259,7 +260,7 @@ export async function toggleGrocery(id: string, isDone?: boolean): Promise<Groce
 
   const [row] = await db
     .update(groceries)
-    .set({ isDone: next })
+    .set({ isDone: next, version: sql`${groceries.version} + 1` })
     .where(eq(groceries.id, id))
     .returning();
 
@@ -349,7 +350,7 @@ export async function reorderGroceriesInStore(
 
       const [row] = await trx
         .update(groceries)
-        .set(updateData)
+        .set({ ...updateData, version: sql`${groceries.version} + 1` })
         .where(eq(groceries.id, id))
         .returning();
 
@@ -379,7 +380,7 @@ export async function markAllDoneInStore(
 
   const rows = await db
     .update(groceries)
-    .set({ isDone: true, updatedAt: new Date() })
+    .set({ isDone: true, updatedAt: new Date(), version: sql`${groceries.version} + 1` })
     .where(
       and(
         inArray(groceries.userId, userIds),
@@ -430,7 +431,7 @@ export async function assignGroceryToStore(
 ): Promise<GroceryDto> {
   const [updated] = await db
     .update(groceries)
-    .set({ storeId: newStoreId, updatedAt: new Date() })
+    .set({ storeId: newStoreId, updatedAt: new Date(), version: sql`${groceries.version} + 1` })
     .where(eq(groceries.id, groceryId))
     .returning();
 

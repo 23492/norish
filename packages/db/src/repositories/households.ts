@@ -73,6 +73,7 @@ export async function getHouseholdForUser(
           id: true,
           name: true,
           adminUserId: true,
+          version: true,
           createdAt: true,
           updatedAt: true,
           joinCode: true,
@@ -100,6 +101,7 @@ export async function getHouseholdForUser(
     id: h.id,
     name: h.name,
     adminUserId: h.adminUserId,
+    version: h.version,
     createdAt: h.createdAt,
     updatedAt: h.updatedAt,
     joinCode: h.joinCode,
@@ -219,7 +221,7 @@ export async function regenerateJoinCode(householdId: string): Promise<Household
 
   const [row] = await db
     .update(households)
-    .set({ joinCode: code, joinCodeExpiresAt: expiresAt, updatedAt: new Date() })
+    .set({ joinCode: code, joinCodeExpiresAt: expiresAt, updatedAt: new Date(), version: sql`${households.version} + 1` })
     .where(eq(households.id, householdId))
     .returning();
 
@@ -287,7 +289,7 @@ export async function transferHouseholdAdmin(
 
   const [row] = await db
     .update(households)
-    .set({ adminUserId: newAdminId, updatedAt: new Date() })
+    .set({ adminUserId: newAdminId, updatedAt: new Date(), version: sql`${households.version} + 1` })
     .where(eq(households.id, householdId))
     .returning();
 

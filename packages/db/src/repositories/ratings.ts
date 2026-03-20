@@ -1,4 +1,4 @@
-import { and, avg, count, eq } from "drizzle-orm";
+import { and, avg, count, eq, sql } from "drizzle-orm";
 
 import { db } from "../drizzle";
 import { recipeRatings } from "../schema";
@@ -22,7 +22,7 @@ export async function rateRecipe(
   if (existing.length > 0) {
     await db
       .update(recipeRatings)
-      .set({ rating, updatedAt: new Date() })
+      .set({ rating, updatedAt: new Date(), version: sql`${recipeRatings.version} + 1` })
       .where(and(eq(recipeRatings.userId, userId), eq(recipeRatings.recipeId, recipeId)));
 
     return { rating, isNew: false };

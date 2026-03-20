@@ -8,6 +8,7 @@ interface PlannedItemBase {
   slot: Slot;
   sortOrder: number;
   itemType: PlannedItemType;
+  version: number;
   createdAt: Date;
   updatedAt: Date;
 }
