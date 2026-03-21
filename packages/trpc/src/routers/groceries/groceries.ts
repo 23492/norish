@@ -277,6 +277,11 @@ const update = authedProcedure.input(GroceryUpdateInputSchema).mutation(({ ctx, 
 
       const updatedGroceries = await updateGroceries([parsed.data as GroceryUpdateDto]);
 
+      if (updatedGroceries.length === 0) {
+        log.info({ userId: ctx.user.id, groceryId, version }, "Ignoring stale grocery update mutation");
+        return;
+      }
+
       log.debug({ userId: ctx.user.id, groceryId }, "Grocery updated");
       groceryEmitter.emitToHousehold(ctx.householdKey, "updated", {
         changedGroceries: updatedGroceries,
@@ -336,12 +341,28 @@ const toggle = authedProcedure.input(GroceryToggleSchema).mutation(({ ctx, input
         });
       }
 
-      const updated = await updateGroceries(parsed.data as GroceryUpdateDto[]);
+        const updated = await updateGroceries(parsed.data as GroceryUpdateDto[]);
 
-      log.debug({ userId: ctx.user.id, count: updated.length, isDone }, "Groceries toggled");
-      groceryEmitter.emitToHousehold(ctx.householdKey, "updated", {
-        changedGroceries: updated,
-      });
+        if (updated.length !== parsed.data.length) {
+          log.info(
+            {
+              userId: ctx.user.id,
+              requestedCount: parsed.data.length,
+              updatedCount: updated.length,
+            },
+            updated.length === 0
+              ? "Ignoring stale grocery toggle mutation"
+              : "Grocery toggle partially applied due to stale versions"
+          );
+        }
+
+        log.debug({ userId: ctx.user.id, count: updated.length, isDone }, "Groceries toggled");
+
+        if (updated.length > 0) {
+          groceryEmitter.emitToHousehold(ctx.householdKey, "updated", {
+            changedGroceries: updated,
+          });
+        }
     })
     .catch((err) => {
       log.error({ err, userId: ctx.user.id, groceryIds }, "Failed to toggle groceries");
@@ -364,10 +385,19 @@ const deleteGroceries = authedProcedure.input(GroceryDeleteSchema).mutation(({ c
         await assertHouseholdAccess(ctx.user.id, ownerId);
       }
 
-      await deleteGroceryByIds(groceryIds);
+      const result = await deleteGroceryByIds(input.groceries);
 
-      log.info({ userId: ctx.user.id, count: groceryIds.length }, "Groceries deleted");
-      groceryEmitter.emitToHousehold(ctx.householdKey, "deleted", { groceryIds });
+      if (result.staleIds.length > 0) {
+        log.info(
+          { userId: ctx.user.id, staleGroceryIds: result.staleIds },
+          "Ignoring stale grocery delete mutations"
+        );
+      }
+
+      if (result.deletedIds.length > 0) {
+        log.info({ userId: ctx.user.id, count: result.deletedIds.length }, "Groceries deleted");
+        groceryEmitter.emitToHousehold(ctx.householdKey, "deleted", { groceryIds: result.deletedIds });
+      }
     })
     .catch((err) => {
       log.error({ err, userId: ctx.user.id, groceryIds }, "Failed to delete groceries");
@@ -418,6 +448,14 @@ const assignToStore = authedProcedure
 
         // Assign grocery to store (handles reordering in transaction)
         const updated = await assignGroceryToStore(groceryId, storeId, ctx.userIds, version);
+
+        if (!updated) {
+          log.info(
+            { userId: ctx.user.id, groceryId, storeId, version },
+            "Ignoring stale grocery assign-to-store mutation"
+          );
+          return;
+        }
 
         log.info({ userId: ctx.user.id, groceryId, storeId }, "Grocery assigned to store");
 
@@ -499,6 +537,19 @@ const reorderInStore = authedProcedure
         // Perform reorder (and optional store changes)
         const updated = await reorderGroceriesInStore(updates);
 
+        if (updated.length !== updates.length) {
+          log.info(
+            {
+              userId: ctx.user.id,
+              requestedCount: updates.length,
+              updatedCount: updated.length,
+            },
+            updated.length === 0
+              ? "Ignoring stale grocery reorder mutation"
+              : "Grocery reorder partially applied due to stale versions"
+          );
+        }
+
         log.info({ userId: ctx.user.id, count: updated.length }, "Groceries reordered");
 
         // Save store preferences for any items that changed stores
@@ -528,9 +579,11 @@ const reorderInStore = authedProcedure
           }
         }
 
-        groceryEmitter.emitToHousehold(ctx.householdKey, "updated", {
-          changedGroceries: updated,
-        });
+        if (updated.length > 0) {
+          groceryEmitter.emitToHousehold(ctx.householdKey, "updated", {
+            changedGroceries: updated,
+          });
+        }
       })
       .catch((err) => {
         log.error({ err, userId: ctx.user.id, updates }, "Failed to reorder groceries");
@@ -551,6 +604,13 @@ const markAllDone = authedProcedure
 
     markAllDoneInStore(ctx.userIds, storeId, groceries)
       .then((updated) => {
+        if (updated.length < groceries.length) {
+          log.info(
+            { userId: ctx.user.id, requested: groceries.length, applied: updated.length },
+            "Ignored stale grocery mark-all-done mutations"
+          );
+        }
+
         if (updated.length > 0) {
           log.info({ userId: ctx.user.id, count: updated.length }, "Groceries marked done");
           groceryEmitter.emitToHousehold(ctx.householdKey, "updated", {
@@ -577,6 +637,13 @@ const deleteDone = authedProcedure
 
     deleteDoneInStore(ctx.userIds, storeId, groceries)
       .then((deletedIds) => {
+        if (deletedIds.length < groceries.length) {
+          log.info(
+            { userId: ctx.user.id, requested: groceries.length, applied: deletedIds.length },
+            "Ignored stale grocery delete-done mutations"
+          );
+        }
+
         if (deletedIds.length > 0) {
           log.info({ userId: ctx.user.id, count: deletedIds.length }, "Done groceries deleted");
           groceryEmitter.emitToHousehold(ctx.householdKey, "deleted", { groceryIds: deletedIds });

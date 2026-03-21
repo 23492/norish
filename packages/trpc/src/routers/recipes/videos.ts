@@ -187,14 +187,19 @@ const deleteGalleryVideo = authedProcedure
       }
 
       // Delete from database
-      await deleteRecipeVideoById(input.videoId, input.version);
+      const result = await deleteRecipeVideoById(input.videoId, input.version);
+
+      if (result.stale) {
+        log.info({ userId: ctx.user.id, videoId: input.videoId, version: input.version }, "Ignoring stale gallery video delete");
+        return { success: true, stale: true };
+      }
 
       log.info(
         { userId: ctx.user.id, videoId: input.videoId, url: videoRecord.video },
         "Gallery video deleted"
       );
 
-      return { success: true };
+      return { success: true, stale: false };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to delete gallery video";
 

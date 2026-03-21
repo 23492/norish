@@ -44,6 +44,7 @@ import {
 } from "../zodSchemas";
 
 import { attachIngredientsToRecipeByInputTx, getOrCreateManyIngredientsTx } from "./ingredients";
+import { appliedOutcome, type MutationOutcome, staleOutcome } from "./mutation-outcomes";
 import { getConfig } from "./server-config";
 import { createManyRecipeStepsTx } from "./steps";
 import { attachTagsToRecipeByInputTx } from "./tags";
@@ -66,8 +67,23 @@ export async function GetTotalRecipeCount(): Promise<number> {
   return Number(result?.[0]?.count ?? 0);
 }
 
-export async function deleteRecipeById(id: string): Promise<void> {
-  await db.delete(recipes).where(eq(recipes.id, id));
+export async function deleteRecipeById(id: string, version?: number): Promise<MutationOutcome<void>> {
+  const whereConditions = [eq(recipes.id, id)];
+
+  if (version) {
+    whereConditions.push(eq(recipes.version, version));
+  }
+
+  const deleted = await db
+    .delete(recipes)
+    .where(and(...whereConditions))
+    .returning({ id: recipes.id });
+
+  if (deleted.length === 0 && version) {
+    return staleOutcome();
+  }
+
+  return appliedOutcome(undefined);
 }
 
 /**
@@ -712,19 +728,50 @@ export async function createRecipeWithRefs(
 
 export async function setActiveSystemForRecipe(
   recipeId: string,
-  system: MeasurementSystem
-): Promise<void> {
-  await db.update(recipes).set({ systemUsed: system, version: sql`${recipes.version} + 1` }).where(eq(recipes.id, recipeId));
+  system: MeasurementSystem,
+  version?: number
+): Promise<MutationOutcome<void>> {
+  const whereConditions = [eq(recipes.id, recipeId)];
+
+  if (version) {
+    whereConditions.push(eq(recipes.version, version));
+  }
+
+  const updated = await db
+    .update(recipes)
+    .set({ systemUsed: system, version: sql`${recipes.version} + 1` })
+    .where(and(...whereConditions))
+    .returning({ id: recipes.id });
+
+  if (updated.length === 0 && version) {
+    return staleOutcome();
+  }
+
+  return appliedOutcome(undefined);
 }
 
 export async function updateRecipeCategories(
   recipeId: string,
-  categories: RecipeCategory[]
-): Promise<void> {
-  await db
+  categories: RecipeCategory[],
+  version?: number
+): Promise<MutationOutcome<void>> {
+  const whereConditions = [eq(recipes.id, recipeId)];
+
+  if (version) {
+    whereConditions.push(eq(recipes.version, version));
+  }
+
+  const updated = await db
     .update(recipes)
     .set({ categories, updatedAt: new Date(), version: sql`${recipes.version} + 1` })
-    .where(eq(recipes.id, recipeId));
+    .where(and(...whereConditions))
+    .returning({ id: recipes.id });
+
+  if (updated.length === 0 && version) {
+    return staleOutcome();
+  }
+
+  return appliedOutcome(undefined);
 }
 
 export async function getRecipesWithoutCategories(): Promise<{ id: string; name: string }[]> {
@@ -1153,8 +1200,9 @@ async function syncRecipeVideosTx(
 export async function updateRecipeWithRefs(
   recipeId: string,
   userId: string,
-  input: FullRecipeUpdateDTO
-): Promise<void> {
+  input: FullRecipeUpdateDTO,
+  version?: number
+): Promise<MutationOutcome<void>> {
   const parsed = FullRecipeUpdateSchema.safeParse(input);
 
   if (!parsed.success) {
@@ -1163,7 +1211,7 @@ export async function updateRecipeWithRefs(
 
   const payload = parsed.data;
 
-  await db.transaction(async (tx) => {
+  return await db.transaction(async (tx) => {
     // Update recipe base fields
     const updateData: any = {};
 
@@ -1187,9 +1235,20 @@ export async function updateRecipeWithRefs(
 
     updateData.updatedAt = new Date();
 
-    if (Object.keys(updateData).length > 1) {
-      // more than just updatedAt
-      await tx.update(recipes).set({ ...updateData, version: sql`${recipes.version} + 1` }).where(eq(recipes.id, recipeId));
+    const whereConditions = [eq(recipes.id, recipeId)];
+
+    if (version) {
+      whereConditions.push(eq(recipes.version, version));
+    }
+
+    const [updatedRecipeRow] = await tx
+      .update(recipes)
+      .set({ ...updateData, version: sql`${recipes.version} + 1` })
+      .where(and(...whereConditions))
+      .returning({ id: recipes.id });
+
+    if (!updatedRecipeRow && version) {
+      return staleOutcome();
     }
 
     // Replace tags if provided
@@ -1271,6 +1330,7 @@ export async function updateRecipeWithRefs(
     if (payload.videos !== undefined) {
       await syncRecipeVideosTx(tx, recipeId, payload.videos);
     }
+    return appliedOutcome(undefined);
   });
 }
 
@@ -1431,8 +1491,26 @@ export async function addRecipeImages(
 /**
  * Delete a recipe image by ID
  */
-export async function deleteRecipeImageById(imageId: string, _version?: number): Promise<void> {
-  await db.delete(recipeImages).where(eq(recipeImages.id, imageId));
+export async function deleteRecipeImageById(
+  imageId: string,
+  version?: number
+): Promise<MutationOutcome<void>> {
+  const whereConditions = [eq(recipeImages.id, imageId)];
+
+  if (version) {
+    whereConditions.push(eq(recipeImages.version, version));
+  }
+
+  const deleted = await db
+    .delete(recipeImages)
+    .where(and(...whereConditions))
+    .returning({ id: recipeImages.id });
+
+  if (deleted.length === 0 && version) {
+    return staleOutcome();
+  }
+
+  return appliedOutcome(undefined);
 }
 
 /**
@@ -1608,8 +1686,26 @@ export async function addRecipeVideos(
 /**
  * Delete a recipe video by ID
  */
-export async function deleteRecipeVideoById(videoId: string, _version?: number): Promise<void> {
-  await db.delete(recipeVideos).where(eq(recipeVideos.id, videoId));
+export async function deleteRecipeVideoById(
+  videoId: string,
+  version?: number
+): Promise<MutationOutcome<void>> {
+  const whereConditions = [eq(recipeVideos.id, videoId)];
+
+  if (version) {
+    whereConditions.push(eq(recipeVideos.version, version));
+  }
+
+  const deleted = await db
+    .delete(recipeVideos)
+    .where(and(...whereConditions))
+    .returning({ id: recipeVideos.id });
+
+  if (deleted.length === 0 && version) {
+    return staleOutcome();
+  }
+
+  return appliedOutcome(undefined);
 }
 
 /**

@@ -5,6 +5,19 @@ import { createMockUserRatingData, createTestQueryClient, createTestWrapper } fr
 
 const mockMutationOptions = vi.fn();
 const mockQueryKey = vi.fn();
+const mockMutate = vi.fn();
+
+vi.mock("@tanstack/react-query", async () => {
+  const actual = await vi.importActual<typeof import("@tanstack/react-query")>("@tanstack/react-query");
+
+  return {
+    ...actual,
+    useMutation: vi.fn(() => ({
+      mutate: mockMutate,
+      isPending: false,
+    })),
+  };
+});
 
 vi.mock("@/app/providers/trpc-provider", () => ({
   useTRPC: () => ({
@@ -88,7 +101,22 @@ describe("useRatingsMutation", () => {
       }>(userRatingQueryKey);
 
       expect(cachedData?.userRating).toBe(5);
-      expect(cachedData?.version).toBe(9);
+      expect(cachedData?.version).toBe(10);
+    });
+
+    it("sends the cached version with the explicit final rating", async () => {
+      queryClient.setQueryData(userRatingQueryKey, createMockUserRatingData(testRecipeId, 3, 9));
+
+      const { renderHook, act } = require("@testing-library/react");
+      const { result } = renderHook(() => useRatingsMutation(), {
+        wrapper: createTestWrapper(queryClient),
+      });
+
+      act(() => {
+        result.current.rateRecipe(testRecipeId, 4);
+      });
+
+      expect(mockMutate).toHaveBeenCalledWith({ recipeId: testRecipeId, rating: 4, version: 9 });
     });
   });
 

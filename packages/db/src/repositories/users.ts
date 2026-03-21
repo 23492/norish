@@ -9,6 +9,7 @@ import { accounts, users } from "../schema/auth";
 import { ServerConfigKeys } from "../zodSchemas/server-config";
 
 import { setConfig } from "./server-config";
+import { appliedOutcome, type MutationOutcome, staleOutcome } from "./mutation-outcomes";
 
 type VersionedUser = User & { version: number };
 
@@ -207,13 +208,29 @@ export async function getUserByEmail(email: string): Promise<VersionedUser | nul
   };
 }
 
-export async function updateUserAvatar(userId: string, protectedPath: string): Promise<void> {
+export async function updateUserAvatar(
+  userId: string,
+  protectedPath: string,
+  version?: number
+): Promise<MutationOutcome<void>> {
   const encryptedImage = encrypt(protectedPath);
+  const whereConditions = [eq(users.id, userId)];
 
-  await db
+  if (version) {
+    whereConditions.push(eq(users.version, version));
+  }
+
+  const updated = await db
     .update(users)
     .set({ image: encryptedImage, version: sql`${users.version} + 1` })
-    .where(eq(users.id, userId));
+    .where(and(...whereConditions))
+    .returning({ id: users.id });
+
+  if (updated.length === 0 && version) {
+    return staleOutcome();
+  }
+
+  return appliedOutcome(undefined);
 }
 
 export async function getUserAvatarPath(userId: string): Promise<string | null> {
@@ -247,11 +264,24 @@ export async function getAllUserAvatars(): Promise<
   }));
 }
 
-export async function clearUserAvatar(userId: string): Promise<void> {
-  await db
+export async function clearUserAvatar(userId: string, version?: number): Promise<MutationOutcome<void>> {
+  const whereConditions = [eq(users.id, userId)];
+
+  if (version) {
+    whereConditions.push(eq(users.version, version));
+  }
+
+  const updated = await db
     .update(users)
     .set({ image: null, version: sql`${users.version} + 1` })
-    .where(eq(users.id, userId));
+    .where(and(...whereConditions))
+    .returning({ id: users.id });
+
+  if (updated.length === 0 && version) {
+    return staleOutcome();
+  }
+
+  return appliedOutcome(undefined);
 }
 
 export async function getAdapterUserByAccount(
@@ -286,13 +316,29 @@ export async function getAdapterUserByAccount(
   };
 }
 
-export async function updateUserName(userId: string, name: string): Promise<void> {
+export async function updateUserName(
+  userId: string,
+  name: string,
+  version?: number
+): Promise<MutationOutcome<void>> {
   const encryptedName = encrypt(name);
+  const whereConditions = [eq(users.id, userId)];
 
-  await db
+  if (version) {
+    whereConditions.push(eq(users.version, version));
+  }
+
+  const updated = await db
     .update(users)
     .set({ name: encryptedName, version: sql`${users.version} + 1` })
-    .where(eq(users.id, userId));
+    .where(and(...whereConditions))
+    .returning({ id: users.id });
+
+  if (updated.length === 0 && version) {
+    return staleOutcome();
+  }
+
+  return appliedOutcome(undefined);
 }
 
 export async function deleteUser(userId: string): Promise<void> {
@@ -438,18 +484,31 @@ export async function getUserPreferences(userId: string): Promise<Record<string,
 /** Update user preferences by atomically merging provided JSONB updates. */
 export async function updateUserPreferences(
   userId: string,
-  updates: Record<string, unknown>
-): Promise<void> {
+  updates: Record<string, unknown>,
+  version?: number
+): Promise<MutationOutcome<void>> {
   const updatesJson = JSON.stringify(updates ?? {});
+  const whereConditions = [eq(users.id, userId)];
+
+  if (version) {
+    whereConditions.push(eq(users.version, version));
+  }
 
   try {
-    await db
+    const updated = await db
       .update(users)
       .set({
         preferences: sql`coalesce(${users.preferences}, '{}'::jsonb) || ${updatesJson}::jsonb`,
         version: sql`${users.version} + 1`,
       })
-      .where(eq(users.id, userId));
+      .where(and(...whereConditions))
+      .returning({ id: users.id });
+
+    if (updated.length === 0 && version) {
+      return staleOutcome();
+    }
+
+    return appliedOutcome(undefined);
   } catch (error) {
     // Migration/column may be missing: warn and rethrow
     try {

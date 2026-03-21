@@ -5,6 +5,19 @@ import { createMockFavoritesData, createTestQueryClient, createTestWrapper } fro
 
 const mockQueryKey = [["favorites", "list"], { type: "query" }];
 const mockMutationOptions = vi.fn();
+const mockMutate = vi.fn();
+
+vi.mock("@tanstack/react-query", async () => {
+  const actual = await vi.importActual<typeof import("@tanstack/react-query")>("@tanstack/react-query");
+
+  return {
+    ...actual,
+    useMutation: vi.fn(() => ({
+      mutate: mockMutate,
+      isPending: false,
+    })),
+  };
+});
 
 vi.mock("@/app/providers/trpc-provider", () => ({
   useTRPC: () => ({
@@ -44,7 +57,7 @@ describe("useFavoritesMutation", () => {
       const mutationOpts = mockMutationOptions.mock.calls[0][0];
 
       await act(async () => {
-        await mutationOpts.onMutate({ recipeId: "recipe-1" });
+        await mutationOpts.onMutate({ recipeId: "recipe-1", isFavorite: true });
       });
 
       const cachedData = queryClient.getQueryData<{
@@ -69,7 +82,7 @@ describe("useFavoritesMutation", () => {
       const mutationOpts = mockMutationOptions.mock.calls[0][0];
 
       await act(async () => {
-        await mutationOpts.onMutate({ recipeId: "recipe-1" });
+        await mutationOpts.onMutate({ recipeId: "recipe-1", isFavorite: false });
       });
 
       const cachedData = queryClient.getQueryData<{
@@ -97,7 +110,7 @@ describe("useFavoritesMutation", () => {
       let context: { previousData: unknown };
 
       await act(async () => {
-        context = await mutationOpts.onMutate({ recipeId: "recipe-2" });
+        context = await mutationOpts.onMutate({ recipeId: "recipe-2", isFavorite: true });
       });
 
       // Verify optimistic update happened
@@ -110,7 +123,7 @@ describe("useFavoritesMutation", () => {
 
       // Simulate error - should rollback
       act(() => {
-        mutationOpts.onError(new Error("Failed"), { recipeId: "recipe-2" }, context);
+        mutationOpts.onError(new Error("Failed"), { recipeId: "recipe-2", isFavorite: true }, context);
       });
 
       cachedData = queryClient.getQueryData<{
@@ -132,7 +145,7 @@ describe("useFavoritesMutation", () => {
       const mutationOpts = mockMutationOptions.mock.calls[0][0];
 
       await act(async () => {
-        await mutationOpts.onMutate({ recipeId: "recipe-1" });
+        await mutationOpts.onMutate({ recipeId: "recipe-1", isFavorite: true });
       });
 
       const cachedData = queryClient.getQueryData<{
@@ -141,6 +154,24 @@ describe("useFavoritesMutation", () => {
       }>(mockQueryKey);
 
       expect(cachedData?.favoriteIds).toContain("recipe-1");
+    });
+
+    it("sends explicit final state with the cached favorite version", () => {
+      queryClient.setQueryData(
+        mockQueryKey,
+        createMockFavoritesData(["recipe-1"], { "recipe-1": 4 })
+      );
+
+      const { renderHook, act } = require("@testing-library/react");
+      const { result } = renderHook(() => useFavoritesMutation(), {
+        wrapper: createTestWrapper(queryClient),
+      });
+
+      act(() => {
+        result.current.toggleFavorite("recipe-1");
+      });
+
+      expect(mockMutate).toHaveBeenCalledWith({ recipeId: "recipe-1", isFavorite: false, version: 4 });
     });
   });
 

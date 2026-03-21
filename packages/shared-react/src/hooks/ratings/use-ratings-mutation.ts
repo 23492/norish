@@ -3,7 +3,15 @@ import type { CreateRatingsHooksOptions } from "./types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 
-type UserRatingData = { recipeId: string; userRating: number | null; version?: number | null };
+type UserRatingData = { recipeId: string; userRating: number | null; version: number | null };
+
+function getOptimisticRatingVersion(version: number | null): number | null {
+  if (version == null) {
+    return version;
+  }
+
+  return version + 1;
+}
 
 export function createUseRatingsMutation({ useTRPC }: CreateRatingsHooksOptions) {
   return function useRatingsMutation() {
@@ -14,18 +22,39 @@ export function createUseRatingsMutation({ useTRPC }: CreateRatingsHooksOptions)
       trpc.ratings.rate.mutationOptions({
         onMutate: async ({ recipeId, rating }) => {
           const userRatingQueryKey = trpc.ratings.getUserRating.queryKey({ recipeId });
+          const averageRatingQueryKey = trpc.ratings.getAverage.queryKey({ recipeId });
 
           await queryClient.cancelQueries({ queryKey: userRatingQueryKey });
+          await queryClient.cancelQueries({ queryKey: averageRatingQueryKey });
 
           const previousUserRating = queryClient.getQueryData<UserRatingData>(userRatingQueryKey);
 
           queryClient.setQueryData<UserRatingData>(userRatingQueryKey, {
             recipeId,
             userRating: rating,
-            version: previousUserRating?.version,
+            version: getOptimisticRatingVersion(previousUserRating?.version ?? null),
           });
 
-          return { previousUserRating, userRatingQueryKey };
+          return { previousUserRating, userRatingQueryKey, averageRatingQueryKey };
+        },
+        onError: (_error, _variables, context) => {
+          if (context?.previousUserRating) {
+            queryClient.setQueryData(context.userRatingQueryKey, context.previousUserRating);
+          }
+        },
+        onSettled: (_data, _error, variables, context) => {
+          if (context?.userRatingQueryKey) {
+            queryClient.invalidateQueries({ queryKey: context.userRatingQueryKey });
+          }
+
+          if (context?.averageRatingQueryKey) {
+            queryClient.invalidateQueries({ queryKey: context.averageRatingQueryKey });
+            return;
+          }
+
+          queryClient.invalidateQueries({
+            queryKey: trpc.ratings.getAverage.queryKey({ recipeId: variables.recipeId }),
+          });
         },
       })
     );

@@ -283,7 +283,12 @@ const leave = authedProcedure
 
     // Remove user async and emit events - fire and forget
     removeUserFromHousehold(householdId, ctx.user.id, version)
-      .then(async () => {
+      .then(async (result) => {
+        if (result.stale) {
+          log.info({ userId: ctx.user.id, householdId, version }, "Ignoring stale household leave mutation");
+          return;
+        }
+
         log.info({ userId: ctx.user.id, householdId }, "User left household");
 
         // Invalidate cache for leaving user AND remaining members (their user list changed)
@@ -348,7 +353,15 @@ const kick = authedProcedure
 
     // Kick user async and emit events
     kickUserFromHousehold(householdId, userIdToKick, ctx.user.id, version)
-      .then(async () => {
+      .then(async (result) => {
+        if (result.stale) {
+          log.info(
+            { userId: ctx.user.id, householdId, userIdToKick, version },
+            "Ignoring stale household kick mutation"
+          );
+          return;
+        }
+
         log.info({ userId: ctx.user.id, householdId, userIdToKick }, "User kicked from household");
 
         // Emit to the kicked user FIRST (before their connection is terminated)
@@ -399,7 +412,16 @@ const regenerateCode = authedProcedure
 
     // Regenerate code async and emit events
     regenerateJoinCode(householdId, version)
-      .then((household) => {
+      .then((result) => {
+        if (result.stale || !result.value) {
+          log.info(
+            { userId: ctx.user.id, householdId, version },
+            "Ignoring stale household join-code regeneration"
+          );
+          return;
+        }
+
+        const household = result.value;
         log.info({ userId: ctx.user.id, householdId }, "Join code regenerated");
 
         // Emit to all household members
@@ -445,7 +467,16 @@ const transferAdmin = authedProcedure
 
     // Transfer admin async and emit events
     transferHouseholdAdmin(householdId, ctx.user.id, newAdminId, version)
-      .then((household) => {
+      .then((result) => {
+        if (result.stale || !result.value) {
+          log.info(
+            { userId: ctx.user.id, householdId, newAdminId, version },
+            "Ignoring stale household admin transfer"
+          );
+          return;
+        }
+
+        const household = result.value;
         log.info({ userId: ctx.user.id, householdId, newAdminId }, "Admin transferred");
 
         // Emit to all household members

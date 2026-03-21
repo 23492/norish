@@ -2,6 +2,8 @@ import { and, asc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { db } from "@norish/db/drizzle";
 import { plannedItems, recipes } from "@norish/db/schema";
 
+import { appliedOutcome, type MutationOutcome, staleOutcome } from "./mutation-outcomes";
+
 type PlannedItem = typeof plannedItems.$inferSelect;
 type PlannedItemInsert = typeof plannedItems.$inferInsert;
 type PlannedItemUpdate = Partial<PlannedItemInsert>;
@@ -183,33 +185,55 @@ export async function createPlannedItem(input: PlannedItemInsert): Promise<Plann
 export async function updatePlannedItem(
   id: string,
   updates: PlannedItemUpdate,
-  _version?: number
-): Promise<PlannedItem | null> {
+  version?: number
+): Promise<MutationOutcome<PlannedItem>> {
+  const whereConditions = [eq(plannedItems.id, id)];
+
+  if (version) {
+    whereConditions.push(eq(plannedItems.version, version));
+  }
+
   const [row] = await db
     .update(plannedItems)
     .set({ ...updates, updatedAt: new Date(), version: sql`${plannedItems.version} + 1` })
-    .where(eq(plannedItems.id, id))
+    .where(and(...whereConditions))
     .returning();
 
-  return row ?? null;
+  if (!row) {
+    return staleOutcome();
+  }
+
+  return appliedOutcome(row);
 }
 
-export async function deletePlannedItem(id: string, _version?: number): Promise<PlannedItem[]> {
+export async function deletePlannedItem(
+  id: string,
+  version?: number
+): Promise<MutationOutcome<{ deletedItem: PlannedItem; reindexedItems: PlannedItem[] }>> {
   return await db.transaction(async (trx) => {
-    const [current] = await trx.select().from(plannedItems).where(eq(plannedItems.id, id)).limit(1);
+    const deleteWhereConditions = [eq(plannedItems.id, id)];
 
-    if (!current) return [];
+    if (version) {
+      deleteWhereConditions.push(eq(plannedItems.version, version));
+    }
 
-    await trx.delete(plannedItems).where(eq(plannedItems.id, id));
+    const [deletedItem] = await trx
+      .delete(plannedItems)
+      .where(and(...deleteWhereConditions))
+      .returning();
+
+    if (!deletedItem) {
+      return staleOutcome();
+    }
 
     const remaining = await trx
       .select()
       .from(plannedItems)
       .where(
         and(
-          eq(plannedItems.userId, current.userId),
-          eq(plannedItems.date, current.date),
-          eq(plannedItems.slot, current.slot)
+          eq(plannedItems.userId, deletedItem.userId),
+          eq(plannedItems.date, deletedItem.date),
+          eq(plannedItems.slot, deletedItem.slot)
         )
       )
       .orderBy(asc(plannedItems.sortOrder));
@@ -229,7 +253,7 @@ export async function deletePlannedItem(id: string, _version?: number): Promise<
       if (row) updated.push(row);
     }
 
-    return updated;
+    return appliedOutcome({ deletedItem, reindexedItems: updated });
   });
 }
 
@@ -238,16 +262,22 @@ export async function moveItem(
   targetDate: string,
   targetSlot: PlannedItemSlot,
   targetIndex: number,
-  _version?: number
-): Promise<PlannedItem | null> {
+  version?: number
+): Promise<MutationOutcome<PlannedItem>> {
   return await db.transaction(async (trx) => {
+    const currentWhereConditions = [eq(plannedItems.id, itemId)];
+
+    if (version) {
+      currentWhereConditions.push(eq(plannedItems.version, version));
+    }
+
     const [current] = await trx
       .select()
       .from(plannedItems)
-      .where(eq(plannedItems.id, itemId))
+      .where(and(...currentWhereConditions))
       .limit(1);
 
-    if (!current) return null;
+    if (!current) return staleOutcome();
 
     const sourceItems = await trx
       .select()
@@ -313,7 +343,11 @@ export async function moveItem(
       const [row] = await trx
         .update(plannedItems)
         .set({ ...updateData, version: versionIncrement })
-        .where(eq(plannedItems.id, item.id))
+        .where(
+          item.id === itemId && version
+            ? and(eq(plannedItems.id, item.id), eq(plannedItems.version, version))
+            : eq(plannedItems.id, item.id)
+        )
         .returning();
 
       if (row && item.id === itemId) {
@@ -321,7 +355,11 @@ export async function moveItem(
       }
     }
 
-    return moved;
+    if (!moved) {
+      return staleOutcome();
+    }
+
+    return appliedOutcome(moved);
   });
 }
 

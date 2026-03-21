@@ -25,21 +25,23 @@ const withAuth = middleware(async ({ ctx, next }) => {
     });
   }
 
-  const household = ctx.household ?? (await getCachedHouseholdForUser(ctx.user.id));
+  const user = ctx.user;
+
+  const household = ctx.household ?? (await getCachedHouseholdForUser(user.id));
 
   const householdUserIds = household?.users.map((u: { id: string }) => u.id) ?? [];
-  const allUserIds = [ctx.user.id, ...householdUserIds].filter(
+  const allUserIds = [user.id, ...householdUserIds].filter(
     (id, i, arr) => arr.indexOf(id) === i
   );
-  const householdKey = household?.id ?? ctx.user.id;
-  const isServerAdmin = ctx.user.isServerAdmin ?? false;
+  const householdKey = household?.id ?? user.id;
+  const isServerAdmin = user.isServerAdmin ?? false;
 
   // Get or create the subscription multiplexer for this WebSocket connection
   // The multiplexer consolidates all Redis subscriptions into a single connection
   let multiplexer: SubscriptionMultiplexer | null = ctx.multiplexer;
 
   if (!multiplexer && ctx.connectionId) {
-    multiplexer = getOrCreateMultiplexer(ctx.connectionId, ctx.user.id, householdKey);
+    multiplexer = getOrCreateMultiplexer(ctx.connectionId, user.id, householdKey);
   }
 
   const operationId = ctx.operationId ?? undefined;
@@ -48,7 +50,7 @@ const withAuth = middleware(async ({ ctx, next }) => {
     next({
       ctx: {
         ...ctx,
-        user: ctx.user,
+        user,
         household,
         householdKey,
         userIds: allUserIds,
@@ -92,7 +94,9 @@ const withServerAdmin = middleware(async ({ ctx, next }) => {
     });
   }
 
-  const isAdmin = await isUserServerAdmin(ctx.user.id);
+  const user = ctx.user;
+
+  const isAdmin = await isUserServerAdmin(user.id);
 
   if (!isAdmin) {
     throw new TRPCError({
@@ -102,11 +106,11 @@ const withServerAdmin = middleware(async ({ ctx, next }) => {
   }
 
   return next({
-    ctx: {
-      ...ctx,
-      user: ctx.user,
-    },
-  });
+      ctx: {
+        ...ctx,
+        user,
+      },
+    });
 });
 
 /**

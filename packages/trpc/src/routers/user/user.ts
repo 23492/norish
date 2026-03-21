@@ -76,7 +76,18 @@ const updatePreferences = authedProcedure
     const current = await getUserPreferences(ctx.user.id);
     const merged = { ...(current ?? {}), ...(input.preferences ?? {}) };
 
-    await updateUserPreferences(ctx.user.id, merged);
+    const result = await updateUserPreferences(ctx.user.id, merged, input.version);
+
+    if (result.stale) {
+      log.info({ userId: ctx.user.id, version: input.version }, "Ignoring stale user preferences mutation");
+      return {
+        success: true,
+        stale: true,
+        preferences: current ?? {},
+        version: input.version,
+      };
+    }
+
     const updatedUser = await getUserById(ctx.user.id);
 
     return {
@@ -100,7 +111,13 @@ const updateName = authedProcedure
       return { success: false, error: "Name cannot be empty" };
     }
 
-    await updateUserName(ctx.user.id, trimmedName);
+    const result = await updateUserName(ctx.user.id, trimmedName, input.version);
+
+    if (result.stale) {
+      log.info({ userId: ctx.user.id, version: input.version }, "Ignoring stale user name mutation");
+      return { success: true, stale: true };
+    }
+
     const updatedUser = await getUserById(ctx.user.id);
 
     if (!updatedUser) {
@@ -177,7 +194,14 @@ const uploadAvatar = authedProcedure
     const protectedPath = `/avatars/${filename}`;
 
     // Update database
-    await updateUserAvatar(ctx.user.id, protectedPath);
+    const result = await updateUserAvatar(ctx.user.id, protectedPath, version);
+
+    if (result.stale) {
+      await deleteAvatarByFilename(filename);
+      log.info({ userId: ctx.user.id, version }, "Ignoring stale user avatar upload");
+      return { success: true, stale: true };
+    }
+
     const updatedUser = await getUserById(ctx.user.id);
 
     if (!updatedUser) {
@@ -200,22 +224,27 @@ const deleteAvatar = authedProcedure
   .mutation(async ({ ctx }) => {
     log.debug({ userId: ctx.user.id }, "Deleting avatar");
 
-  const avatarDir = path.join(SERVER_CONFIG.UPLOADS_DIR, "avatars");
+    const clearResult = await clearUserAvatar(ctx.user.id, input.version);
 
-  // Delete all avatars for this user
-  try {
-    const existingFiles = await readdir(avatarDir);
-    const userAvatars = existingFiles.filter((f) => isAvatarFilenameForUser(f, ctx.user.id));
-
-    for (const avatar of userAvatars) {
-      await deleteAvatarByFilename(avatar);
+    if (clearResult.stale) {
+      log.info({ userId: ctx.user.id, version: input.version }, "Ignoring stale user avatar delete");
+      return { success: true, stale: true };
     }
-  } catch {
-    // Ignore errors
-  }
 
-    // Clear from database
-    await clearUserAvatar(ctx.user.id);
+    const avatarDir = path.join(SERVER_CONFIG.UPLOADS_DIR, "avatars");
+
+    // Delete all avatars for this user
+    try {
+      const existingFiles = await readdir(avatarDir);
+      const userAvatars = existingFiles.filter((f) => isAvatarFilenameForUser(f, ctx.user.id));
+
+      for (const avatar of userAvatars) {
+        await deleteAvatarByFilename(avatar);
+      }
+    } catch {
+      // Ignore errors
+    }
+
     const updatedUser = await getUserById(ctx.user.id);
 
     if (!updatedUser) {
@@ -294,7 +323,20 @@ const setAllergies = authedProcedure
   .mutation(async ({ ctx, input }) => {
     log.debug({ userId: ctx.user.id, count: input.allergies.length }, "Updating user allergies");
 
-    await updateUserAllergies(ctx.user.id, input.allergies, input.version);
+    const result = await updateUserAllergies(ctx.user.id, input.allergies, input.version);
+
+    if (result.stale) {
+      log.info({ userId: ctx.user.id, version: input.version }, "Ignoring stale user allergies mutation");
+      const currentAllergies = await getUserAllergies(ctx.user.id);
+
+      return {
+        success: true,
+        stale: true,
+        allergies: currentAllergies.allergies,
+        version: currentAllergies.version,
+      };
+    }
+
     const updatedAllergies = await getUserAllergies(ctx.user.id);
 
     if (ctx.household) {

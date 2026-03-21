@@ -294,5 +294,61 @@ describe("useGroceriesMutations", () => {
         expect.any(Object)
       );
     });
+
+    it("sends an id/version snapshot when marking all groceries done in a store", async () => {
+      const groceries = [
+        createMockGrocery({ id: "g1", version: 2, storeId: "store-1", isDone: false }),
+        createMockGrocery({ id: "g2", version: 5, storeId: "store-1", isDone: false }),
+        createMockGrocery({ id: "g3", version: 8, storeId: "store-1", isDone: true }),
+      ];
+
+      queryClient.setQueryData(["groceries", "list"], createMockGroceriesData(groceries, []));
+
+      const { useGroceriesMutations } = await import("@/hooks/groceries/use-groceries-mutations");
+      const { result } = renderHook(() => useGroceriesMutations(), {
+        wrapper: createTestWrapper(queryClient),
+      });
+
+      result.current.markAllDoneInStore("store-1");
+
+      expect(_mockMutations.markAllDone).toHaveBeenCalledWith(
+        {
+          storeId: "store-1",
+          groceries: [
+            { id: "g1", version: 2 },
+            { id: "g2", version: 5 },
+          ],
+        },
+        expect.any(Object)
+      );
+    });
+
+    it("sends an id/version snapshot when deleting done groceries in a store", async () => {
+      const groceries = [
+        createMockGrocery({ id: "g1", version: 2, storeId: "store-1", isDone: true }),
+        createMockGrocery({ id: "g2", version: 5, storeId: "store-1", isDone: true }),
+        createMockGrocery({ id: "g3", version: 8, storeId: "store-1", isDone: false }),
+      ];
+
+      queryClient.setQueryData(["groceries", "list"], createMockGroceriesData(groceries, []));
+
+      const { useGroceriesMutations } = await import("@/hooks/groceries/use-groceries-mutations");
+      const { result } = renderHook(() => useGroceriesMutations(), {
+        wrapper: createTestWrapper(queryClient),
+      });
+
+      result.current.deleteDoneInStore("store-1");
+
+      expect(_mockMutations.deleteDone).toHaveBeenCalledWith(
+        {
+          storeId: "store-1",
+          groceries: [
+            { id: "g1", version: 2 },
+            { id: "g2", version: 5 },
+          ],
+        },
+        expect.any(Object)
+      );
+    });
   });
 });

@@ -21,27 +21,29 @@ export function createUseFavoritesMutation({ useTRPC }: CreateRecipeHooksOptions
 
     const toggleMutation = useMutation(
       trpc.favorites.toggle.mutationOptions({
-        onMutate: async ({ recipeId }) => {
+        onMutate: async ({ recipeId, isFavorite: desiredState }) => {
           await queryClient.cancelQueries({ queryKey });
 
           const previousData = queryClient.getQueryData<FavoritesListData>(queryKey);
 
           queryClient.setQueryData<FavoritesListData>(queryKey, (old) => {
             if (!old) {
-              return { favoriteIds: [recipeId], favoriteVersions: {} };
+              return desiredState
+                ? { favoriteIds: [recipeId], favoriteVersions: {} }
+                : { favoriteIds: [], favoriteVersions: {} };
             }
 
-            const isFavorite = old.favoriteIds.includes(recipeId);
-
             return {
-              favoriteIds: isFavorite
-                ? old.favoriteIds.filter((id) => id !== recipeId)
-                : [...old.favoriteIds, recipeId],
-              favoriteVersions: isFavorite
-                ? Object.fromEntries(
+              favoriteIds: desiredState
+                ? old.favoriteIds.includes(recipeId)
+                  ? old.favoriteIds
+                  : [...old.favoriteIds, recipeId]
+                : old.favoriteIds.filter((id) => id !== recipeId),
+              favoriteVersions: desiredState
+                ? old.favoriteVersions
+                : Object.fromEntries(
                     Object.entries(old.favoriteVersions).filter(([id]) => id !== recipeId)
-                  )
-                : old.favoriteVersions,
+                  ),
             };
           });
 
@@ -60,9 +62,11 @@ export function createUseFavoritesMutation({ useTRPC }: CreateRecipeHooksOptions
 
     const toggleFavorite = (recipeId: string) => {
       const favorites = queryClient.getQueryData<FavoritesListData>(queryKey);
+      const isCurrentlyFavorite = favorites?.favoriteIds.includes(recipeId) ?? false;
 
       toggleMutation.mutate({
         recipeId,
+        isFavorite: !isCurrentlyFavorite,
         version: favorites?.favoriteVersions[recipeId],
       });
     };

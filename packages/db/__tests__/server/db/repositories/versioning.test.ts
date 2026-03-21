@@ -224,4 +224,21 @@ describe("versioned repository behavior", () => {
       expect.objectContaining({ version: 4 }),
     ]);
   });
+
+  it("treats stale allergy updates as no-ops", async () => {
+    await updateUserAllergies(testUserId, ["Peanuts"], 0);
+
+    const staleResult = await updateUserAllergies(testUserId, ["Shellfish"], 0);
+    const current = await getUserAllergies(testUserId);
+
+    expect(staleResult).toEqual({
+      applied: false,
+      version: 2,
+      stale: true,
+    });
+    expect(current).toEqual({
+      allergies: ["Peanuts"],
+      version: 2,
+    });
+  });
 });

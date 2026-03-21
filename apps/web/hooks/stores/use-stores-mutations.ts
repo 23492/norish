@@ -1,6 +1,12 @@
 "use client";
 
-import type { StoreCreateDto, StoreDto, StoreUpdateInput } from "@norish/shared/contracts";
+import type {
+  StoreCreateDto,
+  StoreDeleteInput,
+  StoreDto,
+  StoreUpdateInput,
+} from "@norish/shared/contracts";
+import type { StoreGrocerySnapshot } from "@norish/shared-react/hooks";
 
 import { useMutation } from "@tanstack/react-query";
 
@@ -12,7 +18,7 @@ import { useTRPC } from "@/app/providers/trpc-provider";
 export type StoresMutationsResult = {
   createStore: (data: StoreCreateDto) => Promise<string>;
   updateStore: (data: Omit<StoreUpdateInput, "version">) => void;
-  deleteStore: (storeId: string, deleteGroceries: boolean) => void;
+  deleteStore: (storeId: string, deleteGroceries: boolean, grocerySnapshot: StoreGrocerySnapshot) => void;
   reorderStores: (storeIds: string[]) => void;
   isCreating: boolean;
   isUpdating: boolean;
@@ -79,7 +85,11 @@ export function useStoresMutations(): StoresMutationsResult {
     });
   };
 
-  const deleteStore = (storeId: string, deleteGroceries: boolean) => {
+  const deleteStore = (
+    storeId: string,
+    deleteGroceries: boolean,
+    grocerySnapshot: StoreGrocerySnapshot
+  ) => {
     // Optimistically remove
     setStoresData((prev) => {
       if (!prev) return prev;
@@ -87,8 +97,15 @@ export function useStoresMutations(): StoresMutationsResult {
       return prev.filter((s) => s.id !== storeId);
     });
 
+    const input: StoreDeleteInput = {
+      storeId,
+      version: getStoreVersion(storeId),
+      deleteGroceries,
+      grocerySnapshot,
+    };
+
     deleteMutation.mutate(
-      { storeId, version: getStoreVersion(storeId), deleteGroceries },
+      input,
       {
         onError: () => invalidate(),
       }

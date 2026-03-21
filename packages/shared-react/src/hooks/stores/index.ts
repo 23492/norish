@@ -7,6 +7,7 @@ import { createUseStoresSubscription } from "./use-stores-subscription";
 
 export type {
   CreateStoresHooksOptions,
+  StoreGrocerySnapshot,
   StoreUpdateDraft,
   StoresCacheHelpers,
   StoresData,

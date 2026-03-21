@@ -3,6 +3,8 @@ import { and, eq, inArray } from "drizzle-orm";
 import { db } from "../drizzle";
 import { recipeFavorites } from "../schema";
 
+import { appliedOutcome, type MutationOutcome, staleOutcome } from "./mutation-outcomes";
+
 export async function addFavorite(userId: string, recipeId: string): Promise<void> {
   await db
     .insert(recipeFavorites)
@@ -14,6 +16,35 @@ export async function removeFavorite(userId: string, recipeId: string): Promise<
   await db
     .delete(recipeFavorites)
     .where(and(eq(recipeFavorites.userId, userId), eq(recipeFavorites.recipeId, recipeId)));
+}
+
+export async function setFavorite(
+  userId: string,
+  recipeId: string,
+  isFavorite: boolean,
+  version?: number
+): Promise<MutationOutcome<{ isFavorite: boolean }>> {
+  if (isFavorite) {
+    await addFavorite(userId, recipeId);
+    return appliedOutcome({ isFavorite: true });
+  }
+
+  const whereConditions = [eq(recipeFavorites.userId, userId), eq(recipeFavorites.recipeId, recipeId)];
+
+  if (version) {
+    whereConditions.push(eq(recipeFavorites.version, version));
+  }
+
+  const deleted = await db
+    .delete(recipeFavorites)
+    .where(and(...whereConditions))
+    .returning({ recipeId: recipeFavorites.recipeId });
+
+  if (deleted.length === 0 && version) {
+    return staleOutcome({ isFavorite: false });
+  }
+
+  return appliedOutcome({ isFavorite: false });
 }
 
 export async function toggleFavorite(

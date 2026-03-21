@@ -120,20 +120,26 @@ export async function createRecurringGrocery(
 
 export async function updateRecurringGrocery(
   data: RecurringGroceryUpdateDto
-): Promise<RecurringGroceryDto> {
+): Promise<RecurringGroceryDto | null> {
   const updateData = {
     ...data,
     amount: data.amount != null ? String(data.amount) : undefined,
     updatedAt: new Date(),
   };
 
+  const whereConditions = [eq(recurringGroceries.id, data.id!)];
+
+  if (data.version) {
+    whereConditions.push(eq(recurringGroceries.version, data.version));
+  }
+
   const [row] = await db
     .update(recurringGroceries)
     .set({ ...updateData, version: sql`${recurringGroceries.version} + 1` })
-    .where(eq(recurringGroceries.id, data.id!))
+    .where(and(...whereConditions))
     .returning();
 
-  if (!row) throw new Error("Recurring grocery not found");
+  if (!row) return null;
 
   const parsed = RecurringGrocerySelectBaseSchema.safeParse(row);
 
@@ -150,14 +156,30 @@ export async function updateRecurringGroceries(
   for (const data of dataList) {
     const result = await updateRecurringGrocery(data);
 
-    results.push(result);
+    if (result) {
+      results.push(result);
+    }
   }
 
   return results;
 }
 
-export async function deleteRecurringGroceryById(id: string): Promise<void> {
-  await db.delete(recurringGroceries).where(eq(recurringGroceries.id, id));
+export async function deleteRecurringGroceryById(
+  id: string,
+  version?: number
+): Promise<{ stale: boolean }> {
+  const whereConditions = [eq(recurringGroceries.id, id)];
+
+  if (version) {
+    whereConditions.push(eq(recurringGroceries.version, version));
+  }
+
+  const deletedRows = await db
+    .delete(recurringGroceries)
+    .where(and(...whereConditions))
+    .returning({ id: recurringGroceries.id });
+
+  return { stale: Boolean(version) && deletedRows.length === 0 };
 }
 
 export async function deleteRecurringGroceryByIds(ids: string[]): Promise<void> {

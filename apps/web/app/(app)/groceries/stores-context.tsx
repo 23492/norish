@@ -1,7 +1,7 @@
 "use client";
 
 import type { StoreCreateDto, StoreDto } from "@norish/shared/contracts";
-import type { StoreUpdateDraft } from "@/hooks/stores";
+import type { StoreGrocerySnapshot, StoreUpdateDraft } from "@/hooks/stores";
 
 import { createContext, ReactNode, useContext, useMemo, useState } from "react";
 
@@ -14,7 +14,7 @@ type StoresCtx = {
   isLoading: boolean;
   createStore: (data: StoreCreateDto) => Promise<string>;
   updateStore: (data: StoreUpdateDraft) => void;
-  deleteStore: (storeId: string, deleteGroceries: boolean) => void;
+  deleteStore: (storeId: string, deleteGroceries: boolean, grocerySnapshot: StoreGrocerySnapshot) => void;
   reorderStores: (storeIds: string[]) => void;
   // UI
   storeManagerOpen: boolean;

@@ -167,9 +167,9 @@ const deleteRecurring = authedProcedure
     })
   )
   .mutation(({ ctx, input }) => {
-    const { recurringGroceryId } = input;
+    const { recurringGroceryId, version } = input;
 
-    log.info({ userId: ctx.user.id, recurringGroceryId }, "Deleting recurring grocery");
+    log.info({ userId: ctx.user.id, recurringGroceryId, version }, "Deleting recurring grocery");
 
     getRecurringGroceryOwnerId(recurringGroceryId)
       .then(async (ownerId) => {
@@ -181,7 +181,15 @@ const deleteRecurring = authedProcedure
         }
 
         await assertHouseholdAccess(ctx.user.id, ownerId);
-        await deleteRecurringGroceryById(recurringGroceryId);
+        const result = await deleteRecurringGroceryById(recurringGroceryId, version);
+
+        if (result.stale) {
+          log.info(
+            { userId: ctx.user.id, recurringGroceryId, version },
+            "Ignoring stale recurring grocery delete mutation"
+          );
+          return;
+        }
 
         log.info({ userId: ctx.user.id, recurringGroceryId }, "Recurring grocery deleted");
         groceryEmitter.emitToHousehold(ctx.householdKey, "recurringDeleted", {

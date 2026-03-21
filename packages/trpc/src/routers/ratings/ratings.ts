@@ -37,6 +37,11 @@ const rate = authedProcedure.input(RatingInputSchema).mutation(({ ctx, input }) 
 
   rateRecipe(ctx.user.id, recipeId, rating, version)
     .then(async (result) => {
+      if (result.stale) {
+        log.info({ userId: ctx.user.id, recipeId, version }, "Ignoring stale rating mutation");
+        return;
+      }
+
       const stats = await getAverageRating(recipeId);
       const policy = await getRecipePermissionPolicy();
 

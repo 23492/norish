@@ -16,6 +16,8 @@ import {
   UpdateSiteAuthTokenInputSchema,
 } from "@norish/shared/contracts/zod/site-auth-tokens";
 
+import { appliedOutcome, type MutationOutcome, staleOutcome } from "./mutation-outcomes";
+
 function decryptToken(token: SiteAuthTokenDto): SiteAuthTokenDecryptedDto {
   return {
     id: token.id,
@@ -125,7 +127,7 @@ export async function getTokenById(
 export async function updateSiteAuthToken(
   userId: string,
   input: UpdateSiteAuthTokenInputDto
-): Promise<SiteAuthTokenSafeDto> {
+): Promise<MutationOutcome<SiteAuthTokenSafeDto>> {
   const validated = UpdateSiteAuthTokenInputSchema.parse(input);
 
   const updateData: Record<string, unknown> = { updatedAt: new Date() };
@@ -135,24 +137,45 @@ export async function updateSiteAuthToken(
   if (validated.value !== undefined) updateData.valueEnc = encrypt(validated.value);
   if (validated.type !== undefined) updateData.type = validated.type;
 
+  const whereConditions = [eq(siteAuthTokens.id, validated.id), eq(siteAuthTokens.userId, userId)];
+
+  if (validated.version) {
+    whereConditions.push(eq(siteAuthTokens.version, validated.version));
+  }
+
   const [row] = await db
     .update(siteAuthTokens)
     .set({ ...updateData, version: sql`${siteAuthTokens.version} + 1` })
-    .where(and(eq(siteAuthTokens.id, validated.id), eq(siteAuthTokens.userId, userId)))
+    .where(and(...whereConditions))
     .returning();
 
-  if (!row) throw new Error("Token not found or access denied");
+  if (!row) return staleOutcome();
 
   const parsed = SiteAuthTokenSelectSchema.parse(row);
 
-  return toSafeToken(parsed);
+  return appliedOutcome(toSafeToken(parsed));
 }
 
-export async function deleteSiteAuthToken(userId: string, tokenId: string, _version: number): Promise<void> {
+export async function deleteSiteAuthToken(
+  userId: string,
+  tokenId: string,
+  version: number
+): Promise<MutationOutcome<void>> {
+  const whereConditions = [
+    eq(siteAuthTokens.id, tokenId),
+    eq(siteAuthTokens.userId, userId),
+  ];
+
+  if (version) {
+    whereConditions.push(eq(siteAuthTokens.version, version));
+  }
+
   const result = await db
     .delete(siteAuthTokens)
-    .where(and(eq(siteAuthTokens.id, tokenId), eq(siteAuthTokens.userId, userId)))
+    .where(and(...whereConditions))
     .returning({ id: siteAuthTokens.id });
 
-  if (result.length === 0) throw new Error("Token not found or access denied");
+  if (result.length === 0) return staleOutcome();
+
+  return appliedOutcome(undefined);
 }

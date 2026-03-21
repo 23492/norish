@@ -1,7 +1,8 @@
 
-import type { StoreCreateDto, StoreDto } from "@norish/shared/contracts";
+import type { StoreCreateDto, StoreDeleteInput, StoreDto } from "@norish/shared/contracts";
 import type {
   CreateStoresHooksOptions,
+  StoreGrocerySnapshot,
   StoresMutationsResult,
   StoresQueryResult,
   StoreUpdateDraft,
@@ -74,15 +75,26 @@ export function createUseStoresMutations({
       });
     };
 
-    const deleteStore = (storeId: string, deleteGroceries: boolean) => {
+    const deleteStore = (
+      storeId: string,
+      deleteGroceries: boolean,
+      grocerySnapshot: StoreGrocerySnapshot
+    ) => {
       setStoresData((prev) => {
         if (!prev) return prev;
 
         return prev.filter((s) => s.id !== storeId);
       });
 
+      const input: StoreDeleteInput = {
+        storeId,
+        version: getStoreVersion(storeId),
+        deleteGroceries,
+        grocerySnapshot,
+      };
+
       deleteMutation.mutate(
-        { storeId, version: getStoreVersion(storeId), deleteGroceries },
+        input,
         {
           onError: () => invalidate(),
         }

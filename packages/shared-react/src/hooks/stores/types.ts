@@ -23,11 +23,12 @@ export type StoresCacheHelpers = {
 };
 
 export type StoreUpdateDraft = Omit<StoreUpdateInput, "version">;
+export type StoreGrocerySnapshot = Array<{ id: string; version: number }>;
 
 export type StoresMutationsResult = {
   createStore: (data: StoreCreateDto) => Promise<string>;
   updateStore: (data: StoreUpdateDraft) => void;
-  deleteStore: (storeId: string, deleteGroceries: boolean) => void;
+  deleteStore: (storeId: string, deleteGroceries: boolean, grocerySnapshot: StoreGrocerySnapshot) => void;
   reorderStores: (storeIds: string[]) => void;
   isCreating: boolean;
   isUpdating: boolean;

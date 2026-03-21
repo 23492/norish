@@ -57,11 +57,12 @@ export const StoreUpdateInputSchema = z.object({
   icon: z.string().optional(),
 });
 
-// Store delete schema with option to delete groceries
+// Store delete schema with snapshot-based grocery handling
 export const StoreDeleteSchema = z.object({
   storeId: z.uuid(),
   version: z.number().int().positive(),
   deleteGroceries: z.boolean().default(false),
+  grocerySnapshot: z.array(z.object({ id: z.uuid(), version: z.number().int().positive() })),
 });
 
 // Store reorder schema

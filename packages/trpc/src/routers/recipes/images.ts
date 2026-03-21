@@ -293,14 +293,19 @@ const deleteGalleryImage = authedProcedure
       }
 
       // Delete from database
-      await deleteRecipeImageById(input.imageId, input.version);
+      const result = await deleteRecipeImageById(input.imageId, input.version);
+
+      if (result.stale) {
+        log.info({ userId: ctx.user.id, imageId: input.imageId, version: input.version }, "Ignoring stale gallery image delete");
+        return { success: true, stale: true };
+      }
 
       log.info(
         { userId: ctx.user.id, imageId: input.imageId, url: imageRecord.image },
         "Gallery image deleted"
       );
 
-      return { success: true };
+      return { success: true, stale: false };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to delete gallery image";
 

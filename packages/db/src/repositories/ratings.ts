@@ -12,8 +12,8 @@ export async function rateRecipe(
   userId: string,
   recipeId: string,
   rating: number,
-  _version?: number
-): Promise<{ rating: number; isNew: boolean }> {
+  version?: number
+): Promise<{ rating: number; isNew: boolean; stale?: boolean }> {
   const existing = await db
     .select({ id: recipeRatings.id })
     .from(recipeRatings)
@@ -21,10 +21,24 @@ export async function rateRecipe(
     .limit(1);
 
   if (existing.length > 0) {
-    await db
+    const whereConditions = [
+      eq(recipeRatings.userId, userId),
+      eq(recipeRatings.recipeId, recipeId),
+    ];
+
+    if (version) {
+      whereConditions.push(eq(recipeRatings.version, version));
+    }
+
+    const result = await db
       .update(recipeRatings)
       .set({ rating, updatedAt: new Date(), version: sql`${recipeRatings.version} + 1` })
-      .where(and(eq(recipeRatings.userId, userId), eq(recipeRatings.recipeId, recipeId)));
+      .where(and(...whereConditions));
+
+    if (result.rowCount === 0 && version) {
+      // Version mismatch — stale write, safe no-op
+      return { rating, isNew: false, stale: true };
+    }
 
     return { rating, isNew: false };
   }

@@ -204,10 +204,16 @@ export async function updateGrocery(input: GroceryUpdateDto): Promise<GroceryDto
 
   if (!parsed.success) throw new Error("Invalid GroceryUpdateDto");
 
+  const whereConditions = [eq(groceries.id, input.id)];
+
+  if (parsed.data.version) {
+    whereConditions.push(eq(groceries.version, parsed.data.version));
+  }
+
   const [row] = await db
     .update(groceries)
     .set({ ...(parsed.data as any), version: sql`${groceries.version} + 1` })
-    .where(eq(groceries.id, input.id))
+    .where(and(...whereConditions))
     .returning();
 
   if (!row) return null;
@@ -227,10 +233,16 @@ export async function updateGroceries(input: GroceryUpdateDto[]): Promise<Grocer
     const updatedGroceries: GroceryDto[] = [];
 
     for (const g of parsed.data) {
+      const whereConditions = [eq(groceries.id, g.id)];
+
+      if (g.version) {
+        whereConditions.push(eq(groceries.version, g.version));
+      }
+
       const [row] = await trx
         .update(groceries)
         .set({ ...(g as any), version: sql`${groceries.version} + 1` })
-        .where(eq(groceries.id, g.id))
+        .where(and(...whereConditions))
         .returning();
 
       if (row) {
@@ -276,8 +288,32 @@ export async function deleteGroceryById(id: string): Promise<void> {
   await db.delete(groceries).where(eq(groceries.id, id));
 }
 
-export async function deleteGroceryByIds(ids: string[]): Promise<void> {
-  await db.delete(groceries).where(inArray(groceries.id, ids));
+export async function deleteGroceryByIds(
+  items: Array<{ id: string; version: number }>
+): Promise<{ deletedIds: string[]; staleIds: string[] }> {
+  if (items.length === 0) {
+    return { deletedIds: [], staleIds: [] };
+  }
+
+  return await db.transaction(async (trx) => {
+    const deletedIds: string[] = [];
+    const staleIds: string[] = [];
+
+    for (const item of items) {
+      const deleted = await trx
+        .delete(groceries)
+        .where(and(eq(groceries.id, item.id), eq(groceries.version, item.version)))
+        .returning({ id: groceries.id });
+
+      if (deleted.length > 0) {
+        deletedIds.push(item.id);
+      } else {
+        staleIds.push(item.id);
+      }
+    }
+
+    return { deletedIds, staleIds };
+  });
 }
 
 export async function deleteDoneGroceriesBefore(beforeDate: string): Promise<number> {
@@ -336,7 +372,7 @@ export async function reorderGroceriesInStore(
   return await db.transaction(async (trx) => {
     const updatedGroceries: GroceryDto[] = [];
 
-    for (const { id, sortOrder, storeId } of updates) {
+    for (const { id, version, sortOrder, storeId } of updates) {
       // Build update object - always update sortOrder, optionally update storeId
       const updateData: { sortOrder: number; updatedAt: Date; storeId?: string | null } = {
         sortOrder,
@@ -351,7 +387,7 @@ export async function reorderGroceriesInStore(
       const [row] = await trx
         .update(groceries)
         .set({ ...updateData, version: sql`${groceries.version} + 1` })
-        .where(eq(groceries.id, id))
+        .where(and(eq(groceries.id, id), eq(groceries.version, version)))
         .returning();
 
       if (row) {
@@ -378,30 +414,58 @@ export async function markAllDoneInStore(
   groceriesToMark?: Array<{ id: string; version: number }>
 ): Promise<GroceryDto[]> {
   if (userIds.length === 0) return [];
-  const groceryIds = groceriesToMark?.map((grocery) => grocery.id) ?? [];
 
-  if (groceriesToMark && groceryIds.length === 0) return [];
-  const whereConditions = [
-    inArray(groceries.userId, userIds),
-    eq(groceries.isDone, false),
-    storeId ? eq(groceries.storeId, storeId) : isNull(groceries.storeId),
-  ];
+  if (groceriesToMark && groceriesToMark.length === 0) return [];
 
-  if (groceryIds.length > 0) {
-    whereConditions.push(inArray(groceries.id, groceryIds));
+  if (!groceriesToMark) {
+    const whereConditions = [
+      inArray(groceries.userId, userIds),
+      eq(groceries.isDone, false),
+      storeId ? eq(groceries.storeId, storeId) : isNull(groceries.storeId),
+    ];
+
+    const rows = await db
+      .update(groceries)
+      .set({ isDone: true, updatedAt: new Date(), version: sql`${groceries.version} + 1` })
+      .where(and(...whereConditions))
+      .returning();
+
+    const parsed = z.array(GrocerySelectBaseSchema).safeParse(rows);
+
+    if (!parsed.success) throw new Error("Failed to parse marked groceries");
+
+    return parsed.data;
   }
 
-  const rows = await db
-    .update(groceries)
-    .set({ isDone: true, updatedAt: new Date(), version: sql`${groceries.version} + 1` })
-    .where(and(...whereConditions))
-    .returning();
+  return await db.transaction(async (trx) => {
+    const updatedRows = [];
 
-  const parsed = z.array(GrocerySelectBaseSchema).safeParse(rows);
+    for (const grocery of groceriesToMark) {
+      const whereConditions = [
+        inArray(groceries.userId, userIds),
+        eq(groceries.id, grocery.id),
+        eq(groceries.version, grocery.version),
+        eq(groceries.isDone, false),
+        storeId ? eq(groceries.storeId, storeId) : isNull(groceries.storeId),
+      ];
 
-  if (!parsed.success) throw new Error("Failed to parse marked groceries");
+      const [row] = await trx
+        .update(groceries)
+        .set({ isDone: true, updatedAt: new Date(), version: sql`${groceries.version} + 1` })
+        .where(and(...whereConditions))
+        .returning();
 
-  return parsed.data;
+      if (row) {
+        updatedRows.push(row);
+      }
+    }
+
+    const parsed = z.array(GrocerySelectBaseSchema).safeParse(updatedRows);
+
+    if (!parsed.success) throw new Error("Failed to parse marked groceries");
+
+    return parsed.data;
+  });
 }
 
 /**
@@ -414,25 +478,48 @@ export async function deleteDoneInStore(
   groceriesToDelete?: Array<{ id: string; version: number }>
 ): Promise<string[]> {
   if (userIds.length === 0) return [];
-  const groceryIds = groceriesToDelete?.map((grocery) => grocery.id) ?? [];
 
-  if (groceriesToDelete && groceryIds.length === 0) return [];
-  const whereConditions = [
-    inArray(groceries.userId, userIds),
-    eq(groceries.isDone, true),
-    storeId ? eq(groceries.storeId, storeId) : isNull(groceries.storeId),
-  ];
+  if (groceriesToDelete && groceriesToDelete.length === 0) return [];
 
-  if (groceryIds.length > 0) {
-    whereConditions.push(inArray(groceries.id, groceryIds));
+  if (!groceriesToDelete) {
+    const whereConditions = [
+      inArray(groceries.userId, userIds),
+      eq(groceries.isDone, true),
+      storeId ? eq(groceries.storeId, storeId) : isNull(groceries.storeId),
+    ];
+
+    const rows = await db
+      .delete(groceries)
+      .where(and(...whereConditions))
+      .returning({ id: groceries.id });
+
+    return rows.map((r) => r.id);
   }
 
-  const rows = await db
-    .delete(groceries)
-    .where(and(...whereConditions))
-    .returning({ id: groceries.id });
+  return await db.transaction(async (trx) => {
+    const deletedIds: string[] = [];
 
-  return rows.map((r) => r.id);
+    for (const grocery of groceriesToDelete) {
+      const whereConditions = [
+        inArray(groceries.userId, userIds),
+        eq(groceries.id, grocery.id),
+        eq(groceries.version, grocery.version),
+        eq(groceries.isDone, true),
+        storeId ? eq(groceries.storeId, storeId) : isNull(groceries.storeId),
+      ];
+
+      const deleted = await trx
+        .delete(groceries)
+        .where(and(...whereConditions))
+        .returning({ id: groceries.id });
+
+      if (deleted.length > 0) {
+        deletedIds.push(grocery.id);
+      }
+    }
+
+    return deletedIds;
+  });
 }
 
 /**
@@ -442,17 +529,21 @@ export async function assignGroceryToStore(
   groceryId: string,
   newStoreId: string | null,
   _householdUserIds: string[],
-  _version?: number
-): Promise<GroceryDto> {
+  version?: number
+): Promise<GroceryDto | null> {
+  const whereConditions = [eq(groceries.id, groceryId)];
+
+  if (version) {
+    whereConditions.push(eq(groceries.version, version));
+  }
+
   const [updated] = await db
     .update(groceries)
     .set({ storeId: newStoreId, updatedAt: new Date(), version: sql`${groceries.version} + 1` })
-    .where(eq(groceries.id, groceryId))
+    .where(and(...whereConditions))
     .returning();
 
-  if (!updated) {
-    throw new Error("Grocery not found");
-  }
+  if (!updated) return null;
 
   const validatedUpdate = GrocerySelectBaseSchema.safeParse(updated);
 

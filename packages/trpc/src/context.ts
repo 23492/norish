@@ -1,5 +1,7 @@
 import type { FetchCreateContextFnOptions } from "@trpc/server/adapters/fetch";
 import type { CreateWSSContextFnOptions } from "@trpc/server/adapters/ws";
+import type { SubscriptionMultiplexer } from "@norish/queue/redis/subscription-multiplexer";
+import type { User } from "@norish/shared/contracts";
 import type { OperationId } from "@norish/shared/contracts/realtime-envelope";
 
 import { auth } from "@norish/auth/auth";
@@ -7,31 +9,19 @@ import { getHouseholdForUser } from "@norish/db";
 import { isOperationId } from "@norish/shared/lib/operation-helpers";
 import { trpcLogger as log } from "@norish/shared-server/logger";
 
-type ContextUser = {
-  id: string;
-  email: string;
-  name: string;
-  image: string | null;
-  isServerAdmin: boolean;
-};
-
 type ContextHousehold = {
   id: string;
   name: string;
   users: Array<{ id: string; name: string }>;
 };
 
-type ContextMultiplexer = {
-  close(): Promise<void>;
-};
-
 export type Context = {
-  user: ContextUser | null;
+  user: User | null;
   household: ContextHousehold | null;
   /** Unique ID for this WebSocket connection (WS only) */
   connectionId: string | null;
   /** Subscription multiplexer for this connection (WS only, set lazily in middleware) */
-  multiplexer: ContextMultiplexer | null;
+  multiplexer: SubscriptionMultiplexer | null;
   /** Client-generated operation ID for mutation correlation */
   operationId: OperationId | null;
 };
@@ -64,11 +54,12 @@ export async function createContext(opts: FetchCreateContextFnOptions): Promise<
     }
 
     const sessionUser = session.user as { isServerAdmin?: boolean; isServerOwner?: boolean };
-    const user: ContextUser = {
+    const user: User = {
       id: session.user.id,
       email: session.user.email,
       name: session.user.name || "",
       image: session.user.image || null,
+      version: 1,
       isServerAdmin: sessionUser.isServerOwner || sessionUser.isServerAdmin || false,
     };
 
@@ -113,11 +104,12 @@ export async function createWsContext(opts: CreateWSSContextFnOptions): Promise<
     }
 
     const sessionUser = session.user as { isServerAdmin?: boolean; isServerOwner?: boolean };
-    const user: ContextUser = {
+    const user: User = {
       id: session.user.id,
       email: session.user.email,
       name: session.user.name || "",
       image: session.user.image || null,
+      version: 1,
       isServerAdmin: sessionUser.isServerOwner || sessionUser.isServerAdmin || false,
     };
 
