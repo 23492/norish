@@ -14,6 +14,7 @@ import {
   useAppearancePreference,
 } from '@/context/appearance-preference-context';
 import { AuthProvider, useAuth } from '@/context/auth-context';
+import { HouseholdProvider } from '@/context/household-context';
 import { MobileIntlFallbackProvider, MobileIntlProvider } from '@/context/mobile-i18n-context';
 import { NetworkProvider } from '@/context/network-context';
 import { PermissionsProvider } from '@/context/permissions-context';
@@ -126,9 +127,11 @@ function AuthenticatedProviders({ children }: { children: React.ReactNode }) {
       <PermissionsProvider>
         <UserProvider>
           <AuthenticatedEffects />
-          <RecipesProvider>
-            {children}
-          </RecipesProvider>
+          <HouseholdProvider>
+            <RecipesProvider>
+              {children}
+            </RecipesProvider>
+          </HouseholdProvider>
         </UserProvider>
       </PermissionsProvider>
     </RecipeFiltersProvider>
