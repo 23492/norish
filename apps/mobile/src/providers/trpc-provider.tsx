@@ -1,17 +1,31 @@
 import type { AppRouter } from '@norish/trpc/client';
 import { createTRPCProviderBundle } from '@norish/shared-react/providers';
 import { createClientLogger } from '@norish/shared/lib/logger';
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 
 import { getAuthClient } from '@/lib/auth-client';
 import { notifyBackendDisconnect, notifyBackendConnect } from '@/context/network-context';
-import {
-  getMutationBlockedMessage,
-  isAppReachableForLiveWork,
-} from '@/lib/network/reachability-store';
 import { createPersistedQueryClient } from '@/lib/query-cache/create-persisted-query-client';
+import {
+  createOutboxLink,
+  setReplayFn,
+  replayOutboxItem,
+  startOutboxProcessor,
+} from '@/lib/outbox';
 
 const log = createClientLogger('mobile-trpc');
+
+type CookieCapableAuthClient = ReturnType<typeof getAuthClient> & {
+  getCookie?: () => string | undefined;
+};
+
+type HeaderCapableWebSocket = typeof WebSocket & {
+  new (
+    url: string | URL,
+    protocols?: string | string[],
+    options?: { headers: Record<string, string> },
+  ): WebSocket;
+};
 
 function toWsUrl(baseUrl: string): string {
   const parsed = new URL(baseUrl);
@@ -27,7 +41,7 @@ function toWsUrl(baseUrl: string): string {
 let currentBaseUrl = '';
 
 function createMobileWebSocket(): typeof WebSocket | undefined {
-  const NativeWebSocket = globalThis.WebSocket as any;
+  const NativeWebSocket = globalThis.WebSocket as HeaderCapableWebSocket | undefined;
 
   if (!NativeWebSocket) {
     return undefined;
@@ -51,13 +65,13 @@ function createMobileWebSocket(): typeof WebSocket | undefined {
   } as unknown as typeof WebSocket;
 }
 
-function trpcBundleGetHeaders() {
+function trpcBundleGetHeaders(): Record<string, string> {
   if (!currentBaseUrl) {
     return {};
   }
 
-  const client = getAuthClient(currentBaseUrl);
-  const cookies = (client as any).getCookie?.() as string | undefined;
+  const client = getAuthClient(currentBaseUrl) as CookieCapableAuthClient;
+  const cookies = client.getCookie?.();
 
   if (!cookies) {
     return {};
@@ -71,10 +85,6 @@ const { queryClient: persistedQueryClient, restorePromise: queryCacheRestoreProm
 export { queryCacheRestorePromise };
 export { persistedQueryClient };
 
-// ---------------------------------------------------------------------------
-// tRPC bundle
-// ---------------------------------------------------------------------------
-
 const trpcBundle = createTRPCProviderBundle<AppRouter>({
   logger: log,
   getBaseUrl: () => currentBaseUrl,
@@ -84,14 +94,28 @@ const trpcBundle = createTRPCProviderBundle<AppRouter>({
   wsLazyEnabled: false,
   enableLoggerLink: false,
   getQueryClient: () => persistedQueryClient,
-  shouldAllowMutation: () => isAppReachableForLiveWork(),
-  getMutationBlockMessage: () => getMutationBlockedMessage(),
   onWebSocketClose: notifyBackendDisconnect,
   onWebSocketOpen: notifyBackendConnect,
+  mutationLink: createOutboxLink<AppRouter>(),
 });
 
 export const useTRPC = trpcBundle.useTRPC;
 export const useConnectionStatus = trpcBundle.useConnectionStatus;
+export const useTRPCClient = trpcBundle.useTRPCClient;
+
+function OutboxReplayRegistration() {
+  const trpcClient = useTRPCClient();
+
+  useEffect(() => {
+    if (!trpcClient) {
+      return;
+    }
+
+    setReplayFn((item) => replayOutboxItem(trpcClient, item));
+  }, [trpcClient]);
+
+  return null;
+}
 
 export function TrpcProvider({
   baseUrl,
@@ -104,8 +128,15 @@ export function TrpcProvider({
 
   currentBaseUrl = baseUrl;
 
+  useEffect(() => {
+    const unsubscribe = startOutboxProcessor();
+
+    return unsubscribe;
+  }, []);
+
   return (
     <trpcBundle.TRPCProviderWrapper key={providerKey}>
+      <OutboxReplayRegistration />
       {children}
     </trpcBundle.TRPCProviderWrapper>
   );

@@ -96,10 +96,7 @@
     "checkInternet": "Please check your internet connection",
     "gettingUpdates": "Just a moment while we get the latest updates",
     "offlineBanner": "You're offline, showing cached data",
-    "serverUnreachableBanner": "Can't reach the Norish server, showing cached data",
-    "mutationBlockedInitializing": "Norish is still restoring cached data. Please try again in a moment.",
-    "mutationBlockedServerUnreachable": "Can't reach the Norish server. Reconnect before making changes.",
-    "mutationBlockedOffline": "You're offline. Reconnect before making changes."
+    "serverUnreachableBanner": "Can't reach the Norish server, showing cached data"
   },
   "language": {
     "title": "Language"

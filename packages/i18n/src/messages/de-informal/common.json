@@ -96,10 +96,7 @@
     "checkInternet": "Bitte überprüfe deine Internetverbindung",
     "gettingUpdates": "Einen Moment, während wir die neuesten Updates abrufen",
     "offlineBanner": "Du bist offline, zwischengespeicherte Daten werden angezeigt",
-    "serverUnreachableBanner": "Der Norish-Server ist nicht erreichbar, zwischengespeicherte Daten werden angezeigt",
-    "mutationBlockedInitializing": "Norish stellt noch zwischengespeicherte Daten wieder her. Bitte versuche es gleich erneut.",
-    "mutationBlockedServerUnreachable": "Der Norish-Server ist nicht erreichbar. Bitte stelle die Verbindung wieder her, bevor du Änderungen vornimmst.",
-    "mutationBlockedOffline": "Du bist offline. Bitte stelle die Verbindung wieder her, bevor du Änderungen vornimmst."
+    "serverUnreachableBanner": "Der Norish-Server ist nicht erreichbar, zwischengespeicherte Daten werden angezeigt"
   },
   "language": {
     "title": "Sprache"

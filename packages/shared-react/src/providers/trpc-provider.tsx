@@ -1,39 +1,22 @@
 "use client";
 
-import type { HTTPHeaders } from "@trpc/client";
 import type { AnyTRPCRouter } from "@trpc/server";
 import type { ReactNode } from "react";
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import {
-  TRPCClientError,
-  createTRPCClient,
-  createWSClient,
-  httpBatchLink,
-  httpLink,
-  isNonJsonSerializable,
-  loggerLink,
-  splitLink,
-  type TRPCLink,
-  wsLink,
-} from "@trpc/client";
-import { observable } from "@trpc/server/observable";
+import { createTRPCClient } from "@trpc/client";
 import { createTRPCContext } from "@trpc/tanstack-react-query";
 import { normalizeSubscriptionData } from "@norish/shared/lib/operation-helpers";
-import superjson from "superjson";
 
-import { createOperationIdLink } from "./operation-id-link";
 import {
-  createBatchRequestHeadersResolver,
-  createRequestHeadersResolver,
-} from "./request-headers";
-
-type TrpcLogger = {
-  info: (message: string) => void;
-  warn: (meta: unknown, message: string) => void;
-  debug: (meta: unknown, message: string) => void;
-};
+  createTRPCClientLinks,
+  defaultGetBaseUrl,
+  defaultGetHeaders,
+  defaultGetWsUrl,
+  isNormalWebSocketClose,
+  type CreateTRPCProviderBundleOptions,
+} from "./trpc-links";
 
 export type ConnectionStatus = "idle" | "connecting" | "connected" | "disconnected";
 
@@ -42,61 +25,11 @@ type ConnectionContextValue = {
   isConnected: boolean;
 };
 
-export type MutationGuardContext = {
-  path: string;
-  input: unknown;
-};
-
-type CreateTRPCProviderBundleOptions = {
-  logger: TrpcLogger;
-  getBaseUrl?: () => string;
-  getWsUrl?: () => string;
-  getHeaders?: () => HTTPHeaders;
-  getWebSocketImpl?: () => typeof WebSocket | undefined;
-  /** Whether the tRPC WebSocket should be lazy (defaults to true). */
-  wsLazyEnabled?: boolean;
-  /** Delay before closing lazy WebSocket when idle (defaults to 0ms). */
-  wsLazyCloseMs?: number;
-  maxRetries?: number;
-  /** Set to false to disable tRPC loggerLink (defaults to true) */
-  enableLoggerLink?: boolean;
-  /** Optional callback that returns a pre-configured QueryClient (e.g. with persistence). */
-  getQueryClient?: () => QueryClient;
-  /** Optional guard used to block mutations before they hit the network. */
-  shouldAllowMutation?: (context: MutationGuardContext) => boolean;
-  /** Optional message used when a mutation is blocked by the guard. */
-  getMutationBlockMessage?: (context: MutationGuardContext) => string;
-  /** Called when the tRPC WebSocket closes unexpectedly. */
-  onWebSocketClose?: () => void;
-  /** Called when the tRPC WebSocket opens successfully. */
-  onWebSocketOpen?: () => void;
-};
+type TRPCClientContextValue = object | null;
 
 type SubscriptionObserverOptions = {
   onData?: (data: unknown) => void;
 };
-
-function getWebSocketCloseCode(cause: unknown): number | null {
-  if (!cause || typeof cause !== "object") {
-    return null;
-  }
-
-  const event = cause as { code?: unknown; _code?: unknown };
-
-  if (typeof event.code === "number") {
-    return event.code;
-  }
-
-  if (typeof event._code === "number") {
-    return event._code;
-  }
-
-  return null;
-}
-
-function isNormalWebSocketClose(cause: unknown): boolean {
-  return getWebSocketCloseCode(cause) === 1000;
-}
 
 export function wrapSubscriptionObserverOptions(options: unknown): unknown {
   if (!options || typeof options !== "object") {
@@ -154,7 +87,7 @@ export function wrapTrpcProxy<T>(value: T, cache: WeakMap<object, unknown>): T {
   return proxy as T;
 }
 
-function createNormalizedUseTRPC<TRouter extends AnyTRPCRouter>(useRawTRPC: () => unknown) {
+function createNormalizedUseTRPC<TRouter extends AnyTRPCRouter, TTrpc>(useRawTRPC: () => TTrpc) {
   return function useNormalizedTRPC() {
     const trpc = useRawTRPC();
 
@@ -162,87 +95,6 @@ function createNormalizedUseTRPC<TRouter extends AnyTRPCRouter>(useRawTRPC: () =
   };
 }
 
-const DEFAULT_MUTATION_BLOCK_MESSAGE =
-  "You're offline. Reconnect before making changes.";
-
-export function createMutationGuardLink<TRouter extends AnyTRPCRouter>(opts: {
-  shouldAllowMutation: (context: MutationGuardContext) => boolean;
-  getMutationBlockMessage?: (context: MutationGuardContext) => string;
-}): TRPCLink<TRouter> {
-  return () => {
-    return ({ op, next }) => {
-      if (op.type !== "mutation") {
-        return next(op);
-      }
-
-      const context: MutationGuardContext = {
-        path: op.path,
-        input: op.input,
-      };
-
-      if (opts.shouldAllowMutation(context)) {
-        return next(op);
-      }
-
-      const message =
-        opts.getMutationBlockMessage?.(context) ?? DEFAULT_MUTATION_BLOCK_MESSAGE;
-
-      return observable((observer) => {
-        observer.error(
-          new TRPCClientError(message, {
-            cause: new Error(`Mutation blocked by reachability guard: ${op.path}`),
-            meta: {
-              guard: "mutation-reachability",
-              mutationPath: op.path,
-            },
-          }),
-        );
-      });
-    };
-  };
-}
-
-function createHttpMutationLink(getBaseUrl: () => string, getHeaders: () => HTTPHeaders): TRPCLink<any> {
-  return httpLink({
-    url: `${getBaseUrl()}/api/trpc`,
-    headers: createRequestHeadersResolver(getHeaders),
-    transformer: superjson as any,
-  });
-}
-
-function createHttpFormDataMutationLink(
-  getBaseUrl: () => string,
-  getHeaders: () => HTTPHeaders
-): TRPCLink<any> {
-  return httpLink({
-    url: `${getBaseUrl()}/api/trpc`,
-    headers: createRequestHeadersResolver(getHeaders),
-    transformer: {
-      serialize: (data: unknown) => data,
-      deserialize: superjson.deserialize,
-    } as any,
-  });
-}
-
-const defaultGetBaseUrl = () => {
-  if (typeof window !== "undefined") {
-    return "";
-  }
-
-  return `http://localhost:${process.env.PORT ?? 3000}`;
-};
-
-const defaultGetWsUrl = () => {
-  if (typeof window !== "undefined") {
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-
-    return `${protocol}//${window.location.host}/trpc`;
-  }
-
-  return `ws://localhost:${process.env.PORT ?? 3000}/trpc`;
-};
-
-const defaultGetHeaders = (): HTTPHeaders => ({});
 
 export function createTRPCProviderBundle<TRouter extends AnyTRPCRouter>({
   logger,
@@ -255,20 +107,25 @@ export function createTRPCProviderBundle<TRouter extends AnyTRPCRouter>({
   maxRetries = 10,
   enableLoggerLink = true,
   getQueryClient: externalGetQueryClient,
-  shouldAllowMutation,
-  getMutationBlockMessage,
   onWebSocketClose,
   onWebSocketOpen,
+  mutationLink,
+  extraLinks = [],
 }: CreateTRPCProviderBundleOptions) {
   const { TRPCProvider, useTRPC: useRawTRPC } = createTRPCContext<TRouter>();
-  const useTRPC = createNormalizedUseTRPC<TRouter>(useRawTRPC);
+  const useTRPC = createNormalizedUseTRPC(useRawTRPC);
   const ConnectionContext = createContext<ConnectionContextValue>({
     status: "idle",
     isConnected: false,
   });
+  const TRPCClientContext = createContext<TRPCClientContextValue>(null);
 
   function useConnectionStatus() {
     return useContext(ConnectionContext);
+  }
+
+  function useTRPCClient() {
+    return useContext(TRPCClientContext);
   }
 
   function TRPCProviderWrapper({ children }: { children: ReactNode }) {
@@ -293,83 +150,34 @@ export function createTRPCProviderBundle<TRouter extends AnyTRPCRouter>({
 
       queryClientRef.current = qc;
 
-      const wsClient = createWSClient({
-        url: getWsUrl,
-        WebSocket: getWebSocketImpl?.(),
-        lazy: {
-          enabled: wsLazyEnabled,
-          closeMs: wsLazyCloseMs,
-        },
-        retryDelayMs: (attemptIndex) => {
-          if (attemptIndex >= maxRetries) {
-            logger.warn({ attemptIndex }, "Max WebSocket retries reached, giving up");
-
-            return Infinity;
-          }
-
-          const delay = Math.min(1000 * Math.pow(2, attemptIndex), 30000);
-
-          logger.debug({ attemptIndex, delay }, "WebSocket reconnecting");
-
-          return delay;
-        },
-        onOpen: () => {
-          logger.info("WebSocket connected");
-          setStatus("connected");
-          onWebSocketOpen?.();
-        },
-        onClose: (cause) => {
-          logger.info(`WebSocket closed: ${JSON.stringify(cause)}`);
-
-          if (isNormalWebSocketClose(cause)) {
-            setStatus("idle");
-
-            return;
-          }
-
-          setStatus("disconnected");
-          onWebSocketClose?.();
-        },
-      });
-
       const tc = createTRPCClient<TRouter>({
-        links: [
-          ...(enableLoggerLink
-            ? [
-                loggerLink({
-                  enabled: (opts) =>
-                    process.env.NODE_ENV === "development" ||
-                    (opts.direction === "down" && opts.result instanceof Error),
-                }),
-              ]
-            : []),
-          createOperationIdLink<TRouter>(),
-          ...(shouldAllowMutation
-            ? [
-                createMutationGuardLink<TRouter>({
-                  shouldAllowMutation,
-                  getMutationBlockMessage,
-                }),
-              ]
-            : []),
-          splitLink({
-            condition: (op) => op.type === "subscription",
-            true: wsLink({ client: wsClient, transformer: superjson as any }),
-            false: splitLink({
-              condition: (op) => op.type === "mutation",
-              true: splitLink({
-                condition: (op) => isNonJsonSerializable(op.input),
-                true: createHttpFormDataMutationLink(getBaseUrl, getHeaders),
-                false: createHttpMutationLink(getBaseUrl, getHeaders),
-              }),
-              false: httpBatchLink({
-                url: `${getBaseUrl()}/api/trpc`,
-                headers: createBatchRequestHeadersResolver(getHeaders),
-                transformer: superjson as any,
-              }),
-            }),
-          }),
-        ],
+        links: createTRPCClientLinks<TRouter>({
+          logger,
+          getBaseUrl,
+          getWsUrl,
+          getHeaders,
+          getWebSocketImpl,
+          wsLazyEnabled,
+          wsLazyCloseMs,
+          maxRetries,
+          enableLoggerLink,
+          onWebSocketOpen: () => {
+            setStatus("connected");
+            onWebSocketOpen?.();
+          },
+          onWebSocketClose: (cause) => {
+            if (isNormalWebSocketClose(cause)) {
+              setStatus("idle");
+
+              return;
+            }
+
+            setStatus("disconnected");
+              onWebSocketClose?.(cause);
+            },
+          mutationLink,
+          extraLinks,
+        }),
       });
 
       return { queryClient: qc, trpcClient: tc };
@@ -393,11 +201,13 @@ export function createTRPCProviderBundle<TRouter extends AnyTRPCRouter>({
 
     return (
       <ConnectionContext.Provider value={connectionValue}>
-        <QueryClientProvider client={queryClient}>
-          <TRPCProvider queryClient={queryClient} trpcClient={trpcClient}>
-            {children}
-          </TRPCProvider>
-        </QueryClientProvider>
+        <TRPCClientContext.Provider value={trpcClient as object}>
+          <QueryClientProvider client={queryClient}>
+            <TRPCProvider queryClient={queryClient} trpcClient={trpcClient}>
+              {children}
+            </TRPCProvider>
+          </QueryClientProvider>
+        </TRPCClientContext.Provider>
       </ConnectionContext.Provider>
     );
   }
@@ -406,6 +216,7 @@ export function createTRPCProviderBundle<TRouter extends AnyTRPCRouter>({
     TRPCProvider,
     TRPCProviderWrapper,
     useTRPC,
+    useTRPCClient,
     useConnectionStatus,
   };
 }

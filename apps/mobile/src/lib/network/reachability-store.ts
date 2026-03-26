@@ -1,7 +1,7 @@
-export type ReachabilityMode = "offline" | "backend-unreachable" | "online";
-export type ReachabilityRuntimeState = "initializing" | "ready";
+export type ReachabilityMode = 'offline' | 'backend-unreachable' | 'online';
+export type ReachabilityRuntimeState = 'initializing' | 'ready';
 
-type ReachabilitySnapshot = {
+export type ReachabilitySnapshot = {
   appOnline: boolean;
   mode: ReachabilityMode;
   runtimeState: ReachabilityRuntimeState;
@@ -9,57 +9,56 @@ type ReachabilitySnapshot = {
 
 const DEFAULT_REACHABILITY_SNAPSHOT: ReachabilitySnapshot = {
   appOnline: false,
-  mode: "offline",
-  runtimeState: "initializing",
+  mode: 'offline',
+  runtimeState: 'initializing',
 };
 
 let snapshot: ReachabilitySnapshot = { ...DEFAULT_REACHABILITY_SNAPSHOT };
+type ReachabilityListener = (
+  snapshot: ReachabilitySnapshot,
+  previousSnapshot: ReachabilitySnapshot,
+) => void;
+
+const listeners = new Set<ReachabilityListener>();
+
+function areSnapshotsEqual(a: ReachabilitySnapshot, b: ReachabilitySnapshot): boolean {
+  return (
+    a.appOnline === b.appOnline &&
+    a.mode === b.mode &&
+    a.runtimeState === b.runtimeState
+  );
+}
+
+function emitSnapshotChange(next: ReachabilitySnapshot, previous: ReachabilitySnapshot): void {
+  for (const listener of listeners) {
+    listener(next, previous);
+  }
+}
 
 export function setReachabilitySnapshot(next: ReachabilitySnapshot): void {
+  const previousSnapshot = snapshot;
+
+  if (areSnapshotsEqual(previousSnapshot, next)) {
+    return;
+  }
+
   snapshot = next;
+
+  emitSnapshotChange(next, previousSnapshot);
 }
 
 export function resetReachabilitySnapshot(): void {
-  snapshot = { ...DEFAULT_REACHABILITY_SNAPSHOT };
+  setReachabilitySnapshot({ ...DEFAULT_REACHABILITY_SNAPSHOT });
 }
 
 export function getReachabilitySnapshot(): ReachabilitySnapshot {
   return snapshot;
 }
 
-export function isAppReachableForLiveWork(): boolean {
-  return snapshot.runtimeState === "ready" && snapshot.appOnline;
-}
+export function subscribeToReachabilitySnapshot(listener: ReachabilityListener): () => void {
+  listeners.add(listener);
 
-// ---------------------------------------------------------------------------
-// Localized mutation-blocked message
-// ---------------------------------------------------------------------------
-
-type MessageResolver = (mode: ReachabilityMode, runtimeState: ReachabilityRuntimeState) => string;
-
-let resolveMessage: MessageResolver | null = null;
-
-/**
- * Set by the React layer (e.g. a context provider) so that
- * `getMutationBlockedMessage` can return localized strings.
- */
-export function setMutationMessageResolver(resolver: MessageResolver | null): void {
-  resolveMessage = resolver;
-}
-
-export function getMutationBlockedMessage(): string {
-  if (resolveMessage) {
-    return resolveMessage(snapshot.mode, snapshot.runtimeState);
-  }
-
-  // Fallback (should never be reached once the React layer mounts)
-  if (snapshot.runtimeState !== "ready") {
-    return "Norish is still restoring cached data. Please try again in a moment.";
-  }
-
-  if (snapshot.mode === "backend-unreachable") {
-    return "Can't reach the Norish server. Reconnect before making changes.";
-  }
-
-  return "You're offline. Reconnect before making changes.";
+  return () => {
+    listeners.delete(listener);
+  };
 }

@@ -91,10 +91,7 @@
     "checkInternet": "Por favor, comprueba tu conexión a Internet",
     "gettingUpdates": "Un momento, obteniendo las últimas actualizaciones",
     "offlineBanner": "Estás sin conexión, mostrando datos en caché",
-    "serverUnreachableBanner": "No se puede contactar con el servidor de Norish, mostrando datos en caché",
-    "mutationBlockedInitializing": "Norish aún está restaurando datos en caché. Inténtalo de nuevo en un momento.",
-    "mutationBlockedServerUnreachable": "No se puede contactar con el servidor de Norish. Reconéctate antes de hacer cambios.",
-    "mutationBlockedOffline": "Estás sin conexión. Reconéctate antes de hacer cambios."
+    "serverUnreachableBanner": "No se puede contactar con el servidor de Norish, mostrando datos en caché"
   },
   "language": {
     "title": "Idioma"

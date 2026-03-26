@@ -24,7 +24,6 @@ import { UserProvider } from '@/context/user-context';
 import { useBackendBaseUrl } from '@/hooks/use-backend-base-url';
 import { useCacheHydration } from '@/hooks/use-cache-hydration';
 import { useCacheInvalidationOnReconnect } from '@/hooks/use-cache-lifecycle';
-import { useMutationMessageResolver } from '@/hooks/use-mutation-message-resolver';
 import { useSessionRevalidation } from '@/hooks/use-session-revalidation';
 import { TrpcProvider } from '@/providers/trpc-provider';
 
@@ -86,7 +85,6 @@ function RootLayoutContent() {
         <TrpcProvider baseUrl={backendBaseUrl}>
           <AuthProvider backendBaseUrl={backendBaseUrl}>
             <MobileIntlProvider>
-              <IntlBoundaryEffects />
               <DomainProviders>
                 <RootStack />
                 <PortalHost name="app" />
@@ -141,12 +139,6 @@ function AuthenticatedProviders({ children }: { children: React.ReactNode }) {
 /** Hooks that require UserProvider + MobileIntlProvider. */
 function AuthenticatedEffects() {
   useUserLocaleSync();
-  return null;
-}
-
-/** Side-effects that require useIntl() — runs inside MobileIntlProvider. */
-function IntlBoundaryEffects() {
-  useMutationMessageResolver();
   return null;
 }
 
