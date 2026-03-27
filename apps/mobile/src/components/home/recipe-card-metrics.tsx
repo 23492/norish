@@ -75,7 +75,7 @@ type RecipeCardMetricsProps = {
   recipe: RecipeCardItem;
 };
 
-export function RecipeCardMetrics({ recipe }: RecipeCardMetricsProps) {
+function RecipeCardMetricsComponent({ recipe }: RecipeCardMetricsProps) {
   const intl = useIntl();
   const [accent, warning, danger, divider] = useThemeColor([
     'accent',
@@ -109,3 +109,5 @@ export function RecipeCardMetrics({ recipe }: RecipeCardMetricsProps) {
     </View>
   );
 }
+
+export const RecipeCardMetrics = React.memo(RecipeCardMetricsComponent);

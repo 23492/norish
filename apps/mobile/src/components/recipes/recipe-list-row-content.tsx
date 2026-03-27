@@ -11,17 +11,17 @@ type RecipeListRowContentProps = {
   row: RecipeListRow;
   onDelete: (id: string) => void;
   onPress: (id: string) => void;
-  deletingIds: ReadonlySet<string>;
-  canDeleteRecipe: (ownerId: string | null) => boolean;
+  isDeleting: boolean;
+  canDelete: boolean;
   compactPlaceholder?: boolean;
 };
 
-export function RecipeListRowContent({
+function RecipeListRowContentComponent({
   row,
   onDelete,
   onPress,
-  deletingIds,
-  canDeleteRecipe,
+  isDeleting,
+  canDelete,
   compactPlaceholder = false,
 }: RecipeListRowContentProps) {
   if (row.type === 'initial-skeleton') {
@@ -37,8 +37,10 @@ export function RecipeListRowContent({
       item={row.recipe}
       onDelete={onDelete}
       onPress={onPress}
-      isDeleting={deletingIds.has(row.recipe.id)}
-      canDelete={canDeleteRecipe(row.recipe.ownerId)}
+      isDeleting={isDeleting}
+      canDelete={canDelete}
     />
   );
 }
+
+export const RecipeListRowContent = React.memo(RecipeListRowContentComponent);

@@ -16,7 +16,7 @@ type RecipeCardImageProps = {
   likedColor: string;
 };
 
-export function RecipeCardImage({ recipe, likedColor }: RecipeCardImageProps) {
+function RecipeCardImageComponent({ recipe, likedColor }: RecipeCardImageProps) {
   const [hasError, setHasError] = useState(false);
 
   const handleError = useCallback(() => {
@@ -100,3 +100,5 @@ export function RecipeCardImage({ recipe, likedColor }: RecipeCardImageProps) {
     </View>
   );
 }
+
+export const RecipeCardImage = React.memo(RecipeCardImageComponent);

@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 
 import { ActivityIndicator, FlatList, RefreshControl, View } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -7,7 +7,7 @@ import { useIntl } from 'react-intl';
 import { SectionHeader } from '@/components/home/section-header';
 import { RecipeEmptyStateCard } from '@/components/recipes/recipe-empty-state-card';
 import { RecipeListRowContent } from '@/components/recipes/recipe-list-row-content';
-import { recipeListScreenStyles } from '@/components/recipes/recipe-list-screen.styles';
+import { recipeListScreenStyles, RowSeparator } from '@/components/recipes/recipe-list-screen.styles';
 import { TodaysMealsSection } from '@/components/home/todays-meals-section';
 import { usePermissionsContext } from '@/context/permissions-context';
 import { useRecipesContext } from '@/context/recipes-context';
@@ -46,6 +46,9 @@ export default function RecipesScreen() {
   const [deletingIds, setDeletingIds] = useState<ReadonlySet<string>>(new Set());
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  const recipeCardsRef = useRef(recipeCards);
+  recipeCardsRef.current = recipeCards;
+
   const listRows = useMemo<RecipeListRow[]>(() => {
     return buildRecipeListRows({
       recipes: recipeCards,
@@ -61,9 +64,9 @@ export default function RecipesScreen() {
   const handleDelete = useCallback(
     (id: string) => {
       setDeletingIds((prev) => createNextDeletingIds(prev, id));
-      deleteRecipe(id, recipeCards.find((recipe) => recipe.id === id)?.version ?? 1);
+      deleteRecipe(id, recipeCardsRef.current.find((recipe) => recipe.id === id)?.version ?? 1);
     },
-    [deleteRecipe, recipeCards],
+    [deleteRecipe],
   );
 
   const canDeleteOwnerRecipe = useCallback(
@@ -93,17 +96,20 @@ export default function RecipesScreen() {
   }, [runRefresh]);
 
   const renderRow = useCallback(
-    ({ item }: { item: RecipeListRow }) => (
-      <View style={recipeListScreenStyles.rowContainer}>
-        <RecipeListRowContent
-          row={item}
-          onDelete={handleDelete}
-          onPress={openRecipe}
-          deletingIds={deletingIds}
-          canDeleteRecipe={canDeleteOwnerRecipe}
-        />
-      </View>
-    ),
+    ({ item }: { item: RecipeListRow }) => {
+      const recipe = item.type === 'recipe' ? item.recipe : null;
+      return (
+        <View style={recipeListScreenStyles.rowContainer}>
+          <RecipeListRowContent
+            row={item}
+            onDelete={handleDelete}
+            onPress={openRecipe}
+            isDeleting={recipe !== null && deletingIds.has(recipe.id)}
+            canDelete={recipe !== null && canDeleteOwnerRecipe(recipe.ownerId)}
+          />
+        </View>
+      );
+    },
     [canDeleteOwnerRecipe, handleDelete, openRecipe, deletingIds],
   );
 
@@ -167,7 +173,7 @@ export default function RecipesScreen() {
       data={listRows}
       keyExtractor={(item) => item.id}
       renderItem={renderRow}
-      ItemSeparatorComponent={() => <View style={recipeListScreenStyles.rowSeparator} />}
+      ItemSeparatorComponent={RowSeparator}
       ListHeaderComponent={renderHeader}
       ListEmptyComponent={renderEmpty}
       ListFooterComponent={renderFooter}

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack } from 'expo-router';
 import { useThemeColor } from 'heroui-native';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   type NativeSyntheticEvent,
@@ -15,7 +15,7 @@ import { useIntl } from 'react-intl';
 
 import { RecipeEmptyStateCard } from '@/components/recipes/recipe-empty-state-card';
 import { RecipeListRowContent } from '@/components/recipes/recipe-list-row-content';
-import { recipeListScreenStyles } from '@/components/recipes/recipe-list-screen.styles';
+import { recipeListScreenStyles, RowSeparator } from '@/components/recipes/recipe-list-screen.styles';
 import { FilterChipRow } from '@/components/search/filter-chip-row';
 import { FilterSheet } from '@/components/search/filter-sheet';
 import { usePermissionsContext } from '@/context/permissions-context';
@@ -56,6 +56,9 @@ export default function SearchScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [accentColor, foregroundColor] = useThemeColor(['accent', 'foreground'] as const);
 
+  const recipeCardsRef = useRef(recipeCards);
+  recipeCardsRef.current = recipeCards;
+
   const listRows = useMemo<RecipeListRow[]>(() => {
     return buildRecipeListRows({
       recipes: recipeCards,
@@ -84,9 +87,9 @@ export default function SearchScreen() {
   const handleDelete = useCallback(
     (id: string) => {
       setDeletingIds((prev) => createNextDeletingIds(prev, id));
-      deleteRecipe(id, recipeCards.find((recipe) => recipe.id === id)?.version ?? 1);
+      deleteRecipe(id, recipeCardsRef.current.find((recipe) => recipe.id === id)?.version ?? 1);
     },
-    [deleteRecipe, recipeCards],
+    [deleteRecipe],
   );
 
   const canDeleteOwnerRecipe = useCallback(
@@ -116,18 +119,21 @@ export default function SearchScreen() {
   }, [runRefresh]);
 
   const renderRow = useCallback(
-    ({ item }: { item: RecipeListRow }) => (
-      <View style={recipeListScreenStyles.rowContainer}>
-        <RecipeListRowContent
-          row={item}
-          onDelete={handleDelete}
-          onPress={openRecipe}
-          deletingIds={deletingIds}
-          canDeleteRecipe={canDeleteOwnerRecipe}
-          compactPlaceholder
-        />
-      </View>
-    ),
+    ({ item }: { item: RecipeListRow }) => {
+      const recipe = item.type === 'recipe' ? item.recipe : null;
+      return (
+        <View style={recipeListScreenStyles.rowContainer}>
+          <RecipeListRowContent
+            row={item}
+            onDelete={handleDelete}
+            onPress={openRecipe}
+            isDeleting={recipe !== null && deletingIds.has(recipe.id)}
+            canDelete={recipe !== null && canDeleteOwnerRecipe(recipe.ownerId)}
+            compactPlaceholder
+          />
+        </View>
+      );
+    },
     [canDeleteOwnerRecipe, handleDelete, openRecipe, deletingIds],
   );
 
@@ -196,7 +202,7 @@ export default function SearchScreen() {
         data={listRows}
         keyExtractor={(item) => item.id}
         renderItem={renderRow}
-        ItemSeparatorComponent={() => <View style={recipeListScreenStyles.rowSeparator} />}
+        ItemSeparatorComponent={RowSeparator}
         ListHeaderComponent={<FilterChipRow filters={filters} onFiltersChange={setFilters} />}
         ListEmptyComponent={renderEmpty}
         onViewableItemsChanged={viewableItemsRef.current}

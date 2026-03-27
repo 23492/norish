@@ -21,7 +21,7 @@ type SwipeableRecipeListItemProps = {
   canDelete: boolean;
 };
 
-export function SwipeableRecipeListItem({
+function SwipeableRecipeListItemComponent({
   item,
   onDelete,
   onPress,
@@ -81,3 +81,5 @@ export function SwipeableRecipeListItem({
     </Animated.View>
   );
 }
+
+export const SwipeableRecipeListItem = React.memo(SwipeableRecipeListItemComponent);
