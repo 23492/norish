@@ -13,7 +13,10 @@ type FavoritesListData = {
   favoriteVersions: Record<string, number>;
 };
 
-export function createUseFavoritesMutation({ useTRPC }: CreateRecipeHooksOptions) {
+export function createUseFavoritesMutation({
+  useTRPC,
+  shouldPreserveOptimisticUpdate,
+}: CreateRecipeHooksOptions) {
   return function useFavoritesMutation(): FavoritesMutationResult {
     const trpc = useTRPC();
     const queryClient = useQueryClient();
@@ -49,12 +52,20 @@ export function createUseFavoritesMutation({ useTRPC }: CreateRecipeHooksOptions
 
           return { previousData };
         },
-        onError: (_err, _variables, context) => {
+        onError: (error, _variables, context) => {
+          if (shouldPreserveOptimisticUpdate?.(error)) {
+            return;
+          }
+
           if (context?.previousData) {
             queryClient.setQueryData(queryKey, context.previousData);
           }
         },
-        onSettled: () => {
+        onSettled: (_data, error) => {
+          if (error && shouldPreserveOptimisticUpdate?.(error)) {
+            return;
+          }
+
           queryClient.invalidateQueries({ queryKey });
         },
       })

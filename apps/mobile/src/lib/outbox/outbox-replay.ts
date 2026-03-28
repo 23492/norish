@@ -13,6 +13,8 @@ const log = createClientLogger('outbox-replay');
 const BASE_DELAY_MS = 2_000;
 /** Maximum delay cap. */
 const MAX_DELAY_MS = 60_000;
+/** Maximum number of replay failures before an item is dropped. */
+const MAX_REPLAY_ATTEMPTS = 2;
 
 /**
  * Compute the next retry delay based on the current attempt count.
@@ -140,7 +142,9 @@ function scheduleReplayAt(timestampMs: number, reason: string): void {
  * - Skips items whose `nextRetryAt` is in the future.
  * - Removes items that succeed.
  * - Bumps retry metadata on items that fail.
- * - Stops on the first failure to avoid hammering an unreachable backend.
+ * - Drops items that exceed the max replay attempts.
+ * - Stops on the first retryable failure to avoid hammering an unreachable backend.
+ * - Continues after dropped items so one poisoned entry does not block the queue.
  */
 export function processQueue(): Promise<DrainQueueResult> {
   if (processingPromise) {
@@ -200,6 +204,17 @@ async function runProcessQueue(): Promise<DrainQueueResult> {
       log.debug(`Item ${item.id} replayed successfully, removed from outbox`);
     } else {
       const newAttempts = item.attempts + 1;
+
+      if (newAttempts >= MAX_REPLAY_ATTEMPTS) {
+        outboxStore.remove(item.id);
+        log.warn(
+          { itemId: item.id, path: item.path, attempts: newAttempts },
+          'Outbox replay hit max attempts; dropping item',
+        );
+
+        continue;
+      }
+
       const delay = computeRetryDelay(newAttempts);
       const nextRetryAt = new Date(Date.now() + delay).toISOString();
 

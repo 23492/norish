@@ -26,7 +26,7 @@ export function createUseRecipesSubscription(
     const {
       setAllRecipesData,
       invalidate,
-      addPendingRecipe,
+      replaceOldestOptimisticPendingRecipe,
       removePendingRecipe,
       addAutoTaggingRecipe,
       removeAutoTaggingRecipe,
@@ -129,7 +129,7 @@ export function createUseRecipesSubscription(
       asSubscriptionOptions(
         trpc.recipes.onImportStarted.subscriptionOptions(undefined, {
           onData: ({ payload }: any) => {
-            addPendingRecipe(payload.recipeId);
+            replaceOldestOptimisticPendingRecipe(payload.recipeId);
           },
         })
       )
@@ -141,6 +141,7 @@ export function createUseRecipesSubscription(
           onData: ({ payload }: any) => {
             const pendingId = payload.pendingRecipeId ?? payload.recipe.id;
 
+            replaceOldestOptimisticPendingRecipe(pendingId);
             removePendingRecipe(pendingId);
             addRecipeToList(payload.recipe);
             callbacks.onImported?.(payload);
@@ -195,6 +196,7 @@ export function createUseRecipesSubscription(
         trpc.recipes.onFailed.subscriptionOptions(undefined, {
           onData: ({ payload }: any) => {
             if (payload.recipeId) {
+              replaceOldestOptimisticPendingRecipe(payload.recipeId);
               removePendingRecipe(payload.recipeId);
               removeAutoTaggingRecipe(payload.recipeId);
               removeAllergyDetectionRecipe(payload.recipeId);

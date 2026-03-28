@@ -130,7 +130,7 @@ describe('outbox end-to-end flow', () => {
     expect(diag.queueLength).toBe(0);
   });
 
-  it('incremental backoff grows correctly across multiple failures', async () => {
+  it('drops queued items after the second replay failure', async () => {
     outboxStore.enqueue('test.mutation', '"payload"');
 
     setReplayFn(vi.fn().mockResolvedValue(false));
@@ -148,14 +148,42 @@ describe('outbox end-to-end flow', () => {
     // Second failure
     await processQueue();
 
-    items = outboxStore.loadAll();
-
-    expect(items[0].attempts).toBe(2);
+    expect(outboxStore.size()).toBe(0);
 
     // Verify computed delays match expected exponential pattern
     expect(computeRetryDelay(0)).toBe(2_000);
     expect(computeRetryDelay(1)).toBe(4_000);
     expect(computeRetryDelay(2)).toBe(8_000);
     expect(computeRetryDelay(5)).toBe(60_000); // 2000 * 2^5 = 64000, capped to 60000
+  });
+
+  it('drops an item after two replay failures and continues draining later items', async () => {
+    outboxStore.enqueue('recipes.update', '"first"');
+    outboxStore.enqueue('recipes.delete', '"second"');
+
+    const replayFn = vi
+      .fn()
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+
+    setReplayFn(replayFn);
+
+    await processQueue();
+
+    let items = outboxStore.loadAll();
+
+    expect(items).toHaveLength(2);
+    expect(items[0].attempts).toBe(1);
+    expect(items[1].attempts).toBe(0);
+
+    outboxStore.update(items[0].id, { nextRetryAt: null });
+
+    await processQueue();
+
+    items = outboxStore.loadAll();
+
+    expect(replayFn).toHaveBeenCalledTimes(3);
+    expect(items).toHaveLength(0);
   });
 });

@@ -13,7 +13,10 @@ function getOptimisticRatingVersion(version: number | null): number | null {
   return version + 1;
 }
 
-export function createUseRatingsMutation({ useTRPC }: CreateRatingsHooksOptions) {
+export function createUseRatingsMutation({
+  useTRPC,
+  shouldPreserveOptimisticUpdate,
+}: CreateRatingsHooksOptions) {
   return function useRatingsMutation() {
     const trpc = useTRPC();
     const queryClient = useQueryClient();
@@ -37,12 +40,24 @@ export function createUseRatingsMutation({ useTRPC }: CreateRatingsHooksOptions)
 
           return { previousUserRating, userRatingQueryKey, averageRatingQueryKey };
         },
-        onError: (_error, _variables, context) => {
+        onError: (error, _variables, context) => {
+          if (shouldPreserveOptimisticUpdate?.(error)) {
+            return;
+          }
+
           if (context?.previousUserRating) {
             queryClient.setQueryData(context.userRatingQueryKey, context.previousUserRating);
           }
         },
-        onSettled: (_data, _error, variables, context) => {
+        onSettled: (_data, error, variables, context) => {
+          if (error && shouldPreserveOptimisticUpdate?.(error)) {
+            return;
+          }
+
+          if (!error) {
+            return;
+          }
+
           if (context?.userRatingQueryKey) {
             queryClient.invalidateQueries({ queryKey: context.userRatingQueryKey });
           }
