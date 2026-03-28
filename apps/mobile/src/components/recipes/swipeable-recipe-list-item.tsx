@@ -17,6 +17,7 @@ type SwipeableRecipeListItemProps = {
   item: RecipeCardItem;
   onDelete: (id: string) => void;
   onPress: (id: string) => void;
+  onToggleFavorite: (id: string) => void;
   isDeleting: boolean;
   canDelete: boolean;
 };
@@ -25,6 +26,7 @@ function SwipeableRecipeListItemComponent({
   item,
   onDelete,
   onPress,
+  onToggleFavorite,
   isDeleting,
   canDelete,
 }: SwipeableRecipeListItemProps) {
@@ -67,6 +69,10 @@ function SwipeableRecipeListItemComponent({
     onPress(item.id);
   }, [item.id, onPress]);
 
+  const handleDoubleTapLike = useCallback(() => {
+    onToggleFavorite(item.id);
+  }, [item.id, onToggleFavorite]);
+
   return (
     <Animated.View style={animatedStyle} onLayout={handleLayout}>
       <SwipeableRecipeRow
@@ -75,7 +81,7 @@ function SwipeableRecipeListItemComponent({
         onDelete={canDelete ? handleDelete : undefined}
       >
         <Pressable onPress={handlePress}>
-          <RecipeCard recipe={item} />
+          <RecipeCard recipe={item} onPress={handlePress} onDoubleTapLike={handleDoubleTapLike} />
         </Pressable>
       </SwipeableRecipeRow>
     </Animated.View>

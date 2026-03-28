@@ -11,6 +11,7 @@ type RecipeListRowContentProps = {
   row: RecipeListRow;
   onDelete: (id: string) => void;
   onPress: (id: string) => void;
+  onToggleFavorite: (id: string) => void;
   isDeleting: boolean;
   canDelete: boolean;
   compactPlaceholder?: boolean;
@@ -20,6 +21,7 @@ function RecipeListRowContentComponent({
   row,
   onDelete,
   onPress,
+  onToggleFavorite,
   isDeleting,
   canDelete,
   compactPlaceholder = false,
@@ -37,6 +39,7 @@ function RecipeListRowContentComponent({
       item={row.recipe}
       onDelete={onDelete}
       onPress={onPress}
+      onToggleFavorite={onToggleFavorite}
       isDeleting={isDeleting}
       canDelete={canDelete}
     />

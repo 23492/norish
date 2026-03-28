@@ -36,6 +36,7 @@ export default function RecipesScreen() {
     pendingRecipeIds,
     openRecipe,
     deleteRecipe,
+    toggleFavorite,
     invalidate,
   } = useRecipesContext();
 
@@ -95,6 +96,13 @@ export default function RecipesScreen() {
       });
   }, [runRefresh]);
 
+  const handleToggleFavorite = useCallback(
+    (id: string) => {
+      toggleFavorite(id);
+    },
+    [toggleFavorite],
+  );
+
   const renderRow = useCallback(
     ({ item }: { item: RecipeListRow }) => {
       const recipe = item.type === 'recipe' ? item.recipe : null;
@@ -104,13 +112,14 @@ export default function RecipesScreen() {
             row={item}
             onDelete={handleDelete}
             onPress={openRecipe}
+            onToggleFavorite={handleToggleFavorite}
             isDeleting={recipe !== null && deletingIds.has(recipe.id)}
             canDelete={recipe !== null && canDeleteOwnerRecipe(recipe.ownerId)}
           />
         </View>
       );
     },
-    [canDeleteOwnerRecipe, handleDelete, openRecipe, deletingIds],
+    [canDeleteOwnerRecipe, handleDelete, handleToggleFavorite, openRecipe, deletingIds],
   );
 
   const handleLoadMore = useCallback(() => {

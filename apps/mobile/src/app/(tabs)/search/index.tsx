@@ -45,6 +45,7 @@ export default function SearchScreen() {
     pendingRecipeIds,
     openRecipe,
     deleteRecipe,
+    toggleFavorite,
     invalidate,
   } = useRecipesContext();
 
@@ -118,6 +119,13 @@ export default function SearchScreen() {
       });
   }, [runRefresh]);
 
+  const handleToggleFavorite = useCallback(
+    (id: string) => {
+      toggleFavorite(id);
+    },
+    [toggleFavorite],
+  );
+
   const renderRow = useCallback(
     ({ item }: { item: RecipeListRow }) => {
       const recipe = item.type === 'recipe' ? item.recipe : null;
@@ -127,6 +135,7 @@ export default function SearchScreen() {
             row={item}
             onDelete={handleDelete}
             onPress={openRecipe}
+            onToggleFavorite={handleToggleFavorite}
             isDeleting={recipe !== null && deletingIds.has(recipe.id)}
             canDelete={recipe !== null && canDeleteOwnerRecipe(recipe.ownerId)}
             compactPlaceholder
@@ -134,7 +143,7 @@ export default function SearchScreen() {
         </View>
       );
     },
-    [canDeleteOwnerRecipe, handleDelete, openRecipe, deletingIds],
+    [canDeleteOwnerRecipe, handleDelete, handleToggleFavorite, openRecipe, deletingIds],
   );
 
   const renderEmpty = useCallback(() => {
