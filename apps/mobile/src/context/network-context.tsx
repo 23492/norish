@@ -2,11 +2,13 @@ import * as Network from 'expo-network';
 
 import React, {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from 'react';
 import { AppState } from 'react-native';
 import { onlineManager } from '@tanstack/react-query';
@@ -17,6 +19,8 @@ import {
   resetReachabilitySnapshot,
   setReachabilitySnapshot,
 } from '@/lib/network/reachability-store';
+import { getAuthTransportSnapshot, subscribeAuthTransport } from '@/lib/auth-session-sync';
+import { useBackendHealthProbe } from '@/hooks/use-backend-health-probe';
 
 const log = createClientLogger('network');
 
@@ -122,6 +126,11 @@ export function NetworkProvider({
 
   // ---- refs ----
   const isMountedRef = useRef(true);
+  const authTransportSnapshot = useSyncExternalStore(
+    subscribeAuthTransport,
+    getAuthTransportSnapshot,
+    getAuthTransportSnapshot,
+  );
 
   // -------------------------------------------------------------------
   // Device connectivity listener (expo-network)
@@ -172,9 +181,23 @@ export function NetworkProvider({
   // -------------------------------------------------------------------
   useEffect(() => {
     // No async probe needed — just settle as ready.
-    // Actual reachability is determined by WebSocket connect/disconnect.
+    // Backend reachability is determined by HTTP health checks and WebSocket signals.
     setRuntimeState('ready');
   }, [backendBaseUrl]);
+
+  // -------------------------------------------------------------------
+  // Backend reachability probe (HTTP)
+  // -------------------------------------------------------------------
+  const markReachable = useCallback(() => setBackendReachable(true), []);
+  const markUnreachable = useCallback(() => setBackendReachable(false), []);
+
+  useBackendHealthProbe({
+    backendBaseUrl,
+    deviceOnline,
+    hasActiveSession: authTransportSnapshot.hasActiveSession,
+    onReachable: markReachable,
+    onUnreachable: markUnreachable,
+  });
 
   // -------------------------------------------------------------------
   // When device transitions offline, mark backend unreachable immediately
@@ -234,17 +257,17 @@ export function NetworkProvider({
   const appOnline = deviceOnline && backendReachable;
 
   useEffect(() => {
-    onlineManager.setOnline(appOnline);
+    onlineManager.setOnline(deviceOnline);
 
     return onlineManager.setEventListener((setOnline) => {
-      // The listener receives a setter from TanStack Query.
-      // We keep it in sync with our appOnline state by calling it on mount.
-      setOnline(appOnline);
+      // React Query should pause only when the device is offline.
+      // Backend reachability is tracked separately because HTTP queries may
+      // still be needed before any WebSocket connection exists.
+      setOnline(deviceOnline);
 
-      // Return cleanup — no-op since we re-run this effect on appOnline change
       return () => { };
     });
-  }, [appOnline]);
+  }, [deviceOnline]);
 
   // -------------------------------------------------------------------
   // Derive mode

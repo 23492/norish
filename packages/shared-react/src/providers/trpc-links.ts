@@ -2,6 +2,7 @@ import type { HTTPHeaders, TRPCLink } from "@trpc/client";
 import type { AnyTRPCRouter } from "@trpc/server";
 
 import {
+  TRPCClientError,
   createWSClient,
   httpBatchLink,
   httpLink,
@@ -10,6 +11,7 @@ import {
   splitLink,
   wsLink,
 } from "@trpc/client";
+import { observable } from "@trpc/server/observable";
 import superjson from "superjson";
 
 import { createOperationIdLink } from "./operation-id-link";
@@ -24,6 +26,10 @@ export type TrpcLogger = {
   debug: (meta: unknown, message: string) => void;
 };
 
+type ManagedWebSocketClient = {
+  close: () => Promise<void>;
+};
+
 export type CreateTRPCProviderBundleOptions = {
   logger: TrpcLogger;
   getBaseUrl?: () => string;
@@ -31,14 +37,21 @@ export type CreateTRPCProviderBundleOptions = {
   getHeaders?: () => HTTPHeaders;
   getWebSocketImpl?: () => typeof WebSocket | undefined;
   wsLazyEnabled?: boolean;
+  getWsLazyEnabled?: () => boolean;
   wsLazyCloseMs?: number;
-  maxRetries?: number;
+
   enableLoggerLink?: boolean;
   getQueryClient?: () => import("@tanstack/react-query").QueryClient;
   onWebSocketClose?: (cause: unknown) => void;
   onWebSocketOpen?: () => void;
+  onWebSocketUnauthorized?: (cause: unknown) => void;
+  onWebSocketClientCreate?: (client: ManagedWebSocketClient) => void;
+  onWebSocketClientDestroy?: (client: ManagedWebSocketClient) => void;
+  onUnauthorized?: (cause: unknown) => void;
   mutationLink?: TRPCLink<any>;
   extraLinks?: TRPCLink<any>[];
+  /** Automatically invalidate all queries on WebSocket reconnect. Defaults to true. */
+  invalidateOnReconnect?: boolean;
 };
 
 type CreateTRPCClientLinksOptions = CreateTRPCProviderBundleOptions & {
@@ -63,8 +76,115 @@ function getWebSocketCloseCode(cause: unknown): number | null {
   return null;
 }
 
+function getWebSocketCloseReason(cause: unknown): string | null {
+  if (!cause || typeof cause !== "object") {
+    return null;
+  }
+
+  const event = cause as {
+    reason?: unknown;
+    _reason?: unknown;
+    message?: unknown;
+  };
+
+  if (typeof event.reason === "string" && event.reason.length > 0) {
+    return event.reason;
+  }
+
+  if (typeof event._reason === "string" && event._reason.length > 0) {
+    return event._reason;
+  }
+
+  if (typeof event.message === "string" && event.message.length > 0) {
+    return event.message;
+  }
+
+  return null;
+}
+
 export function isNormalWebSocketClose(cause: unknown): boolean {
   return getWebSocketCloseCode(cause) === 1000;
+}
+
+export function isUnauthorizedWebSocketClose(cause: unknown): boolean {
+  const code = getWebSocketCloseCode(cause);
+
+  if (code === 4401) {
+    return true;
+  }
+
+  const reason = getWebSocketCloseReason(cause);
+
+  if (!reason) {
+    return false;
+  }
+
+  return /(?:^|\b)(401|unauthorized)(?:\b|$)/i.test(reason);
+}
+
+export function isUnauthorizedTRPCError(cause: unknown): boolean {
+  if (!cause) {
+    return false;
+  }
+
+  if (cause instanceof TRPCClientError) {
+    return (
+      cause.data?.code === "UNAUTHORIZED" ||
+      cause.data?.httpStatus === 401 ||
+      cause.shape?.data?.code === "UNAUTHORIZED" ||
+      cause.shape?.data?.httpStatus === 401
+    );
+  }
+
+  if (typeof cause !== "object") {
+    return false;
+  }
+
+  const error = cause as {
+    data?: { code?: unknown; httpStatus?: unknown };
+    shape?: { data?: { code?: unknown; httpStatus?: unknown } };
+    message?: unknown;
+  };
+
+  if (error.data?.code === "UNAUTHORIZED" || error.shape?.data?.code === "UNAUTHORIZED") {
+    return true;
+  }
+
+  if (error.data?.httpStatus === 401 || error.shape?.data?.httpStatus === 401) {
+    return true;
+  }
+
+  return typeof error.message === "string" && /(?:^|\b)(401|unauthorized)(?:\b|$)/i.test(error.message);
+}
+
+export function shouldNotifyWebSocketDisconnect(cause: unknown): boolean {
+  return !isNormalWebSocketClose(cause) && !isUnauthorizedWebSocketClose(cause);
+}
+
+function createUnauthorizedLink<TRouter extends AnyTRPCRouter>(
+  onUnauthorized: ((cause: unknown) => void) | undefined,
+): TRPCLink<TRouter> {
+  return () => {
+    return ({ op, next }) => {
+      return observable((observer) => {
+        return next(op).subscribe({
+          next(result) {
+            observer.next(result);
+          },
+          error(error) {
+            if (isUnauthorizedTRPCError(error)) {
+              onUnauthorized?.(error);
+            }
+
+            observer.error(error);
+          },
+          complete() {
+            observer.complete();
+          },
+        });
+      });
+    };
+  };
 }
 
 function createHttpMutationLink(getBaseUrl: () => string, getHeaders: () => HTTPHeaders): TRPCLink<any> {
@@ -134,30 +254,43 @@ export function createTRPCClientLinks<TRouter extends AnyTRPCRouter>({
   getWsUrl = defaultGetWsUrl,
   getHeaders = defaultGetHeaders,
   getWebSocketImpl,
+  includeSubscriptions = true,
   wsLazyEnabled = true,
+  getWsLazyEnabled,
   wsLazyCloseMs = 0,
-  maxRetries = 10,
+
   enableLoggerLink = true,
   onWebSocketClose,
   onWebSocketOpen,
+  onWebSocketUnauthorized,
+  onWebSocketClientCreate,
+  onUnauthorized,
   mutationLink,
   extraLinks = [],
-  includeSubscriptions = true,
 }: CreateTRPCClientLinksOptions): TRPCLink<TRouter>[] {
+  const resolvedWsLazyEnabled = getWsLazyEnabled?.() ?? wsLazyEnabled;
+  const webSocketClient = includeSubscriptions
+    ? createWsClient(
+        getWsUrl,
+        getWebSocketImpl,
+        resolvedWsLazyEnabled,
+        wsLazyCloseMs,
+        logger,
+        onWebSocketOpen,
+        onWebSocketClose,
+        onWebSocketUnauthorized,
+      )
+    : null;
+
+  if (webSocketClient) {
+    onWebSocketClientCreate?.(webSocketClient);
+  }
+
   const transportLink = includeSubscriptions
     ? splitLink({
         condition: (op) => op.type === "subscription",
         true: wsLink({
-          client: createWsClient(
-            getWsUrl,
-            getWebSocketImpl,
-            wsLazyEnabled,
-            wsLazyCloseMs,
-            maxRetries,
-            logger,
-            onWebSocketOpen,
-            onWebSocketClose,
-          ),
+          client: webSocketClient!,
           transformer: superjson as any,
         }),
         false: createHttpTransportLink(getBaseUrl, getHeaders),
@@ -175,6 +308,7 @@ export function createTRPCClientLinks<TRouter extends AnyTRPCRouter>({
         ]
       : []),
     createOperationIdLink<TRouter>(),
+    createUnauthorizedLink<TRouter>(onUnauthorized),
     ...(mutationLink ? [mutationLink] : []),
     ...extraLinks,
     transportLink,
@@ -186,12 +320,16 @@ function createWsClient(
   getWebSocketImpl: (() => typeof WebSocket | undefined) | undefined,
   wsLazyEnabled: boolean,
   wsLazyCloseMs: number,
-  maxRetries: number,
   logger: TrpcLogger,
   onWebSocketOpen: (() => void) | undefined,
   onWebSocketClose: ((cause: unknown) => void) | undefined,
+  onWebSocketUnauthorized: ((cause: unknown) => void) | undefined,
 ) {
-  return createWSClient({
+  let handledUnauthorizedClose = false;
+  let suppressNextNormalClose = false;
+  let webSocketClient: ReturnType<typeof createWSClient> | null = null;
+
+  webSocketClient = createWSClient({
     url: getWsUrl,
     WebSocket: getWebSocketImpl?.(),
     lazy: {
@@ -199,17 +337,13 @@ function createWsClient(
       closeMs: wsLazyCloseMs,
     },
     retryDelayMs: (attemptIndex) => {
-      if (attemptIndex >= maxRetries) {
-        logger.warn({ attemptIndex }, "Max WebSocket retries reached, giving up");
-
-        return Infinity;
+      if (handledUnauthorizedClose) {
+        return 0;
       }
 
-      const delay = Math.min(1000 * Math.pow(2, attemptIndex), 30000);
+      logger.debug({ attemptIndex }, "WebSocket reconnecting in 1s");
 
-      logger.debug({ attemptIndex, delay }, "WebSocket reconnecting");
-
-      return delay;
+      return 1000;
     },
     onOpen: () => {
       logger.info("WebSocket connected");
@@ -218,11 +352,33 @@ function createWsClient(
     onClose: (cause) => {
       logger.info(`WebSocket closed: ${JSON.stringify(cause)}`);
 
+      if (isUnauthorizedWebSocketClose(cause)) {
+        if (!handledUnauthorizedClose) {
+          handledUnauthorizedClose = true;
+          suppressNextNormalClose = true;
+          onWebSocketClose?.(cause);
+          onWebSocketUnauthorized?.(cause);
+          void webSocketClient?.close().catch(() => null);
+        }
+
+        return;
+      }
+
       if (isNormalWebSocketClose(cause)) {
+        if (suppressNextNormalClose) {
+          suppressNextNormalClose = false;
+
+          return;
+        }
+
+        onWebSocketClose?.(cause);
+
         return;
       }
 
       onWebSocketClose?.(cause);
     },
   });
+
+  return webSocketClient;
 }

@@ -33,14 +33,46 @@ export function computeRetryDelay(attempts: number): number {
  */
 export type ReplayFn = (item: OutboxItem) => Promise<boolean>;
 
+export type DrainQueueResult = {
+  hadPendingItems: boolean;
+  drained: boolean;
+  pendingItems: number;
+  scheduledRetryAt: string | null;
+};
+
 // ---------------------------------------------------------------------------
 // Coordinator state
 // ---------------------------------------------------------------------------
 
 let replayFn: ReplayFn | null = null;
-let processing = false;
+let processingPromise: Promise<DrainQueueResult> | null = null;
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
 let scheduledRetryAt: number | null = null;
+
+function createDrainQueueResult(hadPendingItems: boolean): DrainQueueResult {
+  const pendingItems = outboxStore.size();
+
+  return {
+    hadPendingItems,
+    drained: pendingItems === 0,
+    pendingItems,
+    scheduledRetryAt: scheduledRetryAt === null ? null : new Date(scheduledRetryAt).toISOString(),
+  };
+}
+
+/**
+ * Returns a Promise that resolves once the current outbox processing run
+ * completes. If no run is in progress one is started first. The result
+ * reports whether the queue fully drained or whether items remain queued for
+ * a later retry.
+ */
+export function drainQueue(): Promise<DrainQueueResult> {
+  if (processingPromise) {
+    return processingPromise;
+  }
+
+  return processQueue();
+}
 
 /**
  * Register the function used to actually submit replayed mutations.
@@ -54,7 +86,7 @@ export function setReplayFn(fn: ReplayFn): void {
  * Whether the coordinator is currently processing the queue.
  */
 export function isProcessing(): boolean {
-  return processing;
+  return processingPromise !== null;
 }
 
 function clearScheduledReplay(): void {
@@ -110,80 +142,88 @@ function scheduleReplayAt(timestampMs: number, reason: string): void {
  * - Bumps retry metadata on items that fail.
  * - Stops on the first failure to avoid hammering an unreachable backend.
  */
-export async function processQueue(): Promise<void> {
-  if (processing) {
+export function processQueue(): Promise<DrainQueueResult> {
+  if (processingPromise) {
     log.debug('Replay already in progress, skipping');
 
-    return;
+    return processingPromise;
   }
+
+  processingPromise = runProcessQueue().finally(() => {
+    processingPromise = null;
+  });
+
+  return processingPromise;
+}
+
+async function runProcessQueue(): Promise<DrainQueueResult> {
+  const hadPendingItems = outboxStore.size() > 0;
 
   if (!replayFn) {
     log.warn({}, 'No replay function registered, skipping outbox processing');
 
-    return;
+    return createDrainQueueResult(hadPendingItems);
   }
 
-  processing = true;
+
   clearScheduledReplay();
 
-  try {
-    const items = outboxStore.loadAll();
-    let nextScheduledRetry: number | null = null;
+  const items = outboxStore.loadAll();
+  let nextScheduledRetry: number | null = null;
 
-    if (items.length === 0) {
-      return;
-    }
-
-    log.debug(`Processing outbox: ${items.length} item(s) pending`);
-
-    const now = Date.now();
-
-    for (const item of items) {
-      // Skip items not yet eligible for retry
-      if (item.nextRetryAt && new Date(item.nextRetryAt).getTime() > now) {
-        nextScheduledRetry = trackEarlierRetry(
-          nextScheduledRetry,
-          new Date(item.nextRetryAt).getTime(),
-        );
-        log.debug(`Skipping item ${item.id}: next retry at ${item.nextRetryAt}`);
-
-        continue;
-      }
-
-      log.debug(`Replaying item ${item.id}: ${item.path} (attempt ${item.attempts + 1})`);
-
-      const success = await replayFn(item);
-
-      if (success) {
-        outboxStore.remove(item.id);
-        log.debug(`Item ${item.id} replayed successfully, removed from outbox`);
-      } else {
-        const newAttempts = item.attempts + 1;
-        const delay = computeRetryDelay(newAttempts);
-        const nextRetryAt = new Date(Date.now() + delay).toISOString();
-
-        outboxStore.update(item.id, {
-          attempts: newAttempts,
-          nextRetryAt,
-        });
-
-        nextScheduledRetry = trackEarlierRetry(
-          nextScheduledRetry,
-          new Date(nextRetryAt).getTime(),
-        );
-
-        log.debug(
-          `Item ${item.id} replay failed (attempt ${newAttempts}), next retry in ${delay}ms`,
-        );
-
-        break;
-      }
-    }
-
-    if (nextScheduledRetry !== null) {
-      scheduleReplayAt(nextScheduledRetry, 'next eligible outbox item');
-    }
-  } finally {
-    processing = false;
+  if (items.length === 0) {
+    return createDrainQueueResult(false);
   }
+
+  log.debug(`Processing outbox: ${items.length} item(s) pending`);
+
+  const now = Date.now();
+
+  for (const item of items) {
+    // Skip items not yet eligible for retry
+    if (item.nextRetryAt && new Date(item.nextRetryAt).getTime() > now) {
+      nextScheduledRetry = trackEarlierRetry(
+        nextScheduledRetry,
+        new Date(item.nextRetryAt).getTime(),
+      );
+      log.debug(`Skipping item ${item.id}: next retry at ${item.nextRetryAt}`);
+
+      continue;
+    }
+
+    log.debug(`Replaying item ${item.id}: ${item.path} (attempt ${item.attempts + 1})`);
+
+    const success = await replayFn(item);
+
+    if (success) {
+      outboxStore.remove(item.id);
+      log.debug(`Item ${item.id} replayed successfully, removed from outbox`);
+    } else {
+      const newAttempts = item.attempts + 1;
+      const delay = computeRetryDelay(newAttempts);
+      const nextRetryAt = new Date(Date.now() + delay).toISOString();
+
+      outboxStore.update(item.id, {
+        attempts: newAttempts,
+        nextRetryAt,
+      });
+
+      nextScheduledRetry = trackEarlierRetry(
+        nextScheduledRetry,
+        new Date(nextRetryAt).getTime(),
+      );
+
+      log.debug(
+        `Item ${item.id} replay failed (attempt ${newAttempts}), next retry in ${delay}ms`,
+      );
+
+      break;
+    }
+  }
+
+  if (nextScheduledRetry !== null) {
+    scheduleReplayAt(nextScheduledRetry, 'next eligible outbox item');
+  }
+
+  return createDrainQueueResult(hadPendingItems);
 }

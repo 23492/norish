@@ -2,6 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ENVELOPE_VERSION } from "@norish/shared/contracts/realtime-envelope";
 
+import {
+  isUnauthorizedTRPCError,
+  isUnauthorizedWebSocketClose,
+  shouldNotifyWebSocketDisconnect,
+} from "./trpc-links";
 import { wrapTrpcProxy } from "./trpc-provider";
 
 describe("createTRPCProviderBundle", () => {
@@ -45,5 +50,72 @@ describe("createTRPCProviderBundle", () => {
 
     expect(onData).toHaveBeenCalledOnce();
     expect(onDataInput[0]).toEqual(envelope);
+  });
+
+  it("detects unauthorized WebSocket close reasons from React Native events", () => {
+    expect(
+      isUnauthorizedWebSocketClose({
+        _code: 1006,
+        _reason: "Received bad response code from server: 401.",
+      })
+    ).toBe(true);
+  });
+
+  it("detects unauthorized WebSocket close with custom 4401 code", () => {
+    expect(
+      isUnauthorizedWebSocketClose({
+        code: 4401,
+        reason: "",
+      })
+    ).toBe(true);
+  });
+
+  it("does not treat transient disconnects as unauthorized", () => {
+    expect(
+      isUnauthorizedWebSocketClose({
+        _code: 1006,
+        _reason: "Socket closed unexpectedly",
+      })
+    ).toBe(false);
+  });
+
+  it("does not treat unauthorized WebSocket closes as backend disconnects", () => {
+    expect(
+      shouldNotifyWebSocketDisconnect({
+        _code: 1006,
+        _reason: "Received bad response code from server: 401.",
+      })
+    ).toBe(false);
+  });
+
+  it("treats unexpected WebSocket closes as backend disconnects", () => {
+    expect(
+      shouldNotifyWebSocketDisconnect({
+        _code: 1006,
+        _reason: "Socket closed unexpectedly",
+      })
+    ).toBe(true);
+  });
+
+  it("detects unauthorized tRPC client errors", () => {
+    expect(
+      isUnauthorizedTRPCError({
+        data: {
+          code: "UNAUTHORIZED",
+          httpStatus: 401,
+        },
+      })
+    ).toBe(true);
+  });
+
+  it("does not treat other tRPC client errors as unauthorized", () => {
+    expect(
+      isUnauthorizedTRPCError({
+        data: {
+          code: "FORBIDDEN",
+          httpStatus: 403,
+        },
+      })
+    ).toBe(false);
   });
 });

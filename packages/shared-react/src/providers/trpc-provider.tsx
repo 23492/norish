@@ -87,7 +87,7 @@ export function wrapTrpcProxy<T>(value: T, cache: WeakMap<object, unknown>): T {
   return proxy as T;
 }
 
-function createNormalizedUseTRPC<TRouter extends AnyTRPCRouter, TTrpc>(useRawTRPC: () => TTrpc) {
+function createNormalizedUseTRPC<TTrpc>(useRawTRPC: () => TTrpc) {
   return function useNormalizedTRPC() {
     const trpc = useRawTRPC();
 
@@ -103,14 +103,19 @@ export function createTRPCProviderBundle<TRouter extends AnyTRPCRouter>({
   getHeaders = defaultGetHeaders,
   getWebSocketImpl,
   wsLazyEnabled = true,
+  getWsLazyEnabled,
   wsLazyCloseMs = 0,
-  maxRetries = 10,
   enableLoggerLink = true,
   getQueryClient: externalGetQueryClient,
   onWebSocketClose,
   onWebSocketOpen,
+  onWebSocketUnauthorized,
+  onWebSocketClientCreate,
+  onWebSocketClientDestroy,
+  onUnauthorized,
   mutationLink,
   extraLinks = [],
+  invalidateOnReconnect = true,
 }: CreateTRPCProviderBundleOptions) {
   const { TRPCProvider, useTRPC: useRawTRPC } = createTRPCContext<TRouter>();
   const useTRPC = createNormalizedUseTRPC(useRawTRPC);
@@ -132,6 +137,7 @@ export function createTRPCProviderBundle<TRouter extends AnyTRPCRouter>({
     const [status, setStatus] = useState<ConnectionStatus>("idle");
     const previousStatusRef = useRef<ConnectionStatus>("idle");
     const queryClientRef = useRef<QueryClient | null>(null);
+    const webSocketClientRef = useRef<{ close: () => Promise<void> } | null>(null);
 
     const [{ queryClient, trpcClient }] = useState(() => {
       const qc = externalGetQueryClient
@@ -158,9 +164,13 @@ export function createTRPCProviderBundle<TRouter extends AnyTRPCRouter>({
           getHeaders,
           getWebSocketImpl,
           wsLazyEnabled,
+          getWsLazyEnabled,
           wsLazyCloseMs,
-          maxRetries,
           enableLoggerLink,
+          onWebSocketClientCreate: (client) => {
+            webSocketClientRef.current = client;
+            onWebSocketClientCreate?.(client);
+          },
           onWebSocketOpen: () => {
             setStatus("connected");
             onWebSocketOpen?.();
@@ -173,8 +183,10 @@ export function createTRPCProviderBundle<TRouter extends AnyTRPCRouter>({
             }
 
             setStatus("disconnected");
-              onWebSocketClose?.(cause);
-            },
+            onWebSocketClose?.(cause);
+          },
+          onWebSocketUnauthorized,
+          onUnauthorized,
           mutationLink,
           extraLinks,
         }),
@@ -184,11 +196,26 @@ export function createTRPCProviderBundle<TRouter extends AnyTRPCRouter>({
     });
 
     useEffect(() => {
+      return () => {
+        const client = webSocketClientRef.current;
+
+        webSocketClientRef.current = null;
+
+        if (!client) {
+          return;
+        }
+
+        onWebSocketClientDestroy?.(client);
+        void client.close().catch(() => null);
+      };
+    }, [onWebSocketClientDestroy]);
+
+    useEffect(() => {
       const wasDisconnected = previousStatusRef.current === "disconnected";
 
       previousStatusRef.current = status;
 
-      if (status === "connected" && wasDisconnected && queryClientRef.current) {
+      if (status === "connected" && wasDisconnected && queryClientRef.current && invalidateOnReconnect) {
         logger.info("Connection restored, invalidating queries");
         queryClientRef.current.invalidateQueries();
       }

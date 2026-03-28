@@ -1,19 +1,37 @@
 import type { AppRouter } from '@norish/trpc/client';
 import { createTRPCProviderBundle } from '@norish/shared-react/providers';
 import { createClientLogger } from '@norish/shared/lib/logger';
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useSyncExternalStore } from 'react';
 
 import { getAuthClient } from '@/lib/auth-client';
+import {
+  getAuthTransportSnapshot,
+  invalidateSession,
+  subscribeAuthTransport,
+} from '@/lib/auth-session-sync';
 import { notifyBackendDisconnect, notifyBackendConnect } from '@/context/network-context';
 import { createPersistedQueryClient } from '@/lib/query-cache/create-persisted-query-client';
 import {
   createOutboxLink,
+  type OutboxMutationClient,
   setReplayFn,
   replayOutboxItem,
   startOutboxProcessor,
 } from '@/lib/outbox';
 
 const log = createClientLogger('mobile-trpc');
+
+type ManagedWebSocketClient = {
+  close: () => Promise<void>;
+};
+
+const mobileWebSocketClients = new Set<ManagedWebSocketClient>();
+
+export async function closeMobileTrpcConnections(): Promise<void> {
+  const clients = Array.from(mobileWebSocketClients);
+
+  await Promise.all(clients.map(async (client) => client.close().catch(() => null)));
+}
 
 type CookieCapableAuthClient = ReturnType<typeof getAuthClient> & {
   getCookie?: () => string | undefined;
@@ -91,12 +109,27 @@ const trpcBundle = createTRPCProviderBundle<AppRouter>({
   getWsUrl: () => toWsUrl(currentBaseUrl),
   getHeaders: trpcBundleGetHeaders,
   getWebSocketImpl: createMobileWebSocket,
-  wsLazyEnabled: false,
+  wsLazyEnabled: true,
   enableLoggerLink: false,
   getQueryClient: () => persistedQueryClient,
+  onWebSocketClientCreate: (client) => {
+    mobileWebSocketClients.add(client);
+  },
+  onWebSocketClientDestroy: (client) => {
+    mobileWebSocketClients.delete(client);
+  },
   onWebSocketClose: notifyBackendDisconnect,
   onWebSocketOpen: notifyBackendConnect,
+  onWebSocketUnauthorized: () => {
+    log.info('WebSocket rejected with unauthorized response, signing out');
+    void invalidateSession('websocket-unauthorized');
+  },
+  onUnauthorized: () => {
+    log.info('tRPC request returned unauthorized response, signing out');
+    void invalidateSession('transport-unauthorized');
+  },
   mutationLink: createOutboxLink<AppRouter>(),
+  invalidateOnReconnect: false,
 });
 
 export const useTRPC = trpcBundle.useTRPC;
@@ -111,7 +144,7 @@ function OutboxReplayRegistration() {
       return;
     }
 
-    setReplayFn((item) => replayOutboxItem(trpcClient, item));
+    setReplayFn((item) => replayOutboxItem(trpcClient as OutboxMutationClient, item));
   }, [trpcClient]);
 
   return null;
@@ -124,7 +157,15 @@ export function TrpcProvider({
   baseUrl: string;
   children: React.ReactNode;
 }) {
-  const providerKey = useMemo(() => baseUrl, [baseUrl]);
+  const authTransportSnapshot = useSyncExternalStore(
+    subscribeAuthTransport,
+    getAuthTransportSnapshot,
+    getAuthTransportSnapshot,
+  );
+  const providerKey = useMemo(
+    () => `${baseUrl}:${authTransportSnapshot.version}`,
+    [authTransportSnapshot.version, baseUrl],
+  );
 
   currentBaseUrl = baseUrl;
 

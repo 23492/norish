@@ -4,10 +4,12 @@ export { enqueue, loadAll, update, remove, size } from './outbox-store';
 export { isBackendUnreachableError } from './error-classification';
 export {
   processQueue,
+  drainQueue,
   setReplayFn,
   isProcessing,
   computeRetryDelay,
 } from './outbox-replay';
+export type { DrainQueueResult } from './outbox-replay';
 export {
   createOutboxLink,
   startOutboxProcessor,

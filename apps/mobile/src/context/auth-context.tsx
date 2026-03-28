@@ -2,10 +2,18 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 
 import { createClientLogger } from '@norish/shared/lib/logger';
 
-import { getAuthClient } from '@/lib/auth-client';
-import { type PersistedUser, readPersistedSession } from '@/lib/auth-storage';
+import { getAuthClient, resetAuthClientStorage } from '@/lib/auth-client';
+import {
+  type PersistedUser,
+  readPersistedSession,
+} from '@/lib/auth-storage';
+import {
+  registerSessionInvalidationHandler,
+  setHasActiveSession,
+} from '@/lib/auth-session-sync';
 import { clearAllQueryCaches } from '@/hooks/use-cache-lifecycle';
 import { useNetworkStatus } from '@/context/network-context';
+import { closeMobileTrpcConnections } from '@/providers/trpc-provider';
 
 const log = createClientLogger('auth');
 
@@ -29,18 +37,32 @@ function AuthProviderInner({
   backendBaseUrl: string;
   children: React.ReactNode;
 }) {
-  const authClient = useMemo(() => getAuthClient(backendBaseUrl), [backendBaseUrl]);
-  const { data: session, isPending } = authClient.useSession();
+  const [authClientVersion, setAuthClientVersion] = useState(0);
+  const authClient = useMemo(() => getAuthClient(backendBaseUrl), [authClientVersion, backendBaseUrl]);
+  const { data: session, isPending, error: sessionError } = authClient.useSession();
   const [justLoggedOut, setJustLoggedOut] = useState(false);
+  const [authOverride, setAuthOverride] = useState<'none' | 'signed-out'>('none');
 
   // Network awareness
-  const { backendReachable, runtimeState } = useNetworkStatus();
+  const { backendReachable, deviceOnline, runtimeState } = useNetworkStatus();
 
   // Persisted session state (loaded once when backend is unreachable)
   const [persistedUser, setPersistedUser] = useState<PersistedUser | null>(null);
   const [persistedSessionStatus, setPersistedSessionStatus] = useState<'idle' | 'loading' | 'loaded'>('idle');
 
-  const usePersistedAuth = runtimeState === 'ready' && !backendReachable;
+  const liveUser = useMemo(
+    () =>
+      session?.user
+        ? {
+          id: session.user.id,
+          email: session.user.email,
+          name: session.user.name,
+          image: session.user.image,
+        }
+        : null,
+    [session?.user?.id, session?.user?.email, session?.user?.name, session?.user?.image],
+  );
+  const usePersistedAuth = runtimeState === 'ready' && !liveUser && (!deviceOnline || (!!sessionError && !backendReachable));
 
   useEffect(() => {
     if (!usePersistedAuth || persistedSessionStatus !== 'idle') {
@@ -56,10 +78,10 @@ function AuthProviderInner({
   }, [persistedSessionStatus, usePersistedAuth]);
 
   const { isAuthenticated, isLoading, user } = useMemo(() => {
-    if (runtimeState === 'initializing') {
+    if (authOverride === 'signed-out' || runtimeState === 'initializing') {
       return {
         isAuthenticated: false,
-        isLoading: true,
+        isLoading: runtimeState === 'initializing',
         user: null,
       };
     }
@@ -75,27 +97,53 @@ function AuthProviderInner({
     return {
       isAuthenticated: !!session?.user,
       isLoading: isPending,
-      user: session?.user
-        ? {
-          id: session.user.id,
-          email: session.user.email,
-          name: session.user.name,
-          image: session.user.image,
-        }
-        : null,
+      user: liveUser,
     };
-  }, [isPending, persistedSessionStatus, persistedUser, runtimeState, session, usePersistedAuth]);
+  }, [authOverride, isPending, liveUser, persistedSessionStatus, persistedUser, runtimeState, session?.user, usePersistedAuth]);
 
   const signOut = useCallback(async () => {
+    setAuthOverride('signed-out');
+    setHasActiveSession(false);
+    await closeMobileTrpcConnections();
     clearAllQueryCaches();
-    await authClient.signOut();
-    setPersistedUser(null);
-    setPersistedSessionStatus('idle');
-    setJustLoggedOut(true);
+
+    try {
+      await authClient.signOut();
+    } catch (error) {
+      log.warn({ error }, 'Remote sign out failed, resetting local auth client state');
+    } finally {
+      try {
+        await resetAuthClientStorage();
+      } catch (storageError) {
+        log.warn({ error: storageError }, 'Failed to reset auth client storage during sign out');
+      }
+
+      setAuthClientVersion((current) => current + 1);
+      setPersistedUser(null);
+      setPersistedSessionStatus('idle');
+      setJustLoggedOut(true);
+      setHasActiveSession(false);
+    }
   }, [authClient]);
+
+  useEffect(() => {
+    setHasActiveSession(isAuthenticated);
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    return registerSessionInvalidationHandler(async (reason) => {
+      if (!isAuthenticated) {
+        return;
+      }
+
+      log.info(`Session invalidated by ${reason}, signing out`);
+      await signOut();
+    });
+  }, [isAuthenticated, signOut]);
 
   const consumeLogoutFlag = useCallback(() => {
     setJustLoggedOut(false);
+    setAuthOverride('none');
   }, []);
 
   const value = useMemo<AuthContextValue>(

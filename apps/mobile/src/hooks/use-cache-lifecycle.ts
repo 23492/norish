@@ -5,12 +5,21 @@ import { createClientLogger } from '@norish/shared/lib/logger';
 import { useNetworkStatus } from '@/context/network-context';
 import { queryCacheStorage } from '@/lib/storage/query-cache-mmkv';
 import { persistedQueryClient } from '@/providers/trpc-provider';
+import { drainQueue } from '@/lib/outbox';
 
 const log = createClientLogger('cache-lifecycle');
 
+async function refreshQueriesAfterReconnect(): Promise<void> {
+  log.info('Clearing persisted query cache and resetting queries');
+  queryCacheStorage.clearAll();
+  await persistedQueryClient.resetQueries();
+}
+
 /**
- * Watches `appOnline` transitions and invalidates all queries when the
- * backend becomes reachable again, so cached data is replaced with fresh data.
+ * Watches `appOnline` transitions and refreshes query state when the backend
+ * becomes reachable again. The outbox replay is attempted first; after that
+ * attempt completes, query caches are cleared/reset so the UI refetches fresh
+ * data whether or not the outbox fully drained.
  */
 export function useCacheInvalidationOnReconnect() {
   const { appOnline } = useNetworkStatus();
@@ -22,8 +31,35 @@ export function useCacheInvalidationOnReconnect() {
     prevAppOnlineRef.current = appOnline;
 
     if (wasOffline && appOnline) {
-      log.info('App back online — invalidating all queries');
-      persistedQueryClient.invalidateQueries();
+      log.info('App back online — draining outbox before refreshing queries');
+      void drainQueue()
+        .then((result) => {
+          if (!result.hadPendingItems) {
+            log.info('Outbox empty on reconnect');
+            return;
+          }
+
+          if (result.drained) {
+            log.info('Outbox drained successfully on reconnect');
+            return;
+          }
+
+          log.warn(
+            {
+              pendingItems: result.pendingItems,
+              scheduledRetryAt: result.scheduledRetryAt,
+            },
+            'Outbox replay finished with pending items; refreshing caches anyway',
+          );
+        })
+        .catch((error) => {
+          log.warn({ error }, 'Outbox replay failed during reconnect');
+        })
+        .finally(() => {
+          void refreshQueriesAfterReconnect().catch((error) => {
+            log.warn({ error }, 'Failed to refresh query caches after reconnect');
+          });
+        });
     }
   }, [appOnline]);
 }
