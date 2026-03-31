@@ -1,4 +1,5 @@
 import { useRatingsMutation } from "@/hooks/ratings/use-ratings-mutation";
+import { TRPCClientError } from "@trpc/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMockUserRatingData, createTestQueryClient, createTestWrapper } from "./test-utils";
@@ -92,6 +93,42 @@ describe("useRatingsMutation", () => {
 
       await act(async () => {
         await mutationOpts.onMutate({ recipeId: testRecipeId, rating: 5 });
+      });
+
+      const cachedData = queryClient.getQueryData<{
+        recipeId: string;
+        userRating: number | null;
+        version?: number | null;
+      }>(userRatingQueryKey);
+
+      expect(cachedData?.userRating).toBe(5);
+      expect(cachedData?.version).toBe(10);
+    });
+
+    it("keeps the optimistic rating when the backend is unreachable", async () => {
+      queryClient.setQueryData(userRatingQueryKey, createMockUserRatingData(testRecipeId, 3, 9));
+
+      const { renderHook, act } = require("@testing-library/react");
+      const { result: _result } = renderHook(() => useRatingsMutation(), {
+        wrapper: createTestWrapper(queryClient),
+      });
+
+      const mutationOpts = mockMutationOptions.mock.calls[0][0];
+
+      let context:
+        | {
+            previousUserRating: { recipeId: string; userRating: number | null; version: number | null };
+            userRatingQueryKey: unknown;
+            averageRatingQueryKey: unknown;
+          }
+        | undefined;
+
+      await act(async () => {
+        context = await mutationOpts.onMutate({ recipeId: testRecipeId, rating: 5 });
+      });
+
+      act(() => {
+        mutationOpts.onError(new TRPCClientError("Request failed"), { recipeId: testRecipeId, rating: 5 }, context);
       });
 
       const cachedData = queryClient.getQueryData<{

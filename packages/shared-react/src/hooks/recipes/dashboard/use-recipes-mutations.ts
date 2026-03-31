@@ -6,6 +6,7 @@ import type {
   MeasurementSystem,
   RecipeDashboardDTO,
 } from "@norish/shared/contracts";
+import { isBackendUnreachableError } from "@norish/shared/lib/trpc-errors";
 import type { CreateRecipeHooksOptions } from "../types";
 import type { RecipesCacheHelpers } from "./use-recipes-cache";
 
@@ -104,7 +105,7 @@ export function createUseRecipesMutations(
       dependencies.useRecipesCacheHelpers();
 
     const shouldPreserve = (error: unknown): boolean => {
-      return shouldPreserveOptimisticUpdate?.(error) ?? false;
+      return (shouldPreserveOptimisticUpdate ?? isBackendUnreachableError)(error);
     };
 
     const recipesPath = [trpc.recipes.list.queryKey({})[0]];
