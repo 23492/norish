@@ -573,18 +573,27 @@ const importFromImagesProcedure = authedProcedure
     const files: Array<{ data: string; mimeType: string; filename: string }> = [];
 
     // Process files from FormData
-    for (const [key, value] of input.entries()) {
-      if (key.startsWith("file") && value instanceof File) {
-        const buffer = Buffer.from(await value.arrayBuffer());
-        const base64 = buffer.toString("base64");
+    const filePromises: Promise<void>[] = [];
 
-        files.push({
-          data: base64,
-          mimeType: value.type,
-          filename: value.name,
-        });
+    input.forEach((value, key) => {
+      if (!key.startsWith("file") || !(value instanceof File)) {
+        return;
       }
-    }
+
+      filePromises.push(
+        value.arrayBuffer().then((arrayBuffer) => {
+          const buffer = Buffer.from(arrayBuffer);
+
+          files.push({
+            data: buffer.toString("base64"),
+            mimeType: value.type,
+            filename: value.name,
+          });
+        })
+      );
+    });
+
+    await Promise.all(filePromises);
 
     if (files.length === 0) {
       throw new TRPCError({

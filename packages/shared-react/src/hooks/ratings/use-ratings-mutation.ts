@@ -1,7 +1,8 @@
 import type { CreateRatingsHooksOptions } from "./types";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { isBackendUnreachableError } from "@norish/shared/lib/trpc-errors";
+
+import { shouldPreserveOptimisticUpdate as preserveOptimisticUpdate } from "../optimistic-updates";
 
 
 type UserRatingData = { recipeId: string; userRating: number | null; version: number | null };
@@ -21,7 +22,6 @@ export function createUseRatingsMutation({
   return function useRatingsMutation() {
     const trpc = useTRPC();
     const queryClient = useQueryClient();
-    const shouldPreserveOptimisticState = shouldPreserveOptimisticUpdate ?? isBackendUnreachableError;
 
     const rateMutation = useMutation(
       trpc.ratings.rate.mutationOptions({
@@ -43,7 +43,7 @@ export function createUseRatingsMutation({
           return { previousUserRating, userRatingQueryKey, averageRatingQueryKey };
         },
         onError: (error, _variables, context) => {
-          if (shouldPreserveOptimisticState(error)) {
+          if (preserveOptimisticUpdate(error, shouldPreserveOptimisticUpdate)) {
             return;
           }
 
@@ -52,7 +52,7 @@ export function createUseRatingsMutation({
           }
         },
         onSettled: (_data, error, variables, context) => {
-          if (error && shouldPreserveOptimisticState(error)) {
+          if (error && preserveOptimisticUpdate(error, shouldPreserveOptimisticUpdate)) {
             return;
           }
 

@@ -127,6 +127,13 @@ const updateRecurring = authedProcedure
           ...data,
         });
 
+        if (!updated) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "Recurring grocery was updated elsewhere. Refresh and try again.",
+          });
+        }
+
         const grocery = await updateGrocery({
           id: groceryId,
           version: groceryVersion,
@@ -276,6 +283,13 @@ const checkRecurring = authedProcedure
             lastCheckedDate: checkedDate,
             nextPlannedFor: nextDate,
           });
+
+          if (!updatedRecurring) {
+            throw new TRPCError({
+              code: "CONFLICT",
+              message: "Recurring grocery was updated elsewhere. Refresh and try again.",
+            });
+          }
 
           log.debug(
             { userId: ctx.user.id, recurringGroceryId, nextDate },

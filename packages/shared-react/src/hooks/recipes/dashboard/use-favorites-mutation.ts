@@ -2,6 +2,8 @@ import type { CreateRecipeHooksOptions } from "../types";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { shouldPreserveOptimisticUpdate as preserveOptimisticUpdate } from "../../optimistic-updates";
+
 
 export type FavoritesMutationResult = {
   toggleFavorite: (recipeId: string) => void;
@@ -53,7 +55,7 @@ export function createUseFavoritesMutation({
           return { previousData };
         },
         onError: (error, _variables, context) => {
-          if (shouldPreserveOptimisticUpdate?.(error)) {
+          if (preserveOptimisticUpdate(error, shouldPreserveOptimisticUpdate)) {
             return;
           }
 
@@ -62,7 +64,7 @@ export function createUseFavoritesMutation({
           }
         },
         onSettled: (_data, error) => {
-          if (error && shouldPreserveOptimisticUpdate?.(error)) {
+          if (error && preserveOptimisticUpdate(error, shouldPreserveOptimisticUpdate)) {
             return;
           }
 

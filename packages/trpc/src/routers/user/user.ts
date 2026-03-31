@@ -221,7 +221,7 @@ const uploadAvatar = authedProcedure
  */
 const deleteAvatar = authedProcedure
   .input(DeleteUserAvatarInputSchema)
-  .mutation(async ({ ctx }) => {
+  .mutation(async ({ ctx, input }) => {
     log.debug({ userId: ctx.user.id }, "Deleting avatar");
 
     const clearResult = await clearUserAvatar(ctx.user.id, input.version);

@@ -6,12 +6,12 @@ import type {
   MeasurementSystem,
   RecipeDashboardDTO,
 } from "@norish/shared/contracts";
-import { isBackendUnreachableError } from "@norish/shared/lib/trpc-errors";
 import type { CreateRecipeHooksOptions } from "../types";
 import type { RecipesCacheHelpers } from "./use-recipes-cache";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { shouldPreserveOptimisticUpdate as preserveOptimisticUpdate } from "../../optimistic-updates";
 import { OPTIMISTIC_PENDING_RECIPE_PREFIX } from "./use-recipes-cache";
 
 type RecipeListPage = {
@@ -105,7 +105,7 @@ export function createUseRecipesMutations(
       dependencies.useRecipesCacheHelpers();
 
     const shouldPreserve = (error: unknown): boolean => {
-      return (shouldPreserveOptimisticUpdate ?? isBackendUnreachableError)(error);
+      return preserveOptimisticUpdate(error, shouldPreserveOptimisticUpdate);
     };
 
     const recipesPath = [trpc.recipes.list.queryKey({})[0]];

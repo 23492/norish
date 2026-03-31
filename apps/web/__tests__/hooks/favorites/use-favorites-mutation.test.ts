@@ -1,4 +1,5 @@
 import { useFavoritesMutation } from "@/hooks/favorites/use-favorites-mutation";
+import { TRPCClientError } from "@trpc/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMockFavoritesData, createTestQueryClient, createTestWrapper } from "./test-utils";
@@ -132,6 +133,37 @@ describe("useFavoritesMutation", () => {
       }>(mockQueryKey);
       expect(cachedData?.favoriteIds).not.toContain("recipe-2");
       expect(cachedData?.favoriteIds).toContain("recipe-1");
+    });
+
+    it("keeps the optimistic favorite when the backend is unreachable", async () => {
+      const initialData = createMockFavoritesData(["recipe-1"]);
+
+      queryClient.setQueryData(mockQueryKey, initialData);
+
+      const { renderHook, act } = require("@testing-library/react");
+      const { result: _result } = renderHook(() => useFavoritesMutation(), {
+        wrapper: createTestWrapper(queryClient),
+      });
+
+      const mutationOpts = mockMutationOptions.mock.calls[0][0];
+
+      let context: { previousData: unknown };
+
+      await act(async () => {
+        context = await mutationOpts.onMutate({ recipeId: "recipe-2", isFavorite: true });
+      });
+
+      act(() => {
+        mutationOpts.onError(new TRPCClientError("Request failed"), { recipeId: "recipe-2", isFavorite: true }, context);
+      });
+
+      const cachedData = queryClient.getQueryData<{
+        favoriteIds: string[];
+        favoriteVersions: Record<string, number>;
+      }>(mockQueryKey);
+
+      expect(cachedData?.favoriteIds).toContain("recipe-1");
+      expect(cachedData?.favoriteIds).toContain("recipe-2");
     });
 
     it("handles empty initial data", async () => {

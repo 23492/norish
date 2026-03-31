@@ -98,7 +98,19 @@ const create = authedProcedure
     // Build a map of (normalized name + recipeIngredientId + recurringGroceryId) -> existing grocery
     // Groceries with different recipeIngredientIds should NOT merge, even if same name/unit
     // Groceries with recurringGroceryId should NOT merge with manual groceries
-    const existingByKey = new Map<string, (typeof existingGroceries)[0]>();
+    type GroceryMergeCandidate = {
+      id: string;
+      name: string | null;
+      unit: string | null;
+      amount: number | null;
+      isDone: boolean;
+      recipeIngredientId: string | null;
+      recurringGroceryId: string | null;
+      storeId: string | null;
+      sortOrder: number;
+    };
+
+    const existingByKey = new Map<string, GroceryMergeCandidate>();
 
     for (const grocery of existingGroceries) {
       const normalizedName = normalizeGroceryName(grocery.name);
@@ -257,6 +269,13 @@ const update = authedProcedure.input(GroceryUpdateInputSchema).mutation(({ ctx, 
 
       const units = await getUnits();
       const parsedIngredient = parseIngredientWithDefaults(raw, units)[0];
+
+      if (!parsedIngredient) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Invalid grocery data",
+        });
+      }
 
       const updateData: GroceryUpdateDto = {
         id: groceryId,

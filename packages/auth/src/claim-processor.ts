@@ -125,15 +125,25 @@ export async function mergeOIDCTokenClaims(
   try {
     const discoveryRes = await fetch(discoveryUrl);
     const discovery = await discoveryRes.json();
-    const userInfoUrl = discovery.userinfo_endpoint;
+    const discoveryRecord =
+      discovery && typeof discovery === "object" ? (discovery as Record<string, unknown>) : null;
+    const userInfoUrl =
+      discoveryRecord && "userinfo_endpoint" in discoveryRecord
+        ? discoveryRecord.userinfo_endpoint
+        : undefined;
 
-    if (userInfoUrl) {
+    if (typeof userInfoUrl === "string") {
       const userInfoRes = await fetch(userInfoUrl, {
         headers: { Authorization: `Bearer ${tokens.accessToken}` },
       });
 
       if (userInfoRes.ok) {
-        userInfoClaims = await userInfoRes.json();
+        const userInfo = await userInfoRes.json();
+
+        if (userInfo && typeof userInfo === "object") {
+          userInfoClaims = userInfo as Record<string, unknown>;
+        }
+
         authLogger.debug(
           { sub: userInfoClaims.sub, hasGroups: "groups" in userInfoClaims },
           "Fetched userinfo claims"

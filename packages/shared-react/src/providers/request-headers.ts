@@ -10,27 +10,53 @@ type OperationLike = {
   context?: Record<string, unknown>;
 };
 
+type HeaderValue = string | string[] | undefined;
+
+type HeaderRecordLike = Record<string, HeaderValue>;
+
+type HeaderIterableLike = Iterable<[string, string]>;
+
+type HeaderForEachLike = {
+  forEach: (callback: (value: string, key: string) => void) => void;
+};
+
 const log = createClientLogger("TrpcRequestHeaders");
 
-function appendHeaders(target: Headers, source?: HTTPHeaders): void {
+function isHeaderIterable(source: unknown): source is HeaderIterableLike {
+  return typeof source === "object" && source !== null && Symbol.iterator in source;
+}
+
+function isHeaderForEachLike(source: unknown): source is HeaderForEachLike {
+  return typeof source === "object" && source !== null && "forEach" in source;
+}
+
+function appendHeaders(target: Record<string, string>, source?: HTTPHeaders): void {
   if (!source) {
     return;
   }
 
-  if (typeof (source as Headers)[Symbol.iterator] === "function") {
-    for (const [key, value] of source as Iterable<[string, string]>) {
-      target.set(key, value);
+  if (isHeaderIterable(source)) {
+    for (const [key, value] of source) {
+      target[key] = value;
     }
 
     return;
   }
 
-  for (const [key, value] of Object.entries(source as Record<string, string | string[] | undefined>)) {
+  if (isHeaderForEachLike(source)) {
+    source.forEach((value, key) => {
+      target[key] = value;
+    });
+
+    return;
+  }
+
+  for (const [key, value] of Object.entries(source as HeaderRecordLike)) {
     if (typeof value === "undefined") {
       continue;
     }
 
-    target.set(key, Array.isArray(value) ? value.join(", ") : value);
+    target[key] = Array.isArray(value) ? value.join(", ") : value;
   }
 }
 
@@ -45,13 +71,13 @@ function getOperationHeaders(op: OperationLike): HTTPHeaders | undefined {
 }
 
 export function mergeHttpHeaders(...sources: Array<HTTPHeaders | undefined>): Record<string, string> {
-  const headers = new Headers();
+  const headers: Record<string, string> = {};
 
   for (const source of sources) {
     appendHeaders(headers, source);
   }
 
-  return Object.fromEntries(headers.entries());
+  return headers;
 }
 
 export function createRequestHeadersResolver(getHeaders: () => HTTPHeaders) {

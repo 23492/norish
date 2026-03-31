@@ -17,6 +17,7 @@ export type * from "./dto/caldav";
 export type * from "./dto/auth";
 export type * from "./dto/queue";
 export type * from "./dto/favorites";
+export * from "./optimistic";
 export * from "./uploads";
 export * from "./store-types";
 export * from "./recurrence";
