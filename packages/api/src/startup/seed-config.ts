@@ -21,6 +21,7 @@ import {
   configExists,
   deleteConfig,
   getConfig,
+  normalizeAndBackfillConfig,
   setConfig,
 } from "@norish/db/repositories/server-config";
 import {
@@ -168,6 +169,7 @@ export async function seedServerConfig(): Promise<void> {
   // Always validate and seed missing configs
   const seededCount = await seedMissingConfigs();
 
+  await normalizeExistingConfigs();
   await importEnvAuthProvidersIfMissing();
   await syncUnits();
   await syncPrompts();
@@ -231,6 +233,14 @@ async function seedMissingConfigs(): Promise<number> {
   }
 
   return seededCount;
+}
+
+async function normalizeExistingConfigs(): Promise<void> {
+  const keys = Object.values(ServerConfigKeys) as ServerConfigKey[];
+
+  for (const key of keys) {
+    await normalizeAndBackfillConfig(key);
+  }
 }
 
 /**

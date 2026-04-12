@@ -6,7 +6,11 @@ import { dbLogger } from "@norish/db/logger";
 import type { ServerConfigKey, ServerConfigMetadata } from "../zodSchemas/server-config";
 import { db } from "../drizzle";
 import { serverConfig } from "../schema/server-config";
-import { SENSITIVE_CONFIG_KEYS, validateConfigValue } from "../zodSchemas/server-config";
+import {
+  SENSITIVE_CONFIG_KEYS,
+  normalizeConfigValue,
+  validateConfigValue,
+} from "../zodSchemas/server-config";
 
 export async function getConfig<T = unknown>(
   key: ServerConfigKey,
@@ -20,23 +24,9 @@ export async function getConfig<T = unknown>(
     return null;
   }
 
-  if (config.isSensitive && config.valueEnc) {
-    if (includeSecrets) {
-      try {
-        const decrypted = decrypt(config.valueEnc);
+  const raw = getStoredConfigValue(config, includeSecrets, key);
 
-        return JSON.parse(decrypted) as T;
-      } catch (error) {
-        dbLogger.error({ err: error, key }, "Failed to decrypt config");
-
-        return null;
-      }
-    }
-
-    return config.value as T;
-  }
-
-  return config.value as T;
+  return (raw?.value as T) ?? null;
 }
 
 export async function setConfig(
@@ -53,6 +43,8 @@ export async function setConfig(
     throw new Error(`Invalid config value for ${key}: ${validation.error.message}`);
   }
 
+  const normalizedValue = validation.data;
+
   const now = new Date();
 
   const existing = await db.query.serverConfig.findFirst({
@@ -60,14 +52,14 @@ export async function setConfig(
   });
 
   if (shouldEncrypt) {
-    let finalValue = value;
+    let finalValue = normalizedValue;
 
     // If updating an existing sensitive config, preserve unchanged sensitive fields
     if (existing && existing.isSensitive && existing.valueEnc) {
       try {
         const existingDecrypted = JSON.parse(decrypt(existing.valueEnc));
 
-        finalValue = mergeSensitiveFields(existingDecrypted, value);
+        finalValue = mergeSensitiveFields(existingDecrypted, normalizedValue);
       } catch (error) {
         dbLogger.error({ err: error, key }, "Failed to merge sensitive fields");
       }
@@ -104,7 +96,7 @@ export async function setConfig(
       await db
         .update(serverConfig)
         .set({
-          value,
+          value: normalizedValue,
           valueEnc: null,
           isSensitive: false,
           updatedBy: userId,
@@ -115,7 +107,7 @@ export async function setConfig(
     } else {
       await db.insert(serverConfig).values({
         key,
-        value,
+        value: normalizedValue,
         valueEnc: null,
         isSensitive: false,
         updatedBy: userId,
@@ -130,6 +122,32 @@ export async function deleteConfig(key: ServerConfigKey): Promise<void> {
   await db.delete(serverConfig).where(eq(serverConfig.key, key));
 }
 
+export async function normalizeAndBackfillConfig(key: ServerConfigKey): Promise<boolean> {
+  const config = await db.query.serverConfig.findFirst({
+    where: eq(serverConfig.key, key),
+  });
+
+  if (!config) {
+    return false;
+  }
+
+  const raw = getStoredConfigValue(config, true, key);
+
+  if (!raw) {
+    return false;
+  }
+
+  const normalization = normalizeConfigValue(key, raw.value);
+
+  if (!normalization.success || !configsDiffer(raw.value, normalization.data)) {
+    return false;
+  }
+
+  await setConfig(key, normalization.data, null, config.isSensitive);
+
+  return true;
+}
+
 export async function getAllConfigs(
   includeSecrets = false
 ): Promise<Record<ServerConfigKey, unknown>> {
@@ -138,23 +156,9 @@ export async function getAllConfigs(
   const result: Record<string, unknown> = {};
 
   for (const config of configs) {
-    if (config.isSensitive && config.valueEnc) {
-      if (includeSecrets) {
-        try {
-          const decrypted = decrypt(config.valueEnc);
+    const raw = getStoredConfigValue(config, includeSecrets, config.key);
 
-          result[config.key] = JSON.parse(decrypted);
-        } catch (error) {
-          dbLogger.error({ err: error, key: config.key }, "Failed to decrypt config");
-          result[config.key] = config.value;
-        }
-      } else {
-        // Return masked value
-        result[config.key] = config.value;
-      }
-    } else {
-      result[config.key] = config.value;
-    }
+    result[config.key] = raw?.value ?? null;
   }
 
   return result as Record<ServerConfigKey, unknown>;
@@ -270,4 +274,45 @@ function maskSensitiveFields(value: unknown): unknown {
   }
 
   return masked;
+}
+
+function configsDiffer(stored: unknown, normalized: unknown): boolean {
+  return normalizeForComparison(stored) !== normalizeForComparison(normalized);
+}
+
+function normalizeForComparison(value: unknown): string {
+  return (
+    JSON.stringify(value, (_, nestedValue) => (nestedValue === undefined ? null : nestedValue)) ??
+    "undefined"
+  );
+}
+
+function getStoredConfigValue(
+  config: typeof serverConfig.$inferSelect,
+  includeSecrets: boolean,
+  key: ServerConfigKey
+): { value: unknown } | null {
+  if (config.isSensitive && config.valueEnc) {
+    if (includeSecrets) {
+      try {
+        const decrypted = decrypt(config.valueEnc);
+
+        return {
+          value: JSON.parse(decrypted),
+        };
+      } catch (error) {
+        dbLogger.error({ err: error, key }, "Failed to decrypt config");
+
+        return null;
+      }
+    }
+
+    return {
+      value: config.value,
+    };
+  }
+
+  return {
+    value: config.value,
+  };
 }
