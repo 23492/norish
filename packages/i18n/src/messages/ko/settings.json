@@ -577,6 +577,8 @@
       "maxFileSizeDescription": "다운로드한 비디오 파일의 최대 크기",
       "ytDlpVersion": "yt-dlp 버전",
       "ytDlpVersionDescription": "비디오 다운로드에 사용할 yt-dlp 버전",
+      "ytDlpProxy": "yt-dlp Proxy",
+      "ytDlpProxyDescription": "yt-dlp용 HTTP/SOCKS5 프록시",
       "transcription": "전사",
       "transcriptionDescription": "레시피 추출을 위해 동영상 오디오를 텍스트로 변환",
       "transcriptionProvider": "음성 변환 제공업체",

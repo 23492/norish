@@ -324,6 +324,7 @@ export const VideoConfigSchema = z.object({
   maxLengthSeconds: z.number().int().positive(),
   maxVideoFileSize: z.number().int().positive(), // Max video file size in bytes
   ytDlpVersion: z.string().min(1),
+  ytDlpProxy: z.string().optional(),
   // Transcription settings (required for video processing)
   transcriptionProvider: TranscriptionProviderSchema,
   transcriptionEndpoint: z.url("Endpoint must be a valid URL").optional(),

@@ -119,6 +119,7 @@ const REQUIRED_CONFIGS: ConfigDefinition[] = [
       maxLengthSeconds: SERVER_CONFIG.VIDEO_MAX_LENGTH_SECONDS,
       maxVideoFileSize: SERVER_CONFIG.MAX_VIDEO_FILE_SIZE,
       ytDlpVersion: SERVER_CONFIG.YT_DLP_VERSION,
+      ytDlpProxy: SERVER_CONFIG.YT_DLP_PROXY || undefined,
       transcriptionProvider: SERVER_CONFIG.TRANSCRIPTION_PROVIDER,
       transcriptionEndpoint: SERVER_CONFIG.TRANSCRIPTION_ENDPOINT || undefined,
       transcriptionApiKey: SERVER_CONFIG.TRANSCRIPTION_API_KEY || undefined,

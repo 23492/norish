@@ -577,6 +577,8 @@
       "maxFileSizeDescription": "Максимальный размер загружаемых видеофайлов",
       "ytDlpVersion": "Версия yt-dlp",
       "ytDlpVersionDescription": "Версия yt-dlp для загрузки видео",
+      "ytDlpProxy": "yt-dlp Proxy",
+      "ytDlpProxyDescription": "HTTP/SOCKS5-прокси для yt-dlp",
       "transcription": "Транскрибация",
       "transcriptionDescription": "Преобразование аудио в текст для извлечения рецептов",
       "transcriptionProvider": "Провайдер транскрибации",

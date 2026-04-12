@@ -577,6 +577,8 @@
       "maxFileSizeDescription": "Maksymalny rozmiar pobieranego pliku wideo",
       "ytDlpVersion": "Wersja yt-dlp",
       "ytDlpVersionDescription": "Wersja yt-dlp używana do pobierania wideo",
+      "ytDlpProxy": "yt-dlp Proxy",
+      "ytDlpProxyDescription": "Proxy HTTP/SOCKS5 dla yt-dlp",
       "transcription": "Transkrypcja",
       "transcriptionDescription": "Zamień dźwięk z wideo na tekst do ekstrakcji przepisu",
       "transcriptionProvider": "Dostawca transkrypcji",

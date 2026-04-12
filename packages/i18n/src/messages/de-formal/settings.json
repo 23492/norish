@@ -577,6 +577,8 @@
       "maxFileSizeDescription": "Maximale Größe für heruntergeladene Videodateien",
       "ytDlpVersion": "yt-dlp-Version",
       "ytDlpVersionDescription": "Version von yt-dlp zum Verwenden für Video-Downloads",
+      "ytDlpProxy": "yt-dlp Proxy",
+      "ytDlpProxyDescription": "HTTP/SOCKS5-Proxy für yt-dlp",
       "transcription": "Transkription",
       "transcriptionDescription": "Konvertiere Video-Audio zu Text für Rezept-Extraktion",
       "transcriptionProvider": "Transkriptions-Anbieter",

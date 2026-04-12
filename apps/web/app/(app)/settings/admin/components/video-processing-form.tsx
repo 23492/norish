@@ -53,6 +53,7 @@ export default function VideoProcessingForm({ onDirtyChange }: VideoProcessingFo
     videoConfig ? Math.round(videoConfig.maxVideoFileSize / (1024 * 1024)) : 100
   );
   const [ytDlpVersion, setYtDlpVersion] = useState(videoConfig?.ytDlpVersion ?? "2025.11.12");
+  const [ytDlpProxy, setYtDlpProxy] = useState(videoConfig?.ytDlpProxy ?? "");
   const [transcriptionProvider, setTranscriptionProvider] = useState<TranscriptionProvider>(
     videoConfig?.transcriptionProvider ?? "disabled"
   );
@@ -72,6 +73,7 @@ export default function VideoProcessingForm({ onDirtyChange }: VideoProcessingFo
       setMaxLengthSeconds(videoConfig.maxLengthSeconds);
       setMaxVideoFileSizeMB(Math.round(videoConfig.maxVideoFileSize / (1024 * 1024)));
       setYtDlpVersion(videoConfig.ytDlpVersion);
+      setYtDlpProxy(videoConfig.ytDlpProxy ?? "");
       setTranscriptionProvider(videoConfig.transcriptionProvider);
       setTranscriptionEndpoint(videoConfig.transcriptionEndpoint ?? "");
       setTranscriptionModel(videoConfig.transcriptionModel);
@@ -187,6 +189,7 @@ export default function VideoProcessingForm({ onDirtyChange }: VideoProcessingFo
       maxLengthSeconds !== videoConfig.maxLengthSeconds ||
       maxVideoFileSizeMB !== Math.round(videoConfig.maxVideoFileSize / (1024 * 1024)) ||
       ytDlpVersion !== videoConfig.ytDlpVersion ||
+      ytDlpProxy !== (videoConfig.ytDlpProxy ?? "") ||
       transcriptionProvider !== videoConfig.transcriptionProvider ||
       transcriptionEndpoint !== (videoConfig.transcriptionEndpoint ?? "") ||
       transcriptionModel !== videoConfig.transcriptionModel ||
@@ -198,6 +201,7 @@ export default function VideoProcessingForm({ onDirtyChange }: VideoProcessingFo
     maxLengthSeconds,
     maxVideoFileSizeMB,
     ytDlpVersion,
+    ytDlpProxy,
     transcriptionProvider,
     transcriptionEndpoint,
     transcriptionModel,
@@ -222,6 +226,7 @@ export default function VideoProcessingForm({ onDirtyChange }: VideoProcessingFo
         maxLengthSeconds,
         maxVideoFileSize: maxVideoFileSizeMB * 1024 * 1024, // Convert MB to bytes
         ytDlpVersion,
+        ytDlpProxy: ytDlpProxy || undefined,
         transcriptionProvider,
         transcriptionEndpoint: transcriptionEndpoint || undefined,
         transcriptionApiKey: transcriptionApiKey || undefined,
@@ -286,6 +291,15 @@ export default function VideoProcessingForm({ onDirtyChange }: VideoProcessingFo
         label={t("ytDlpVersion")}
         value={ytDlpVersion}
         onValueChange={setYtDlpVersion}
+      />
+
+      <Input
+        description={t("ytDlpProxyDescription")}
+        isDisabled={isVideoUiDisabled}
+        label={t("ytDlpProxy")}
+        placeholder="socks5://127.0.0.1:1080"
+        value={ytDlpProxy}
+        onValueChange={setYtDlpProxy}
       />
 
       <Divider className="my-2" />

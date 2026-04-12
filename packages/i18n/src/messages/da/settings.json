@@ -577,6 +577,8 @@
       "maxFileSizeDescription": "Maksimal størrelse for downloadede videofiler",
       "ytDlpVersion": "yt-dlp-version",
       "ytDlpVersionDescription": "Version af yt-dlp til brug ved videodownloads",
+      "ytDlpProxy": "yt-dlp Proxy",
+      "ytDlpProxyDescription": "HTTP/SOCKS5-proxy til yt-dlp",
       "transcription": "Transskription",
       "transcriptionDescription": "Konverter videoens lyd til tekst til opskriftudtrækning",
       "transcriptionProvider": "Transskriptionsudbyder",
