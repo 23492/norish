@@ -19,12 +19,12 @@ export type LocaleCatalogEntry = {
   name: string;
 };
 
-export const BUNDLED_LOCALES: ReadonlyArray<LocaleCatalogEntry> = Object.entries(LOCALE_CATALOG).map(
-  ([code, entry]) => ({
-    code: code as LocaleCatalogCode,
-    name: entry.name,
-  })
-);
+export const BUNDLED_LOCALES: ReadonlyArray<LocaleCatalogEntry> = Object.entries(
+  LOCALE_CATALOG
+).map(([code, entry]) => ({
+  code: code as LocaleCatalogCode,
+  name: entry.name,
+}));
 
 export function getBundledLocales(): LocaleCatalogEntry[] {
   return BUNDLED_LOCALES.map((locale) => ({ ...locale }));

@@ -1,8 +1,8 @@
 "use client";
 
-import type { AIConfig, AutoTaggingMode } from "@norish/config/zod/server-config";
-
 import { useCallback, useEffect, useMemo, useState } from "react";
+import SecretInput from "@/components/shared/secret-input";
+import { useAvailableModelsQuery } from "@/hooks/admin";
 import { BeakerIcon, CheckIcon, XMarkIcon } from "@heroicons/react/16/solid";
 import {
   Autocomplete,
@@ -15,12 +15,11 @@ import {
   Switch,
 } from "@heroui/react";
 import { useTranslations } from "next-intl";
+
+import type { AIConfig, AutoTaggingMode } from "@norish/config/zod/server-config";
 import { ServerConfigKeys } from "@norish/config/zod/server-config";
 
 import { useAdminSettingsContext } from "../context";
-
-import { useAvailableModelsQuery } from "@/hooks/admin";
-import SecretInput from "@/components/shared/secret-input";
 
 interface AIConfigFormProps {
   onDirtyChange?: (isDirty: boolean) => void;
@@ -445,8 +444,9 @@ export default function AIConfigForm({ onDirtyChange }: AIConfigFormProps) {
 
       {testResult && (
         <div
-          className={`flex items-center gap-2 rounded-lg p-2 ${testResult.success ? "bg-success-100 text-success-700" : "bg-danger-100 text-danger-700"
-            }`}
+          className={`flex items-center gap-2 rounded-lg p-2 ${
+            testResult.success ? "bg-success-100 text-success-700" : "bg-danger-100 text-danger-700"
+          }`}
         >
           {testResult.success ? (
             <>

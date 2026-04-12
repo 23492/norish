@@ -17,10 +17,12 @@ export function getCachedAgent(timeoutMs: number): Agent {
     });
     globalAgentCache.__norishConfiguredAgentTimeoutMs = timeoutMs;
   }
+
   return globalAgentCache.__norishSingletonAgent;
 }
 
 export function createFetchWithTimeout(timeoutMs: number): typeof fetch {
   const dispatcher = getCachedAgent(timeoutMs);
+
   return (url, init) => fetch(url, { ...init, dispatcher } as any);
 }

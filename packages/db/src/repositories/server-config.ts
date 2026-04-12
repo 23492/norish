@@ -7,8 +7,8 @@ import type { ServerConfigKey, ServerConfigMetadata } from "../zodSchemas/server
 import { db } from "../drizzle";
 import { serverConfig } from "../schema/server-config";
 import {
-  SENSITIVE_CONFIG_KEYS,
   normalizeConfigValue,
+  SENSITIVE_CONFIG_KEYS,
   validateConfigValue,
 } from "../zodSchemas/server-config";
 

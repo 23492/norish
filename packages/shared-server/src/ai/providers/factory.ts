@@ -16,9 +16,8 @@ import { createOllama } from "ai-sdk-ollama";
 import { getAIConfig } from "@norish/config/server-config-loader";
 import { aiLogger } from "@norish/shared-server/logger";
 
-import { createFetchWithTimeout } from "./ai-fetcher";
-
 import type { AIProvider, GenerationSettings, ModelConfig } from "./types";
+import { createFetchWithTimeout } from "./ai-fetcher";
 
 /**
  * Get configured AI models.

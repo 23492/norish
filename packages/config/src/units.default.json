@@ -972,16 +972,7 @@
         "name": "gambi"
       }
     ],
-    "alternates": [
-      "stengel",
-      "stengels",
-      "대",
-      "줄기",
-      "stilk",
-      "stilke",
-      "gambo",
-      "gambi"
-    ]
+    "alternates": ["stengel", "stengels", "대", "줄기", "stilk", "stilke", "gambo", "gambi"]
   },
   "pack": {
     "short": [
@@ -2175,16 +2166,7 @@
         "name": "anelli"
       }
     ],
-    "alternates": [
-      "ring",
-      "ringen",
-      "ringlein",
-      "링",
-      "고리 모양",
-      "ringe",
-      "anello",
-      "anelli"
-    ]
+    "alternates": ["ring", "ringen", "ringlein", "링", "고리 모양", "ringe", "anello", "anelli"]
   },
   "ball": {
     "short": [
@@ -2435,14 +2417,7 @@
         "name": "palline"
       }
     ],
-    "alternates": [
-      "scoop",
-      "scoops",
-      "스쿱",
-      "국자",
-      "pallina",
-      "palline"
-    ]
+    "alternates": ["scoop", "scoops", "스쿱", "국자", "pallina", "palline"]
   },
   "stick": {
     "short": [
@@ -2628,16 +2603,7 @@
         "name": "tappi"
       }
     ],
-    "alternates": [
-      "cap full",
-      "capful",
-      "capfuls",
-      "뚜껑",
-      "캡",
-      "tappo",
-      "tappi",
-      "un tappo"
-    ]
+    "alternates": ["cap full", "capful", "capfuls", "뚜껑", "캡", "tappo", "tappi", "un tappo"]
   },
   "pouch": {
     "short": [
@@ -2692,14 +2658,7 @@
         "name": "bustine"
       }
     ],
-    "alternates": [
-      "pouch",
-      "pouches",
-      "파우치",
-      "주머니",
-      "bustina",
-      "bustine"
-    ]
+    "alternates": ["pouch", "pouches", "파우치", "주머니", "bustina", "bustine"]
   },
   "sleeve": {
     "short": [
@@ -2754,14 +2713,7 @@
         "name": "confezioni"
       }
     ],
-    "alternates": [
-      "sleeve",
-      "sleeves",
-      "봉지",
-      "묶음",
-      "confezione",
-      "confezioni"
-    ]
+    "alternates": ["sleeve", "sleeves", "봉지", "묶음", "confezione", "confezioni"]
   },
   "roll": {
     "short": [
@@ -2946,15 +2898,7 @@
         "name": "spicchi"
       }
     ],
-    "alternates": [
-      "ecke",
-      "keil",
-      "wedge",
-      "wedges",
-      "쪽",
-      "spicchio",
-      "spicchi"
-    ]
+    "alternates": ["ecke", "keil", "wedge", "wedges", "쪽", "spicchio", "spicchi"]
   },
   "chunk": {
     "short": [
@@ -3009,16 +2953,7 @@
         "name": "pezzi"
       }
     ],
-    "alternates": [
-      "chunk",
-      "chunks",
-      "덩어리",
-      "토막",
-      "pezzo",
-      "pezzi",
-      "tocco",
-      "tocchi"
-    ]
+    "alternates": ["chunk", "chunks", "덩어리", "토막", "pezzo", "pezzi", "tocco", "tocchi"]
   },
   "cube": {
     "short": [
@@ -3495,15 +3430,7 @@
         "name": "dozzine"
       }
     ],
-    "alternates": [
-      "dutzende",
-      "dz",
-      "dz.",
-      "다스",
-      "더즌",
-      "dozzina",
-      "dozzine"
-    ]
+    "alternates": ["dutzende", "dz", "dz.", "다스", "더즌", "dozzina", "dozzine"]
   },
   "small_splash": {
     "short": [
@@ -3622,13 +3549,7 @@
         "name": "bulbi"
       }
     ],
-    "alternates": [
-      "knöllchen",
-      "통",
-      "뿌리",
-      "bulbo",
-      "bulbi"
-    ]
+    "alternates": ["knöllchen", "통", "뿌리", "bulbo", "bulbi"]
   },
   "head": {
     "short": [
@@ -3683,15 +3604,7 @@
         "name": "cespi"
       }
     ],
-    "alternates": [
-      "köpfchen",
-      "통",
-      "포기",
-      "cespo",
-      "cespi",
-      "testa",
-      "teste"
-    ]
+    "alternates": ["köpfchen", "통", "포기", "cespo", "cespi", "testa", "teste"]
   },
   "to_taste": {
     "short": [
@@ -3814,14 +3727,7 @@
         "name": "libbre"
       }
     ],
-    "alternates": [
-      "pfd",
-      "pfd.",
-      "파운드",
-      "lb",
-      "libbra",
-      "libbre"
-    ]
+    "alternates": ["pfd", "pfd.", "파운드", "lb", "libbra", "libbre"]
   },
   "bar": {
     "short": [
@@ -3940,15 +3846,7 @@
         "name": "ciotole"
       }
     ],
-    "alternates": [
-      "schälchen",
-      "공기",
-      "그릇",
-      "ciotola",
-      "ciotole",
-      "scodella",
-      "scodelle"
-    ]
+    "alternates": ["schälchen", "공기", "그릇", "ciotola", "ciotole", "scodella", "scodelle"]
   },
   "heaping_teaspoon": {
     "short": [
@@ -4155,12 +4053,7 @@
         "name": "pentole"
       }
     ],
-    "alternates": [
-      "냄비",
-      "솥",
-      "pentola",
-      "pentole"
-    ]
+    "alternates": ["냄비", "솥", "pentola", "pentole"]
   },
   "drop": {
     "short": [
@@ -4283,13 +4176,7 @@
         "name": "once"
       }
     ],
-    "alternates": [
-      "oz",
-      "oz.",
-      "온스",
-      "oncia",
-      "once"
-    ]
+    "alternates": ["oz", "oz.", "온스", "oncia", "once"]
   },
   "milliliter": {
     "short": [
@@ -4426,18 +4313,7 @@
         "name": "litres"
       }
     ],
-    "alternates": [
-      "liter",
-      "liters",
-      "litre",
-      "litres",
-      "l",
-      "l.",
-      "L",
-      "리터",
-      "litro",
-      "litri"
-    ]
+    "alternates": ["liter", "liters", "litre", "litres", "l", "l.", "L", "리터", "litro", "litri"]
   },
   "centimeter": {
     "short": [

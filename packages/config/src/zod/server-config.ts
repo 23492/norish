@@ -412,10 +412,7 @@ export type UserServerRole = z.infer<typeof UserServerRoleSchema>;
 const SERVER_CONFIG_MIGRATIONS: Partial<Record<ServerConfigKey, (value: unknown) => unknown>> = {
   [ServerConfigKeys.UNITS]: (value) => {
     const legacyWrapped =
-      typeof value === "object" &&
-      value !== null &&
-      "units" in value &&
-      "isOverwritten" in value
+      typeof value === "object" && value !== null && "units" in value && "isOverwritten" in value
         ? UnitsMapSchema.safeParse((value as { units: unknown }).units)
         : null;
 

@@ -1,12 +1,13 @@
 // @vitest-environment node
 
-import { decrypt, encrypt } from "@norish/auth/crypto";
+import { eq } from "drizzle-orm";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+
 import type { AIConfig, TimerKeywordsConfig } from "@norish/config/zod/server-config";
+import { decrypt, encrypt } from "@norish/auth/crypto";
 import { ServerConfigKeys } from "@norish/config/zod/server-config";
 import { getConfig, normalizeAndBackfillConfig } from "@norish/db/repositories/server-config";
 import { serverConfig } from "@norish/db/schema";
-import { eq } from "drizzle-orm";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { getTestDb } from "../../../helpers/db-test-helpers";
 import { RepositoryTestBase } from "../../../helpers/repository-test-base";

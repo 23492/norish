@@ -242,7 +242,6 @@ export async function getVideoMetadata(
 
   const auth = tokens?.length ? await buildAuthArgs(tokens, url) : null;
 
-
   try {
     const proxyArgs = await getProxyArgs();
     const rawInfo = await ytDlpWrap.getVideoInfo([url, ...(auth?.args ?? []), ...proxyArgs]);
@@ -296,7 +295,6 @@ export async function downloadVideoAudio(
   const outputFile = path.join(outputDir, `audio-${timestamp}-${randomId}.wav`);
 
   const auth = tokens?.length ? await buildAuthArgs(tokens, url) : null;
-
 
   try {
     // Download video and extract audio as WAV format
@@ -412,7 +410,6 @@ export async function downloadCaptions(
   const outputTemplate = path.join(outputDir, `caption-${timestamp}-${randomId}`);
 
   const auth = tokens?.length ? await buildAuthArgs(tokens, url) : null;
-
 
   const resolvedSubLang = subLang ?? "en";
 
@@ -548,7 +545,6 @@ export async function downloadVideo(
   const outputTemplate = path.join(outputDir, `video-${timestamp}-${randomId}.%(ext)s`);
 
   const auth = tokens?.length ? await buildAuthArgs(tokens, url) : null;
-
 
   try {
     const ffmpegBinary = getFfmpegPath();
