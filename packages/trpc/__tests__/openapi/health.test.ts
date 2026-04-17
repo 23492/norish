@@ -145,5 +145,9 @@ describe("openapi health endpoint", () => {
       { ApiKeyAuth: [] },
       { BearerAuth: [] },
     ]);
+    expect(document.paths["/recipes"]?.post?.security).toEqual([
+      { ApiKeyAuth: [] },
+      { BearerAuth: [] },
+    ]);
   });
 });
