@@ -14,19 +14,29 @@ export type AppVersions = {
   mobile: string;
 };
 
-const appVersionsPromise = Promise.all([
-  readFile(resolveExistingWorkspacePath("package.json"), "utf8"),
-  readFile(resolveExistingWorkspacePath("apps/web/package.json"), "utf8"),
-  readFile(resolveExistingWorkspacePath("apps/mobile/package.json"), "utf8"),
-]).then(([appPackageJson, webPackageJson, mobilePackageJson]) => {
-  const appPackage = JSON.parse(appPackageJson) as PackageVersionManifest;
-  const webPackage = JSON.parse(webPackageJson) as PackageVersionManifest;
-  const mobilePackage = JSON.parse(mobilePackageJson) as PackageVersionManifest;
+async function readPackageVersion(relativePath: string, fallbackVersion?: string) {
+  try {
+    const packageJson = await readFile(resolveExistingWorkspacePath(relativePath), "utf8");
 
+    return (JSON.parse(packageJson) as PackageVersionManifest).version;
+  } catch (error) {
+    if (fallbackVersion !== undefined) {
+      return fallbackVersion;
+    }
+
+    throw error;
+  }
+}
+
+const appVersionsPromise = Promise.all([
+  readPackageVersion("package.json"),
+  readPackageVersion("apps/web/package.json"),
+  readPackageVersion("apps/mobile/package.json", "unavailable"),
+]).then(([appVersion, webVersion, mobileVersion]) => {
   return {
-    app: appPackage.version,
-    web: webPackage.version,
-    mobile: mobilePackage.version,
+    app: appVersion,
+    web: webVersion,
+    mobile: mobileVersion,
   } satisfies AppVersions;
 });
 
