@@ -9,24 +9,20 @@ describe("getAppVersions", () => {
   it("falls back when the mobile workspace is not present", async () => {
     vi.doMock("node:fs/promises", () => ({
       readFile: vi.fn(async (filePath: string) => {
-        if (filePath === "package.json") {
-          return JSON.stringify({ version: "1.2.3" });
-        }
-
-        if (filePath === "apps/web/package.json") {
+        if (filePath.endsWith("/apps/web/package.json")) {
           return JSON.stringify({ version: "4.5.6" });
         }
 
-        if (filePath === "apps/mobile/package.json") {
+        if (filePath.endsWith("/apps/mobile/package.json")) {
           throw new Error("missing mobile package");
+        }
+
+        if (filePath.endsWith("/package.json")) {
+          return JSON.stringify({ version: "1.2.3" });
         }
 
         throw new Error(`unexpected path: ${filePath}`);
       }),
-    }));
-
-    vi.doMock("../src/lib/workspace-paths.ts", () => ({
-      resolveExistingWorkspacePath: vi.fn((relativePath: string) => relativePath),
     }));
 
     const { getAppVersions } = await import("../src/index.ts");

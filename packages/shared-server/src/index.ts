@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
-
-import { resolveExistingWorkspacePath } from "./lib/workspace-paths";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 export * from "./logger";
 
@@ -14,9 +14,11 @@ export type AppVersions = {
   mobile: string;
 };
 
+const workspaceRoot = path.resolve(fileURLToPath(new URL("../../..", import.meta.url)));
+
 async function readPackageVersion(relativePath: string, fallbackVersion?: string) {
   try {
-    const packageJson = await readFile(resolveExistingWorkspacePath(relativePath), "utf8");
+    const packageJson = await readFile(path.join(workspaceRoot, relativePath), "utf8");
 
     return (JSON.parse(packageJson) as PackageVersionManifest).version;
   } catch (error) {
