@@ -26,11 +26,11 @@ describe("useVersionQuery", () => {
   });
 
   it("returns the configured public app version", async () => {
-    process.env.NEXT_PUBLIC_APP_VERSION = "0.18.0-beta";
+    process.env.NEXT_PUBLIC_APP_VERSION = "0.18.1-beta";
 
     const { useVersionQuery } = await import("@/hooks/config/use-version-query");
 
-    expect(useVersionQuery().currentVersion).toBe("0.18.0-beta");
+    expect(useVersionQuery().currentVersion).toBe("0.18.1-beta");
   });
 
   it("falls back to unknown when no version is configured", async () => {
