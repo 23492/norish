@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 export * from "./logger";
+import { resolveExistingWorkspacePath } from "./lib/workspace-paths";
 
 type PackageVersionManifest = {
   version: string;
@@ -14,7 +14,7 @@ export type AppVersions = {
   mobile: string;
 };
 
-const workspaceRoot = path.resolve(fileURLToPath(new URL("../../..", import.meta.url)));
+const workspaceRoot = path.dirname(resolveExistingWorkspacePath("pnpm-workspace.yaml"));
 
 async function readPackageVersion(relativePath: string, fallbackVersion?: string) {
   try {
