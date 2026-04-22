@@ -1,6 +1,13 @@
 import type { GrocerySectionModel } from "@/lib/groceries/grocery-mock-data";
 import React, { useState } from "react";
 import { Pressable, Text, View } from "react-native";
+import Animated, {
+  FadeIn,
+  FadeOut,
+  LinearTransition,
+  ZoomIn,
+  ZoomOut,
+} from "react-native-reanimated";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Card, useThemeColor } from "heroui-native";
 
@@ -15,15 +22,19 @@ export function GrocerySectionCard({ section, onToggleItem }: GrocerySectionCard
   const [foregroundColor, mutedColor, separatorColor] = useThemeColor(
     ["foreground", "muted", "separator"] as const
   );
-  const [collapsed, setCollapsed] = useState(false);
 
   const totalCount = section.items.length;
   const doneCount = section.items.filter((i) => i.completed).length;
+  const allDone = totalCount > 0 && doneCount === totalCount;
+
+  // Sections that are fully done on first mount start collapsed; user can reopen freely.
+  const [collapsed, setCollapsed] = useState(
+    () => totalCount > 0 && section.items.every((i) => i.completed)
+  );
 
   return (
     <Card variant="secondary" className="overflow-hidden rounded-[28px]">
       <Card.Body className="p-0">
-        {/* Section header — tappable to collapse */}
         <Pressable
           onPress={() => setCollapsed((c) => !c)}
           accessibilityRole="button"
@@ -42,50 +53,67 @@ export function GrocerySectionCard({ section, onToggleItem }: GrocerySectionCard
                 gap: 12,
               }}
             >
-              {/* Color dot */}
-              <View
-                style={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: 5,
-                  backgroundColor: section.tintColor,
-                  flexShrink: 0,
-                  marginTop: 2,
-                }}
-              />
+              {/* Dot → checkmark: plain timing animations, no spring/bounce */}
+              <View style={{ width: 22, height: 22, alignItems: "center", justifyContent: "center" }}>
+                {allDone ? (
+                  <Animated.View
+                    key="check"
+                    entering={ZoomIn.duration(200)}
+                    exiting={ZoomOut.duration(140)}
+                    style={{
+                      width: 22,
+                      height: 22,
+                      borderRadius: 11,
+                      backgroundColor: section.tintColor,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Ionicons name="checkmark" size={13} color="#fff" />
+                  </Animated.View>
+                ) : (
+                  <Animated.View
+                    key="dot"
+                    entering={FadeIn.duration(160)}
+                    exiting={FadeOut.duration(120)}
+                    style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: 5,
+                      backgroundColor: section.tintColor,
+                    }}
+                  />
+                )}
+              </View>
 
-              {/* Title + subtitle */}
-              <View style={{ flex: 1, gap: 3 }}>
-                <Text style={{ color: foregroundColor, fontSize: 17, lineHeight: 22, fontWeight: "700" }}>
+              {/* Title — no strikethrough */}
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={{
+                    color: allDone ? mutedColor : foregroundColor,
+                    fontSize: 17,
+                    lineHeight: 22,
+                    fontWeight: "700",
+                    opacity: allDone ? 0.6 : 1,
+                  }}
+                >
                   {section.title}
-                </Text>
-                <Text style={{ color: mutedColor, fontSize: 13, lineHeight: 18 }}>
-                  {section.subtitle}
                 </Text>
               </View>
 
-              {/* Item count pill — always shows done/total */}
+              {/* Done count pill — always uses tint color */}
               <View
                 style={{
                   borderRadius: 10,
                   paddingHorizontal: 10,
                   paddingVertical: 4,
-                  backgroundColor: doneCount === totalCount && totalCount > 0
-                    ? `${section.tintColor}18`
-                    : `${section.tintColor}12`,
+                  backgroundColor: `${section.tintColor}18`,
                   flexDirection: "row",
                   alignItems: "center",
                   gap: 2,
                 }}
               >
-                <Text
-                  style={{
-                    color: section.tintColor,
-                    fontSize: 13,
-                    fontWeight: "700",
-                    opacity: doneCount === totalCount ? 1 : 0.9,
-                  }}
-                >
+                <Text style={{ color: section.tintColor, fontSize: 13, fontWeight: "700" }}>
                   {doneCount}/{totalCount}
                 </Text>
                 <Text style={{ color: `${section.tintColor}90`, fontSize: 12, fontWeight: "500" }}>
@@ -93,7 +121,6 @@ export function GrocerySectionCard({ section, onToggleItem }: GrocerySectionCard
                 </Text>
               </View>
 
-              {/* Chevron */}
               <Ionicons
                 name={collapsed ? "chevron-forward" : "chevron-down"}
                 size={16}
@@ -103,13 +130,10 @@ export function GrocerySectionCard({ section, onToggleItem }: GrocerySectionCard
           )}
         </Pressable>
 
-        {/* Items list — hidden when collapsed */}
         {!collapsed ? (
-          <View
-            style={{
-              borderTopWidth: 1,
-              borderTopColor: separatorColor,
-            }}
+          <Animated.View
+            layout={LinearTransition.duration(300)}
+            style={{ borderTopWidth: 1, borderTopColor: separatorColor }}
           >
             {section.items.map((item, index) => (
               <GroceryRow
@@ -120,7 +144,7 @@ export function GrocerySectionCard({ section, onToggleItem }: GrocerySectionCard
                 onToggle={onToggleItem}
               />
             ))}
-          </View>
+          </Animated.View>
         ) : null}
       </Card.Body>
     </Card>

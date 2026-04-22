@@ -21,6 +21,8 @@ export type GroceryItem = {
   note?: string;
   completed: boolean;
   recurring?: boolean;
+  /** Unix ms timestamp of the last completed/uncompleted toggle. Used for sort ordering. */
+  toggledAt?: number;
   storeId?: string;
   recipeId?: string;
 };
@@ -33,7 +35,6 @@ export type GroceryRowModel = GroceryItem & {
 export type GrocerySectionModel = {
   id: string;
   title: string;
-  subtitle: string;
   tintColor: string;
   items: GroceryRowModel[];
 };
@@ -185,7 +186,42 @@ export function getGroceriesSummary(items: GroceryItem[]) {
   };
 }
 
-export function buildStoreSections(items: GroceryItem[]): GrocerySectionModel[] {
+/**
+ * Pending items first, completed items at the bottom.
+ * Within each group, items are ordered by `toggledAt`:
+ *   - Done:   most recently ticked → top of the done group
+ *   - Undone: most recently unticked → bottom of the undone group
+ * Items in `frozenIds` are treated as not-yet-completed so their position
+ * stays pinned while the completion animation plays out.
+ */
+function sortByCompletion(
+  items: GroceryRowModel[],
+  frozenIds: ReadonlySet<string> = new Set()
+): GroceryRowModel[] {
+  return [...items].sort((a, b) => {
+    const aDone = a.completed && !frozenIds.has(a.id);
+    const bDone = b.completed && !frozenIds.has(b.id);
+
+    // Split into done vs undone first.
+    if (aDone !== bDone) return Number(aDone) - Number(bDone);
+
+    const aTime = a.toggledAt ?? 0;
+    const bTime = b.toggledAt ?? 0;
+
+    if (aDone) {
+      // Done group: most recently ticked goes to the top (descending time).
+      return bTime - aTime;
+    } else {
+      // Undone group: most recently unticked goes to the bottom (ascending time).
+      return aTime - bTime;
+    }
+  });
+}
+
+export function buildStoreSections(
+  items: GroceryItem[],
+  frozenIds: ReadonlySet<string> = new Set()
+): GrocerySectionModel[] {
   const storeMap = new Map(STORES.map((store) => [store.id, store]));
   const recipeMap = new Map(RECIPES.map((recipe) => [recipe.id, recipe]));
   const sections: GrocerySectionModel[] = [];
@@ -202,9 +238,8 @@ export function buildStoreSections(items: GroceryItem[]): GrocerySectionModel[] 
       sections.push({
         id: unsortedStore.id,
         title: unsortedStore.name,
-        subtitle: unsortedStore.subtitle,
         tintColor: unsortedStore.tintColor,
-        items: unsortedItems,
+        items: sortByCompletion(unsortedItems, frozenIds),
       });
     }
   }
@@ -222,16 +257,18 @@ export function buildStoreSections(items: GroceryItem[]): GrocerySectionModel[] 
     sections.push({
       id: store.id,
       title: store.name,
-      subtitle: store.subtitle,
       tintColor: store.tintColor,
-      items: storeItems,
+      items: sortByCompletion(storeItems, frozenIds),
     });
   }
 
   return sections;
 }
 
-export function buildRecipeSections(items: GroceryItem[]): GrocerySectionModel[] {
+export function buildRecipeSections(
+  items: GroceryItem[],
+  frozenIds: ReadonlySet<string> = new Set()
+): GrocerySectionModel[] {
   const storeMap = new Map(STORES.map((store) => [store.id, store]));
   const sections: GrocerySectionModel[] = [];
 
@@ -248,9 +285,8 @@ export function buildRecipeSections(items: GroceryItem[]): GrocerySectionModel[]
     sections.push({
       id: recipe.id,
       title: recipe.title,
-      subtitle: recipe.subtitle,
       tintColor: recipe.tintColor,
-      items: recipeItems,
+      items: sortByCompletion(recipeItems, frozenIds),
     });
   }
 
@@ -263,9 +299,8 @@ export function buildRecipeSections(items: GroceryItem[]): GrocerySectionModel[]
     sections.push({
       id: "recipe-free",
       title: "Just groceries",
-      subtitle: "Household staples and grab-and-go extras",
       tintColor: "#A855F7",
-      items: uncategorizedItems,
+      items: sortByCompletion(uncategorizedItems, frozenIds),
     });
   }
 
