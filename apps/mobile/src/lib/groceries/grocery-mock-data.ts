@@ -23,6 +23,8 @@ export type GroceryItem = {
   recurring?: boolean;
   /** Unix ms timestamp of the last completed/uncompleted toggle. Used for sort ordering. */
   toggledAt?: number;
+  /** Manual sort position within a section. Lower values appear first. */
+  sortOrder?: number;
   storeId?: string;
   recipeId?: string;
 };
@@ -188,9 +190,15 @@ export function getGroceriesSummary(items: GroceryItem[]) {
 
 /**
  * Pending items first, completed items at the bottom.
- * Within each group, items are ordered by `toggledAt`:
- *   - Done:   most recently ticked → top of the done group
- *   - Undone: most recently unticked → bottom of the undone group
+ *
+ * Undone group ordering priority:
+ *   1. `sortOrder` (manual drag-and-drop position) — lower values first.
+ *   2. `toggledAt` — most recently unticked goes to the bottom.
+ *   3. Original array order (stable sort).
+ *
+ * Done group ordering:
+ *   - Most recently ticked → top of the done group.
+ *
  * Items in `frozenIds` are treated as not-yet-completed so their position
  * stays pinned while the completion animation plays out.
  */
@@ -205,17 +213,41 @@ function sortByCompletion(
     // Split into done vs undone first.
     if (aDone !== bDone) return Number(aDone) - Number(bDone);
 
-    const aTime = a.toggledAt ?? 0;
-    const bTime = b.toggledAt ?? 0;
-
     if (aDone) {
       // Done group: most recently ticked goes to the top (descending time).
+      const aTime = a.toggledAt ?? 0;
+      const bTime = b.toggledAt ?? 0;
       return bTime - aTime;
-    } else {
-      // Undone group: most recently unticked goes to the bottom (ascending time).
-      return aTime - bTime;
     }
+
+    // Undone group: prefer manual sortOrder, fall back to toggledAt.
+    const aOrder = a.sortOrder ?? Infinity;
+    const bOrder = b.sortOrder ?? Infinity;
+    if (aOrder !== bOrder) return aOrder - bOrder;
+
+    const aTime = a.toggledAt ?? 0;
+    const bTime = b.toggledAt ?? 0;
+    return aTime - bTime;
   });
+}
+
+/** Split a section's items into sortable (uncompleted) and done (completed) arrays. */
+export function splitSectionItems(
+  items: GroceryRowModel[],
+  frozenIds: ReadonlySet<string> = new Set()
+): { sortableItems: GroceryRowModel[]; doneItems: GroceryRowModel[] } {
+  const sortableItems: GroceryRowModel[] = [];
+  const doneItems: GroceryRowModel[] = [];
+
+  for (const item of items) {
+    if (item.completed && !frozenIds.has(item.id)) {
+      doneItems.push(item);
+    } else {
+      sortableItems.push(item);
+    }
+  }
+
+  return { sortableItems, doneItems };
 }
 
 export function buildStoreSections(

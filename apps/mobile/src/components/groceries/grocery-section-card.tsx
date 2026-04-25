@@ -1,5 +1,5 @@
-import type { GrocerySectionModel } from "@/lib/groceries/grocery-mock-data";
-import React, { useState } from "react";
+import type { GroceryRowModel, GrocerySectionModel } from "@/lib/groceries/grocery-mock-data";
+import React, { useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import Animated, {
   FadeIn,
@@ -10,15 +10,24 @@ import Animated, {
 } from "react-native-reanimated";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Card, useThemeColor } from "heroui-native";
+import { splitSectionItems } from "@/lib/groceries/grocery-mock-data";
 
 import { GroceryRow } from "./grocery-row";
+import { SortableGroceryList } from "./sortable-grocery-list";
 
 type GrocerySectionCardProps = {
   section: GrocerySectionModel;
+  frozenIds?: ReadonlySet<string>;
   onToggleItem?: (id: string) => void;
+  onReorderItems?: (sectionId: string, orderedIds: string[]) => void;
 };
 
-export function GrocerySectionCard({ section, onToggleItem }: GrocerySectionCardProps) {
+export function GrocerySectionCard({
+  section,
+  frozenIds = new Set(),
+  onToggleItem,
+  onReorderItems,
+}: GrocerySectionCardProps) {
   const [foregroundColor, mutedColor, separatorColor] = useThemeColor(
     ["foreground", "muted", "separator"] as const
   );
@@ -30,6 +39,19 @@ export function GrocerySectionCard({ section, onToggleItem }: GrocerySectionCard
   // Sections that are fully done on first mount start collapsed; user can reopen freely.
   const [collapsed, setCollapsed] = useState(
     () => totalCount > 0 && section.items.every((i) => i.completed)
+  );
+
+  // Split items into sortable (uncompleted) and done (completed) arrays.
+  const { sortableItems, doneItems } = useMemo(
+    () => splitSectionItems(section.items, frozenIds),
+    [section.items, frozenIds]
+  );
+
+  const handleReorder = React.useCallback(
+    (orderedIds: string[]) => {
+      onReorderItems?.(section.id, orderedIds);
+    },
+    [section.id, onReorderItems]
   );
 
   return (
@@ -135,15 +157,13 @@ export function GrocerySectionCard({ section, onToggleItem }: GrocerySectionCard
             layout={LinearTransition.duration(300)}
             style={{ borderTopWidth: 1, borderTopColor: separatorColor }}
           >
-            {section.items.map((item, index) => (
-              <GroceryRow
-                key={item.id}
-                item={item}
-                tintColor={section.tintColor}
-                isLast={index === section.items.length - 1}
-                onToggle={onToggleItem}
-              />
-            ))}
+            <SortableGroceryList
+              sortableItems={sortableItems}
+              doneItems={doneItems}
+              tintColor={section.tintColor}
+              onToggleItem={onToggleItem}
+              onReorder={handleReorder}
+            />
           </Animated.View>
         ) : null}
       </Card.Body>

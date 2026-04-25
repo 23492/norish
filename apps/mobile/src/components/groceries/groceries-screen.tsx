@@ -48,6 +48,23 @@ export function GroceriesScreen() {
     }, SORT_DELAY_MS);
   }, []);
 
+  const handleReorderItems = useCallback(
+    (_sectionId: string, orderedIds: string[]) => {
+      setItems((prev) => {
+        // Build a sortOrder map from the new order.
+        const orderMap = new Map(orderedIds.map((id, index) => [id, index]));
+        return prev.map((item) => {
+          const newOrder = orderMap.get(item.id);
+          if (newOrder !== undefined) {
+            return { ...item, sortOrder: newOrder };
+          }
+          return item;
+        });
+      });
+    },
+    []
+  );
+
   return (
     <>
       <Stack.Screen
@@ -70,7 +87,9 @@ export function GroceriesScreen() {
             <GrocerySectionCard
               key={section.id}
               section={section}
+              frozenIds={frozenIds}
               onToggleItem={handleToggleItem}
+              onReorderItems={handleReorderItems}
             />
           ))}
         </View>

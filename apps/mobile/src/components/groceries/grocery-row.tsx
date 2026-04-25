@@ -12,7 +12,12 @@ type GroceryRowProps = {
   onToggle?: (id: string) => void;
 };
 
-export function GroceryRow({ item, tintColor, isLast, onToggle }: GroceryRowProps) {
+export const GroceryRow = React.memo(function GroceryRow({
+  item,
+  tintColor,
+  isLast,
+  onToggle,
+}: GroceryRowProps) {
   const [foregroundColor, mutedColor, separatorColor, backgroundColor] =
     useThemeColor(["foreground", "muted", "separator", "background"] as const);
 
@@ -131,7 +136,8 @@ export function GroceryRow({ item, tintColor, isLast, onToggle }: GroceryRowProp
             </View>
           ) : null}
         </View>
+
       </View>
     </Animated.View>
   );
-}
+});
