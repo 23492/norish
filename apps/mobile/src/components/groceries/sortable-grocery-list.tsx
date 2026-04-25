@@ -57,6 +57,7 @@ export function SortableGroceryList({
         <SortableItem
           key={id}
           id={id}
+          data={item}
           {...rest}
           onDragStart={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
