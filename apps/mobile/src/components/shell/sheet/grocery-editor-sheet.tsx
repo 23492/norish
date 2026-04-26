@@ -7,12 +7,24 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Button, useThemeColor } from "heroui-native";
 import { useIntl } from "react-intl";
 
-import { GroceryRecurrenceSheet } from "./grocery-recurrence-sheet";
+import type { RecurrenceTranslations } from "@norish/shared/lib/recurrence/formatter";
+import { formatRecurrenceSummary } from "@norish/shared/lib/recurrence/formatter";
+
+import type { GroceryRecurrenceSettings } from "./grocery-recurrence-sheet";
+import {
+  DEFAULT_GROCERY_RECURRENCE_SETTINGS,
+  GroceryRecurrenceSheet,
+} from "./grocery-recurrence-sheet";
+
+export type {
+  GroceryRecurrenceFrequency,
+  GroceryRecurrenceSettings,
+} from "./grocery-recurrence-sheet";
 
 export type GroceryEditorFormValue = {
   itemText: string;
   storeId: string | null;
-  recurring: boolean;
+  recurrence: GroceryRecurrenceSettings;
 };
 
 type GroceryEditorSheetProps = {
@@ -28,7 +40,7 @@ type GroceryEditorSheetProps = {
 const EMPTY_VALUE: GroceryEditorFormValue = {
   itemText: "",
   storeId: null,
-  recurring: false,
+  recurrence: DEFAULT_GROCERY_RECURRENCE_SETTINGS,
 };
 
 export function GroceryEditorSheet({
@@ -43,7 +55,9 @@ export function GroceryEditorSheet({
   const intl = useIntl();
   const [itemText, setItemText] = useState(initialValue?.itemText ?? "");
   const [storeId, setStoreId] = useState<string | null>(initialValue?.storeId ?? null);
-  const [recurring, setRecurring] = useState(initialValue?.recurring ?? false);
+  const [recurrence, setRecurrence] = useState<GroceryRecurrenceSettings>(
+    initialValue?.recurrence ?? EMPTY_VALUE.recurrence
+  );
   const [recurrenceSheetOpen, setRecurrenceSheetOpen] = useState(false);
   const [foregroundColor, mutedColor, surfaceColor, separatorColor, accentColor] = useThemeColor([
     "foreground",
@@ -58,15 +72,16 @@ export function GroceryEditorSheet({
       if (mode === "create") {
         setItemText("");
         setStoreId(null);
-        setRecurring(false);
+        setRecurrence(EMPTY_VALUE.recurrence);
       }
+      setRecurrenceSheetOpen(false);
       return;
     }
 
     const next = initialValue ?? EMPTY_VALUE;
     setItemText(next.itemText);
     setStoreId(next.storeId);
-    setRecurring(next.recurring);
+    setRecurrence(next.recurrence);
   }, [initialValue, isPresented, mode]);
 
   const selectedStore = useMemo(
@@ -78,32 +93,68 @@ export function GroceryEditorSheet({
   const titleId = mode === "create" ? "groceries.panel.addTitle" : "groceries.panel.editTitle";
   const placeholderId =
     mode === "create" ? "groceries.panel.placeholder" : "groceries.panel.editPlaceholder";
+  const editorSheetPresented = isPresented && !recurrenceSheetOpen;
+  const recurrenceFormatterTranslations = useMemo<RecurrenceTranslations>(
+    () => ({
+      every: intl.formatMessage({ id: "common.recurrence.every" }),
+      everyOther: intl.formatMessage({ id: "common.recurrence.everyOther" }),
+      on: intl.formatMessage({ id: "common.recurrence.on" }),
+      day: intl.formatMessage({ id: "common.recurrence.day" }),
+      days: intl.formatMessage({ id: "common.recurrence.days" }),
+      week: intl.formatMessage({ id: "common.recurrence.week" }),
+      weeks: intl.formatMessage({ id: "common.recurrence.weeks" }),
+      month: intl.formatMessage({ id: "common.recurrence.month" }),
+      months: intl.formatMessage({ id: "common.recurrence.months" }),
+      today: intl.formatMessage({ id: "common.recurrence.today" }),
+      tomorrow: intl.formatMessage({ id: "common.recurrence.tomorrow" }),
+      weekdaysFull: {
+        "0": intl.formatMessage({ id: "common.recurrence.weekdaysFull.0" }),
+        "1": intl.formatMessage({ id: "common.recurrence.weekdaysFull.1" }),
+        "2": intl.formatMessage({ id: "common.recurrence.weekdaysFull.2" }),
+        "3": intl.formatMessage({ id: "common.recurrence.weekdaysFull.3" }),
+        "4": intl.formatMessage({ id: "common.recurrence.weekdaysFull.4" }),
+        "5": intl.formatMessage({ id: "common.recurrence.weekdaysFull.5" }),
+        "6": intl.formatMessage({ id: "common.recurrence.weekdaysFull.6" }),
+      },
+    }),
+    [intl]
+  );
+
+  const handleEditorPresentedChange = useCallback(
+    (open: boolean) => {
+      if (recurrenceSheetOpen) return;
+      onIsPresentedChange(open);
+    },
+    [onIsPresentedChange, recurrenceSheetOpen]
+  );
 
   const handleSubmit = useCallback(() => {
     if (!hasText) return;
-    onSubmit?.({ itemText: itemText.trim(), storeId, recurring });
+    onSubmit?.({ itemText: itemText.trim(), storeId, recurrence });
     if (mode === "create") {
       setItemText("");
+      setStoreId(null);
+      setRecurrence(EMPTY_VALUE.recurrence);
     } else {
       onIsPresentedChange(false);
     }
-  }, [hasText, itemText, mode, onIsPresentedChange, onSubmit, recurring, storeId]);
+  }, [hasText, itemText, mode, onIsPresentedChange, onSubmit, recurrence, storeId]);
 
   const handleDelete = useCallback(() => {
     onDelete?.();
     onIsPresentedChange(false);
   }, [onDelete, onIsPresentedChange]);
 
-  const handleRecurrenceConfirm = useCallback((enabled: boolean) => {
-    setRecurring(enabled);
+  const handleRecurrenceConfirm = useCallback((settings: GroceryRecurrenceSettings) => {
+    setRecurrence(settings);
     setRecurrenceSheetOpen(false);
   }, []);
 
   return (
     <>
       <ShellSheet
-        isPresented={isPresented}
-        onIsPresentedChange={onIsPresentedChange}
+        isPresented={editorSheetPresented}
+        onIsPresentedChange={handleEditorPresentedChange}
         detents={["medium", "large"]}
         initialDetent="medium"
       >
@@ -195,7 +246,7 @@ export function GroceryEditorSheet({
               styles.repeatRow,
               {
                 backgroundColor: surfaceColor,
-                borderColor: recurring ? accentColor : separatorColor,
+                borderColor: recurrence.enabled ? accentColor : separatorColor,
               },
             ]}
           >
@@ -207,12 +258,12 @@ export function GroceryEditorSheet({
                 {intl.formatMessage({ id: "groceries.panel.recurrence" })}
               </Text>
               <Text style={[styles.repeatSubtitle, { color: mutedColor }]}>
-                {recurring
-                  ? intl.formatMessage({ id: "groceries.panel.recurrenceEnabled" })
+                {recurrence.enabled
+                  ? formatRecurrenceSummary(recurrence.pattern, recurrenceFormatterTranslations)
                   : intl.formatMessage({ id: "groceries.panel.addRepeat" })}
               </Text>
             </View>
-            {recurring ? (
+            {recurrence.enabled ? (
               <View style={[styles.activeBadge, { backgroundColor: `${accentColor}18` }]}>
                 <Text style={[styles.activeBadgeText, { color: accentColor }]}>On</Text>
               </View>
@@ -243,7 +294,7 @@ export function GroceryEditorSheet({
       <GroceryRecurrenceSheet
         isPresented={recurrenceSheetOpen}
         onIsPresentedChange={setRecurrenceSheetOpen}
-        recurring={recurring}
+        value={recurrence}
         onConfirm={handleRecurrenceConfirm}
       />
     </>

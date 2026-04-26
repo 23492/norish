@@ -1,6 +1,18 @@
 import { useSubscription } from "@trpc/tanstack-react-query";
 
+import type { GroceryDto, RecurringGroceryDto } from "@norish/shared/contracts";
+
 import type { CreateGroceriesHooksOptions, GroceriesCacheHelpers } from "./types";
+
+type GrocerySubscriptionEventPayloads = {
+  created: { groceries: GroceryDto[] };
+  updated: { changedGroceries: GroceryDto[] };
+  deleted: { groceryIds: string[] };
+  recurringCreated: { recurringGrocery: RecurringGroceryDto; grocery: GroceryDto };
+  recurringUpdated: { recurringGrocery: RecurringGroceryDto; grocery: GroceryDto };
+  recurringDeleted: { recurringGroceryId: string };
+  failed: { reason: string };
+};
 
 export type GroceriesSubscriptionErrorAdapter = {
   showErrorToast: (reason: string) => void;
@@ -24,15 +36,13 @@ export function createUseGroceriesSubscription({
     // onCreated
     useSubscription(
       trpc.groceries.onCreated.subscriptionOptions(undefined, {
-        onData: ({ payload }: any) => {
+        onData: (payload: GrocerySubscriptionEventPayloads["created"]) => {
           setGroceriesData((prev) => {
             if (!prev) return prev;
 
             const existing = prev.groceries ?? [];
             const incoming = payload.groceries;
-            const newGroceries = incoming.filter(
-              (g: any) => !existing.some((eg) => eg.id === g.id)
-            );
+            const newGroceries = incoming.filter((g) => !existing.some((eg) => eg.id === g.id));
 
             if (newGroceries.length === 0) return prev;
 
@@ -45,13 +55,13 @@ export function createUseGroceriesSubscription({
     // onUpdated
     useSubscription(
       trpc.groceries.onUpdated.subscriptionOptions(undefined, {
-        onData: ({ payload }: any) => {
+        onData: (payload: GrocerySubscriptionEventPayloads["updated"]) => {
           setGroceriesData((prev) => {
             if (!prev) return prev;
 
             const updated = payload.changedGroceries;
             const updatedList = prev.groceries.map((e) => {
-              const match = updated.find((i: any) => i.id === e.id);
+              const match = updated.find((i) => i.id === e.id);
 
               return match ? { ...e, ...match } : e;
             });
@@ -65,7 +75,7 @@ export function createUseGroceriesSubscription({
     // onDeleted
     useSubscription(
       trpc.groceries.onDeleted.subscriptionOptions(undefined, {
-        onData: ({ payload }: any) => {
+        onData: (payload: GrocerySubscriptionEventPayloads["deleted"]) => {
           setGroceriesData((prev) => {
             if (!prev) return prev;
 
@@ -82,7 +92,7 @@ export function createUseGroceriesSubscription({
     // onRecurringCreated
     useSubscription(
       trpc.groceries.onRecurringCreated.subscriptionOptions(undefined, {
-        onData: ({ payload }: any) => {
+        onData: (payload: GrocerySubscriptionEventPayloads["recurringCreated"]) => {
           setGroceriesData((prev) => {
             if (!prev) return prev;
 
@@ -105,7 +115,7 @@ export function createUseGroceriesSubscription({
     // onRecurringUpdated
     useSubscription(
       trpc.groceries.onRecurringUpdated.subscriptionOptions(undefined, {
-        onData: ({ payload }: any) => {
+        onData: (payload: GrocerySubscriptionEventPayloads["recurringUpdated"]) => {
           setGroceriesData((prev) => {
             if (!prev) return prev;
 
@@ -128,7 +138,7 @@ export function createUseGroceriesSubscription({
     // onRecurringDeleted
     useSubscription(
       trpc.groceries.onRecurringDeleted.subscriptionOptions(undefined, {
-        onData: ({ payload }: any) => {
+        onData: (payload: GrocerySubscriptionEventPayloads["recurringDeleted"]) => {
           setGroceriesData((prev) => {
             if (!prev) return prev;
 
@@ -149,7 +159,7 @@ export function createUseGroceriesSubscription({
     // onFailed
     useSubscription(
       trpc.groceries.onFailed.subscriptionOptions(undefined, {
-        onData: ({ payload }: any) => {
+        onData: (payload: GrocerySubscriptionEventPayloads["failed"]) => {
           errorAdapter.showErrorToast(payload.reason);
           invalidate();
         },

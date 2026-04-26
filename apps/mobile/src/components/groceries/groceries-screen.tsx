@@ -1,3 +1,4 @@
+import type { GroceryRecurrenceSettings } from "@/components/shell/sheet/grocery-recurrence-sheet";
 import type {
   GroceryItem,
   GroceryRowModel,
@@ -5,6 +6,8 @@ import type {
 } from "@/lib/groceries/grocery-mock-data";
 import React, { useCallback, useMemo, useState } from "react";
 import { ScrollView, View } from "react-native";
+import { GroceryEditorSheet } from "@/components/shell/sheet/grocery-editor-sheet";
+import { DEFAULT_GROCERY_RECURRENCE_SETTINGS } from "@/components/shell/sheet/grocery-recurrence-sheet";
 import {
   buildRecipeSections,
   buildStoreSections,
@@ -14,7 +17,6 @@ import {
 import { Stack } from "expo-router";
 
 import { GroceriesMenu } from "./groceries-menu";
-import { GroceryEditorSheet } from "@/components/shell/sheet/grocery-editor-sheet";
 import { GrocerySectionCard } from "./grocery-section-card";
 
 /** How long to keep a newly-completed item pinned in place before it slides to the bottom. */
@@ -112,7 +114,11 @@ export function GroceriesScreen() {
   );
 
   const handleSaveEditingItem = useCallback(
-    (value: { itemText: string; storeId: string | null; recurring: boolean }) => {
+    (value: {
+      itemText: string;
+      storeId: string | null;
+      recurrence: GroceryRecurrenceSettings;
+    }) => {
       if (!editingItemId) return;
       setItems((prev) =>
         prev.map((item) => {
@@ -120,7 +126,7 @@ export function GroceriesScreen() {
           return {
             ...applyGroceryInputText(item, value.itemText),
             storeId: value.storeId ?? undefined,
-            recurring: value.recurring,
+            recurring: value.recurrence.enabled,
           };
         })
       );
@@ -167,7 +173,10 @@ export function GroceriesScreen() {
             ? {
                 itemText: buildGroceryInputText(editingItem),
                 storeId: editingItem.storeId ?? null,
-                recurring: !!editingItem.recurring,
+                recurrence: {
+                  ...DEFAULT_GROCERY_RECURRENCE_SETTINGS,
+                  enabled: !!editingItem.recurring,
+                },
               }
             : undefined
         }
