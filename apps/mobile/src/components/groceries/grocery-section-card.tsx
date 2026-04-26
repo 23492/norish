@@ -8,17 +8,18 @@ import Animated, {
   ZoomIn,
   ZoomOut,
 } from "react-native-reanimated";
+import { splitSectionItems } from "@/lib/groceries/grocery-mock-data";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Card, useThemeColor } from "heroui-native";
-import { splitSectionItems } from "@/lib/groceries/grocery-mock-data";
 
-import { GroceryRow } from "./grocery-row";
 import { SortableGroceryList } from "./sortable-grocery-list";
 
 type GrocerySectionCardProps = {
   section: GrocerySectionModel;
   frozenIds?: ReadonlySet<string>;
   onToggleItem?: (id: string) => void;
+  onPressItem?: (item: GroceryRowModel) => void;
+  onDeleteItem?: (id: string) => void;
   onReorderItems?: (sectionId: string, orderedIds: string[]) => void;
 };
 
@@ -26,11 +27,15 @@ export function GrocerySectionCard({
   section,
   frozenIds = new Set(),
   onToggleItem,
+  onPressItem,
+  onDeleteItem,
   onReorderItems,
 }: GrocerySectionCardProps) {
-  const [foregroundColor, mutedColor, separatorColor] = useThemeColor(
-    ["foreground", "muted", "separator"] as const
-  );
+  const [foregroundColor, mutedColor, separatorColor] = useThemeColor([
+    "foreground",
+    "muted",
+    "separator",
+  ] as const);
 
   const totalCount = section.items.length;
   const doneCount = section.items.filter((i) => i.completed).length;
@@ -76,7 +81,9 @@ export function GrocerySectionCard({
               }}
             >
               {/* Dot → checkmark: plain timing animations, no spring/bounce */}
-              <View style={{ width: 22, height: 22, alignItems: "center", justifyContent: "center" }}>
+              <View
+                style={{ width: 22, height: 22, alignItems: "center", justifyContent: "center" }}
+              >
                 {allDone ? (
                   <Animated.View
                     key="check"
@@ -162,6 +169,8 @@ export function GrocerySectionCard({
               doneItems={doneItems}
               tintColor={section.tintColor}
               onToggleItem={onToggleItem}
+              onPressItem={onPressItem}
+              onDeleteItem={onDeleteItem}
               onReorder={handleReorder}
             />
           </Animated.View>

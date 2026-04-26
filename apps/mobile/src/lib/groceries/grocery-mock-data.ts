@@ -175,6 +175,10 @@ export function createMockGroceries(): GroceryItem[] {
   return ITEMS.map((item) => ({ ...item }));
 }
 
+export function getMockGroceryStores(): GroceryStore[] {
+  return STORES.map((store) => ({ ...store }));
+}
+
 export function getGroceriesSummary(items: GroceryItem[]) {
   const storeCount = new Set(items.flatMap((item) => (item.storeId ? [item.storeId] : []))).size;
   const recipeCount = new Set(items.flatMap((item) => (item.recipeId ? [item.recipeId] : []))).size;
@@ -258,10 +262,12 @@ export function buildStoreSections(
   const recipeMap = new Map(RECIPES.map((recipe) => [recipe.id, recipe]));
   const sections: GrocerySectionModel[] = [];
 
-  const unsortedItems = items.filter((item) => item.storeId == null).map((item) => ({
-    ...item,
-    contextLabel: item.recipeId ? recipeMap.get(item.recipeId)?.title : undefined,
-  }));
+  const unsortedItems = items
+    .filter((item) => item.storeId == null)
+    .map((item) => ({
+      ...item,
+      contextLabel: item.recipeId ? recipeMap.get(item.recipeId)?.title : undefined,
+    }));
 
   if (unsortedItems.length > 0) {
     const unsortedStore = storeMap.get("unsorted");
@@ -277,10 +283,12 @@ export function buildStoreSections(
   }
 
   for (const store of STORES.filter((entry) => entry.id !== "unsorted")) {
-    const storeItems = items.filter((item) => item.storeId === store.id).map((item) => ({
-      ...item,
-      contextLabel: item.recipeId ? recipeMap.get(item.recipeId)?.title : undefined,
-    }));
+    const storeItems = items
+      .filter((item) => item.storeId === store.id)
+      .map((item) => ({
+        ...item,
+        contextLabel: item.recipeId ? recipeMap.get(item.recipeId)?.title : undefined,
+      }));
 
     if (storeItems.length === 0) {
       continue;
@@ -305,10 +313,12 @@ export function buildRecipeSections(
   const sections: GrocerySectionModel[] = [];
 
   for (const recipe of RECIPES) {
-    const recipeItems = items.filter((item) => item.recipeId === recipe.id).map((item) => ({
-      ...item,
-      contextLabel: item.storeId ? storeMap.get(item.storeId)?.name : "Unsorted",
-    }));
+    const recipeItems = items
+      .filter((item) => item.recipeId === recipe.id)
+      .map((item) => ({
+        ...item,
+        contextLabel: item.storeId ? storeMap.get(item.storeId)?.name : "Unsorted",
+      }));
 
     if (recipeItems.length === 0) {
       continue;
@@ -322,10 +332,12 @@ export function buildRecipeSections(
     });
   }
 
-  const uncategorizedItems = items.filter((item) => item.recipeId == null).map((item) => ({
-    ...item,
-    contextLabel: item.storeId ? storeMap.get(item.storeId)?.name : "Unsorted",
-  }));
+  const uncategorizedItems = items
+    .filter((item) => item.recipeId == null)
+    .map((item) => ({
+      ...item,
+      contextLabel: item.storeId ? storeMap.get(item.storeId)?.name : "Unsorted",
+    }));
 
   if (uncategorizedItems.length > 0) {
     sections.push({

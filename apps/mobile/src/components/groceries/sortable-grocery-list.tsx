@@ -6,6 +6,7 @@ import { Sortable, SortableItem } from "react-native-reanimated-dnd";
 import * as Haptics from "expo-haptics";
 
 import { GroceryRow } from "./grocery-row";
+import { SwipeableGroceryRow } from "./swipeable-grocery-row";
 
 /**
  * Estimated row height used as the initial guess before dynamic measurement.
@@ -19,6 +20,8 @@ type SortableGroceryListProps = {
   doneItems: GroceryRowModel[];
   tintColor: string;
   onToggleItem?: (id: string) => void;
+  onPressItem?: (item: GroceryRowModel) => void;
+  onDeleteItem?: (id: string) => void;
   onReorder?: (orderedIds: string[]) => void;
 };
 
@@ -35,6 +38,8 @@ export function SortableGroceryList({
   doneItems,
   tintColor,
   onToggleItem,
+  onPressItem,
+  onDeleteItem,
   onReorder,
 }: SortableGroceryListProps) {
   // Track the measured total height so the wrapper can size itself correctly.
@@ -42,13 +47,10 @@ export function SortableGroceryList({
     () => sortableItems.length * ESTIMATED_ITEM_HEIGHT
   );
 
-  const handleHeightsMeasured = useCallback(
-    (heights: { [id: string]: number }) => {
-      const total = Object.values(heights).reduce((sum, h) => sum + h, 0);
-      setMeasuredHeight(total);
-    },
-    []
-  );
+  const handleHeightsMeasured = useCallback((heights: { [id: string]: number }) => {
+    const total = Object.values(heights).reduce((sum, h) => sum + h, 0);
+    setMeasuredHeight(total);
+  }, []);
 
   const renderItem = useCallback(
     (props: SortableRenderItemProps<GroceryRowModel>) => {
@@ -71,16 +73,19 @@ export function SortableGroceryList({
             onReorder(orderedIds);
           }}
         >
-          <GroceryRow
-            item={item}
-            tintColor={tintColor}
-            isLast={false}
-            onToggle={onToggleItem}
-          />
+          <SwipeableGroceryRow onDelete={() => onDeleteItem?.(item.id)}>
+            <GroceryRow
+              item={item}
+              tintColor={tintColor}
+              isLast={false}
+              onToggle={onToggleItem}
+              onPress={onPressItem}
+            />
+          </SwipeableGroceryRow>
         </SortableItem>
       );
     },
-    [tintColor, onToggleItem, onReorder]
+    [tintColor, onToggleItem, onPressItem, onDeleteItem, onReorder]
   );
 
   return (
@@ -112,13 +117,15 @@ export function SortableGroceryList({
 
       {/* Done items — static, not draggable */}
       {doneItems.map((item, index) => (
-        <GroceryRow
-          key={item.id}
-          item={item}
-          tintColor={tintColor}
-          isLast={index === doneItems.length - 1 && sortableItems.length === 0}
-          onToggle={onToggleItem}
-        />
+        <SwipeableGroceryRow key={item.id} onDelete={() => onDeleteItem?.(item.id)}>
+          <GroceryRow
+            item={item}
+            tintColor={tintColor}
+            isLast={index === doneItems.length - 1 && sortableItems.length === 0}
+            onToggle={onToggleItem}
+            onPress={onPressItem}
+          />
+        </SwipeableGroceryRow>
       ))}
     </View>
   );

@@ -10,6 +10,7 @@ type GroceryRowProps = {
   tintColor: string;
   isLast: boolean;
   onToggle?: (id: string) => void;
+  onPress?: (item: GroceryRowModel) => void;
 };
 
 export const GroceryRow = React.memo(function GroceryRow({
@@ -17,13 +18,20 @@ export const GroceryRow = React.memo(function GroceryRow({
   tintColor,
   isLast,
   onToggle,
+  onPress,
 }: GroceryRowProps) {
-  const [foregroundColor, mutedColor, separatorColor, backgroundColor] =
-    useThemeColor(["foreground", "muted", "separator", "background"] as const);
+  const [foregroundColor, mutedColor, separatorColor, backgroundColor] = useThemeColor([
+    "foreground",
+    "muted",
+    "separator",
+    "background",
+  ] as const);
 
   return (
     <Animated.View layout={LinearTransition.duration(300)}>
-      <View
+      <Pressable
+        onPress={() => onPress?.(item)}
+        accessibilityRole="button"
         style={{
           paddingHorizontal: 16,
           paddingVertical: 13,
@@ -96,7 +104,7 @@ export const GroceryRow = React.memo(function GroceryRow({
           </View>
 
           {/* Tags — recurring + context on same line */}
-          {(item.recurring || item.contextLabel) ? (
+          {item.recurring || item.contextLabel ? (
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
               {item.recurring ? (
                 <View
@@ -111,7 +119,9 @@ export const GroceryRow = React.memo(function GroceryRow({
                   }}
                 >
                   <Ionicons name="repeat-outline" size={11} color={tintColor} />
-                  <Text style={{ color: tintColor, fontSize: 11, fontWeight: "700" }}>Recurring</Text>
+                  <Text style={{ color: tintColor, fontSize: 11, fontWeight: "700" }}>
+                    Recurring
+                  </Text>
                 </View>
               ) : null}
 
@@ -136,8 +146,7 @@ export const GroceryRow = React.memo(function GroceryRow({
             </View>
           ) : null}
         </View>
-
-      </View>
+      </Pressable>
     </Animated.View>
   );
 });

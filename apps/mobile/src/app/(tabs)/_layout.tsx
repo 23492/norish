@@ -1,7 +1,9 @@
 import React, { useCallback, useState } from "react";
 import { Platform } from "react-native";
+import { GroceryEditorSheet } from "@/components/shell/sheet/grocery-editor-sheet";
 import { AddRecipeSheet } from "@/components/shell/sheet/add-recipe-sheet";
 import { TabAccessoryContent } from "@/components/shell/tab-bottom-accessory";
+import { getMockGroceryStores } from "@/lib/groceries/grocery-mock-data";
 import { useSegments } from "expo-router";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
 import { useThemeColor } from "heroui-native";
@@ -35,6 +37,7 @@ function useActiveTab(): { tab: ActiveTab; isRecipeDetail: boolean } {
 
 export default function TabsLayout() {
   const [isAddRecipeOpen, setIsAddRecipeOpen] = useState(false);
+  const [isAddGroceryOpen, setIsAddGroceryOpen] = useState(false);
   const [tintColor, backgroundColor] = useThemeColor(["accent", "background"] as const);
 
   const { tab: activeTab, isRecipeDetail } = useActiveTab();
@@ -50,9 +53,8 @@ export default function TabsLayout() {
 
   const openAddRecipeSheet = useCallback(() => setIsAddRecipeOpen(true), []);
 
-  // Grocery add — placeholder, wired to a no-op until the groceries feature is built
   const openAddGrocerySheet = useCallback(() => {
-    // TODO: open add-grocery flow
+    setIsAddGroceryOpen(true);
   }, []);
 
   // On iOS 26+ the tab bar background adapts automatically (Liquid Glass).
@@ -121,6 +123,15 @@ export default function TabsLayout() {
 
       {/* Add Recipe sheet — sibling of NativeTabs so it overlays the tab bar */}
       <AddRecipeSheet isPresented={isAddRecipeOpen} onIsPresentedChange={setIsAddRecipeOpen} />
+      <GroceryEditorSheet
+        isPresented={isAddGroceryOpen}
+        mode="create"
+        stores={getMockGroceryStores()}
+        onIsPresentedChange={setIsAddGroceryOpen}
+        onSubmit={() => {
+          setIsAddGroceryOpen(false);
+        }}
+      />
     </>
   );
 }
