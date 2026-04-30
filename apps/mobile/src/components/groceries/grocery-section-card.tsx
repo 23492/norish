@@ -1,4 +1,4 @@
-import type { GroceryRowModel, GrocerySectionModel } from "@/lib/groceries/grocery-mock-data";
+import type { GroceryRowModel, GrocerySectionModel } from "@/lib/groceries/grocery-view-models";
 import React, { useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import Animated, {
@@ -8,7 +8,7 @@ import Animated, {
   ZoomIn,
   ZoomOut,
 } from "react-native-reanimated";
-import { splitSectionItems } from "@/lib/groceries/grocery-mock-data";
+import { splitSectionItems } from "@/lib/groceries/grocery-view-models";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Card, useThemeColor } from "heroui-native";
 

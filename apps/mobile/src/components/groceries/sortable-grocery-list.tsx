@@ -1,4 +1,4 @@
-import type { GroceryRowModel } from "@/lib/groceries/grocery-mock-data";
+import type { GroceryRowModel } from "@/lib/groceries/grocery-view-models";
 import type { SortableRenderItemProps } from "react-native-reanimated-dnd";
 import React, { useCallback, useState } from "react";
 import { View } from "react-native";

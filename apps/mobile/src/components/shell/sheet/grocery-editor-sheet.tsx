@@ -1,4 +1,4 @@
-import type { GroceryStore } from "@/lib/groceries/grocery-mock-data";
+import type { GroceryStore } from "@/lib/groceries/grocery-view-models";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { PanelButton } from "@/components/shell/panel-button";

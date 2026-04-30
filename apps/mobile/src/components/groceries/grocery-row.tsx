@@ -1,4 +1,4 @@
-import type { GroceryRowModel } from "@/lib/groceries/grocery-mock-data";
+import type { GroceryRowModel } from "@/lib/groceries/grocery-view-models";
 import React from "react";
 import { Pressable, Text, View } from "react-native";
 import Animated, { LinearTransition } from "react-native-reanimated";

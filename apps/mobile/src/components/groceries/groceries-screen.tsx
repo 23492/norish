@@ -2,19 +2,21 @@ import type { GroceryRecurrenceSettings } from "@/components/shell/sheet/grocery
 import type {
   GroceryItem,
   GroceryRowModel,
-  GroceryViewMode,
-} from "@/lib/groceries/grocery-mock-data";
+} from "@/lib/groceries/grocery-view-models";
 import React, { useCallback, useMemo, useState } from "react";
-import { ScrollView, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
+import { useGroceriesDataContext, useGroceriesUiContext } from "@/context/groceries-context";
 import { GroceryEditorSheet } from "@/components/shell/sheet/grocery-editor-sheet";
 import { DEFAULT_GROCERY_RECURRENCE_SETTINGS } from "@/components/shell/sheet/grocery-recurrence-sheet";
+import { useStoresQuery, useStoresSubscription } from "@/hooks/stores";
 import {
   buildRecipeSections,
   buildStoreSections,
-  createMockGroceries,
-  getMockGroceryStores,
-} from "@/lib/groceries/grocery-mock-data";
+  mapGroceriesToRows,
+  mapStoresToGroceryStores,
+} from "@/lib/groceries/grocery-view-models";
 import { Stack } from "expo-router";
+import { useThemeColor } from "heroui-native";
 
 import { GroceriesMenu } from "./groceries-menu";
 import { GrocerySectionCard } from "./grocery-section-card";
@@ -26,49 +28,50 @@ function buildGroceryInputText(item: GroceryItem) {
   return [item.amount, item.name].filter(Boolean).join(" ");
 }
 
-function applyGroceryInputText(item: GroceryItem, input: string): GroceryItem {
-  const trimmed = input.trim();
-  const match = trimmed.match(
-    /^((?:\d+(?:[./]\d+)?|one|two|three|four|five|six|seven|eight|nine|ten)\s*(?:ct|oz|lb|lbs|g|kg|ml|l|jar|bunch|cans?|blocks?|tin|pack|packs?)?)\s+(.+)$/i
-  );
-
-  if (!match) {
-    return { ...item, name: trimmed, amount: item.amount || "1" };
-  }
-
-  return {
-    ...item,
-    amount: match[1]?.trim() ?? item.amount,
-    name: match[2]?.trim() ?? trimmed,
-  };
-}
-
 export function GroceriesScreen() {
-  const [viewMode, setViewMode] = useState<GroceryViewMode>("store");
-  const [items, setItems] = useState(createMockGroceries);
+  const { query: groceriesQuery } = useGroceriesDataContext();
+  const { viewMode, setViewMode } = useGroceriesUiContext();
   const [frozenIds, setFrozenIds] = useState<ReadonlySet<string>>(new Set());
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
-  const stores = useMemo(() => getMockGroceryStores(), []);
+  const storesQuery = useStoresQuery();
+  const [foregroundColor, mutedColor] = useThemeColor(["foreground", "muted"] as const);
+
+  useStoresSubscription();
+
+  const stores = useMemo(() => mapStoresToGroceryStores(storesQuery.stores), [storesQuery.stores]);
+  const items = useMemo(
+    () =>
+      mapGroceriesToRows({
+        groceries: groceriesQuery.groceries,
+        recurringGroceries: groceriesQuery.recurringGroceries,
+        recipeMap: groceriesQuery.recipeMap,
+      }),
+    [groceriesQuery.groceries, groceriesQuery.recurringGroceries, groceriesQuery.recipeMap]
+  );
 
   const sections = useMemo(
     () =>
       viewMode === "store"
-        ? buildStoreSections(items, frozenIds)
-        : buildRecipeSections(items, frozenIds),
-    [items, viewMode, frozenIds]
+        ? buildStoreSections({
+            items,
+            stores,
+            recipeMap: groceriesQuery.recipeMap,
+            frozenIds,
+          })
+        : buildRecipeSections({
+            items,
+            stores,
+            recipeMap: groceriesQuery.recipeMap,
+            frozenIds,
+          }),
+    [items, stores, groceriesQuery.recipeMap, viewMode, frozenIds]
   );
 
+  const isLoading = groceriesQuery.isLoading || storesQuery.isLoading;
+  const error = groceriesQuery.error ?? storesQuery.error;
+
   const handleToggleItem = useCallback((id: string) => {
-    const now = Date.now();
-
-    // Update the item immediately so the checkmark renders right away.
-    setItems((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, completed: !item.completed, toggledAt: now } : item
-      )
-    );
-
-    // Pin the item in its current position until the animation finishes.
+    // Write-flow tasks wire persistence later; keep the animation-only state local for now.
     setFrozenIds((prev) => new Set([...prev, id]));
     setTimeout(() => {
       setFrozenIds((prev) => {
@@ -79,26 +82,11 @@ export function GroceriesScreen() {
     }, SORT_DELAY_MS);
   }, []);
 
-  const handleReorderItems = useCallback((_sectionId: string, orderedIds: string[]) => {
-    setItems((prev) => {
-      // Build a sortOrder map from the new order.
-      const orderMap = new Map(orderedIds.map((id, index) => [id, index]));
-      return prev.map((item) => {
-        const newOrder = orderMap.get(item.id);
-        if (newOrder !== undefined) {
-          return { ...item, sortOrder: newOrder };
-        }
-        return item;
-      });
-    });
-  }, []);
-
   const handlePressItem = useCallback((item: GroceryRowModel) => {
     setEditingItemId(item.id);
   }, []);
 
   const handleDeleteItem = useCallback((id: string) => {
-    setItems((prev) => prev.filter((item) => item.id !== id));
     setFrozenIds((prev) => {
       if (!prev.has(id)) return prev;
       const next = new Set(prev);
@@ -114,22 +102,12 @@ export function GroceriesScreen() {
   );
 
   const handleSaveEditingItem = useCallback(
-    (value: {
+    (_value: {
       itemText: string;
       storeId: string | null;
       recurrence: GroceryRecurrenceSettings;
     }) => {
       if (!editingItemId) return;
-      setItems((prev) =>
-        prev.map((item) => {
-          if (item.id !== editingItemId) return item;
-          return {
-            ...applyGroceryInputText(item, value.itemText),
-            storeId: value.storeId ?? undefined,
-            recurring: value.recurrence.enabled,
-          };
-        })
-      );
     },
     [editingItemId]
   );
@@ -150,17 +128,39 @@ export function GroceriesScreen() {
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 140, gap: 14 }}
       >
         <View style={{ gap: 14 }}>
-          {sections.map((section) => (
-            <GrocerySectionCard
-              key={section.id}
-              section={section}
-              frozenIds={frozenIds}
-              onToggleItem={handleToggleItem}
-              onPressItem={handlePressItem}
-              onDeleteItem={handleDeleteItem}
-              onReorderItems={handleReorderItems}
+          {isLoading ? (
+            <GroceriesStateMessage
+              title="Loading groceries"
+              body="Getting the latest household list."
+              foregroundColor={foregroundColor}
+              mutedColor={mutedColor}
             />
-          ))}
+          ) : error ? (
+            <GroceriesStateMessage
+              title="Could not load groceries"
+              body="Check your connection and try again."
+              foregroundColor={foregroundColor}
+              mutedColor={mutedColor}
+            />
+          ) : sections.length === 0 ? (
+            <GroceriesStateMessage
+              title="No groceries yet"
+              body="Use the add button to start a household grocery list."
+              foregroundColor={foregroundColor}
+              mutedColor={mutedColor}
+            />
+          ) : (
+            sections.map((section) => (
+              <GrocerySectionCard
+                key={section.id}
+                section={section}
+                frozenIds={frozenIds}
+                onToggleItem={handleToggleItem}
+                onPressItem={handlePressItem}
+                onDeleteItem={handleDeleteItem}
+              />
+            ))
+          )}
         </View>
       </ScrollView>
 
@@ -189,5 +189,28 @@ export function GroceriesScreen() {
         }}
       />
     </>
+  );
+}
+
+function GroceriesStateMessage({
+  title,
+  body,
+  foregroundColor,
+  mutedColor,
+}: {
+  title: string;
+  body: string;
+  foregroundColor: string;
+  mutedColor: string;
+}) {
+  return (
+    <View style={{ paddingHorizontal: 18, paddingVertical: 36, gap: 8 }}>
+      <Text style={{ color: foregroundColor, fontSize: 18, fontWeight: "700", textAlign: "center" }}>
+        {title}
+      </Text>
+      <Text style={{ color: mutedColor, fontSize: 14, lineHeight: 20, textAlign: "center" }}>
+        {body}
+      </Text>
+    </View>
   );
 }

@@ -1,4 +1,4 @@
-import type { GroceryViewMode } from "@/lib/groceries/grocery-mock-data";
+import type { GroceryViewMode } from "@/lib/groceries/grocery-view-models";
 import { useMemo, useState } from "react";
 import {
   useGroceriesCacheHelpers,
