@@ -1,20 +1,25 @@
-import type { GroceryRowModel } from "@/lib/groceries/grocery-view-models";
+import type { GroceryDto, RecurringGroceryDto } from "@norish/shared/contracts";
 import React from "react";
 import { Pressable, Text, View } from "react-native";
+import { formatAmountUnit } from "@/lib/groceries/grocery-utils";
 import Animated, { LinearTransition } from "react-native-reanimated";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useThemeColor } from "heroui-native";
 
 type GroceryRowProps = {
-  item: GroceryRowModel;
+  item: GroceryDto;
+  recurringGrocery: RecurringGroceryDto | null;
+  contextLabel: string | null;
   tintColor: string;
   isLast: boolean;
   onToggle?: (id: string) => void;
-  onPress?: (item: GroceryRowModel) => void;
+  onPress?: (item: GroceryDto) => void;
 };
 
 export const GroceryRow = React.memo(function GroceryRow({
   item,
+  recurringGrocery,
+  contextLabel,
   tintColor,
   isLast,
   onToggle,
@@ -46,21 +51,21 @@ export const GroceryRow = React.memo(function GroceryRow({
         <Pressable
           onPress={() => onToggle?.(item.id)}
           accessibilityRole="checkbox"
-          accessibilityState={{ checked: item.completed }}
+          accessibilityState={{ checked: item.isDone }}
           hitSlop={8}
           style={{
             width: 24,
             height: 24,
             borderRadius: 12,
-            borderWidth: item.completed ? 0 : 2,
+            borderWidth: item.isDone ? 0 : 2,
             borderColor: `${tintColor}70`,
-            backgroundColor: item.completed ? tintColor : "transparent",
+            backgroundColor: item.isDone ? tintColor : "transparent",
             alignItems: "center",
             justifyContent: "center",
             flexShrink: 0,
           }}
         >
-          {item.completed ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
+          {item.isDone ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
         </Pressable>
 
         {/* Content */}
@@ -74,8 +79,8 @@ export const GroceryRow = React.memo(function GroceryRow({
                 fontSize: 16,
                 lineHeight: 21,
                 fontWeight: "600",
-                textDecorationLine: item.completed ? "line-through" : "none",
-                opacity: item.completed ? 0.45 : 1,
+                textDecorationLine: item.isDone ? "line-through" : "none",
+                opacity: item.isDone ? 0.45 : 1,
               }}
             >
               {item.name}
@@ -92,21 +97,21 @@ export const GroceryRow = React.memo(function GroceryRow({
             >
               <Text
                 style={{
-                  color: item.completed ? mutedColor : foregroundColor,
+                  color: item.isDone ? mutedColor : foregroundColor,
                   fontSize: 12,
                   fontWeight: "700",
-                  opacity: item.completed ? 0.5 : 1,
+                  opacity: item.isDone ? 0.5 : 1,
                 }}
               >
-                {item.amount}
+                {formatAmountUnit(item.amount, item.unit)}
               </Text>
             </View>
           </View>
 
           {/* Tags — recurring + context on same line */}
-          {item.recurring || item.contextLabel ? (
+          {recurringGrocery || contextLabel ? (
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-              {item.recurring ? (
+              {recurringGrocery ? (
                 <View
                   style={{
                     flexDirection: "row",
@@ -125,7 +130,7 @@ export const GroceryRow = React.memo(function GroceryRow({
                 </View>
               ) : null}
 
-              {item.contextLabel ? (
+              {contextLabel ? (
                 <View
                   style={{
                     flexDirection: "row",
@@ -139,7 +144,7 @@ export const GroceryRow = React.memo(function GroceryRow({
                 >
                   <Ionicons name="sparkles-outline" size={11} color={mutedColor} />
                   <Text style={{ color: mutedColor, fontSize: 11, fontWeight: "600" }}>
-                    {item.contextLabel}
+                    {contextLabel}
                   </Text>
                 </View>
               ) : null}

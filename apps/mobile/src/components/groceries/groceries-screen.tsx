@@ -1,20 +1,16 @@
 import type { GroceryRecurrenceSettings } from "@/components/shell/sheet/grocery-recurrence-sheet";
-import type {
-  GroceryItem,
-  GroceryRowModel,
-} from "@/lib/groceries/grocery-view-models";
+import type { GroceryDto } from "@norish/shared/contracts";
 import React, { useCallback, useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { useGroceriesDataContext, useGroceriesUiContext } from "@/context/groceries-context";
 import { GroceryEditorSheet } from "@/components/shell/sheet/grocery-editor-sheet";
 import { DEFAULT_GROCERY_RECURRENCE_SETTINGS } from "@/components/shell/sheet/grocery-recurrence-sheet";
-import { useStoresQuery, useStoresSubscription } from "@/hooks/stores";
+import { useStoresContext } from "@/context/stores-context";
 import {
   buildRecipeSections,
   buildStoreSections,
-  mapGroceriesToRows,
-  mapStoresToGroceryStores,
-} from "@/lib/groceries/grocery-view-models";
+  formatAmountUnit,
+} from "@/lib/groceries/grocery-utils";
 import { Stack } from "expo-router";
 import { useThemeColor } from "heroui-native";
 
@@ -24,92 +20,139 @@ import { GrocerySectionCard } from "./grocery-section-card";
 /** How long to keep a newly-completed item pinned in place before it slides to the bottom. */
 const SORT_DELAY_MS = 380;
 
-function buildGroceryInputText(item: GroceryItem) {
-  return [item.amount, item.name].filter(Boolean).join(" ");
+function buildGroceryInputText(item: GroceryDto) {
+  return [formatAmountUnit(item.amount, item.unit), item.name].filter(Boolean).join(" ");
 }
 
 export function GroceriesScreen() {
-  const { query: groceriesQuery } = useGroceriesDataContext();
+  const { query: groceriesQuery, mutations } = useGroceriesDataContext();
   const { viewMode, setViewMode } = useGroceriesUiContext();
   const [frozenIds, setFrozenIds] = useState<ReadonlySet<string>>(new Set());
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
-  const storesQuery = useStoresQuery();
+  const { stores, isLoading: storesLoading } = useStoresContext();
   const [foregroundColor, mutedColor] = useThemeColor(["foreground", "muted"] as const);
-
-  useStoresSubscription();
-
-  const stores = useMemo(() => mapStoresToGroceryStores(storesQuery.stores), [storesQuery.stores]);
-  const items = useMemo(
-    () =>
-      mapGroceriesToRows({
-        groceries: groceriesQuery.groceries,
-        recurringGroceries: groceriesQuery.recurringGroceries,
-        recipeMap: groceriesQuery.recipeMap,
-      }),
-    [groceriesQuery.groceries, groceriesQuery.recurringGroceries, groceriesQuery.recipeMap]
-  );
 
   const sections = useMemo(
     () =>
       viewMode === "store"
         ? buildStoreSections({
-            items,
+            groceries: groceriesQuery.groceries,
             stores,
             recipeMap: groceriesQuery.recipeMap,
             frozenIds,
           })
         : buildRecipeSections({
-            items,
+            groceries: groceriesQuery.groceries,
             stores,
             recipeMap: groceriesQuery.recipeMap,
             frozenIds,
           }),
-    [items, stores, groceriesQuery.recipeMap, viewMode, frozenIds]
+    [groceriesQuery.groceries, stores, groceriesQuery.recipeMap, viewMode, frozenIds]
   );
 
-  const isLoading = groceriesQuery.isLoading || storesQuery.isLoading;
-  const error = groceriesQuery.error ?? storesQuery.error;
+  const isLoading = groceriesQuery.isLoading || storesLoading;
+  const error = groceriesQuery.error;
 
-  const handleToggleItem = useCallback((id: string) => {
-    // Write-flow tasks wire persistence later; keep the animation-only state local for now.
-    setFrozenIds((prev) => new Set([...prev, id]));
-    setTimeout(() => {
+  const handleToggleItem = useCallback(
+    (id: string) => {
+      const item = groceriesQuery.groceries.find((i) => i.id === id);
+      if (!item) return;
+
+      const newIsDone = !item.isDone;
+
+      // Freeze position so the row stays pinned during the completion animation.
+      setFrozenIds((prev) => new Set([...prev, id]));
+      setTimeout(() => {
+        setFrozenIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      }, SORT_DELAY_MS);
+
+      // Persist to backend via shared mutations (handles optimistic cache + error invalidation).
+      if (item.recurringGroceryId) {
+        mutations.toggleRecurringGrocery(item.recurringGroceryId, id, newIsDone);
+      } else {
+        mutations.toggleGroceries([id], newIsDone);
+      }
+    },
+    [groceriesQuery.groceries, mutations]
+  );
+
+  const handlePressItem = useCallback((item: GroceryDto) => {
+    setEditingItemId(item.id);
+  }, []);
+
+  const handleDeleteItem = useCallback(
+    (id: string) => {
+      // Clean up local transient state.
       setFrozenIds((prev) => {
+        if (!prev.has(id)) return prev;
         const next = new Set(prev);
         next.delete(id);
         return next;
       });
-    }, SORT_DELAY_MS);
-  }, []);
+      setEditingItemId((current) => (current === id ? null : current));
 
-  const handlePressItem = useCallback((item: GroceryRowModel) => {
-    setEditingItemId(item.id);
-  }, []);
+      // Persist deletion to backend via shared mutations.
+      const item = groceriesQuery.groceries.find((i) => i.id === id);
+      if (!item) return;
 
-  const handleDeleteItem = useCallback((id: string) => {
-    setFrozenIds((prev) => {
-      if (!prev.has(id)) return prev;
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
-    setEditingItemId((current) => (current === id ? null : current));
-  }, []);
-
-  const editingItem = useMemo(
-    () => items.find((item) => item.id === editingItemId) ?? null,
-    [editingItemId, items]
+      if (item.recurringGroceryId) {
+        mutations.deleteRecurringGrocery(item.recurringGroceryId);
+      } else {
+        mutations.deleteGroceries([id]);
+      }
+    },
+    [groceriesQuery.groceries, mutations]
   );
 
+  const editingItem = useMemo(
+    () => groceriesQuery.groceries.find((item) => item.id === editingItemId) ?? null,
+    [editingItemId, groceriesQuery.groceries]
+  );
+  const editingRecurringGrocery = editingItem
+    ? mutations.getRecurringGroceryForGrocery(editingItem.id)
+    : null;
+
   const handleSaveEditingItem = useCallback(
-    (_value: {
+    (value: {
       itemText: string;
       storeId: string | null;
       recurrence: GroceryRecurrenceSettings;
     }) => {
-      if (!editingItemId) return;
+      if (!editingItemId || !editingItem) return;
+
+      const { itemText, storeId, recurrence } = value;
+
+      if (editingItem.recurringGroceryId) {
+        // Recurring item — route through updateRecurringGrocery.
+        // Pass pattern when recurrence stays enabled, null to disable it.
+        mutations.updateRecurringGrocery(
+          editingItem.recurringGroceryId,
+          editingItemId,
+          itemText,
+          recurrence.enabled ? recurrence.pattern : null
+        );
+      } else if (recurrence.enabled) {
+        // Was one-off, user enabled recurrence → delete old one-off, create recurring.
+        mutations.deleteGroceries([editingItemId]);
+        mutations.createRecurringGrocery(itemText, recurrence.pattern, storeId);
+      } else {
+        // One-off item — update text and store separately.
+        mutations.updateGrocery(editingItemId, itemText);
+      }
+
+      // Handle store assignment for non-conversion cases.
+      const storeChanged = (editingItem.storeId ?? null) !== storeId;
+      if (storeChanged && !(editingItem.recurringGroceryId == null && recurrence.enabled)) {
+        mutations.assignGroceryToStore(editingItemId, storeId);
+      }
+
+      setEditingItemId(null);
     },
-    [editingItemId]
+    [editingItemId, editingItem, mutations]
   );
 
   return (
@@ -154,6 +197,10 @@ export function GroceriesScreen() {
               <GrocerySectionCard
                 key={section.id}
                 section={section}
+                recurringGroceries={groceriesQuery.recurringGroceries}
+                recipeMap={groceriesQuery.recipeMap}
+                stores={stores}
+                contextMode={viewMode}
                 frozenIds={frozenIds}
                 onToggleItem={handleToggleItem}
                 onPressItem={handlePressItem}
@@ -175,7 +222,7 @@ export function GroceriesScreen() {
                 storeId: editingItem.storeId ?? null,
                 recurrence: {
                   ...DEFAULT_GROCERY_RECURRENCE_SETTINGS,
-                  enabled: !!editingItem.recurring,
+                  enabled: !!editingRecurringGrocery,
                 },
               }
             : undefined

@@ -14,27 +14,27 @@
 
 ## 2. Read Flow
 
-- [ ] 2.1 Replace `GroceriesScreen` mock grocery state with backend data from shared groceries query and subscription hooks.
-- [ ] 2.2 Add a mapper from backend grocery, recurring grocery, store, and recipe metadata into the existing mobile row and section models.
-- [ ] 2.3 Preserve store and recipe view mode grouping with backend-backed data.
-- [ ] 2.4 Add mobile loading, empty, and error states for the groceries screen.
-- [ ] 2.5 Remove direct dependency on `grocery-mock-data.ts` from production mobile groceries rendering once backend data is wired.
+- [x] 2.1 Replace `GroceriesScreen` mock grocery state with backend data from shared groceries query and subscription hooks.
+- [x] 2.2 Add a mapper from backend grocery, recurring grocery, store, and recipe metadata into the existing mobile row and section models.
+- [x] 2.3 Preserve store and recipe view mode grouping with backend-backed data.
+- [x] 2.4 Add mobile loading, empty, and error states for the groceries screen.
+- [x] 2.5 Remove direct dependency on `grocery-mock-data.ts` from production mobile groceries rendering once backend data is wired.
 
 ## 3. Write Flow
 
-- [ ] 3.1 Wire one-off grocery done and undone toggles to `toggleGroceries` with version-aware shared mutation behavior.
-- [ ] 3.2 Wire recurring grocery done and undone toggles to `toggleRecurringGrocery` with grocery and recurring versions.
-- [ ] 3.3 Preserve the delayed completed-item sorting animation by keeping `frozenIds` as mobile-only transient state.
-- [ ] 3.4 Verify subscription updates reconcile correctly after local done and undone mutations.
+- [x] 3.1 Wire one-off grocery done and undone toggles to `toggleGroceries` with version-aware shared mutation behavior.
+- [x] 3.2 Wire recurring grocery done and undone toggles to `toggleRecurringGrocery` with grocery and recurring versions.
+- [x] 3.3 Preserve the delayed completed-item sorting animation by keeping `frozenIds` as mobile-only transient state.
+- [x] 3.4 Verify subscription updates reconcile correctly after local done and undone mutations.
 
 ## 4. Create, Edit, Delete Flow
 
-- [ ] 4.1 Wire create-one-off submissions to `createGrocery` with item text and selected store.
-- [ ] 4.2 Map recurrence sheet frequency settings to `RecurrencePattern` and wire recurring submissions to `createRecurringGrocery`.
-- [ ] 4.3 Wire one-off editing to `updateGrocery` and `assignGroceryToStore` when item text or store changes.
-- [ ] 4.4 Wire recurring editing to `updateRecurringGrocery`, including disabling recurrence by passing a null recurrence pattern.
-- [ ] 4.5 Wire swipe and editor delete actions to `deleteGroceries` for one-off rows and `deleteRecurringGrocery` for recurring rows.
-- [ ] 4.6 Ensure editor close/reset behavior remains correct after successful create, edit, and delete actions.
+- [x] 4.1 Wire create-one-off submissions to `createGrocery` with item text and selected store.
+- [x] 4.2 Map recurrence sheet frequency settings to `RecurrencePattern` and wire recurring submissions to `createRecurringGrocery`.
+- [x] 4.3 Wire one-off editing to `updateGrocery` and `assignGroceryToStore` when item text or store changes.
+- [x] 4.4 Wire recurring editing to `updateRecurringGrocery`, including disabling recurrence by passing a null recurrence pattern.
+- [x] 4.5 Wire swipe and editor delete actions to `deleteGroceries` for one-off rows and `deleteRecurringGrocery` for recurring rows.
+- [x] 4.6 Ensure editor close/reset behavior remains correct after successful create, edit, and delete actions.
 
 ## 5. Remaining Interaction Gaps
 

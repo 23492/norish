@@ -1,6 +1,7 @@
-import type { GroceryRowModel } from "@/lib/groceries/grocery-view-models";
+import type { GroceryDto, RecurringGroceryDto, StoreDto } from "@norish/shared/contracts";
+import type { RecipeMap } from "@norish/shared-react/hooks";
 import type { SortableRenderItemProps } from "react-native-reanimated-dnd";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { View } from "react-native";
 import { Sortable, SortableItem } from "react-native-reanimated-dnd";
 import * as Haptics from "expo-haptics";
@@ -16,14 +17,23 @@ import { SwipeableGroceryRow } from "./swipeable-grocery-row";
 const ESTIMATED_ITEM_HEIGHT = 72;
 
 type SortableGroceryListProps = {
-  sortableItems: GroceryRowModel[];
-  doneItems: GroceryRowModel[];
+  sortableItems: GroceryDto[];
+  doneItems: GroceryDto[];
+  recurringGroceries: RecurringGroceryDto[];
+  recipeMap: RecipeMap;
+  stores: StoreDto[];
+  contextMode: "store" | "recipe";
   tintColor: string;
   onToggleItem?: (id: string) => void;
-  onPressItem?: (item: GroceryRowModel) => void;
+  onPressItem?: (item: GroceryDto) => void;
   onDeleteItem?: (id: string) => void;
   onReorder?: (orderedIds: string[]) => void;
 };
+
+function groceryRecipeName(item: GroceryDto, recipeMap: RecipeMap): string | null {
+  if (!item.recipeIngredientId) return null;
+  return recipeMap[item.recipeIngredientId]?.recipeName ?? null;
+}
 
 /**
  * Renders the sortable (uncompleted) grocery items via `react-native-reanimated-dnd`
@@ -36,6 +46,10 @@ type SortableGroceryListProps = {
 export function SortableGroceryList({
   sortableItems,
   doneItems,
+  recurringGroceries,
+  recipeMap,
+  stores,
+  contextMode,
   tintColor,
   onToggleItem,
   onPressItem,
@@ -46,6 +60,19 @@ export function SortableGroceryList({
   const [measuredHeight, setMeasuredHeight] = useState(
     () => sortableItems.length * ESTIMATED_ITEM_HEIGHT
   );
+  const recurringById = useMemo(
+    () => new Map(recurringGroceries.map((recurring) => [recurring.id, recurring])),
+    [recurringGroceries]
+  );
+  const storeNameById = useMemo(() => new Map(stores.map((store) => [store.id, store.name])), [stores]);
+
+  const getContextLabel = useCallback(
+    (item: GroceryDto) => {
+      if (contextMode === "store") return groceryRecipeName(item, recipeMap);
+      return item.storeId ? storeNameById.get(item.storeId) ?? null : "Unsorted";
+    },
+    [contextMode, recipeMap, storeNameById]
+  );
 
   const handleHeightsMeasured = useCallback((heights: { [id: string]: number }) => {
     const total = Object.values(heights).reduce((sum, h) => sum + h, 0);
@@ -53,7 +80,7 @@ export function SortableGroceryList({
   }, []);
 
   const renderItem = useCallback(
-    (props: SortableRenderItemProps<GroceryRowModel>) => {
+    (props: SortableRenderItemProps<GroceryDto>) => {
       const { item, id, ...rest } = props;
       return (
         <SortableItem
@@ -76,6 +103,10 @@ export function SortableGroceryList({
           <SwipeableGroceryRow onDelete={() => onDeleteItem?.(item.id)}>
             <GroceryRow
               item={item}
+              recurringGrocery={
+                item.recurringGroceryId ? recurringById.get(item.recurringGroceryId) ?? null : null
+              }
+              contextLabel={getContextLabel(item)}
               tintColor={tintColor}
               isLast={false}
               onToggle={onToggleItem}
@@ -85,7 +116,7 @@ export function SortableGroceryList({
         </SortableItem>
       );
     },
-    [tintColor, onToggleItem, onPressItem, onDeleteItem, onReorder]
+    [getContextLabel, recurringById, tintColor, onToggleItem, onPressItem, onDeleteItem, onReorder]
   );
 
   return (
@@ -120,6 +151,10 @@ export function SortableGroceryList({
         <SwipeableGroceryRow key={item.id} onDelete={() => onDeleteItem?.(item.id)}>
           <GroceryRow
             item={item}
+            recurringGrocery={
+              item.recurringGroceryId ? recurringById.get(item.recurringGroceryId) ?? null : null
+            }
+            contextLabel={getContextLabel(item)}
             tintColor={tintColor}
             isLast={index === doneItems.length - 1 && sortableItems.length === 0}
             onToggle={onToggleItem}

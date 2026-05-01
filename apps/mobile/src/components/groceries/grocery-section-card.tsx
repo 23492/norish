@@ -1,4 +1,6 @@
-import type { GroceryRowModel, GrocerySectionModel } from "@/lib/groceries/grocery-view-models";
+import type { GrocerySection } from "@/lib/groceries/grocery-utils";
+import type { GroceryDto, RecurringGroceryDto, StoreDto } from "@norish/shared/contracts";
+import type { RecipeMap } from "@norish/shared-react/hooks";
 import React, { useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import Animated, {
@@ -8,23 +10,31 @@ import Animated, {
   ZoomIn,
   ZoomOut,
 } from "react-native-reanimated";
-import { splitSectionItems } from "@/lib/groceries/grocery-view-models";
+import { splitSectionItems } from "@/lib/groceries/grocery-utils";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Card, useThemeColor } from "heroui-native";
 
 import { SortableGroceryList } from "./sortable-grocery-list";
 
 type GrocerySectionCardProps = {
-  section: GrocerySectionModel;
+  section: GrocerySection;
+  recurringGroceries: RecurringGroceryDto[];
+  recipeMap: RecipeMap;
+  stores: StoreDto[];
+  contextMode: "store" | "recipe";
   frozenIds?: ReadonlySet<string>;
   onToggleItem?: (id: string) => void;
-  onPressItem?: (item: GroceryRowModel) => void;
+  onPressItem?: (item: GroceryDto) => void;
   onDeleteItem?: (id: string) => void;
   onReorderItems?: (sectionId: string, orderedIds: string[]) => void;
 };
 
 export function GrocerySectionCard({
   section,
+  recurringGroceries,
+  recipeMap,
+  stores,
+  contextMode,
   frozenIds = new Set(),
   onToggleItem,
   onPressItem,
@@ -38,12 +48,12 @@ export function GrocerySectionCard({
   ] as const);
 
   const totalCount = section.items.length;
-  const doneCount = section.items.filter((i) => i.completed).length;
+  const doneCount = section.items.filter((i) => i.isDone).length;
   const allDone = totalCount > 0 && doneCount === totalCount;
 
   // Sections that are fully done on first mount start collapsed; user can reopen freely.
   const [collapsed, setCollapsed] = useState(
-    () => totalCount > 0 && section.items.every((i) => i.completed)
+    () => totalCount > 0 && section.items.every((i) => i.isDone)
   );
 
   // Split items into sortable (uncompleted) and done (completed) arrays.
@@ -167,6 +177,10 @@ export function GrocerySectionCard({
             <SortableGroceryList
               sortableItems={sortableItems}
               doneItems={doneItems}
+              recurringGroceries={recurringGroceries}
+              recipeMap={recipeMap}
+              stores={stores}
+              contextMode={contextMode}
               tintColor={section.tintColor}
               onToggleItem={onToggleItem}
               onPressItem={onPressItem}

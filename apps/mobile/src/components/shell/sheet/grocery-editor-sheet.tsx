@@ -1,8 +1,9 @@
-import type { GroceryStore } from "@/lib/groceries/grocery-view-models";
+import type { StoreDto } from "@norish/shared/contracts";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { PanelButton } from "@/components/shell/panel-button";
 import { ShellSheet } from "@/components/shell/sheet";
+import { storeTintColor } from "@/lib/groceries/grocery-utils";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Button, useThemeColor } from "heroui-native";
 import { useIntl } from "react-intl";
@@ -30,7 +31,7 @@ export type GroceryEditorFormValue = {
 type GroceryEditorSheetProps = {
   isPresented: boolean;
   mode: "create" | "edit";
-  stores: GroceryStore[];
+  stores: StoreDto[];
   initialValue?: GroceryEditorFormValue;
   onIsPresentedChange: (open: boolean) => void;
   onSubmit?: (value: GroceryEditorFormValue) => void;
@@ -219,21 +220,19 @@ export function GroceryEditorSheet({
                 separatorColor={separatorColor}
                 onPress={() => setStoreId(null)}
               />
-              {stores
-                .filter((store) => store.id !== "unsorted")
-                .map((store) => (
-                  <StoreChip
-                    key={store.id}
-                    label={store.name}
-                    selected={store.id === storeId}
-                    tintColor={store.tintColor}
-                    foregroundColor={foregroundColor}
-                    mutedColor={mutedColor}
-                    surfaceColor={surfaceColor}
-                    separatorColor={separatorColor}
-                    onPress={() => setStoreId(store.id)}
-                  />
-                ))}
+              {stores.map((store) => (
+                <StoreChip
+                  key={store.id}
+                  label={store.name}
+                  selected={store.id === storeId}
+                  tintColor={storeTintColor(store)}
+                  foregroundColor={foregroundColor}
+                  mutedColor={mutedColor}
+                  surfaceColor={surfaceColor}
+                  separatorColor={separatorColor}
+                  onPress={() => setStoreId(store.id)}
+                />
+              ))}
             </ScrollView>
           </View>
 

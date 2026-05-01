@@ -1,12 +1,16 @@
 import React, { useCallback, useState } from "react";
 import { Platform } from "react-native";
+import type { GroceryEditorFormValue } from "@/components/shell/sheet/grocery-editor-sheet";
 import { GroceryEditorSheet } from "@/components/shell/sheet/grocery-editor-sheet";
 import { AddRecipeSheet } from "@/components/shell/sheet/add-recipe-sheet";
 import { TabAccessoryContent } from "@/components/shell/tab-bottom-accessory";
-import { getMockGroceryStores } from "@/lib/groceries/grocery-mock-data";
+import { useGroceriesDataContext } from "@/context/groceries-context";
+import { useStoresContext } from "@/context/stores-context";
 import { useSegments } from "expo-router";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
 import { useThemeColor } from "heroui-native";
+
+// TODO: This file needs cleanup.
 
 /**
  * Detect whether the device is running iOS 26+ so we can let the system
@@ -41,7 +45,8 @@ export default function TabsLayout() {
   const [tintColor, backgroundColor] = useThemeColor(["accent", "background"] as const);
 
   const { tab: activeTab, isRecipeDetail } = useActiveTab();
-
+  const { mutations } = useGroceriesDataContext();
+  const { stores } = useStoresContext();
   // Hide the bottom accessory on recipe detail pages
   const accessoryMode: "recipe" | "grocery" | "hidden" = isRecipeDetail
     ? "hidden"
@@ -56,6 +61,19 @@ export default function TabsLayout() {
   const openAddGrocerySheet = useCallback(() => {
     setIsAddGroceryOpen(true);
   }, []);
+
+  const handleCreateGrocery = useCallback(
+    (value: GroceryEditorFormValue) => {
+      const { itemText, storeId, recurrence } = value;
+
+      if (recurrence.enabled) {
+        mutations.createRecurringGrocery(itemText, recurrence.pattern, storeId);
+      } else {
+        mutations.createGrocery(itemText, storeId);
+      }
+    },
+    [mutations]
+  );
 
   // On iOS 26+ the tab bar background adapts automatically (Liquid Glass).
   const tabBarBackgroundColor = isIOS26OrLater() ? undefined : backgroundColor;
@@ -126,11 +144,9 @@ export default function TabsLayout() {
       <GroceryEditorSheet
         isPresented={isAddGroceryOpen}
         mode="create"
-        stores={getMockGroceryStores()}
+        stores={stores}
         onIsPresentedChange={setIsAddGroceryOpen}
-        onSubmit={() => {
-          setIsAddGroceryOpen(false);
-        }}
+        onSubmit={handleCreateGrocery}
       />
     </>
   );

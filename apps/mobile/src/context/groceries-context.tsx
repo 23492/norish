@@ -1,4 +1,3 @@
-import type { GroceryViewMode } from "@/lib/groceries/grocery-view-models";
 import { useMemo, useState } from "react";
 import {
   useGroceriesCacheHelpers,
@@ -8,6 +7,8 @@ import {
 } from "@/hooks/groceries";
 
 import { createGroceriesContext } from "@norish/shared-react/contexts";
+
+export type GroceryViewMode = "store" | "recipe";
 
 type MobileGroceriesUiContextValue = {
   viewMode: GroceryViewMode;
