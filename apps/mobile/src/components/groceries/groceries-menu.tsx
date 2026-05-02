@@ -1,4 +1,4 @@
-import type { GroceryViewMode } from "@/context/groceries-context";
+import type { GroceryViewMode } from "./groceries-screen";
 import React from "react";
 import { ShellMenu } from "@/components/shell/menu";
 import { Button as UIButton, Divider } from "@expo/ui/swift-ui";

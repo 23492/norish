@@ -4,7 +4,7 @@ import type { GroceryEditorFormValue } from "@/components/shell/sheet/grocery-ed
 import { GroceryEditorSheet } from "@/components/shell/sheet/grocery-editor-sheet";
 import { AddRecipeSheet } from "@/components/shell/sheet/add-recipe-sheet";
 import { TabAccessoryContent } from "@/components/shell/tab-bottom-accessory";
-import { useGroceriesDataContext } from "@/context/groceries-context";
+import { useGroceriesContext } from "@/context/groceries-context";
 import { useStoresContext } from "@/context/stores-context";
 import { useSegments } from "expo-router";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
@@ -45,7 +45,7 @@ export default function TabsLayout() {
   const [tintColor, backgroundColor] = useThemeColor(["accent", "background"] as const);
 
   const { tab: activeTab, isRecipeDetail } = useActiveTab();
-  const { mutations } = useGroceriesDataContext();
+  const { createGrocery, createRecurringGrocery } = useGroceriesContext();
   const { stores } = useStoresContext();
   // Hide the bottom accessory on recipe detail pages
   const accessoryMode: "recipe" | "grocery" | "hidden" = isRecipeDetail
@@ -67,12 +67,12 @@ export default function TabsLayout() {
       const { itemText, storeId, recurrence } = value;
 
       if (recurrence.enabled) {
-        mutations.createRecurringGrocery(itemText, recurrence.pattern, storeId);
+        createRecurringGrocery(itemText, recurrence.pattern, storeId);
       } else {
-        mutations.createGrocery(itemText, storeId);
+        createGrocery(itemText, storeId);
       }
     },
-    [mutations]
+    [createRecurringGrocery, createGrocery]
   );
 
   // On iOS 26+ the tab bar background adapts automatically (Liquid Glass).

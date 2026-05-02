@@ -1,79 +1,106 @@
 import type { ReactNode } from "react";
 import { createContext, createElement, useContext, useMemo } from "react";
 
+import type { GroceryDto, RecurringGroceryDto } from "@norish/shared/contracts";
+
 import type {
-  GroceriesCacheHelpers,
   GroceriesMutationsResult,
   GroceriesQueryResult,
+  RecipeMap,
 } from "../../hooks/groceries";
 
-export type GroceriesDataContextValue = {
-  query: GroceriesQueryResult;
-  mutations: GroceriesMutationsResult;
-  cache: GroceriesCacheHelpers;
-};
+export type GroceriesContextValue = {
+  // Data
+  groceries: GroceryDto[];
+  recurringGroceries: RecurringGroceryDto[];
+  doneGroceries: GroceryDto[];
+  pendingGroceries: GroceryDto[];
+  isLoading: boolean;
+  recipeMap: RecipeMap;
+  getRecipeNameForGrocery: (grocery: GroceryDto) => string | null;
+} & GroceriesMutationsResult;
 
-type CreateGroceriesContextOptions<TUiState> = {
+type CreateGroceriesContextOptions = {
   useGroceriesQuery: () => GroceriesQueryResult;
   useGroceriesMutations: () => GroceriesMutationsResult;
-  useGroceriesCacheHelpers: () => GroceriesCacheHelpers;
   useGroceriesSubscription: () => void;
-  useGroceriesUiState: () => TUiState;
 };
 
-export function createGroceriesContext<TUiState>({
+export function createGroceriesContext({
   useGroceriesQuery,
   useGroceriesMutations,
-  useGroceriesCacheHelpers,
   useGroceriesSubscription,
-  useGroceriesUiState,
-}: CreateGroceriesContextOptions<TUiState>) {
-  const GroceriesDataContext = createContext<GroceriesDataContextValue | null>(null);
-  const GroceriesUiContext = createContext<TUiState | null>(null);
+}: CreateGroceriesContextOptions) {
+  const GroceriesContext = createContext<GroceriesContextValue | null>(null);
 
   function GroceriesProvider({ children }: { children: ReactNode }) {
-    const query = useGroceriesQuery();
-    const mutations = useGroceriesMutations();
-    const cache = useGroceriesCacheHelpers();
-    const ui = useGroceriesUiState();
+    const { groceries, recurringGroceries, recipeMap, isLoading, getRecipeNameForGrocery } =
+      useGroceriesQuery();
+    const groceryMutations = useGroceriesMutations();
 
+    // Subscribe to WebSocket events (updates query cache via internal cache helpers)
     useGroceriesSubscription();
 
-    const dataValue = useMemo<GroceriesDataContextValue>(
-      () => ({ query, mutations, cache }),
-      [cache, mutations, query]
+    // Computed: done groceries (non-recurring checked items)
+    const doneGroceries = useMemo(
+      () => groceries.filter((g) => g.isDone && !g.recurringGroceryId),
+      [groceries]
     );
 
-    return createElement(
-      GroceriesDataContext.Provider,
-      { value: dataValue },
-      createElement(GroceriesUiContext.Provider, { value: ui }, children)
+    // Computed: pending groceries (unchecked + checked recurring sorted by nextPlannedFor)
+    const pendingGroceries = useMemo(() => {
+      const unchecked = groceries.filter((g) => !g.isDone);
+      const checkedRecurring = groceries.filter((g) => g.isDone && g.recurringGroceryId);
+
+      // Sort checked recurring by nextPlannedFor date
+      const sortedChecked = [...checkedRecurring].sort((a, b) => {
+        const recurringA = recurringGroceries.find((r) => r.id === a.recurringGroceryId);
+        const recurringB = recurringGroceries.find((r) => r.id === b.recurringGroceryId);
+
+        if (!recurringA || !recurringB) return 0;
+
+        return recurringA.nextPlannedFor.localeCompare(recurringB.nextPlannedFor);
+      });
+
+      return [...unchecked, ...sortedChecked];
+    }, [groceries, recurringGroceries]);
+
+    const value = useMemo<GroceriesContextValue>(
+      () => ({
+        groceries,
+        recurringGroceries,
+        doneGroceries,
+        pendingGroceries,
+        isLoading,
+        recipeMap,
+        getRecipeNameForGrocery,
+        ...groceryMutations,
+      }),
+      [
+        groceries,
+        recurringGroceries,
+        doneGroceries,
+        pendingGroceries,
+        isLoading,
+        recipeMap,
+        getRecipeNameForGrocery,
+        groceryMutations,
+      ]
     );
+
+    return createElement(GroceriesContext.Provider, { value }, children);
   }
 
-  function useGroceriesDataContext() {
-    const context = useContext(GroceriesDataContext);
+  function useGroceriesContext() {
+    const ctx = useContext(GroceriesContext);
 
-    if (!context) {
-      throw new Error("useGroceriesDataContext must be used within GroceriesProvider");
-    }
+    if (!ctx) throw new Error("useGroceriesContext must be used within GroceriesProvider");
 
-    return context;
-  }
-
-  function useGroceriesUiContext() {
-    const context = useContext(GroceriesUiContext);
-
-    if (!context) {
-      throw new Error("useGroceriesUiContext must be used within GroceriesProvider");
-    }
-
-    return context;
+    return ctx;
   }
 
   return {
     GroceriesProvider,
-    useGroceriesDataContext,
-    useGroceriesUiContext,
+    useGroceriesContext,
   };
 }

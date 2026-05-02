@@ -38,5 +38,4 @@ export const sharedGroceriesHooks = createGroceriesHooks({
 
 export const useGroceriesQuery = sharedGroceriesHooks.useGroceriesQuery;
 export const useGroceriesMutations = sharedGroceriesHooks.useGroceriesMutations;
-export const useGroceriesCacheHelpers = sharedGroceriesHooks.useGroceriesCacheHelpers;
 export const useGroceriesSubscription = sharedGroceriesHooks.useGroceriesSubscription;

@@ -1,1 +1,1 @@
-export { createGroceriesContext, type GroceriesDataContextValue } from "./groceries-context";
+export { createGroceriesContext, type GroceriesContextValue } from "./groceries-context";

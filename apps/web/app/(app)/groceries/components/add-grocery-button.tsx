@@ -6,7 +6,7 @@ import { Button } from "@heroui/react";
 import { motion } from "motion/react";
 import { useTranslations } from "next-intl";
 
-import { useGroceriesUIContext } from "../context";
+import { useGroceriesUiContext } from "../context";
 
 /**
  * Mobile floating add button that repositions based on nav visibility.
@@ -16,7 +16,7 @@ import { useGroceriesUIContext } from "../context";
  * The panel itself is rendered in groceries-page.tsx (single instance).
  */
 export default function AddGroceryButton() {
-  const { addGroceryPanelOpen, setAddGroceryPanelOpen } = useGroceriesUIContext();
+  const { addGroceryPanelOpen, setAddGroceryPanelOpen } = useGroceriesUiContext();
   const { isVisible, show } = useAutoHide({ disabled: addGroceryPanelOpen });
   const t = useTranslations("groceries.page");
 

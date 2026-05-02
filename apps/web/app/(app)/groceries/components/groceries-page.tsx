@@ -25,7 +25,7 @@ import { useTranslations } from "next-intl";
 import type { GroceryDto } from "@norish/shared/contracts";
 import type { RecurrencePattern } from "@norish/shared/contracts/recurrence";
 
-import { useGroceriesContext, useGroceriesUIContext } from "../context";
+import { useGroceriesContext, useGroceriesUiContext } from "../context";
 import { useStoresContext } from "../stores-context";
 import AddGroceryButton from "./add-grocery-button";
 
@@ -61,7 +61,7 @@ export function GroceriesPage() {
     setViewMode,
     groupSimilarIngredients,
     setGroupSimilarIngredients,
-  } = useGroceriesUIContext();
+  } = useGroceriesUiContext();
 
   const t = useTranslations("groceries.page");
 

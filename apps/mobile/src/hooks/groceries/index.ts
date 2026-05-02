@@ -1,6 +1,5 @@
 export {
   sharedGroceriesHooks,
-  useGroceriesCacheHelpers,
   useGroceriesMutations,
   useGroceriesQuery,
   useGroceriesSubscription,
