@@ -188,7 +188,7 @@ function buildEmailAndPasswordConfig() {
   };
 }
 
-function createAuth() {
+function createBetterAuth() {
   const emailAndPasswordConfig = buildEmailAndPasswordConfig();
 
   // Create base drizzle adapter factory
@@ -464,8 +464,14 @@ function createAuth() {
   });
 }
 
-// Type for the auth instance including plugins
-type AuthInstance = ReturnType<typeof createAuth>;
+// Type for the auth instance including plugin API methods used by this package.
+type AuthInstance = ReturnType<typeof betterAuth> & {
+  api: ReturnType<typeof betterAuth>["api"] & ApiKeyAuthService;
+};
+
+function createAuth(): AuthInstance {
+  return createBetterAuth() as AuthInstance;
+}
 
 // Lazy-initialized auth instance
 let _auth: AuthInstance | null = null;

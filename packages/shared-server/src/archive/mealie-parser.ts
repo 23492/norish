@@ -255,7 +255,7 @@ export async function parseMealieDatabase(databaseJson: string): Promise<MealieD
       recipe_nutrition: data.recipe_nutrition || [],
     };
   } catch (e: any) {
-    throw new Error(`Failed to parse database.json: ${e?.message || e}`);
+    throw new Error(`Failed to parse database.json: ${e?.message || e}`, { cause: e });
   }
 }
 

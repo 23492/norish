@@ -307,7 +307,7 @@ export async function extractTandoorRecipes(
         fileName: zipFile.name,
       });
     } catch (e: any) {
-      throw new Error(`Failed to parse ${zipFile.name}: ${e?.message || e}`);
+      throw new Error(`Failed to parse ${zipFile.name}: ${e?.message || e}`, { cause: e });
     }
   }
 

@@ -290,7 +290,7 @@ function normalizeForComparison(value: unknown): string {
 function getStoredConfigValue(
   config: typeof serverConfig.$inferSelect,
   includeSecrets: boolean,
-  key: ServerConfigKey
+  key: string
 ): { value: unknown } | null {
   if (config.isSensitive && config.valueEnc) {
     if (includeSecrets) {

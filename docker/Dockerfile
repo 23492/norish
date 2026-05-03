@@ -16,9 +16,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ##############################
 FROM base AS builder-base
 
-RUN npm install -g pnpm@10.30.1
+RUN npm install -g pnpm@10.33.2
 
-COPY --from=ghcr.io/astral-sh/uv:0.11.4 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.11.8 /uv /uvx /bin/
 
 ENV UV_LINK_MODE=copy \
   UV_PYTHON_DOWNLOADS=0 \
