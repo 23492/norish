@@ -50,6 +50,11 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
+      - name: Read package versions
+        id: versions
+        run: |
+          echo "report=$(node tooling/monorepo/scripts/print-package-versions.mjs)" >> "$GITHUB_OUTPUT"
+
       - name: Build Docker images (multi-arch)
         uses: docker/build-push-action@v6
         with:
@@ -57,6 +62,8 @@ jobs:
           file: ./docker/Dockerfile
           push: ${{ inputs.push }}
           platforms: linux/amd64,linux/arm64
+          build-args: |
+            NORISH_VERSION_REPORT_JSON=${{ steps.versions.outputs.report }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           tags: ${{ inputs.image-tags }}

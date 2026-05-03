@@ -197,6 +197,12 @@ ENV NODE_ENV=production \
   PORT=3000 \
   HOST="0.0.0.0"
 
+ARG NORISH_VERSION_REPORT_JSON
+
+RUN test -n "${NORISH_VERSION_REPORT_JSON}"
+
+ENV NORISH_VERSION_REPORT_JSON=${NORISH_VERSION_REPORT_JSON}
+
 # Use non-root user for runtime.
 # node:22-alpine already has user 'node' with UID/GID 1000.
 # For custom UID/GID, create a new user; otherwise reuse 'node'.
@@ -212,12 +218,8 @@ RUN if [ "${UID}" != "1000" ] || [ "${GID}" != "1000" ]; then \
 # We run our own bundled server from dist-server, so we only need the built
 # `.next` output plus the small config files Next reads at startup.
 COPY --from=build --chown=${UID}:${GID} /app/apps/web/.next/standalone/apps/web/.next/ ./apps/web/.next/
-COPY --from=build --chown=${UID}:${GID} /app/apps/web/package.json ./apps/web/package.json
-COPY --from=build --chown=${UID}:${GID} /app/apps/mobile/package.json ./apps/mobile/package.json
 COPY --from=build --chown=${UID}:${GID} /app/apps/web/next.config.js ./apps/web/next.config.js
 COPY --from=build --chown=${UID}:${GID} /app/apps/web/config/next-intl-request-config-path.js ./apps/web/config/next-intl-request-config-path.js
-# Root package.json needed by next.config.js (reads version from ../../package.json)
-COPY --from=build --chown=${UID}:${GID} /app/package.json ./package.json
 
 # --- Production node_modules from pnpm deploy (complete runtime deps) ---
 COPY --from=build --chown=${UID}:${GID} /app/deploy/node_modules/ ./node_modules/
