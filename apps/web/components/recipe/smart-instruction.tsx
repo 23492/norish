@@ -2,12 +2,12 @@
 
 import React, { useMemo } from "react";
 import Link from "next/link";
+import { TimerChip } from "@/components/recipe/timer-chip";
+import { useTimerKeywordsQuery, useTimersEnabledQuery } from "@/hooks/config";
 import ReactMarkdown from "react-markdown";
+
 import { createClientLogger } from "@norish/shared/lib/logger";
 import { parseTimerDurations } from "@norish/shared/lib/timer-parser";
-
-import { useTimerKeywordsQuery, useTimersEnabledQuery } from "@/hooks/config";
-import { TimerChip } from "@/components/recipe/timer-chip";
 
 const logger = createClientLogger("smart-instruction");
 
@@ -102,7 +102,7 @@ export function SmartInstruction({ text, recipeId, recipeName, stepIndex }: Smar
             if (href?.startsWith("/recipes/")) {
               return (
                 <Link
-                  className="text-foreground decoration-default-400 hover:decoration-default-600 font-medium underline underline-offset-2 transition-colors"
+                  className="text-foreground decoration-muted hover:decoration-foreground font-medium underline underline-offset-2 transition-colors"
                   href={href}
                   onClick={(e) => e.stopPropagation()}
                 >
@@ -113,7 +113,7 @@ export function SmartInstruction({ text, recipeId, recipeName, stepIndex }: Smar
 
             return (
               <a
-                className="text-foreground decoration-default-400 hover:decoration-default-600 underline underline-offset-2 transition-colors"
+                className="text-foreground decoration-muted hover:decoration-foreground underline underline-offset-2 transition-colors"
                 href={href}
                 rel="noopener noreferrer"
                 target="_blank"

@@ -12,7 +12,6 @@ function formatServings(n: number): string {
   // Remove trailing zeros (e.g., 2.50 -> 2.5)
   return n.toFixed(2).replace(/\.?0+$/, "");
 }
-
 export default function ServingsControl() {
   const { recipe, setIngredientAmounts } = useRecipeContextRequired();
   const [servings, setServings] = React.useState<number>(Math.max(0.125, recipe.servings ?? 1));
@@ -21,7 +20,6 @@ export default function ServingsControl() {
   useEffect(() => {
     setServings(Math.max(0.125, recipe.servings ?? 1));
   }, [recipe.servings]);
-
   const adjust = useCallback(
     (servingsValue: number) => {
       setIngredientAmounts(servingsValue);
@@ -33,7 +31,6 @@ export default function ServingsControl() {
   useEffect(() => {
     adjust(servings);
   }, [servings, adjust]);
-
   const dec = () => {
     setServings((s) => {
       // If at or below 1, halve it (1 -> 0.5 -> 0.25 -> 0.125)
@@ -45,7 +42,6 @@ export default function ServingsControl() {
       return s - 1;
     });
   };
-
   const inc = () => {
     setServings((s) => {
       // If below 1, double it (0.125 -> 0.25 -> 0.5 -> 1)
@@ -55,16 +51,15 @@ export default function ServingsControl() {
       return s + 1;
     });
   };
-
   return (
     <div className="inline-flex items-center gap-2">
       <Button
         isIconOnly
         aria-label="Decrease servings"
-        className="bg-content2"
+        className="bg-surface-secondary"
         size="sm"
-        variant="flat"
         onPress={dec}
+        variant="tertiary"
       >
         <MinusIcon className="h-4 w-4" />
       </Button>
@@ -72,10 +67,10 @@ export default function ServingsControl() {
       <Button
         isIconOnly
         aria-label="Increase servings"
-        className="bg-content2"
+        className="bg-surface-secondary"
         size="sm"
-        variant="flat"
         onPress={inc}
+        variant="tertiary"
       >
         <PlusIcon className="h-4 w-4" />
       </Button>

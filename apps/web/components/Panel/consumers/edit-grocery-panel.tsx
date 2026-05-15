@@ -1,19 +1,18 @@
 "use client";
 
-import type { GroceryDto, RecurringGroceryDto, StoreDto } from "@norish/shared/contracts";
-import type { RecurrencePattern } from "@norish/shared/contracts/recurrence";
-
 import { useEffect, useState } from "react";
-import { Button, Input } from "@heroui/react";
-import { AnimatePresence } from "motion/react";
-import { useTranslations } from "next-intl";
-import { useGroceryFormState } from "@norish/shared-react/hooks";
-
 import { RecurrenceSuggestion } from "@/app/(app)/groceries/components/recurrence-suggestion";
 import { StoreSelector } from "@/components/groceries/store-selector";
 import { RecurrencePanel } from "@/components/Panel/consumers/recurrence-panel";
 import Panel, { PANEL_HEIGHT_COMPACT } from "@/components/Panel/Panel";
 import { useRecurrenceDetection } from "@/hooks/use-recurrence-detection";
+import { Button, Input } from "@heroui/react";
+import { AnimatePresence } from "motion/react";
+import { useTranslations } from "next-intl";
+
+import type { GroceryDto, RecurringGroceryDto, StoreDto } from "@norish/shared/contracts";
+import type { RecurrencePattern } from "@norish/shared/contracts/recurrence";
+import { useGroceryFormState } from "@norish/shared-react/hooks";
 
 type EditGroceryPanelProps = {
   open: boolean;
@@ -25,7 +24,6 @@ type EditGroceryPanelProps = {
   onAssignToStore: (storeId: string | null, savePreference?: boolean) => void;
   onDelete: () => void;
 };
-
 export default function EditGroceryPanel({
   open,
   onOpenChange,
@@ -41,7 +39,6 @@ export default function EditGroceryPanel({
   const [recurrencePanelOpen, setRecurrencePanelOpen] = useState(false);
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
   const [hasStoreChanged, setHasStoreChanged] = useState(false);
-
   const {
     itemName,
     setItemName,
@@ -51,7 +48,6 @@ export default function EditGroceryPanel({
     handleRemovePattern,
     reset,
   } = useGroceryFormState();
-
   const { detectedPattern } = useRecurrenceDetection({
     itemName,
     enabled: open && !recurrencePanelOpen,
@@ -61,11 +57,9 @@ export default function EditGroceryPanel({
   useEffect(() => {
     if (open) {
       const text = [grocery.amount, grocery.unit, grocery.name].filter(Boolean).join(" ");
-
       setItemName(text);
       setSelectedStoreId(grocery.storeId ?? null);
       setHasStoreChanged(false);
-
       if (recurringGrocery) {
         setConfirmedPattern({
           rule: recurringGrocery.recurrenceRule as "day" | "week" | "month",
@@ -79,32 +73,25 @@ export default function EditGroceryPanel({
       reset();
     }
   }, [open, grocery, recurringGrocery, setItemName, setConfirmedPattern, reset]);
-
   const handleStoreChange = (storeId: string | null) => {
     setSelectedStoreId(storeId);
     setHasStoreChanged(storeId !== (grocery.storeId ?? null));
   };
-
   const handleSubmit = () => {
     const trimmed = itemName.trim();
-
     if (!trimmed) return;
-
     onSave(trimmed, confirmedPattern);
 
     // If store changed, save that too (with preference)
     if (hasStoreChanged) {
       onAssignToStore(selectedStoreId, true);
     }
-
     onOpenChange(false);
   };
-
   const handleRecurrenceSave = (pattern: RecurrencePattern | null) => {
     setConfirmedPattern(pattern);
     setRecurrencePanelOpen(false);
   };
-
   return (
     <>
       <Panel
@@ -123,21 +110,19 @@ export default function EditGroceryPanel({
           >
             <div className="space-y-3">
               <Input
-                classNames={{
-                  input: "text-lg font-medium",
-                  inputWrapper: "border-primary-200 dark:border-primary-800",
-                }}
+                className="border-accent-200 dark:border-accent h-12 rounded-2xl text-lg font-medium"
                 placeholder={t("editPlaceholder")}
-                size="lg"
-                style={{ fontSize: "16px" }}
+                style={{
+                  fontSize: "16px",
+                }}
                 value={itemName}
+                onChange={(e) => setItemName(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
                     handleSubmit();
                   }
                 }}
-                onValueChange={setItemName}
               />
 
               {/* Store selection */}
@@ -180,10 +165,10 @@ export default function EditGroceryPanel({
               {/* Link to manual recurrence editor */}
               {!confirmedPattern && !detectedPattern && (
                 <Button
-                  className="-mt-1 font-medium"
+                  className="-mt-1 min-w-16 font-medium"
                   size="sm"
-                  variant="light"
                   onPress={() => setRecurrencePanelOpen(true)}
+                  variant="tertiary"
                 >
                   {t("addRepeat")}
                 </Button>
@@ -191,21 +176,15 @@ export default function EditGroceryPanel({
             </div>
 
             <div className="flex justify-end gap-2">
-              <Button
-                className="min-w-16"
-                color="danger"
-                size="sm"
-                variant="flat"
-                onPress={onDelete}
-              >
+              <Button className="min-w-16" size="sm" onPress={onDelete} variant="danger-soft">
                 {tActions("delete")}
               </Button>
               <Button
                 className="min-w-16"
-                color="primary"
                 isDisabled={!itemName.trim()}
                 size="sm"
                 onPress={handleSubmit}
+                variant="primary"
               >
                 {tActions("save")}
               </Button>

@@ -1,10 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Listbox, ListboxItem, Spinner, Textarea, User } from "@heroui/react";
-import { useTranslations } from "next-intl";
-
 import { useRecipeAutocomplete } from "@/hooks/recipes";
+import { Avatar, ListBox, Spinner, TextArea } from "@heroui/react";
+import { useTranslations } from "next-intl";
 
 interface SmartTextInputProps {
   value: string;
@@ -122,13 +121,9 @@ export default function SmartTextInput({
 
   return (
     <div ref={containerRef} className="relative w-full">
-      <Textarea
+      <TextArea
         ref={textareaRef}
-        classNames={{
-          base: "w-full",
-          input: "text-base",
-          inputWrapper: "border-default-200 dark:border-default-800",
-        }}
+        className="border-border dark:border-border-tertiary w-full text-base"
         minRows={minRows}
         placeholder={placeholder}
         value={value}
@@ -139,7 +134,7 @@ export default function SmartTextInput({
 
       {showAutocomplete && (
         <div
-          className={`bg-content1 absolute right-0 left-0 z-50 max-h-64 overflow-auto rounded-xl shadow-lg ${
+          className={`bg-surface absolute right-0 left-0 z-50 max-h-64 overflow-auto rounded-xl shadow-lg ${
             openAbove ? "bottom-full mb-1" : "top-full mt-1"
           }`}
         >
@@ -148,10 +143,9 @@ export default function SmartTextInput({
               <Spinner size="sm" />
             </div>
           ) : suggestions.length > 0 ? (
-            <Listbox
+            <ListBox
               aria-label="Recipe suggestions"
               items={suggestions}
-              variant="flat"
               onAction={(key) => {
                 const recipe = suggestions.find((r) => r.id === key);
 
@@ -159,21 +153,21 @@ export default function SmartTextInput({
               }}
             >
               {(recipe) => (
-                <ListboxItem key={recipe.id} textValue={recipe.name}>
-                  <User
-                    avatarProps={{
-                      src: recipe.image || undefined,
-                      size: "sm",
-                      radius: "md",
-                      fallback: <span className="text-default-400 text-xs">🍽</span>,
-                    }}
-                    name={recipe.name}
-                  />
-                </ListboxItem>
+                <ListBox.Item key={recipe.id} id={recipe.id} textValue={recipe.name}>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <Avatar className="size-8 rounded-md">
+                      {recipe.image ? (
+                        <Avatar.Image alt="" className="object-cover" src={recipe.image} />
+                      ) : null}
+                      <Avatar.Fallback className="text-muted text-xs">R</Avatar.Fallback>
+                    </Avatar>
+                    <span className="truncate text-sm font-medium">{recipe.name}</span>
+                  </div>
+                </ListBox.Item>
               )}
-            </Listbox>
+            </ListBox>
           ) : autocompleteQuery.length >= 1 ? (
-            <div className="text-default-500 px-4 py-3 text-sm">{t("noResults")}</div>
+            <div className="text-muted px-4 py-3 text-sm">{t("noResults")}</div>
           ) : null}
         </div>
       )}

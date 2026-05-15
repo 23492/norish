@@ -2,14 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import NextImage from "next/image";
+import { FallbackPlaceholder, useImageErrors } from "@/components/shared/fallback-image";
+import ImageLightbox from "@/components/shared/image-lightbox";
+import VideoPlayer from "@/components/shared/video-player";
 import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/16/solid";
 import { Button } from "@heroui/react";
 import { AnimatePresence, motion } from "motion/react";
 import { useTranslations } from "next-intl";
-
-import VideoPlayer from "@/components/shared/video-player";
-import ImageLightbox from "@/components/shared/image-lightbox";
-import { FallbackPlaceholder, useImageErrors } from "@/components/shared/fallback-image";
 
 export interface MediaItem {
   type: "image" | "video";
@@ -29,7 +28,11 @@ interface RecipeMedia {
     duration?: number | null;
     order: number;
   }>;
-  images?: Array<{ id?: string; image: string; order?: number }>;
+  images?: Array<{
+    id?: string;
+    image: string;
+    order?: number;
+  }>;
   image?: string | null;
 }
 
@@ -68,12 +71,14 @@ export function buildMediaItems(recipe: RecipeMedia): MediaItem[] {
 
   // Fallback to legacy recipe.image if no images array
   if ((!recipe.images || recipe.images.length === 0) && recipe.image) {
-    items.push({ type: "image" as const, src: recipe.image, order: 999 });
+    items.push({
+      type: "image" as const,
+      src: recipe.image,
+      order: 999,
+    });
   }
-
   return items;
 }
-
 export interface MediaCarouselProps {
   items: MediaItem[];
   onImageClick?: (index: number) => void;
@@ -83,7 +88,6 @@ export interface MediaCarouselProps {
   aspectRatio?: "video" | "square" | "4/3";
   rounded?: boolean;
 }
-
 export default function MediaCarousel({
   items,
   onImageClick,
@@ -110,7 +114,6 @@ export default function MediaCarousel({
     return [...items].sort((a, b) => {
       if (a.order !== b.order) return a.order - b.order;
       if (a.type !== b.type) return a.type === "video" ? -1 : 1;
-
       return 0;
     });
   }, [items]);
@@ -124,40 +127,33 @@ export default function MediaCarousel({
         alt: `Recipe media ${item.id || ""}`,
       }));
   }, [sortedItems]);
-
   const clearPendingLightboxOpen = useCallback(() => {
     if (lightboxOpenTimeoutRef.current) {
       clearTimeout(lightboxOpenTimeoutRef.current);
       lightboxOpenTimeoutRef.current = null;
     }
   }, []);
-
   useEffect(() => {
     return () => {
       clearPendingLightboxOpen();
     };
   }, [clearPendingLightboxOpen]);
-
   useEffect(() => {
     if (!sortedItems.length) return;
     const safeIndex = Math.min(currentIndex, sortedItems.length - 1);
     const activeItem = sortedItems[safeIndex];
-
     if (!activeItem) return;
     onActiveItemChange?.(activeItem, safeIndex);
   }, [currentIndex, onActiveItemChange, sortedItems]);
-
   useEffect(() => {
     if (!sortedItems.length) return;
     if (currentIndex <= sortedItems.length - 1) return;
     setCurrentIndex(sortedItems.length - 1);
   }, [currentIndex, sortedItems.length]);
-
   const handleNext = useCallback(() => {
     setDirection(1);
     setCurrentIndex((prev) => (prev + 1 === sortedItems.length ? 0 : prev + 1));
   }, [sortedItems.length]);
-
   const handlePrev = useCallback(() => {
     setDirection(-1);
     setCurrentIndex((prev) => (prev === 0 ? sortedItems.length - 1 : prev - 1));
@@ -168,17 +164,14 @@ export default function MediaCarousel({
     setTouchEnd(null);
     setTouchStart(e.targetTouches[0].clientX);
   };
-
   const handleTouchMove = (e: React.TouchEvent) => {
     setTouchEnd(e.targetTouches[0].clientX);
   };
-
   const handleTouchEnd = () => {
     if (!touchStart || !touchEnd) return;
     const distance = touchStart - touchEnd;
     const isLeftSwipe = distance > 50;
     const isRightSwipe = distance < -50;
-
     if (isLeftSwipe) {
       handleNext();
     }
@@ -186,11 +179,9 @@ export default function MediaCarousel({
       handlePrev();
     }
   };
-
   const openLightboxForItem = useCallback(
     (item: MediaItem, itemIndex: number) => {
       const imgIndex = lightboxImages.findIndex((img) => img.src === item.src);
-
       if (imgIndex !== -1) {
         setLightboxIndex(imgIndex);
         setLightboxOpen(true);
@@ -199,33 +190,26 @@ export default function MediaCarousel({
     },
     [lightboxImages, onImageClick]
   );
-
   const handleItemClick = (item: MediaItem, itemIndex: number, clickDetail: number) => {
     if (item.type !== "image") {
       return;
     }
-
     if (clickDetail > 1 || lightboxOpenTimeoutRef.current) {
       clearPendingLightboxOpen();
-
       return;
     }
-
     clearPendingLightboxOpen();
     lightboxOpenTimeoutRef.current = setTimeout(() => {
       openLightboxForItem(item, itemIndex);
       lightboxOpenTimeoutRef.current = null;
     }, 250);
   };
-
   const aspectRatioClass = {
     video: "aspect-video",
     square: "aspect-square",
     "4/3": "aspect-[4/3]",
   }[aspectRatio];
-
   const roundedClass = rounded ? "rounded-2xl" : "";
-
   const slideVariants = {
     enter: (dir: number) => ({
       x: dir !== 0 ? (dir > 0 ? "100%" : "-100%") : 0,
@@ -245,9 +229,9 @@ export default function MediaCarousel({
   if (!sortedItems || sortedItems.length === 0) {
     return (
       <div
-        className={`bg-default-200 relative w-full overflow-hidden ${roundedClass} ${aspectRatioClass} ${className} flex items-center justify-center`}
+        className={`bg-surface-tertiary relative w-full overflow-hidden ${roundedClass} ${aspectRatioClass} ${className} flex items-center justify-center`}
       >
-        <span className="text-default-500 font-medium">{t("noMediaAvailable")}</span>
+        <span className="text-muted font-medium">{t("noMediaAvailable")}</span>
       </div>
     );
   }
@@ -255,7 +239,6 @@ export default function MediaCarousel({
   // Case 1: Single item (no carousel controls)
   if (sortedItems.length === 1) {
     const item = sortedItems[0];
-
     return (
       <>
         <div
@@ -309,7 +292,7 @@ export default function MediaCarousel({
   return (
     <>
       <div
-        className={`bg-default-200 relative w-full overflow-hidden ${roundedClass} ${aspectRatioClass} ${className} group touch-pan-y`}
+        className={`bg-surface-tertiary relative w-full overflow-hidden ${roundedClass} ${aspectRatioClass} ${className} group touch-pan-y`}
         onTouchEnd={handleTouchEnd}
         onTouchMove={handleTouchMove}
         onTouchStart={handleTouchStart}
@@ -323,8 +306,14 @@ export default function MediaCarousel({
             exit="exit"
             initial="enter"
             transition={{
-              x: { type: "spring", stiffness: 300, damping: 30 },
-              opacity: { duration: 0.2 },
+              x: {
+                type: "spring",
+                stiffness: 300,
+                damping: 30,
+              },
+              opacity: {
+                duration: 0.2,
+              },
             }}
             variants={slideVariants}
           >
@@ -368,8 +357,7 @@ export default function MediaCarousel({
         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-between px-2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 sm:px-4">
           <Button
             isIconOnly
-            className="pointer-events-auto bg-black/30 text-white backdrop-blur-sm hover:bg-black/50"
-            radius="full"
+            className="pointer-events-auto rounded-full bg-black/30 text-white backdrop-blur-sm hover:bg-black/50"
             size="sm"
             onPress={handlePrev}
           >
@@ -377,8 +365,7 @@ export default function MediaCarousel({
           </Button>
           <Button
             isIconOnly
-            className="pointer-events-auto bg-black/30 text-white backdrop-blur-sm hover:bg-black/50"
-            radius="full"
+            className="pointer-events-auto rounded-full bg-black/30 text-white backdrop-blur-sm hover:bg-black/50"
             size="sm"
             onPress={handleNext}
           >
@@ -392,9 +379,7 @@ export default function MediaCarousel({
             <button
               key={`${item.id || idx}`}
               aria-label={`Go to slide ${idx + 1}`}
-              className={`h-2 rounded-full transition-all ${
-                idx === currentIndex ? "w-4 bg-white" : "w-2 bg-white/50 hover:bg-white/80"
-              }`}
+              className={`h-2 rounded-full transition-all ${idx === currentIndex ? "w-4 bg-white" : "w-2 bg-white/50 hover:bg-white/80"}`}
               onClick={(e) => {
                 e.stopPropagation();
                 setDirection(idx > currentIndex ? 1 : -1);

@@ -27,7 +27,13 @@ vi.mock("next-intl", () => ({
 
 vi.mock("motion/react", () => ({
   motion: {
-    span: ({ children, ...props }: any) => <span {...props}>{children}</span>,
+    span: ({
+      animate: _animate,
+      children,
+      initial: _initial,
+      transition: _transition,
+      ...props
+    }: any) => <span {...props}>{children}</span>,
   },
 }));
 
@@ -96,8 +102,8 @@ describe("FiltersPanel", () => {
 
     expect(() => render(<FiltersPanel open onOpenChange={vi.fn()} />)).not.toThrow();
 
-    expect(screen.getByText("sortByDate")).toHaveAttribute("color", "default");
-    expect(screen.getByText("sortByTitle")).toHaveAttribute("color", "default");
+    expect(screen.getByText("sortByDate")).toHaveAttribute("variant", "tertiary");
+    expect(screen.getByText("sortByTitle")).toHaveAttribute("variant", "tertiary");
 
     filtersState.sortMode = "dateDesc";
   });

@@ -111,7 +111,7 @@ vi.mock("@trpc/tanstack-react-query", () => ({
 
 // Mock HeroUI toast
 vi.mock("@heroui/react", () => ({
-  addToast: vi.fn(),
+  toast: vi.fn(),
 }));
 
 vi.mock("next-intl", () => ({
@@ -265,7 +265,7 @@ describe("useHouseholdSubscription", () => {
 
       const { useHouseholdSubscription } =
         await import("@/hooks/households/use-household-subscription");
-      const { addToast } = await import("@heroui/react");
+      const { toast } = await import("@heroui/react");
 
       renderHook(() => useHouseholdSubscription(), {
         wrapper: createTestWrapper(queryClient),
@@ -279,11 +279,11 @@ describe("useHouseholdSubscription", () => {
         });
       });
 
-      expect(addToast).toHaveBeenCalledWith(
+      expect(toast).toHaveBeenCalledWith(
+        "operationFailed",
         expect.objectContaining({
-          title: "operationFailed",
           description: "technicalDetails",
-          color: "danger",
+          variant: "danger",
         })
       );
     });

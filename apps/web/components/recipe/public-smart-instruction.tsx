@@ -9,12 +9,12 @@
  * the same visual output.
  */
 import React, { useMemo } from "react";
+import { TimerChip } from "@/components/recipe/timer-chip";
+import { useSharePublicConfigQuery } from "@/hooks/recipes/use-share-public-config-query";
 import ReactMarkdown from "react-markdown";
+
 import { createClientLogger } from "@norish/shared/lib/logger";
 import { parseTimerDurations } from "@norish/shared/lib/timer-parser";
-
-import { useSharePublicConfigQuery } from "@/hooks/recipes/use-share-public-config-query";
-import { TimerChip } from "@/components/recipe/timer-chip";
 
 const logger = createClientLogger("public-smart-instruction");
 
@@ -113,7 +113,7 @@ export function PublicSmartInstruction({
             // On share pages, all links open externally
             return (
               <a
-                className="text-foreground decoration-default-400 hover:decoration-default-600 underline underline-offset-2 transition-colors"
+                className="text-foreground decoration-muted hover:decoration-foreground underline underline-offset-2 transition-colors"
                 href={href}
                 rel="noopener noreferrer"
                 target="_blank"

@@ -1,14 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import SmartTextInput from "@/components/shared/smart-text-input";
+import { useRecipeImages } from "@/hooks/recipes";
 import { Bars3Icon, PhotoIcon, XMarkIcon } from "@heroicons/react/16/solid";
-import { Button, Image } from "@heroui/react";
+import { Button } from "@heroui/react";
 import { Reorder, useDragControls } from "motion/react";
 import { useTranslations } from "next-intl";
-import { MeasurementSystem } from "@norish/shared/contracts";
 
-import { useRecipeImages } from "@/hooks/recipes";
-import SmartTextInput from "@/components/shared/smart-text-input";
+import { MeasurementSystem } from "@norish/shared/contracts";
 
 export interface StepImage {
   id?: string;
@@ -16,7 +16,6 @@ export interface StepImage {
   order: number;
   version?: number;
 }
-
 export interface Step {
   step: string;
   order: number;
@@ -24,7 +23,6 @@ export interface Step {
   version?: number;
   images?: StepImage[];
 }
-
 export interface StepInputProps {
   steps: Step[];
   onChange: (steps: Step[]) => void;
@@ -39,13 +37,15 @@ interface StepItem {
   images: StepImage[];
   version?: number;
 }
-
 let nextId = 0;
-
 function createStepItem(text: string, images: StepImage[] = [], version?: number): StepItem {
-  return { id: `step-${nextId++}`, text, images, version };
+  return {
+    id: `step-${nextId++}`,
+    text,
+    images,
+    version,
+  };
 }
-
 export default function StepInput({
   steps,
   onChange,
@@ -58,7 +58,6 @@ export default function StepInput({
   const fileInputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
   const dragConstraintsRef = useRef<HTMLUListElement>(null);
-
   const { uploadStepImage, deleteStepImage } = useRecipeImages();
 
   // Initialize from steps prop
@@ -76,7 +75,6 @@ export default function StepInput({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [steps.length]);
-
   const emitChanges = useCallback(
     (updatedItems: StepItem[]) => {
       const parsed = updatedItems
@@ -88,29 +86,27 @@ export default function StepInput({
           images: item.images,
         }))
         .filter((s) => s.step || s.images.length > 0);
-
       onChange(parsed);
     },
     [onChange, systemUsed]
   );
-
   const handleInputChange = useCallback(
     (index: number, value: string) => {
       const updated = [...items];
-
-      updated[index] = { ...updated[index], text: value };
+      updated[index] = {
+        ...updated[index],
+        text: value,
+      };
 
       // Auto-add empty line at the end
       if (index === items.length - 1 && value.trim()) {
         updated.push(createStepItem("", []));
       }
-
       setItems(updated);
       emitChanges(updated);
     },
     [items, emitChanges]
   );
-
   const handleKeyDown = useCallback(
     (index: number, e: React.KeyboardEvent) => {
       if (e.key === "Enter" && !e.shiftKey) {
@@ -119,7 +115,6 @@ export default function StepInput({
           textareaRefs.current[index + 1]?.focus();
         } else {
           const updated = [...items, createStepItem("", [])];
-
           setItems(updated);
           setTimeout(() => {
             textareaRefs.current[items.length]?.focus();
@@ -128,7 +123,6 @@ export default function StepInput({
       } else if (e.key === "Backspace" && !items[index].text && index > 0) {
         e.preventDefault();
         const updated = items.filter((_, i) => i !== index);
-
         setItems(updated);
         emitChanges(updated);
         setTimeout(() => {
@@ -138,7 +132,6 @@ export default function StepInput({
     },
     [items, emitChanges]
   );
-
   const handleBlur = useCallback(
     (index: number) => {
       // Auto-remove empty rows on blur (except the last one)
@@ -148,7 +141,6 @@ export default function StepInput({
         index < items.length - 1
       ) {
         const updated = items.filter((_, i) => i !== index);
-
         if (updated.length === 0) updated.push(createStepItem("", []));
         setItems(updated);
         emitChanges(updated);
@@ -156,44 +148,35 @@ export default function StepInput({
     },
     [items, emitChanges]
   );
-
   const handleRemove = useCallback(
     (index: number) => {
       // Delete all images for this step
       const stepImages = items[index].images;
-
       stepImages.forEach((img) => {
         deleteStepImage(img.image).catch((err) => {
           // eslint-disable-next-line no-console
           console.error("Failed to delete step image:", err);
         });
       });
-
       const updated = items.filter((_, i) => i !== index);
-
       if (updated.length === 0) updated.push(createStepItem("", []));
       setItems(updated);
       emitChanges(updated);
     },
     [items, emitChanges, deleteStepImage]
   );
-
   const handleImageUpload = useCallback(
     async (index: number, file: File) => {
       if (!recipeId) return;
-
       setUploadingIndex(index);
-
       try {
         const result = await uploadStepImage(file, recipeId);
-
         if (result.success && result.url) {
           const updated = [...items];
           const newImage: StepImage = {
             image: result.url,
             order: updated[index].images.length,
           };
-
           updated[index] = {
             ...updated[index],
             images: [...updated[index].images, newImage],
@@ -207,40 +190,36 @@ export default function StepInput({
     },
     [recipeId, items, emitChanges, uploadStepImage]
   );
-
   const handleRemoveImage = useCallback(
     (stepIndex: number, imageIndex: number) => {
       const imageUrl = items[stepIndex].images[imageIndex]?.image;
-
       if (imageUrl) {
         deleteStepImage(imageUrl).catch((err) => {
           // eslint-disable-next-line no-console
           console.error("Failed to delete step image:", err);
         });
       }
-
       const updated = [...items];
-
       updated[stepIndex] = {
         ...updated[stepIndex],
         images: updated[stepIndex].images
           .filter((_, i) => i !== imageIndex)
-          .map((img, i) => ({ ...img, order: i })),
+          .map((img, i) => ({
+            ...img,
+            order: i,
+          })),
       };
       setItems(updated);
       emitChanges(updated);
     },
     [items, emitChanges, deleteStepImage]
   );
-
   const handleFileSelect = (index: number) => {
     fileInputRefs.current[index]?.click();
   };
-
   const handleReorder = useCallback(
     (newOrder: StepItem[]) => {
       const normalized = normalizeStepItems(newOrder);
-
       setItems(normalized);
       emitChanges(normalized);
     },
@@ -250,15 +229,12 @@ export default function StepInput({
   // Track step numbers excluding headings
   const getStepNumber = (index: number): number | null => {
     let stepNum = 0;
-
     for (let i = 0; i <= index; i++) {
       if (!items[i].text.trim().startsWith("#")) stepNum++;
     }
     const isHeading = items[index].text.trim().startsWith("#");
-
     return isHeading ? null : stepNum;
   };
-
   return (
     <Reorder.Group
       ref={dragConstraintsRef}
@@ -278,8 +254,12 @@ export default function StepInput({
           recipeId={recipeId}
           showRemove={items.length > 1 && (!!item.text || item.images.length > 0)}
           stepNumber={getStepNumber(index)}
-          stepPlaceholder={t("stepPlaceholder", { number: index + 1 })}
-          stepPlaceholderShort={t("stepPlaceholderShort", { number: index + 1 })}
+          stepPlaceholder={t("stepPlaceholder", {
+            number: index + 1,
+          })}
+          stepPlaceholderShort={t("stepPlaceholderShort", {
+            number: index + 1,
+          })}
           uploadingIndex={uploadingIndex}
           onBlur={() => handleBlur(index)}
           onFileSelect={() => handleFileSelect(index)}
@@ -293,13 +273,11 @@ export default function StepInput({
     </Reorder.Group>
   );
 }
-
 function normalizeStepItems(next: StepItem[]): StepItem[] {
   const withoutTrailingEmpty = next.filter(
     (it) => it.text.trim().length > 0 || (it.images && it.images.length > 0)
   );
   const normalized = [...withoutTrailingEmpty, createStepItem("", [])];
-
   return normalized.length ? normalized : [createStepItem("", [])];
 }
 
@@ -324,7 +302,6 @@ interface StepRowProps {
   onRemoveImage: (imageIndex: number) => void;
   onFileSelect: () => void;
 }
-
 function StepRow({
   item,
   index,
@@ -348,7 +325,6 @@ function StepRow({
   const controls = useDragControls();
   const hasContent = !!item.text || item.images.length > 0;
   const canDrag = !isLast && hasContent;
-
   return (
     <Reorder.Item
       className="flex flex-col gap-2"
@@ -358,26 +334,26 @@ function StepRow({
       dragElastic={0}
       dragListener={false}
       dragMomentum={false}
-      style={{ position: "relative" }}
+      style={{
+        position: "relative",
+      }}
       value={item}
     >
       <div className="flex items-start gap-1 md:gap-2">
         {/* Drag handle - only show for non-empty, non-last items */}
         <div
-          className={`flex h-10 w-5 flex-shrink-0 touch-none items-center justify-center md:w-6 ${
-            !isLast && hasContent ? "cursor-grab active:cursor-grabbing" : ""
-          }`}
+          className={`flex h-10 w-5 flex-shrink-0 touch-none items-center justify-center md:w-6 ${!isLast && hasContent ? "cursor-grab active:cursor-grabbing" : ""}`}
           onPointerDown={(e) => {
             if (canDrag) {
               controls.start(e);
             }
           }}
         >
-          {canDrag ? <Bars3Icon className="text-default-400 h-4 w-4" /> : null}
+          {canDrag ? <Bars3Icon className="text-muted h-4 w-4" /> : null}
         </div>
 
         {/* Step number */}
-        <div className="text-default-500 flex h-10 w-5 flex-shrink-0 items-center justify-center text-sm font-medium md:w-6 md:text-base">
+        <div className="text-muted flex h-10 w-5 flex-shrink-0 items-center justify-center text-sm font-medium md:w-6 md:text-base">
           {stepNumber !== null ? `${stepNumber}.` : ""}
         </div>
 
@@ -396,8 +372,8 @@ function StepRow({
             <div className="flex flex-wrap gap-2">
               {item.images.map((img, imgIndex) => (
                 <div key={imgIndex} className="relative h-18 w-18 md:h-20 md:w-20">
-                  <Image
-                    alt={`Step ${index + 1} image ${imgIndex + 1}`}
+                  <img
+                    alt={`Step ${index + 1}, attachment ${imgIndex + 1}`}
                     className="h-14 w-14 rounded-lg object-cover md:h-16 md:w-16"
                     src={img.image}
                   />
@@ -428,7 +404,6 @@ function StepRow({
                 type="file"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
-
                   if (file) {
                     onImageUpload(file);
                     e.target.value = "";
@@ -437,10 +412,10 @@ function StepRow({
               />
               <Button
                 isIconOnly
-                isLoading={uploadingIndex === index}
                 size="sm"
-                variant="light"
                 onPress={onFileSelect}
+                variant="tertiary"
+                isPending={uploadingIndex === index}
               >
                 <PhotoIcon className="h-4 w-4" />
               </Button>
@@ -449,7 +424,7 @@ function StepRow({
 
           {/* Remove button */}
           {showRemove && (
-            <Button isIconOnly size="sm" variant="light" onPress={onRemove}>
+            <Button isIconOnly size="sm" onPress={onRemove} variant="tertiary">
               <XMarkIcon className="h-4 w-4" />
             </Button>
           )}

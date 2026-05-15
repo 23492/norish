@@ -1,10 +1,10 @@
 "use client";
 
+import { useRecipesFiltersContext } from "@/context/recipes-filters-context";
 import { Chip } from "@heroui/react";
 import { useTranslations } from "next-intl";
-import { SEARCH_FIELDS } from "@norish/shared/contracts";
 
-import { useRecipesFiltersContext } from "@/context/recipes-filters-context";
+import { SEARCH_FIELDS } from "@norish/shared/contracts";
 
 interface SearchFieldTogglesProps {
   className?: string;
@@ -40,9 +40,9 @@ export default function SearchFieldToggles({
           <Chip
             key={field}
             className={`shrink-0 cursor-pointer select-none ${itemClassName}`}
-            color={isSelected ? "primary" : "default"}
+            color={isSelected ? "accent" : "default"}
             size="sm"
-            variant="solid"
+            variant={isSelected ? "primary" : "tertiary"}
             onClick={() => handleClick(field)}
           >
             {t(`searchFields.${field}`)}

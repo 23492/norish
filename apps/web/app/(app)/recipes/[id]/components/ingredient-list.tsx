@@ -1,18 +1,17 @@
 "use client";
 
-import type { UnitsMap } from "@norish/config/zod/server-config";
-
 import { useState } from "react";
+import SmartMarkdownRenderer from "@/components/shared/smart-markdown-renderer";
+import { useAmountDisplayPreference } from "@/hooks/use-amount-display-preference";
+import { useUnitFormatter } from "@/hooks/use-unit-formatter";
 import { CheckIcon } from "@heroicons/react/20/solid";
 import { useLocale } from "next-intl";
+
+import type { UnitsMap } from "@norish/config/zod/server-config";
 import { useUnitFormatter as useSharedUnitFormatter } from "@norish/shared-react/hooks";
 import { formatAmount } from "@norish/shared/lib/format-amount";
 
 import { useRecipeContextRequired } from "../context";
-
-import { useUnitFormatter } from "@/hooks/use-unit-formatter";
-import { useAmountDisplayPreference } from "@/hooks/use-amount-display-preference";
-import SmartMarkdownRenderer from "@/components/shared/smart-markdown-renderer";
 
 type IngredientLike = {
   ingredientName: string;
@@ -94,8 +93,8 @@ function ReadonlyIngredientsListContent({
           const wrapperClassName = interactive
             ? `group flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200 select-none ${
                 isChecked
-                  ? "bg-default-100/50 dark:bg-default-100/5"
-                  : "hover:bg-default-100 dark:hover:bg-default-100/10"
+                  ? "bg-surface-secondary/50 dark:bg-surface-secondary/5"
+                  : "hover:bg-surface-secondary dark:hover:bg-surface-secondary/10"
               }`
             : "flex items-start gap-3 rounded-xl px-3 py-2.5";
 
@@ -114,13 +113,13 @@ function ReadonlyIngredientsListContent({
                     className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all duration-200 ${
                       isChecked
                         ? "border-success bg-success"
-                        : "border-default-300 group-hover:border-primary-400 dark:border-default-600"
+                        : "border-border-secondary group-hover:border-accent dark:border-border-secondary"
                     }`}
                   >
                     {isChecked && <CheckIcon className="h-3.5 w-3.5 text-white" />}
                   </div>
                 ) : (
-                  <span className="bg-default-100 mt-1 h-2.5 w-2.5 shrink-0 rounded-full" />
+                  <span className="bg-surface-secondary mt-1 h-2.5 w-2.5 shrink-0 rounded-full" />
                 )}
 
                 <div
@@ -131,9 +130,7 @@ function ReadonlyIngredientsListContent({
                   {amount !== "" && (
                     <span
                       className={`text-base font-bold tabular-nums ${
-                        interactive && isChecked
-                          ? "text-default-500 line-through"
-                          : "text-foreground"
+                        interactive && isChecked ? "text-muted line-through" : "text-foreground"
                       }`}
                     >
                       {amount}
@@ -143,15 +140,15 @@ function ReadonlyIngredientsListContent({
                     <span
                       className={`text-base font-bold ${
                         interactive && isChecked
-                          ? "text-default-400 line-through"
-                          : "text-primary-600 dark:text-primary-400"
+                          ? "text-muted line-through"
+                          : "text-accent dark:text-accent"
                       }`}
                     >
                       {unit}
                     </span>
                   )}
                   <span
-                    className={`text-base ${interactive && isChecked ? "text-default-400 line-through" : "text-base"}`}
+                    className={`text-base ${interactive && isChecked ? "text-muted line-through" : "text-base"}`}
                   >
                     <SmartMarkdownRenderer
                       disableLinks={interactive && isChecked}

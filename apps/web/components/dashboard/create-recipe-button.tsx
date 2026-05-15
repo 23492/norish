@@ -2,20 +2,18 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
+import ImportFromImageModal from "@/components/shared/import-from-image-modal";
+import ImportFromPasteModal from "@/components/shared/import-from-paste-modal";
+import ImportRecipeModal from "@/components/shared/import-recipe-modal";
+import { usePermissionsContext } from "@/context/permissions-context";
 import {
   ArrowDownTrayIcon,
   ClipboardDocumentIcon,
   PhotoIcon,
   PlusIcon,
 } from "@heroicons/react/16/solid";
-import { Dropdown, DropdownItem, DropdownMenu, DropdownTrigger } from "@heroui/dropdown";
-import { Button } from "@heroui/react";
+import { Button, Dropdown, Label } from "@heroui/react";
 import { useTranslations } from "next-intl";
-
-import ImportFromImageModal from "@/components/shared/import-from-image-modal";
-import ImportFromPasteModal from "@/components/shared/import-from-paste-modal";
-import ImportRecipeModal from "@/components/shared/import-recipe-modal";
-import { usePermissionsContext } from "@/context/permissions-context";
 
 export default function CreateRecipeButton() {
   const router = useRouter();
@@ -25,68 +23,63 @@ export default function CreateRecipeButton() {
   const [showPasteModal, setShowPasteModal] = useState(false);
   const t = useTranslations("recipes.dashboard");
   const tCommon = useTranslations("common.actions");
-
-  const menuItems = (
+  const renderMenuItems = () => (
     <>
-      <DropdownItem
+      <Dropdown.Item
+        id="import"
         key="import"
-        startContent={<ArrowDownTrayIcon className="h-4 w-4" />}
+        textValue={t("importFromUrl")}
         onPress={() => setShowImportModal(true)}
       >
-        {t("importFromUrl")}
-      </DropdownItem>
-      <DropdownItem
+        {<ArrowDownTrayIcon className="h-4 w-4" />}
+        <Label>{t("importFromUrl")}</Label>
+      </Dropdown.Item>
+      <Dropdown.Item
+        id="paste"
         key="paste"
-        startContent={<ClipboardDocumentIcon className="h-4 w-4" />}
+        textValue={t("importFromPaste")}
         onPress={() => setShowPasteModal(true)}
       >
-        {t("importFromPaste")}
-      </DropdownItem>
+        {<ClipboardDocumentIcon className="h-4 w-4" />}
+        <Label>{t("importFromPaste")}</Label>
+      </Dropdown.Item>
       {isAIEnabled ? (
-        <DropdownItem
+        <Dropdown.Item
+          id="image"
           key="image"
-          startContent={<PhotoIcon className="h-4 w-4" />}
+          textValue={t("importFromImage")}
           onPress={() => setShowImageModal(true)}
         >
-          {t("importFromImage")}
-        </DropdownItem>
+          {<PhotoIcon className="h-4 w-4" />}
+          <Label>{t("importFromImage")}</Label>
+        </Dropdown.Item>
       ) : null}
-      <DropdownItem
+      <Dropdown.Item
+        id="create"
         key="create"
-        startContent={<PlusIcon className="h-4 w-4" />}
+        textValue={tCommon("create")}
         onPress={() => router.push("/recipes/new")}
       >
-        {tCommon("create")}
-      </DropdownItem>
+        {<PlusIcon className="h-4 w-4" />}
+        <Label>{tCommon("create")}</Label>
+      </Dropdown.Item>
     </>
   );
-
   return (
     <>
-      {/* Desktop */}
-      <Dropdown placement="bottom-end">
-        <DropdownTrigger>
-          <Button
-            className="hidden font-medium md:flex"
-            color="primary"
-            radius="full"
-            size="md"
-            startContent={<PlusIcon className="h-5 w-5" />}
-          >
-            {t("addRecipe")}
-          </Button>
-        </DropdownTrigger>
-        <DropdownMenu aria-label="Add recipe options">{menuItems}</DropdownMenu>
-      </Dropdown>
-
-      {/* Mobile */}
-      <Dropdown placement="bottom-end">
-        <DropdownTrigger>
-          <Button isIconOnly className="mx-2 md:hidden" color="primary" radius="full" size="md">
-            <PlusIcon className="h-5 w-5" />
-          </Button>
-        </DropdownTrigger>
-        <DropdownMenu aria-label="Add recipe options">{menuItems}</DropdownMenu>
+      <Dropdown>
+        <Button
+          aria-label={t("addRecipe")}
+          className="mx-2 min-w-10 rounded-full font-medium md:mx-0 md:min-w-20"
+          size="md"
+          variant="primary"
+        >
+          <PlusIcon className="h-5 w-5" />
+          <span className="hidden md:inline">{t("addRecipe")}</span>
+        </Button>
+        <Dropdown.Popover className="bg-overlay" placement="bottom end">
+          <Dropdown.Menu aria-label="Add recipe options">{renderMenuItems()}</Dropdown.Menu>
+        </Dropdown.Popover>
       </Dropdown>
 
       <ImportRecipeModal isOpen={showImportModal} onOpenChange={setShowImportModal} />

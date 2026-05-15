@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Button, Input } from "@heroui/react";
-import { useTranslations } from "next-intl";
-
 import Panel, { PANEL_HEIGHT_COMPACT } from "@/components/Panel/Panel";
+import { Button, FieldError, Input, TextField } from "@heroui/react";
+import { useTranslations } from "next-intl";
 
 type EditTagPanelProps = {
   open: boolean;
@@ -14,7 +13,6 @@ type EditTagPanelProps = {
   onSave: (newName: string) => void;
   onDelete: () => void;
 };
-
 export default function EditTagPanel({
   open,
   onOpenChange,
@@ -40,7 +38,6 @@ export default function EditTagPanel({
   // Exclude the current tag being edited from the check
   const isDuplicate = useMemo(() => {
     const trimmed = tagName.trim().toLowerCase();
-
     if (!trimmed) return false;
     if (trimmed === tag.toLowerCase()) return false; // Same as original is OK
 
@@ -48,21 +45,16 @@ export default function EditTagPanel({
       (t) => t.toLowerCase() === trimmed && t.toLowerCase() !== tag.toLowerCase()
     );
   }, [tagName, tag, existingTags]);
-
   const canSave = tagName.trim().length > 0 && !isDuplicate;
-
   const handleSubmit = () => {
     if (!canSave) return;
-
     onSave(tagName.trim());
     onOpenChange(false);
   };
-
   const handleDelete = () => {
     onDelete();
     onOpenChange(false);
   };
-
   return (
     <Panel
       height={PANEL_HEIGHT_COMPACT}
@@ -79,43 +71,38 @@ export default function EditTagPanel({
           }}
         >
           <div className="space-y-3">
-            <Input
-              classNames={{
-                input: "text-lg font-medium",
-                inputWrapper: "border-primary-200 dark:border-primary-800",
-              }}
-              errorMessage={isDuplicate ? t("duplicateTag") : undefined}
+            <TextField
+              className="border-accent-200 dark:border-accent text-lg font-medium"
               isInvalid={isDuplicate}
-              placeholder={t("editPlaceholder")}
-              size="lg"
-              style={{ fontSize: "16px" }}
               value={tagName}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  handleSubmit();
-                }
-              }}
-              onValueChange={setTagName}
-            />
+              onChange={setTagName}
+            >
+              <Input
+                placeholder={t("editPlaceholder")}
+                style={{
+                  fontSize: "16px",
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleSubmit();
+                  }
+                }}
+              />
+              {isDuplicate && <FieldError>{t("duplicateTag")}</FieldError>}
+            </TextField>
           </div>
 
           <div className="flex justify-end gap-2">
-            <Button
-              className="min-w-16"
-              color="danger"
-              size="sm"
-              variant="flat"
-              onPress={handleDelete}
-            >
+            <Button className="min-w-16" size="sm" onPress={handleDelete} variant="danger-soft">
               {tActions("delete")}
             </Button>
             <Button
               className="min-w-16"
-              color="primary"
               isDisabled={!canSave}
               size="sm"
               onPress={handleSubmit}
+              variant="primary"
             >
               {tActions("save")}
             </Button>

@@ -1,10 +1,12 @@
 @import "tailwindcss";
-@plugin "@norish/tailwind-config/hero";
-@source "../../../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}";
-@custom-variant dark (&:is(.dark *));
+@import "@heroui/styles";
+@source "../../../node_modules/@heroui/styles/dist/**/*.{css,js,ts,jsx,tsx}";
 
-/* Import our custom theme colors */
-@import "@norish/tailwind-config/theme";
+@custom-variant light (&:is(:root, .light *, [data-theme="light"] *));
+@custom-variant dark (&:is(.dark *, [data-theme="dark"] *));
+
+/* Import the shared HeroUI v3 theme tokens */
+@import "@norish/tailwind-config/heroui-theme";
 
 /* Custom fade-in animation */
 @keyframes fade-in {
@@ -35,5 +37,55 @@
 
   &::-webkit-scrollbar {
     display: none;
+  }
+}
+
+@layer components {
+  .dropdown__popover {
+    min-width: min(14rem, calc(100svw - 2rem));
+    max-width: min(22rem, calc(100svw - 2rem));
+    background: var(--overlay);
+    box-shadow: var(--overlay-shadow);
+    border: 1px solid var(--border);
+    z-index: 70;
+  }
+
+  .dropdown__menu {
+    padding: 0.375rem;
+  }
+
+  .menu-item {
+    min-height: 2.5rem;
+    border-radius: 9999px;
+  }
+
+  .textfield,
+  .input,
+  .textarea,
+  .input-group,
+  .select,
+  .autocomplete {
+    width: 100%;
+  }
+
+  .input {
+    border-radius: 9999px;
+  }
+
+  .textarea {
+    width: 100%;
+    border-radius: var(--radius-2xl);
+  }
+
+  .button:not(.button--icon-only) {
+    min-width: 5rem;
+  }
+
+  .button--sm:not(.button--icon-only) {
+    min-width: 4rem;
+  }
+
+  .button--lg:not(.button--icon-only) {
+    min-width: 6rem;
   }
 }

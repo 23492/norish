@@ -1,40 +1,53 @@
 "use client";
 
-import type { FilterMode, RecipeCategory, SortOrder } from "@norish/shared/contracts";
-
 import { useCallback, useEffect, useState } from "react";
-import {
-  ArrowPathIcon,
-  ArrowRightIcon,
-  CheckIcon,
-  HeartIcon,
-  MagnifyingGlassIcon,
-} from "@heroicons/react/16/solid";
-import { Button, Chip, Input } from "@heroui/react";
-import { motion } from "motion/react";
-import { useTranslations } from "next-intl";
-import {
-  getShowFavoritesPreference,
-  getShowRatingsPreference,
-} from "@norish/shared/lib/user-preferences";
-import RatingStars from "@norish/ui/rating-stars";
-
 import SearchFieldToggles from "@/components/dashboard/search-field-toggles";
 import Panel from "@/components/Panel/Panel";
 import ChipSkeleton from "@/components/skeleton/chip-skeleton";
 import { useRecipesFiltersContext } from "@/context/recipes-filters-context";
 import { useUserContext } from "@/context/user-context";
 import { useTagsQuery } from "@/hooks/config";
+import {
+  ArrowPathIcon,
+  ArrowRightIcon,
+  CheckIcon,
+  HeartIcon,
+  MagnifyingGlassIcon,
+  XMarkIcon,
+} from "@heroicons/react/16/solid";
+import { Button, Chip, Input } from "@heroui/react";
+import { motion } from "motion/react";
+import { useTranslations } from "next-intl";
+
+import type { FilterMode, RecipeCategory, SortOrder } from "@norish/shared/contracts";
+import {
+  getShowFavoritesPreference,
+  getShowRatingsPreference,
+} from "@norish/shared/lib/user-preferences";
+import RatingStars from "@norish/ui/rating-stars";
 
 const ALL_CATEGORIES: RecipeCategory[] = ["Breakfast", "Lunch", "Dinner", "Snack"];
-
-const COOKING_TIME_OPTIONS: Array<{ value: number; labelKey: string }> = [
-  { value: 15, labelKey: "cookingTimeUnder15" },
-  { value: 30, labelKey: "cookingTimeUnder30" },
-  { value: 60, labelKey: "cookingTimeUnder60" },
-  { value: 120, labelKey: "cookingTimeUnder120" },
+const COOKING_TIME_OPTIONS: Array<{
+  value: number;
+  labelKey: string;
+}> = [
+  {
+    value: 15,
+    labelKey: "cookingTimeUnder15",
+  },
+  {
+    value: 30,
+    labelKey: "cookingTimeUnder30",
+  },
+  {
+    value: 60,
+    labelKey: "cookingTimeUnder60",
+  },
+  {
+    value: 120,
+    labelKey: "cookingTimeUnder120",
+  },
 ];
-
 function normalizeSortMode(sortMode: SortOrder | null | undefined): SortOrder {
   if (
     sortMode === "titleAsc" ||
@@ -45,15 +58,53 @@ function normalizeSortMode(sortMode: SortOrder | null | undefined): SortOrder {
   ) {
     return sortMode;
   }
-
   return "none";
 }
 
+function FilterSearchInput({
+  placeholder,
+  value,
+  onChange,
+  compact = false,
+}: {
+  placeholder: string;
+  value: string;
+  onChange: (value: string) => void;
+  compact?: boolean;
+}) {
+  return (
+    <div className="relative">
+      <MagnifyingGlassIcon className="text-muted pointer-events-none absolute top-1/2 left-3 z-10 h-4 w-4 -translate-y-1/2" />
+      <Input
+        fullWidth
+        className={`${compact ? "h-9 text-sm" : "h-10 text-base"} bg-field shadow-field focus-visible:border-accent/60 focus-visible:ring-accent/20 rounded-full border border-transparent px-9 transition-colors outline-none focus-visible:ring-2`}
+        placeholder={placeholder}
+        style={{
+          paddingLeft: "2.25rem",
+          paddingRight: value.length > 0 ? "2.25rem" : "0.875rem",
+        }}
+        value={value}
+        variant="primary"
+        onChange={(e) => onChange(e.target.value)}
+      />
+      {value.length > 0 && (
+        <button
+          aria-label="Clear"
+          className="text-muted hover:bg-surface-secondary hover:text-foreground absolute top-1/2 right-1.5 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full transition-colors"
+          type="button"
+          onClick={() => onChange("")}
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          <XMarkIcon className="h-4 w-4" />
+        </button>
+      )}
+    </div>
+  );
+}
 type FiltersPanelProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 };
-
 function FiltersPanelContent({ onOpenChange }: { onOpenChange: (open: boolean) => void }) {
   const { filters, setFilters, clearFilters } = useRecipesFiltersContext();
   const { user } = useUserContext();
@@ -62,7 +113,6 @@ function FiltersPanelContent({ onOpenChange }: { onOpenChange: (open: boolean) =
   const tRecipes = useTranslations("recipes.dashboard");
   const showRatings = getShowRatingsPreference(user);
   const showFavorites = getShowFavoritesPreference(user);
-
   const [tagFilter, setTagFilter] = useState("");
   const [workingTags, setWorkingTags] = useState<string[]>(filters.searchTags);
   const [workingCategories, setWorkingCategories] = useState<RecipeCategory[]>(filters.categories);
@@ -76,9 +126,7 @@ function FiltersPanelContent({ onOpenChange }: { onOpenChange: (open: boolean) =
   const [localMaxCookingTime, setLocalMaxCookingTime] = useState<number | null>(
     filters.maxCookingTime ?? null
   );
-
   const { tags: allTags, isLoading } = useTagsQuery();
-
   useEffect(() => {
     setWorkingTags(filters.searchTags);
     setWorkingCategories(filters.categories);
@@ -89,41 +137,31 @@ function FiltersPanelContent({ onOpenChange }: { onOpenChange: (open: boolean) =
     setLocalMinRating(filters.minRating);
     setLocalMaxCookingTime(filters.maxCookingTime ?? null);
   }, [filters]);
-
   const toggleTag = useCallback((tag: string) => {
     setWorkingTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
   }, []);
-
   const toggleCategory = useCallback((category: RecipeCategory) => {
     setWorkingCategories((prev) =>
       prev.includes(category) ? prev.filter((c) => c !== category) : [...prev, category]
     );
   }, []);
-
   const toggleCookingTime = useCallback((value: number) => {
     setLocalMaxCookingTime((prev) => (prev === value ? null : value));
   }, []);
-
   const decideSortOrder = (type: "title" | "date") => {
     const asc = `${type}Asc` as SortOrder;
     const desc = `${type}Desc` as SortOrder;
-
     if (localSortMode === asc) {
       setLocalSortMode(desc);
-
       return;
     }
     if (localSortMode === desc) {
       setLocalSortMode("none");
-
       return;
     }
-
     setLocalSortMode(asc);
   };
-
   const close = useCallback(() => onOpenChange(false), [onOpenChange]);
-
   const handleReset = useCallback(() => {
     clearFilters();
     setWorkingTags([]);
@@ -136,7 +174,6 @@ function FiltersPanelContent({ onOpenChange }: { onOpenChange: (open: boolean) =
     setLocalMaxCookingTime(null);
     close();
   }, [clearFilters, close]);
-
   const apply = useCallback(() => {
     setFilters({
       searchTags: [...workingTags],
@@ -148,7 +185,6 @@ function FiltersPanelContent({ onOpenChange }: { onOpenChange: (open: boolean) =
       minRating: showRatings ? localMinRating : null,
       maxCookingTime: localMaxCookingTime,
     });
-
     close();
   }, [
     setFilters,
@@ -164,61 +200,63 @@ function FiltersPanelContent({ onOpenChange }: { onOpenChange: (open: boolean) =
     showRatings,
     close,
   ]);
-
   return (
     <div className="flex flex-col gap-6">
       {/* Search */}
       <section>
-        <h3 className="text-default-500 mb-2 text-[11px] font-medium tracking-wide uppercase">
+        <h3 className="text-muted mb-2 text-[11px] font-medium tracking-wide uppercase">
           {t("search")}
         </h3>
-        <Input
-          isClearable
+        <FilterSearchInput
           placeholder={tRecipes("searchRecipesPlaceholder")}
-          radius="full"
-          startContent={<MagnifyingGlassIcon className="text-default-400 h-4 w-4" />}
           value={localInput}
-          onChange={(e) => setLocalInput(e.target.value)}
-          onClear={() => setLocalInput("")}
+          onChange={setLocalInput}
         />
         <SearchFieldToggles className="mt-2" itemClassName="h-9 px-3 text-xs" />
       </section>
 
       {/* Sort */}
       <section>
-        <h3 className="text-default-500 mb-2 text-[11px] font-medium tracking-wide uppercase">
+        <h3 className="text-muted mb-2 text-[11px] font-medium tracking-wide uppercase">
           {t("sort")}
         </h3>
         <div className="flex gap-2">
           {[
-            { key: "title", label: t("sortByTitle") },
-            { key: "date", label: t("sortByDate") },
+            {
+              key: "title",
+              label: t("sortByTitle"),
+            },
+            {
+              key: "date",
+              label: t("sortByDate"),
+            },
           ].map(({ key, label }) => {
             const isActive = localSortMode.startsWith(key) && localSortMode !== "none";
             const isAsc = localSortMode === `${key}Asc`;
-
             return (
               <Button
                 key={key}
-                className="h-9 px-3 text-xs"
-                color={isActive ? "primary" : "default"}
-                radius="full"
+                className="h-9 min-w-16 rounded-full px-3 text-xs"
                 size="sm"
-                startContent={
+                variant={isActive ? "primary" : "tertiary"}
+                onPress={() => decideSortOrder(key as "title" | "date")}
+              >
+                {
                   <motion.span
                     animate={{
                       rotate: !isActive ? 0 : isAsc ? -90 : 90,
                     }}
                     className="inline-flex origin-center"
                     initial={false}
-                    transition={{ type: "spring", stiffness: 340, damping: 26 }}
+                    transition={{
+                      type: "spring",
+                      stiffness: 340,
+                      damping: 26,
+                    }}
                   >
                     <ArrowRightIcon className="size-3.5" />
                   </motion.span>
                 }
-                variant={isActive ? "solid" : "flat"}
-                onPress={() => decideSortOrder(key as "title" | "date")}
-              >
                 {label}
               </Button>
             );
@@ -228,47 +266,52 @@ function FiltersPanelContent({ onOpenChange }: { onOpenChange: (open: boolean) =
 
       {/* Mode */}
       <section>
-        <h3 className="text-default-500 mb-2 text-[11px] font-medium tracking-wide uppercase">
+        <h3 className="text-muted mb-2 text-[11px] font-medium tracking-wide uppercase">
           {t("mode")}
         </h3>
         <div className="flex gap-2">
           {[
-            { label: t("modeAll"), value: "AND" },
-            { label: t("modeAny"), value: "OR" },
-          ].map(({ label, value }) => (
-            <Button
-              key={value}
-              className="h-9 px-3 text-xs"
-              color={localFilterMode === value ? "primary" : "default"}
-              radius="full"
-              size="sm"
-              startContent={<CheckIcon className="size-3.5" />}
-              variant={localFilterMode === value ? "solid" : "flat"}
-              onPress={() => setLocalFilterMode(value as FilterMode)}
-            >
-              {label}
-            </Button>
-          ))}
+            {
+              label: t("modeAll"),
+              value: "AND",
+            },
+            {
+              label: t("modeAny"),
+              value: "OR",
+            },
+          ].map(({ label, value }) => {
+            const active = localFilterMode === value;
+            return (
+              <Button
+                key={value}
+                className="h-9 min-w-16 rounded-full px-3 text-xs"
+                size="sm"
+                variant={active ? "primary" : "tertiary"}
+                onPress={() => setLocalFilterMode(value as FilterMode)}
+              >
+                {<CheckIcon className="size-3.5" />}
+                {label}
+              </Button>
+            );
+          })}
         </div>
       </section>
 
       {/* Favorites & Rating */}
       {(showFavorites || showRatings) && (
         <section>
-          <h3 className="text-default-500 mb-2 text-[11px] font-medium tracking-wide uppercase">
+          <h3 className="text-muted mb-2 text-[11px] font-medium tracking-wide uppercase">
             {t("favoritesAndRating")}
           </h3>
           <div className="flex items-center gap-4">
             {showFavorites && (
               <Button
-                className="h-9 px-3 text-xs"
-                color={localFavoritesOnly ? "danger" : "default"}
-                radius="full"
+                className="h-9 min-w-16 rounded-full px-3 text-xs"
                 size="sm"
-                startContent={<HeartIcon className="size-3.5" />}
-                variant={localFavoritesOnly ? "solid" : "flat"}
+                variant={localFavoritesOnly ? "primary" : "tertiary"}
                 onPress={() => setLocalFavoritesOnly(!localFavoritesOnly)}
               >
+                {<HeartIcon className="size-3.5" />}
                 {t("favorites")}
               </Button>
             )}
@@ -280,21 +323,18 @@ function FiltersPanelContent({ onOpenChange }: { onOpenChange: (open: boolean) =
 
       {/* Cooking time */}
       <section>
-        <h3 className="text-default-500 mb-2 text-[11px] font-medium tracking-wide uppercase">
+        <h3 className="text-muted mb-2 text-[11px] font-medium tracking-wide uppercase">
           {t("cookingTime")}
         </h3>
         <div className="flex flex-wrap gap-2">
           {COOKING_TIME_OPTIONS.map(({ value, labelKey }) => {
             const active = localMaxCookingTime === value;
-
             return (
               <Button
                 key={value}
-                className="h-9 px-3 text-xs"
-                color={active ? "primary" : "default"}
-                radius="full"
+                className="h-9 min-w-16 rounded-full px-3 text-xs"
                 size="sm"
-                variant={active ? "solid" : "flat"}
+                variant={active ? "primary" : "tertiary"}
                 onPress={() => toggleCookingTime(value)}
               >
                 {t(labelKey)}
@@ -306,20 +346,18 @@ function FiltersPanelContent({ onOpenChange }: { onOpenChange: (open: boolean) =
 
       {/* Categories */}
       <section>
-        <h3 className="text-default-500 mb-2 text-[11px] font-medium tracking-wide uppercase">
+        <h3 className="text-muted mb-2 text-[11px] font-medium tracking-wide uppercase">
           {t("categories")}
         </h3>
         <div className="flex flex-wrap gap-1">
           {ALL_CATEGORIES.map((category) => {
             const active = workingCategories.includes(category);
-
             return (
               <Chip
                 key={category}
                 className="h-7 cursor-pointer px-2 text-[11px]"
-                color={active ? "primary" : "default"}
-                radius="full"
-                variant={active ? "solid" : "flat"}
+                color={active ? "accent" : "default"}
+                variant={active ? "primary" : "tertiary"}
                 onClick={() => toggleCategory(category)}
               >
                 {t(`category.${category.toLowerCase()}`)}
@@ -331,23 +369,14 @@ function FiltersPanelContent({ onOpenChange }: { onOpenChange: (open: boolean) =
 
       {/* Tags */}
       <section>
-        <h3 className="text-default-500 mb-3 text-xs font-medium tracking-wide uppercase">
-          {t("tags")}
-        </h3>
+        <h3 className="text-muted mb-3 text-xs font-medium tracking-wide uppercase">{t("tags")}</h3>
 
         <div className="relative mb-3">
-          <Input
-            isClearable
-            classNames={{
-              inputWrapper: "h-9",
-              input: "text-sm",
-            }}
+          <FilterSearchInput
+            compact
             placeholder={t("searchTags")}
-            radius="full"
-            startContent={<MagnifyingGlassIcon className="text-default-400 h-4 w-4" />}
             value={tagFilter}
-            onChange={(e) => setTagFilter(e.target.value)}
-            onClear={() => setTagFilter("")}
+            onChange={setTagFilter}
           />
         </div>
 
@@ -359,14 +388,12 @@ function FiltersPanelContent({ onOpenChange }: { onOpenChange: (open: boolean) =
               .filter((tag) => tag.toLowerCase().includes(tagFilter.toLowerCase()))
               .map((tag) => {
                 const active = workingTags.includes(tag);
-
                 return (
                   <Chip
                     key={tag}
                     className="h-7 cursor-pointer px-2 text-[11px]"
-                    color={active ? "primary" : "default"}
-                    radius="full"
-                    variant={active ? "solid" : "flat"}
+                    color={active ? "accent" : "default"}
+                    variant={active ? "primary" : "tertiary"}
                     onClick={() => toggleTag(tag)}
                   >
                     {tag}
@@ -378,34 +405,26 @@ function FiltersPanelContent({ onOpenChange }: { onOpenChange: (open: boolean) =
       </section>
 
       {/* Footer */}
-      <div className="border-default-200/50 mt-auto flex justify-end gap-3 border-t pt-3">
+      <div className="border-border/50 mt-auto flex justify-end gap-3 border-t pt-3">
         <Button
-          color="danger"
-          radius="full"
           size="sm"
-          startContent={<ArrowPathIcon className="size-4" />}
-          variant="flat"
           onPress={handleReset}
+          variant="danger-soft"
+          className="min-w-16 rounded-full"
         >
+          {<ArrowPathIcon className="size-4" />}
           {tActions("reset")}
         </Button>
-        <Button
-          color="primary"
-          radius="full"
-          size="sm"
-          startContent={<CheckIcon className="size-4" />}
-          onPress={apply}
-        >
+        <Button size="sm" onPress={apply} variant="primary" className="min-w-16 rounded-full">
+          {<CheckIcon className="size-4" />}
           {tActions("apply")}
         </Button>
       </div>
     </div>
   );
 }
-
 export default function FiltersPanel({ open, onOpenChange }: FiltersPanelProps) {
   const t = useTranslations("common.filters");
-
   return (
     <Panel open={open} title={t("title")} onOpenChange={onOpenChange}>
       {open && <FiltersPanelContent onOpenChange={onOpenChange} />}

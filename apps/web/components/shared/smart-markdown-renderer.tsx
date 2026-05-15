@@ -40,7 +40,7 @@ export default function SmartMarkdownRenderer({
             if (href?.startsWith("/recipes/")) {
               if (disableLinks) {
                 return (
-                  <span className="text-foreground decoration-default-400 font-medium underline underline-offset-2">
+                  <span className="text-foreground decoration-muted font-medium underline underline-offset-2">
                     {children}
                   </span>
                 );
@@ -48,7 +48,7 @@ export default function SmartMarkdownRenderer({
 
               return (
                 <Link
-                  className="text-foreground decoration-default-400 hover:decoration-default-600 font-medium underline underline-offset-2 transition-colors"
+                  className="text-foreground decoration-muted hover:decoration-foreground font-medium underline underline-offset-2 transition-colors"
                   href={href}
                   onClick={(e) => e.stopPropagation()}
                 >
@@ -59,7 +59,7 @@ export default function SmartMarkdownRenderer({
 
             if (disableLinks) {
               return (
-                <span className="text-foreground decoration-default-400 underline underline-offset-2">
+                <span className="text-foreground decoration-muted underline underline-offset-2">
                   {children}
                 </span>
               );
@@ -67,7 +67,7 @@ export default function SmartMarkdownRenderer({
 
             return (
               <a
-                className="text-foreground decoration-default-400 hover:decoration-default-600 underline underline-offset-2 transition-colors"
+                className="text-foreground decoration-muted hover:decoration-foreground underline underline-offset-2 transition-colors"
                 href={href}
                 rel="noopener noreferrer"
                 target="_blank"

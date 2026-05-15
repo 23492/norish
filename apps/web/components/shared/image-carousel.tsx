@@ -14,7 +14,6 @@ export interface CarouselImage {
   image: string;
   alt?: string;
 }
-
 export interface ImageCarouselProps {
   images: CarouselImage[];
   recipeName: string;
@@ -23,7 +22,6 @@ export interface ImageCarouselProps {
   showLightbox?: boolean; // default true
   rounded?: boolean; // default true - set false for full-bleed hero
 }
-
 export default function ImageCarousel({
   images,
   recipeName,
@@ -38,42 +36,33 @@ export default function ImageCarousel({
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
   const { handleImageError, hasError } = useImageErrors();
-
   const t = useTranslations("recipes.carousel");
-
   const aspectRatioClass = {
     video: "aspect-video",
     square: "aspect-square",
     "4/3": "aspect-[4/3]",
   }[aspectRatio];
-
   const roundedClass = rounded ? "rounded-2xl" : "";
-
   const handleNext = useCallback(() => {
     setDirection(1);
     setCurrentIndex((prev) => (prev + 1 === images.length ? 0 : prev + 1));
   }, [images.length]);
-
   const handlePrev = useCallback(() => {
     setDirection(-1);
     setCurrentIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1));
   }, [images.length]);
-
   const handleTouchStart = (e: React.TouchEvent) => {
     setTouchEnd(null);
     setTouchStart(e.targetTouches[0].clientX);
   };
-
   const handleTouchMove = (e: React.TouchEvent) => {
     setTouchEnd(e.targetTouches[0].clientX);
   };
-
   const handleTouchEnd = () => {
     if (!touchStart || !touchEnd) return;
     const distance = touchStart - touchEnd;
     const isLeftSwipe = distance > 50;
     const isRightSwipe = distance < -50;
-
     if (isLeftSwipe) {
       handleNext();
     }
@@ -81,7 +70,6 @@ export default function ImageCarousel({
       handlePrev();
     }
   };
-
   const slideVariants = {
     enter: (dir: number) => ({
       x: dir !== 0 ? (dir > 0 ? 300 : -300) : 0,
@@ -101,9 +89,9 @@ export default function ImageCarousel({
   if (!images || images.length === 0) {
     return (
       <div
-        className={`bg-default-200 relative w-full overflow-hidden ${roundedClass} ${aspectRatioClass} ${className} flex items-center justify-center`}
+        className={`bg-surface-tertiary relative w-full overflow-hidden ${roundedClass} ${aspectRatioClass} ${className} flex items-center justify-center`}
       >
-        <span className="text-default-500 font-medium">{t("noImageAvailable")}</span>
+        <span className="text-muted font-medium">{t("noImageAvailable")}</span>
       </div>
     );
   }
@@ -155,7 +143,7 @@ export default function ImageCarousel({
   return (
     <>
       <div
-        className={`bg-default-200 relative w-full overflow-hidden ${roundedClass} ${aspectRatioClass} ${className} group`}
+        className={`bg-surface-tertiary relative w-full overflow-hidden ${roundedClass} ${aspectRatioClass} ${className} group`}
         onTouchEnd={handleTouchEnd}
         onTouchMove={handleTouchMove}
         onTouchStart={handleTouchStart}
@@ -169,8 +157,14 @@ export default function ImageCarousel({
             exit="exit"
             initial="enter"
             transition={{
-              x: { type: "spring", stiffness: 300, damping: 30 },
-              opacity: { duration: 0.2 },
+              x: {
+                type: "spring",
+                stiffness: 300,
+                damping: 30,
+              },
+              opacity: {
+                duration: 0.2,
+              },
             }}
             variants={slideVariants}
             onClick={() => showLightbox && setLightboxOpen(true)}
@@ -194,8 +188,7 @@ export default function ImageCarousel({
         <div className="absolute top-1/2 left-2 z-10 -translate-y-1/2 sm:left-4">
           <Button
             isIconOnly
-            className="bg-black/30 text-white backdrop-blur-sm hover:bg-black/50"
-            radius="full"
+            className="rounded-full bg-black/30 text-white backdrop-blur-sm hover:bg-black/50"
             size="sm"
             onPress={handlePrev}
           >
@@ -205,8 +198,7 @@ export default function ImageCarousel({
         <div className="absolute top-1/2 right-2 z-10 -translate-y-1/2 sm:right-4">
           <Button
             isIconOnly
-            className="bg-black/30 text-white backdrop-blur-sm hover:bg-black/50"
-            radius="full"
+            className="rounded-full bg-black/30 text-white backdrop-blur-sm hover:bg-black/50"
             size="sm"
             onPress={handleNext}
           >
@@ -219,9 +211,7 @@ export default function ImageCarousel({
           {images.map((_, idx) => (
             <button
               key={idx}
-              className={`h-2 w-2 rounded-full transition-all ${
-                idx === currentIndex ? "w-4 bg-white" : "bg-white/50 hover:bg-white/80"
-              }`}
+              className={`h-2 w-2 rounded-full transition-all ${idx === currentIndex ? "w-4 bg-white" : "bg-white/50 hover:bg-white/80"}`}
               onClick={(e) => {
                 e.stopPropagation();
                 setDirection(idx > currentIndex ? 1 : -1);

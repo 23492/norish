@@ -1,15 +1,3 @@
-import { ArrowLeftIcon } from "@heroicons/react/16/solid";
-import { Card, CardBody, Divider, Link } from "@heroui/react";
-import { useTranslations } from "next-intl";
-import {
-  getShowFavoritesPreference,
-  getShowRatingsPreference,
-} from "@norish/shared/lib/user-preferences";
-import StarRating from "@norish/ui/star-rating";
-
-import AuthorChip from "./components/author-chip";
-import { useRecipeContextRequired } from "./context";
-
 import ActionsMenu from "@/app/(app)/recipes/[id]/components/actions-menu";
 import AddToGroceries from "@/app/(app)/recipes/[id]/components/add-to-groceries-button";
 import AmountDisplayToggle from "@/app/(app)/recipes/[id]/components/amount-display-toggle";
@@ -30,7 +18,18 @@ import HeartButton from "@/components/shared/heart-button";
 import { useUserContext } from "@/context/user-context";
 import { useFavoritesMutation, useFavoritesQuery } from "@/hooks/favorites";
 import { useRatingQuery, useRatingsMutation } from "@/hooks/ratings";
+import { ArrowLeftIcon } from "@heroicons/react/16/solid";
+import { Card, Link, Separator } from "@heroui/react";
+import { useTranslations } from "next-intl";
 
+import {
+  getShowFavoritesPreference,
+  getShowRatingsPreference,
+} from "@norish/shared/lib/user-preferences";
+import StarRating from "@norish/ui/star-rating";
+
+import AuthorChip from "./components/author-chip";
+import { useRecipeContextRequired } from "./context";
 
 export default function RecipePageMobile() {
   const {
@@ -100,16 +99,12 @@ export default function RecipePageMobile() {
       </div>
 
       {/* Unified Content Card - contains all sections */}
-      <Card
-        className="bg-content1 relative z-10 -mt-6 overflow-visible rounded-t-3xl"
-        radius="none"
-        shadow="sm"
-      >
-        <CardBody className="space-y-6 px-4 py-5">
+      <Card className="bg-surface relative z-10 -mt-6 overflow-visible rounded-t-3xl rounded-b-none shadow-sm">
+        <Card.Content className="space-y-6 px-4 py-5">
           {/* Back link and Actions */}
           <div className="flex items-center justify-between">
             <div className="w-fit hover:underline">
-              <Link className="text-default-500 flex items-center gap-1 text-base" href="/">
+              <Link className="text-muted flex items-center gap-1 text-base" href="/">
                 <ArrowLeftIcon className="h-4 w-4" />
                 {t("backToRecipes")}
               </Link>
@@ -126,7 +121,7 @@ export default function RecipePageMobile() {
             timeVariant="mobile"
           />
 
-          <Divider />
+          <Separator />
 
           {/* Ingredients Section */}
           <div className="space-y-4">
@@ -147,7 +142,7 @@ export default function RecipePageMobile() {
             <AddToGroceries recipeId={recipe.id} />
           </div>
 
-          <Divider />
+          <Separator />
 
           {/* Notes */}
           {recipe.notes && (
@@ -160,7 +155,7 @@ export default function RecipePageMobile() {
                   <ReadonlyRecipeNotes notes={recipe.notes} />
                 </div>
               </div>
-              <Divider />
+              <Separator />
             </>
           )}
 
@@ -177,8 +172,8 @@ export default function RecipePageMobile() {
 
             {/* Rating Section */}
             {showRatings && (
-              <div className="bg-default-100 -mx-1 flex flex-col items-center gap-4 rounded-xl py-6">
-                <p className="text-default-600 font-medium">{t("ratingPrompt")}</p>
+              <div className="bg-surface-secondary -mx-1 flex flex-col items-center gap-4 rounded-xl py-6">
+                <p className="text-muted font-medium">{t("ratingPrompt")}</p>
                 <StarRating
                   isLoading={isRating || isRatingLoading}
                   value={userRating ?? averageRating}
@@ -190,7 +185,7 @@ export default function RecipePageMobile() {
 
           {/* Nutrition Section */}
           <NutritionSection />
-        </CardBody>
+        </Card.Content>
       </Card>
 
       <div className="pb-5" />

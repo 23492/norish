@@ -1,7 +1,6 @@
 "use client";
 
 import { createContext, ReactNode, useCallback, useContext, useMemo, useState } from "react";
-
 import {
   useGroceriesMutations,
   useGroceriesQuery,
@@ -9,8 +8,8 @@ import {
 } from "@/hooks/groceries";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 
-import { createGroceriesContext } from "@norish/shared-react/contexts";
 import type { GroceryDto } from "@norish/shared/contracts";
+import { createGroceriesContext } from "@norish/shared-react/contexts";
 
 // =============================================================================
 // Shared Data Context (from factory)

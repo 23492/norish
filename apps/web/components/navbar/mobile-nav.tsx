@@ -3,15 +3,15 @@
 import { useCallback, useEffect, useRef } from "react";
 import NextLink from "next/link";
 import { usePathname } from "next/navigation";
+import NavbarUserMenu from "@/components/navbar/navbar-user-menu";
+import { useUserContext } from "@/context/user-context";
+import { useAutoHide } from "@/hooks/auto-hide";
 import { CalendarDaysIcon, ClipboardDocumentListIcon, HomeIcon } from "@heroicons/react/20/solid";
 import { AnimatePresence, motion } from "motion/react";
 import { useTranslations } from "next-intl";
+
 import { cssGlassBackdrop } from "@norish/web/config/css-tokens";
 import { siteConfig } from "@norish/web/config/site";
-
-import { useAutoHide } from "@/hooks/auto-hide";
-import { useUserContext } from "@/context/user-context";
-import NavbarUserMenu from "@/components/navbar/navbar-user-menu";
 
 // Map hrefs to translation keys (same as navbar.tsx)
 const navLabelKeys: Record<string, "home" | "calendar" | "groceries"> = {
@@ -96,8 +96,8 @@ export const MobileNav = () => {
                     <NextLink
                       className={`flex flex-col items-center justify-center gap-1 rounded-full px-4 py-2 transition-colors ${
                         isActive
-                          ? "text-primary font-semibold"
-                          : "text-default-600 hover:text-foreground hover:bg-default-100/70"
+                          ? "text-accent font-semibold"
+                          : "text-muted hover:text-foreground hover:bg-surface-secondary/70"
                       }`}
                       href={item.href}
                       onClick={(e) => {

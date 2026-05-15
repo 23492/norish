@@ -1,15 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRecipeContext } from "@/app/(app)/recipes/[id]/context";
+import AIActionButton from "@/components/shared/ai-action-button";
+import { usePermissionsContext } from "@/context/permissions-context";
 import { BeakerIcon, BoltIcon, CubeIcon, FireIcon } from "@heroicons/react/16/solid";
-import { Card, CardBody, Divider, Skeleton } from "@heroui/react";
+import { Card, Separator, Skeleton } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
 import NutritionPortionControl from "./nutrition-portion-control";
-
-import { usePermissionsContext } from "@/context/permissions-context";
-import AIActionButton from "@/components/shared/ai-action-button";
-import { useRecipeContext } from "@/app/(app)/recipes/[id]/context";
 
 type NutritionRecipeLike = {
   calories: number | null;
@@ -92,7 +91,7 @@ function NutritionValues({
         <h2 className="text-lg font-semibold">{t("title")}</h2>
         <NutritionPortionControl portions={portions} onChange={setPortions} />
       </div>
-      <div className="divide-default-100 divide-y">
+      <div className="divide-border divide-y">
         {MACROS.map(({ key, labelKey, unit, icon: Icon, color, bg }) => {
           const value = nutritionData.values[key];
 
@@ -108,14 +107,14 @@ function NutritionValues({
               </div>
               <span className="text-foreground text-base font-semibold">
                 {Math.round(value)}
-                <span className="text-default-500 ml-1 font-normal">{unit}</span>
+                <span className="text-muted ml-1 font-normal">{unit}</span>
               </span>
             </div>
           );
         })}
       </div>
       {portions !== 1 && (
-        <p className="text-default-400 mt-2 text-center text-xs">
+        <p className="text-muted mt-2 text-center text-xs">
           {t("showingPortions", { count: portions })}
         </p>
       )}
@@ -123,12 +122,12 @@ function NutritionValues({
   );
 
   return inCard ? (
-    <Card className="bg-content1 rounded-2xl shadow-md">
-      <CardBody className="p-5">{content}</CardBody>
+    <Card className="bg-surface rounded-2xl shadow-md">
+      <Card.Content className="p-5">{content}</Card.Content>
     </Card>
   ) : (
     <>
-      <Divider />
+      <Separator />
       <div className="space-y-2">{content}</div>
     </>
   );
@@ -179,7 +178,7 @@ function NutritionDisplay({ inCard = true }: { inCard?: boolean }) {
         </div>
       ) : nutritionData.hasData ? (
         <>
-          <div className="divide-default-100 divide-y">
+          <div className="divide-border divide-y">
             {MACROS.map(({ key, labelKey, unit, icon: Icon, color, bg }) => {
               const value = nutritionData.values[key];
 
@@ -195,21 +194,21 @@ function NutritionDisplay({ inCard = true }: { inCard?: boolean }) {
                   </div>
                   <span className="text-foreground text-base font-semibold">
                     {Math.round(value)}
-                    <span className="text-default-500 ml-1 font-normal">{unit}</span>
+                    <span className="text-muted ml-1 font-normal">{unit}</span>
                   </span>
                 </div>
               );
             })}
           </div>
           {portions !== 1 && (
-            <p className="text-default-400 mt-2 text-center text-xs">
+            <p className="text-muted mt-2 text-center text-xs">
               {t("showingPortions", { count: portions })}
             </p>
           )}
         </>
       ) : (
         <div className="flex flex-col items-center gap-3 py-2">
-          <p className="text-default-500 text-base">{t("noInfo")}</p>
+          <p className="text-muted text-base">{t("noInfo")}</p>
           {isAIEnabled && (
             <AIActionButton
               isLoading={isEstimatingNutrition}
@@ -223,12 +222,12 @@ function NutritionDisplay({ inCard = true }: { inCard?: boolean }) {
   );
 
   return inCard ? (
-    <Card className="bg-content1 rounded-2xl shadow-md">
-      <CardBody className="p-5">{content}</CardBody>
+    <Card className="bg-surface rounded-2xl shadow-md">
+      <Card.Content className="p-5">{content}</Card.Content>
     </Card>
   ) : (
     <>
-      <Divider />
+      <Separator />
       <div className="space-y-2">{content}</div>
     </>
   );

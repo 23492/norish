@@ -2,9 +2,16 @@
 
 import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { MiniCalendar, MiniGroceries } from "@/components/Panel/consumers";
+import SmartMarkdownRenderer from "@/components/shared/smart-markdown-renderer";
+import { usePermissionsContext } from "@/context/permissions-context";
+import { useUserContext } from "@/context/user-context";
+import { useRecipePrefetch } from "@/hooks/recipes/use-recipe-prefetch";
+import { useAppStore } from "@/stores/useAppStore";
 import { CalendarDaysIcon, ShoppingBagIcon, TrashIcon } from "@heroicons/react/20/solid";
-import { Card, CardBody, useDisclosure } from "@heroui/react";
+import { Card, useOverlayState } from "@heroui/react";
 import { useTranslations } from "next-intl";
+
 import { RecipeDashboardDTO } from "@norish/shared/contracts";
 import { formatMinutesHM } from "@norish/shared/lib/helpers";
 import {
@@ -14,18 +21,9 @@ import {
 
 import { DeleteRecipeModal } from "../shared/delete-recipe-modal";
 import DoubleTapContainer from "../shared/double-tap-container";
-import FallbackImage from "../shared/fallback-image";
 import SwipeableRow, { SwipeableRowRef, SwipeAction } from "../shared/swipable-row";
-
 import RecipeMetadata from "./recipe-metadata";
 import RecipeTags from "./recipe-tags";
-
-import { useAppStore } from "@/stores/useAppStore";
-import { useRecipePrefetch } from "@/hooks/recipes/use-recipe-prefetch";
-import { useUserContext } from "@/context/user-context";
-import { usePermissionsContext } from "@/context/permissions-context";
-import SmartMarkdownRenderer from "@/components/shared/smart-markdown-renderer";
-import { MiniCalendar, MiniGroceries } from "@/components/Panel/consumers";
 
 type RecipeCardProps = {
   recipe: RecipeDashboardDTO;
@@ -50,11 +48,12 @@ function RecipeCardComponent({
   const [open, setOpen] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [groceriesOpen, setGroceriesOpen] = useState(false);
+  const [failedImage, setFailedImage] = useState<string | null>(null);
   const {
     isOpen: isDeleteModalOpen,
-    onOpen: onDeleteModalOpen,
-    onClose: onDeleteModalClose,
-  } = useDisclosure();
+    open: onDeleteModalOpen,
+    close: onDeleteModalClose,
+  } = useOverlayState();
   const t = useTranslations("recipes.card");
   const showRatings = getShowRatingsPreference(user);
   const showFavorites = getShowFavoritesPreference(user);
@@ -82,6 +81,7 @@ function RecipeCardComponent({
 
   // Get thumbnail from the legacy image field
   const thumbnailImage = recipe.image;
+  const showImage = thumbnailImage && failedImage !== thumbnailImage;
 
   function _canClick() {
     return !open && !mobileSearchOpen;
@@ -150,7 +150,7 @@ function RecipeCardComponent({
         <div
           ref={cardRef}
           data-recipe-card
-          className={`relative w-full overflow-hidden transition-all duration-300 ${open ? "rounded-none opacity-70" : "rounded-xl"} `}
+          className={`relative h-[340px] w-full overflow-hidden transition-all duration-300 ${open ? "rounded-none opacity-70" : "rounded-3xl"} `}
           role="button"
           tabIndex={open ? 0 : -1}
           onClick={() => {
@@ -163,13 +163,10 @@ function RecipeCardComponent({
             }
           }}
         >
-          <div className="group/row relative w-full">
-            <Card
-              className="relative w-full bg-transparent shadow-none focus-visible:outline-none"
-              radius="none"
-            >
+          <div className="group/row relative h-full w-full">
+            <Card className="bg-surface relative h-full w-full gap-0 overflow-hidden rounded-3xl p-0 shadow-sm focus-visible:outline-none">
               <DoubleTapContainer
-                className="relative aspect-[4/3] w-full cursor-pointer overflow-hidden"
+                className="relative h-[236px] w-full shrink-0 cursor-pointer overflow-hidden"
                 disabled={open || mobileSearchOpen}
                 doubleTapEnabled={showFavorites}
                 onDoubleTap={() => {
@@ -178,21 +175,18 @@ function RecipeCardComponent({
                 onSingleTap={handleNavigate}
               >
                 {/* Image */}
-                <div className="pointer-events-none absolute inset-0 z-0">
-                  {thumbnailImage ? (
-                    <FallbackImage
-                      removeWrapper
+                <div className="absolute inset-0 z-0">
+                  {showImage ? (
+                    <img
                       alt={recipe.name}
-                      className={`h-full w-full object-cover transition-transform duration-300 ease-in-out ${open ? "scale-100" : "group-hover/row:scale-110"} `}
-                      fallbackClassName={`transition-all duration-300 ease-in-out ${open ? "scale-100" : "group-hover/row:scale-105"}`}
-                      fallbackMessage={t("noImage")}
-                      radius="none"
+                      className={`pointer-events-none h-full w-full object-cover transition-transform duration-300 ease-in-out ${open ? "scale-100" : "group-hover/row:scale-110"} `}
+                      loading="lazy"
                       src={thumbnailImage}
-                      variant="hero"
+                      onError={() => setFailedImage(thumbnailImage)}
                     />
                   ) : (
                     <div
-                      className={`bg-default-200 text-default-500 flex h-full w-full items-center justify-center transition-all duration-300 ease-in-out ${open ? "scale-100" : "group-hover/row:scale-105"} `}
+                      className={`bg-surface-secondary text-muted flex h-full w-full items-center justify-center transition-all duration-300 ease-in-out ${open ? "scale-100" : "group-hover/row:scale-105"} `}
                     >
                       <span className="text-sm font-medium opacity-70">{t("noImage")}</span>
                     </div>
@@ -217,7 +211,10 @@ function RecipeCardComponent({
               </DoubleTapContainer>
 
               {/* Body*/}
-              <CardBody className="cursor-pointer py-3 pr-3 pl-0" onClick={handleNavigate}>
+              <Card.Content
+                className="h-[104px] cursor-pointer overflow-hidden px-4 pt-3 pb-3"
+                onClick={handleNavigate}
+              >
                 <h3
                   className={`text-foreground truncate text-base font-semibold ${open ? "" : "group-hover/row:underline"} `}
                   title={recipe.name}
@@ -227,7 +224,7 @@ function RecipeCardComponent({
 
                 {description && (
                   <p
-                    className="text-default-500 mt-1 text-sm"
+                    className="text-muted mt-1 text-sm"
                     style={{
                       display: "-webkit-box",
                       WebkitLineClamp: 2,
@@ -239,7 +236,7 @@ function RecipeCardComponent({
                     <SmartMarkdownRenderer disableLinks text={description} />
                   </p>
                 )}
-              </CardBody>
+              </Card.Content>
             </Card>
           </div>
         </div>

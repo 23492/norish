@@ -1,9 +1,8 @@
+import { on } from "node:events";
 import type Redis from "ioredis";
 import type { WebSocket } from "ws";
-
-import { on } from "node:events";
-
 import superjson from "superjson";
+
 import { createSubscriberClient, getPublisherClient } from "@norish/queue/redis/client";
 import { closeMultiplexer } from "@norish/queue/redis/subscription-multiplexer";
 import { trpcLogger as log } from "@norish/shared-server/logger";
@@ -108,15 +107,17 @@ export async function startInvalidationListener(): Promise<void> {
   globalForConnectionManager.invalidationAbortController = invalidationAbortController;
   const signal = invalidationAbortController.signal;
 
-  invalidationSubscriber = await createSubscriberClient();
-  globalForConnectionManager.invalidationSubscriber = invalidationSubscriber;
+  const subscriber = await createSubscriberClient();
 
-  await invalidationSubscriber.subscribe(INVALIDATION_CHANNEL);
+  invalidationSubscriber = subscriber;
+  globalForConnectionManager.invalidationSubscriber = subscriber;
+
+  await subscriber.subscribe(INVALIDATION_CHANNEL);
 
   log.info("Started connection invalidation listener");
 
   try {
-    for await (const [channel, message] of on(invalidationSubscriber, "message", { signal })) {
+    for await (const [channel, message] of on(subscriber, "message", { signal })) {
       if (channel === INVALIDATION_CHANNEL) {
         try {
           const { userId, reason } = superjson.parse<InvalidationMessage>(message);
@@ -134,16 +135,18 @@ export async function startInvalidationListener(): Promise<void> {
     }
   } finally {
     // Always cleanup Redis subscriber
-    if (invalidationSubscriber) {
-      try {
-        await invalidationSubscriber.unsubscribe(INVALIDATION_CHANNEL);
-        await invalidationSubscriber.quit();
-      } catch (err) {
-        log.debug({ err }, "Error during invalidation listener cleanup");
-      }
+    try {
+      await subscriber.unsubscribe(INVALIDATION_CHANNEL);
+      await subscriber.quit();
+    } catch (err) {
+      log.debug({ err }, "Error during invalidation listener cleanup");
+    }
+
+    if (invalidationSubscriber === subscriber) {
       invalidationSubscriber = null;
       globalForConnectionManager.invalidationSubscriber = null;
     }
+
     invalidationAbortController = null;
     globalForConnectionManager.invalidationAbortController = null;
     log.info("Stopped connection invalidation listener");

@@ -22,16 +22,20 @@ vi.mock("@/context/permissions-context", () => ({
 }));
 
 vi.mock("@heroui/react", () => ({
-  Modal: (props: any) => {
-    modalMock(props);
+  Modal: Object.assign(({ children }: any) => <>{children}</>, {
+    Backdrop: ({ children, isOpen, ...props }: any) =>
+      isOpen ? <div {...props}>{children}</div> : null,
+    Container: (props: any) => {
+      modalMock(props);
 
-    return props.isOpen ? <div>{props.children}</div> : null;
-  },
-  ModalContent: ({ children }: any) =>
-    typeof children === "function" ? <div>{children(vi.fn())}</div> : <div>{children}</div>,
-  ModalHeader: ({ children }: any) => <div>{children}</div>,
-  ModalBody: ({ children }: any) => <div>{children}</div>,
-  ModalFooter: ({ children }: any) => <div>{children}</div>,
+      return <div>{props.children}</div>;
+    },
+    Dialog: ({ children }: any) =>
+      typeof children === "function" ? <div>{children(vi.fn())}</div> : <div>{children}</div>,
+    Header: ({ children }: any) => <div>{children}</div>,
+    Body: ({ children }: any) => <div>{children}</div>,
+    Footer: ({ children }: any) => <div>{children}</div>,
+  }),
   Input: ({ value, onChange, label, placeholder, type }: any) => (
     <input
       aria-label={label}
@@ -46,7 +50,7 @@ vi.mock("@heroui/react", () => ({
       {children}
     </button>
   ),
-  addToast: vi.fn(),
+  toast: vi.fn(),
 }));
 
 describe("ImportRecipeModal", () => {
@@ -59,10 +63,7 @@ describe("ImportRecipeModal", () => {
 
     expect(modalMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        classNames: {
-          wrapper: "z-[1100]",
-          backdrop: "z-[1099]",
-        },
+        className: "z-[1100]",
       })
     );
   });

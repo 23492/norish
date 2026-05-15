@@ -1,24 +1,23 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRecipesContext } from "@/context/recipes-context";
+import { useContainerColumns } from "@/hooks/use-container-columns";
 import { Spinner } from "@heroui/react";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { useWindowSize } from "usehooks-ts";
+
 import { useScrollRestoration } from "@norish/shared-react/hooks";
 import { RecipeDashboardDTO } from "@norish/shared/contracts";
 
 import RecipeCardSkeleton from "../skeleton/recipe-card-skeleton";
 import RecipeGridSkeleton from "../skeleton/recipe-grid-skeleton";
-
 import NoRecipeResults from "./no-recipe-results";
 import NoRecipesText from "./no-recipes-text";
 import RecipeCard from "./recipe-card";
 
-import { useContainerColumns } from "@/hooks/use-container-columns";
-import { useRecipesContext } from "@/context/recipes-context";
-
 // Estimated row height (card height + gap)
-const ESTIMATED_ROW_HEIGHT = 380;
+const ESTIMATED_ROW_HEIGHT = 356;
 
 export default function RecipeGrid() {
   const {
@@ -213,9 +212,7 @@ export default function RecipeGrid() {
                     }}
                   >
                     {rowItems.map((item) => (
-                      <div key={item.id} className="p-2">
-                        {renderItem(item)}
-                      </div>
+                      <div key={item.id}>{renderItem(item)}</div>
                     ))}
                   </div>
                 </div>
@@ -225,7 +222,7 @@ export default function RecipeGrid() {
 
           {isFetchingMore && (
             <div className="flex justify-center py-8">
-              <Spinner color="primary" size="lg" />
+              <Spinner color="accent" size="lg" />
             </div>
           )}
         </>

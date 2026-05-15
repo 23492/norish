@@ -2,6 +2,7 @@
 
 import { Button } from "@heroui/react";
 import { useTranslations } from "next-intl";
+
 import { signIn } from "@norish/shared/lib/auth/client";
 
 import { ProviderIcon } from "./provider-icon";
@@ -12,7 +13,6 @@ interface ProviderButtonProps {
   icon: string;
   callbackUrl?: string;
 }
-
 export function ProviderButton({
   providerId,
   providerName,
@@ -39,15 +39,16 @@ export function ProviderButton({
       });
     }
   };
-
   return (
     <Button
-      className="border-default-200 bg-default-100 hover:bg-default-100 active:bg-default-200 flex h-11 w-full items-center justify-center gap-3 rounded-xl border shadow-sm transition-colors"
-      startContent={<ProviderIcon icon={icon} providerName={providerName} width={20} />}
-      variant="flat"
+      className="border-border bg-surface-secondary hover:bg-surface-secondary active:bg-surface-tertiary flex h-11 w-full items-center justify-center gap-3 rounded-xl border shadow-sm transition-colors"
       onPress={handleSignIn}
+      variant="tertiary"
     >
-      {t("signInWith", { provider: providerName })}
+      {<ProviderIcon icon={icon} providerName={providerName} width={20} />}
+      {t("signInWith", {
+        provider: providerName,
+      })}
     </Button>
   );
 }

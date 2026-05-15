@@ -13,7 +13,7 @@ import {
 const subscriptionCallbacks: Record<string, (data: unknown) => void> = {};
 
 function emitPayload(payload: unknown) {
-  return { payload };
+  return payload;
 }
 
 vi.mock("@trpc/tanstack-react-query", () => ({
@@ -35,7 +35,7 @@ vi.mock("@trpc/tanstack-react-query", () => ({
 }));
 
 vi.mock("@heroui/react", () => ({
-  addToast: vi.fn(),
+  toast: vi.fn(),
 }));
 
 vi.mock("next-intl", () => ({
@@ -405,7 +405,7 @@ describe("useGroceriesSubscription", () => {
 
   describe("onFailed handler", () => {
     it("shows toast notification on failure", async () => {
-      const { addToast } = await import("@heroui/react");
+      const { toast } = await import("@heroui/react");
       const initialData = createMockGroceriesData();
 
       queryClient.setQueryData(mockQueryKey, initialData);
@@ -421,11 +421,11 @@ describe("useGroceriesSubscription", () => {
         subscriptionCallbacks.onFailed(emitPayload({ reason: "Failed to save grocery" }));
       });
 
-      expect(addToast).toHaveBeenCalledWith(
+      expect(toast).toHaveBeenCalledWith(
+        "operationFailed",
         expect.objectContaining({
-          severity: "danger",
-          title: "operationFailed",
           description: "technicalDetails",
+          variant: "danger",
         })
       );
     });

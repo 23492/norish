@@ -1,21 +1,14 @@
 "use client";
 
-import type { PanInfo } from "motion/react";
-
 import React, {
   createContext,
   ReactElement,
   ReactNode,
   useCallback,
   useContext,
-  useEffect,
-  useRef,
   useState,
 } from "react";
-import { XMarkIcon } from "@heroicons/react/16/solid";
-import { Button } from "@heroui/react";
-import { AnimatePresence, motion, useDragControls } from "motion/react";
-import { createPortal } from "react-dom";
+import { Drawer } from "@heroui/react";
 
 export const PANEL_HEIGHT_COMPACT = 40;
 export const PANEL_HEIGHT_MEDIUM = 60;
@@ -53,7 +46,6 @@ export const Panel: React.FC<PanelProps> = ({
   onOpenChange,
 }) => {
   const [internalOpen, setInternalOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? controlledOpen : internalOpen;
 
@@ -67,23 +59,6 @@ export const Panel: React.FC<PanelProps> = ({
 
   const close = useCallback(() => setOpen(false), [setOpen]);
   const toggle = useCallback(() => setOpen(!open), [open, setOpen]);
-  const controls = useDragControls();
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => setMounted(true), []);
-
-  // Close on Escape key
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && open) {
-        close();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [open, close]);
 
   const triggerElement =
     trigger &&
@@ -103,79 +78,28 @@ export const Panel: React.FC<PanelProps> = ({
       {trigger && <span className="inline-flex">{triggerElement}</span>}
 
       <PanelContext.Provider value={{ open, close, toggle }}>
-        {mounted &&
-          createPortal(
-            <AnimatePresence>
-              {open && (
-                <div className="fixed inset-0 z-[1000]">
-                  {/* Overlay */}
-                  <button
-                    aria-label="Close overlay"
-                    className="absolute inset-0 bg-black/40"
-                    onClick={close}
-                  />
+        <Drawer.Backdrop className="z-[1000]" isOpen={open} variant="opaque" onOpenChange={setOpen}>
+          <Drawer.Content placement="bottom">
+            <Drawer.Dialog
+              aria-label={title || "Panel"}
+              className={`bg-background mx-auto h-[var(--panel-height)] max-h-dvh w-full overflow-hidden rounded-t-2xl md:max-w-md ${panelClassName}`}
+              style={{ "--panel-height": `${height}dvh` } as React.CSSProperties}
+            >
+              <Drawer.Handle />
+              <Drawer.CloseTrigger aria-label="Close panel" />
 
-                  <motion.div
-                    key="panel"
-                    ref={ref}
-                    animate={{
-                      y: 0,
-                      opacity: 1,
-                      transition: { type: "spring", stiffness: 280, damping: 30 },
-                    }}
-                    aria-label={title || "Panel"}
-                    className={`bg-background absolute bottom-0 left-1/2 flex w-full -translate-x-1/2 flex-col overflow-hidden rounded-t-2xl md:max-w-md ${panelClassName} `}
-                    drag="y"
-                    dragConstraints={{ top: 0, bottom: 0 }}
-                    dragControls={controls}
-                    dragElastic={0.08}
-                    dragListener={false}
-                    exit={{ y: "100%", opacity: 1, transition: { duration: 0.2 } }}
-                    initial={{ y: "100%", opacity: 1 }}
-                    role="dialog"
-                    style={{
-                      height: `${height}dvh`,
-                    }}
-                    onClick={(e: React.MouseEvent<HTMLDivElement>) => e.stopPropagation()}
-                    onDragEnd={(_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-                      if (info.offset.y > 60) close();
-                    }}
-                  >
-                    {/* Header */}
-                    <div
-                      className="border-default-100 relative flex shrink-0 items-center justify-between border-b p-4 select-none"
-                      onPointerDown={(e) => controls.start(e)}
-                    >
-                      <Button
-                        isIconOnly
-                        aria-label="Close panel"
-                        color="primary"
-                        radius="full"
-                        size="md"
-                        variant="solid"
-                        onPress={close}
-                      >
-                        <XMarkIcon className="h-5 w-5" />
-                      </Button>
+              <Drawer.Header className="border-border relative flex shrink-0 items-center justify-center border-b px-12 py-4 select-none">
+                <Drawer.Heading className="text-center text-lg font-semibold">
+                  {title}
+                </Drawer.Heading>
+              </Drawer.Header>
 
-                      <h2 className="pointer-events-none flex-1 text-center text-lg font-semibold">
-                        {title}
-                      </h2>
-
-                      {/* Spacer keeps title centered */}
-                      <div className="h-8 w-8" />
-                    </div>
-
-                    {/* Content */}
-                    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
-                      {children}
-                    </div>
-                  </motion.div>
-                </div>
-              )}
-            </AnimatePresence>,
-            document.body
-          )}
+              <Drawer.Body className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
+                {children}
+              </Drawer.Body>
+            </Drawer.Dialog>
+          </Drawer.Content>
+        </Drawer.Backdrop>
       </PanelContext.Provider>
     </div>
   );

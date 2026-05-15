@@ -20,7 +20,7 @@ vi.mock("@tanstack/react-query", async () => {
 });
 
 vi.mock("@heroui/react", () => ({
-  addToast: vi.fn(),
+  toast: vi.fn(),
 }));
 
 vi.mock("next-intl", () => ({
@@ -298,7 +298,7 @@ describe("useRecipesMutations", () => {
       queryClient.setQueryData(["recipes", "pending"], []);
 
       const { useRecipesMutations } = await import("@/hooks/recipes/use-recipes-mutations");
-      const { addToast } = await import("@heroui/react");
+      const { toast } = await import("@heroui/react");
       const { result } = renderHook(() => useRecipesMutations(), {
         wrapper: createTestWrapper(queryClient),
       });
@@ -315,10 +315,11 @@ describe("useRecipesMutations", () => {
         );
       });
 
-      expect(addToast).toHaveBeenCalledWith(
+      expect(toast).toHaveBeenCalledWith(
+        "operationFailed",
         expect.objectContaining({
-          title: "operationFailed",
           description: "technicalDetails",
+          variant: "default",
         })
       );
     });

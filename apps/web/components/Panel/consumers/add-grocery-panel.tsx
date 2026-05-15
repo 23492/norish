@@ -1,19 +1,18 @@
 "use client";
 
-import type { StoreDto } from "@norish/shared/contracts";
-import type { RecurrencePattern } from "@norish/shared/contracts/recurrence";
-
 import { useEffect, useState } from "react";
-import { Button, Input } from "@heroui/react";
-import { AnimatePresence } from "motion/react";
-import { useTranslations } from "next-intl";
-import { useGroceryFormState } from "@norish/shared-react/hooks";
-
 import { RecurrenceSuggestion } from "@/app/(app)/groceries/components/recurrence-suggestion";
 import { StoreSelector } from "@/components/groceries/store-selector";
 import { RecurrencePanel } from "@/components/Panel/consumers/recurrence-panel";
 import Panel, { PANEL_HEIGHT_COMPACT } from "@/components/Panel/Panel";
 import { useRecurrenceDetection } from "@/hooks/use-recurrence-detection";
+import { Button, Input } from "@heroui/react";
+import { AnimatePresence } from "motion/react";
+import { useTranslations } from "next-intl";
+
+import type { StoreDto } from "@norish/shared/contracts";
+import type { RecurrencePattern } from "@norish/shared/contracts/recurrence";
+import { useGroceryFormState } from "@norish/shared-react/hooks";
 
 type AddGroceryPanelProps = {
   open: boolean;
@@ -26,7 +25,6 @@ type AddGroceryPanelProps = {
     storeId?: string | null
   ) => void;
 };
-
 export default function AddGroceryPanel({
   open,
   onOpenChange,
@@ -38,7 +36,6 @@ export default function AddGroceryPanel({
   const tActions = useTranslations("common.actions");
   const [recurrencePanelOpen, setRecurrencePanelOpen] = useState(false);
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
-
   const {
     itemName,
     setItemName,
@@ -48,7 +45,6 @@ export default function AddGroceryPanel({
     handleRemovePattern,
     reset,
   } = useGroceryFormState();
-
   const { detectedPattern } = useRecurrenceDetection({
     itemName,
     enabled: open && !recurrencePanelOpen,
@@ -61,12 +57,9 @@ export default function AddGroceryPanel({
       setSelectedStoreId(null);
     }
   }, [open, reset]);
-
   const handleSubmit = () => {
     const trimmed = itemName.trim();
-
     if (!trimmed) return;
-
     if (confirmedPattern) {
       onCreateRecurring(trimmed, confirmedPattern, selectedStoreId);
     } else {
@@ -77,12 +70,10 @@ export default function AddGroceryPanel({
     reset();
     // Keep the store selection for batch adding to same store
   };
-
   const handleRecurrenceSave = (pattern: RecurrencePattern | null) => {
     setConfirmedPattern(pattern);
     setRecurrencePanelOpen(false);
   };
-
   return (
     <>
       <Panel
@@ -101,21 +92,19 @@ export default function AddGroceryPanel({
           >
             <div className="space-y-3">
               <Input
-                classNames={{
-                  input: "text-lg font-medium",
-                  inputWrapper: "border-primary-200 dark:border-primary-800",
-                }}
+                className="border-accent-200 dark:border-accent h-12 rounded-2xl text-lg font-medium"
                 placeholder={t("placeholder")}
-                size="lg"
-                style={{ fontSize: "16px" }}
+                style={{
+                  fontSize: "16px",
+                }}
                 value={itemName}
+                onChange={(e) => setItemName(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
                     handleSubmit();
                   }
                 }}
-                onValueChange={setItemName}
               />
 
               {/* Store selection */}
@@ -160,10 +149,10 @@ export default function AddGroceryPanel({
               {/* Link to manual recurrence editor */}
               {!confirmedPattern && !detectedPattern && (
                 <Button
-                  className="font-medium"
+                  className="min-w-16 font-medium"
                   size="sm"
-                  variant="light"
                   onPress={() => setRecurrencePanelOpen(true)}
+                  variant="tertiary"
                 >
                   {t("addRepeat")}
                 </Button>
@@ -173,10 +162,10 @@ export default function AddGroceryPanel({
             <div className="flex justify-end gap-2">
               <Button
                 className="min-w-16"
-                color="primary"
                 isDisabled={!itemName.trim()}
                 size="sm"
                 onPress={handleSubmit}
+                variant="primary"
               >
                 {tActions("add")}
               </Button>

@@ -3,13 +3,11 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./theme": "./theme.css",
-    "./native-theme": {
+    "./heroui-theme": {
       "node": "./native-theme.js",
       "default": "./native-theme.css"
     },
-    "./postcss-config": "./postcss-config.js",
-    "./hero": "./hero.ts"
+    "./postcss-config": "./postcss-config.js"
   },
   "scripts": {
     "clean": "git clean -xdf .cache .turbo node_modules",
@@ -21,16 +19,7 @@
     "postcss": "catalog:",
     "tailwindcss": "catalog:"
   },
-  "peerDependencies": {
-    "@heroui/react": "^2.8.10"
-  },
-  "peerDependenciesMeta": {
-    "@heroui/react": {
-      "optional": true
-    }
-  },
   "devDependencies": {
-    "@heroui/react": "catalog:",
     "@norish/prettier-config": "workspace:*",
     "@norish/tsconfig": "workspace:*",
     "@types/node": "catalog:",

@@ -2,14 +2,12 @@
 
 import React, { useState } from "react";
 import Image from "next/image";
-import { CheckIcon } from "@heroicons/react/16/solid";
-
-import { useRecipeContext } from "../context";
-
 import { SmartInstruction } from "@/components/recipe/smart-instruction";
 import ImageLightbox from "@/components/shared/image-lightbox";
 import SmartMarkdownRenderer from "@/components/shared/smart-markdown-renderer";
+import { CheckIcon } from "@heroicons/react/16/solid";
 
+import { useRecipeContext } from "../context";
 
 type StepLike = {
   step: string;
@@ -125,7 +123,7 @@ export function ReadonlyStepsList({
                 aria-pressed={interactive ? isDone : undefined}
                 className={`flex gap-4 rounded-xl p-3 transition-all duration-200 select-none ${
                   interactive
-                    ? "group hover:bg-default-100 dark:hover:bg-default-100/10 cursor-pointer"
+                    ? "group hover:bg-surface-secondary dark:hover:bg-surface-secondary/10 cursor-pointer"
                     : "bg-transparent"
                 }`}
                 role={interactive ? "button" : undefined}
@@ -133,7 +131,7 @@ export function ReadonlyStepsList({
                 onClick={() => toggle(i)}
                 onKeyDown={(e) => onKeyToggle(e, i)}
               >
-                <div className="bg-primary text-primary-foreground relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
+                <div className="bg-accent text-accent-foreground relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
                   <span
                     className={`absolute inset-0 flex items-center justify-center transition-all duration-200 ${
                       interactive && isDone ? "scale-0 opacity-0" : "scale-100 opacity-100"
@@ -153,7 +151,7 @@ export function ReadonlyStepsList({
                 <div className="flex min-w-0 flex-1 flex-col gap-3">
                   <div
                     className={`text-base leading-relaxed transition-all duration-200 ${
-                      interactive && isDone ? "text-default-400 line-through" : "text-foreground"
+                      interactive && isDone ? "text-muted line-through" : "text-foreground"
                     }`}
                   >
                     {interactive && !isDone && enableTimers ? (
@@ -174,10 +172,10 @@ export function ReadonlyStepsList({
                       {stepImages.map((img, imgIndex) => (
                         <button
                           key={imgIndex}
-                          className={`group/img ring-default-200 focus:ring-primary dark:ring-default-700 relative h-16 w-16 overflow-hidden rounded-lg shadow-sm ring-1 transition-all duration-200 focus:ring-2 focus:outline-none md:h-20 md:w-20 ${
+                          className={`group/img ring-border focus:ring-accent dark:ring-border-secondary relative h-16 w-16 overflow-hidden rounded-lg shadow-sm ring-1 transition-all duration-200 focus:ring-2 focus:outline-none md:h-20 md:w-20 ${
                             interactive && isDone
                               ? "opacity-50 grayscale"
-                              : "hover:ring-primary-300 dark:hover:ring-primary-600 hover:scale-105 hover:shadow-md"
+                              : "hover:ring-accent-300 dark:hover:ring-accent-600 hover:scale-105 hover:shadow-md"
                           }`}
                           type="button"
                           onClick={(e) =>
