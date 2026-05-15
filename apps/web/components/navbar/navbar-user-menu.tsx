@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import ImportRecipeModal from "@/components/shared/import-recipe-modal";
 import { LanguageSwitchContent } from "@/components/shared/language-switch";
+import UserAvatar from "@/components/shared/user-avatar";
 import { useUserContext } from "@/context/user-context";
 import { useVersionQuery } from "@/hooks/config";
 import { useLanguageSwitch } from "@/hooks/user/use-language-switch";
@@ -14,10 +15,9 @@ import {
   EllipsisVerticalIcon,
   PlusIcon,
 } from "@heroicons/react/16/solid";
-import { Avatar, Button, Dropdown, Label } from "@heroui/react";
+import { Button, Dropdown, Label } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
-import { useUserAvatar } from "@norish/shared-react/hooks";
 import { cssButtonPill, cssButtonPillDanger } from "@norish/web/config/css-tokens";
 
 import { ThemeSwitchContent, useThemeSwitch } from "./theme-switch";
@@ -31,18 +31,9 @@ export default function NavbarUserMenu({ trigger = "avatar" }: NavbarUserMenuPro
   const { user, userMenuOpen: _userMenuOpen, setUserMenuOpen, signOut } = useUserContext();
   const router = useRouter();
   const [showUrlModal, setShowUrlModal] = useState(false);
-  const [imageError, setImageError] = useState(false);
   const themeSwitch = useThemeSwitch();
   const languageSwitch = useLanguageSwitch();
   const { currentVersion, latestVersion, updateAvailable, releaseUrl } = useVersionQuery();
-  const { avatarSrc, fallbackStyle } = useUserAvatar({
-    image: user?.image,
-    fallbackSeed: user?.id || user?.email || user?.name || "U",
-    disabled: imageError,
-  });
-  const handleImageError = () => {
-    setImageError(true);
-  };
   if (!user) return null;
   return (
     <>
@@ -54,21 +45,13 @@ export default function NavbarUserMenu({ trigger = "avatar" }: NavbarUserMenuPro
             className="relative h-13 w-13 rounded-full p-0"
             variant="ghost"
           >
-            <Avatar
-              className={`h-13 w-13 cursor-pointer border border-black/30 text-lg font-semibold dark:border-white/25 ${avatarSrc ? "bg-white dark:bg-black" : ""}`}
-              color="accent"
-              style={avatarSrc ? undefined : fallbackStyle}
-              variant="soft"
-            >
-              {avatarSrc ? (
-                <Avatar.Image
-                  alt={user.name || user.email || "User"}
-                  src={avatarSrc}
-                  onError={handleImageError}
-                />
-              ) : null}
-              <Avatar.Fallback>{getInitials(user.name || user.email || "U")}</Avatar.Fallback>
-            </Avatar>
+            <UserAvatar
+              className="size-13 cursor-pointer text-lg"
+              email={user.email}
+              image={user.image}
+              name={user.name}
+              userId={user.id}
+            />
             {updateAvailable && (
               <span className="absolute -top-0.5 -right-0.5 flex h-3 w-3">
                 <span className="bg-accent absolute inline-flex h-full w-full animate-ping rounded-full opacity-75" />
@@ -87,7 +70,10 @@ export default function NavbarUserMenu({ trigger = "avatar" }: NavbarUserMenuPro
           </Button>
         )}
 
-        <Dropdown.Popover className="bg-overlay min-w-[260px]" placement="bottom end">
+        <Dropdown.Popover
+          className="bg-overlay w-[min(22rem,calc(100vw-1rem))]"
+          placement="bottom end"
+        >
           <div className="border-border px-3 pt-3 pb-2">
             <div className="flex min-w-0 flex-col gap-0.5">
               <span className="truncate text-sm font-semibold">{user.name}</span>
@@ -196,10 +182,10 @@ export default function NavbarUserMenu({ trigger = "avatar" }: NavbarUserMenuPro
               <Label className="text-danger text-base font-medium">{t("logout")}</Label>
             </Dropdown.Item>
           </Dropdown.Menu>
-          <div className="border-border text-muted mt-1 flex items-center justify-end gap-2 border-t px-3 pt-2 text-xs">
+          <div className="border-border text-muted mt-1 flex min-w-0 flex-wrap items-center justify-end gap-x-2 gap-y-1 border-t px-3 pt-2 text-xs">
             {updateAvailable && releaseUrl && latestVersion && (
               <a
-                className="text-accent hover:underline"
+                className="text-accent min-w-0 truncate hover:underline"
                 href={releaseUrl}
                 rel="noopener noreferrer"
                 target="_blank"
@@ -210,7 +196,7 @@ export default function NavbarUserMenu({ trigger = "avatar" }: NavbarUserMenuPro
                 })}
               </a>
             )}
-            <span>v{currentVersion ?? "..."}</span>
+            <span className="shrink-0">v{currentVersion ?? "..."}</span>
           </div>
         </Dropdown.Popover>
       </Dropdown>
@@ -219,14 +205,4 @@ export default function NavbarUserMenu({ trigger = "avatar" }: NavbarUserMenuPro
       <ImportRecipeModal isOpen={showUrlModal} onOpenChange={setShowUrlModal} />
     </>
   );
-}
-
-function getInitials(value: string) {
-  return value
-    .split(/[\s@._-]+/)
-    .filter(Boolean)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
 }

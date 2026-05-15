@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Panel, { PANEL_HEIGHT_MEDIUM } from "@/components/Panel/Panel";
 import { CalendarIcon, MinusIcon, PlusIcon } from "@heroicons/react/16/solid";
-import { Button, ButtonGroup } from "@heroui/react";
+import { Button, ToggleButton, ToggleButtonGroup } from "@heroui/react";
 import { AnimatePresence, motion } from "motion/react";
 import { useTranslations } from "next-intl";
 
@@ -123,23 +123,38 @@ export function RecurrencePanel({
         }
       }}
     >
-      <div className="flex flex-col gap-5 pb-2">
+      <Panel.Body className="gap-5">
         {/* Frequency Selector */}
         <div>
           <span className="text-muted mb-2.5 block text-xs font-semibold tracking-wider uppercase">
             {t("frequency")}
           </span>
-          <ButtonGroup fullWidth className="shadow-sm" size="md">
-            <Button className="font-medium" onPress={() => handleFrequencyChange("day")}>
+          <ToggleButtonGroup
+            disallowEmptySelection
+            fullWidth
+            selectedKeys={pattern ? [pattern.rule] : []}
+            selectionMode="single"
+            size="md"
+            onSelectionChange={(keys) => {
+              const [rule] = Array.from(keys);
+
+              if (rule === "day" || rule === "week" || rule === "month") {
+                handleFrequencyChange(rule);
+              }
+            }}
+          >
+            <ToggleButton className="font-medium" id="day">
               {t("daily")}
-            </Button>
-            <Button className="font-medium" onPress={() => handleFrequencyChange("week")}>
+            </ToggleButton>
+            <ToggleButton className="font-medium" id="week">
+              <ToggleButtonGroup.Separator />
               {t("weekly")}
-            </Button>
-            <Button className="font-medium" onPress={() => handleFrequencyChange("month")}>
+            </ToggleButton>
+            <ToggleButton className="font-medium" id="month">
+              <ToggleButtonGroup.Separator />
               {t("monthly")}
-            </Button>
-          </ButtonGroup>
+            </ToggleButton>
+          </ToggleButtonGroup>
         </div>
 
         {/* Interval Stepper */}
@@ -227,18 +242,32 @@ export function RecurrencePanel({
               <span className="text-muted mb-2.5 block text-xs font-semibold tracking-wider uppercase">
                 {t("onDay")}
               </span>
-              <div className="flex gap-1.5">
+              <ToggleButtonGroup
+                disallowEmptySelection
+                fullWidth
+                selectedKeys={[String(pattern.weekday ?? 1)]}
+                selectionMode="single"
+                size="sm"
+                onSelectionChange={(keys) => {
+                  const [weekday] = Array.from(keys);
+                  const index = Number(weekday);
+
+                  if (Number.isInteger(index)) {
+                    handleWeekdayChange(index);
+                  }
+                }}
+              >
                 {WEEKDAY_KEYS.map((key, index) => (
-                  <Button
+                  <ToggleButton
                     key={index}
-                    className="min-w-0 min-w-16 flex-1 text-xs font-medium"
-                    size="sm"
-                    onPress={() => handleWeekdayChange(index)}
+                    className="min-w-0 flex-1 px-2 text-xs font-medium"
+                    id={String(index)}
                   >
+                    {index > 0 && <ToggleButtonGroup.Separator />}
                     {t(`weekdays.${key}`)}
-                  </Button>
+                  </ToggleButton>
                 ))}
-              </div>
+              </ToggleButtonGroup>
             </motion.div>
           )}
         </AnimatePresence>
@@ -288,30 +317,24 @@ export function RecurrencePanel({
             </motion.div>
           )}
         </AnimatePresence>
-
-        {/* Action Buttons */}
-        <div className="flex justify-end gap-2 pt-1">
+      </Panel.Body>
+      <Panel.Footer>
+        <div className="flex justify-end gap-2">
           {initialPattern && (
-            <Button
-              className="min-w-16 font-medium"
-              size="sm"
-              onPress={handleRemove}
-              variant="danger-soft"
-            >
+            <Button className="min-w-24 font-medium" onPress={handleRemove} variant="danger-soft">
               {tActions("remove")}
             </Button>
           )}
           <Button
-            className="min-w-16 font-medium"
+            className="min-w-24 font-medium"
             isDisabled={!pattern}
-            size="sm"
             onPress={handleSave}
             variant="primary"
           >
             {tActions("done")}
           </Button>
         </div>
-      </div>
+      </Panel.Footer>
     </Panel>
   );
 }

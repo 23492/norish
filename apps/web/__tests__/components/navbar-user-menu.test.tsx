@@ -28,10 +28,16 @@ vi.mock("@heroui/react", () => ({
     Header: ({ children }: any) => <div>{children}</div>,
     Content: ({ children }: any) => <div>{children}</div>,
   }),
-  Avatar: ({ onClick, src }: any) => (
-    <button aria-label="avatar-trigger" type="button" onClick={onClick}>
-      <img alt="profile avatar" src={src} />
-    </button>
+  Avatar: Object.assign(
+    ({ children, className, style }: any) => (
+      <span className={className} style={style}>
+        {children}
+      </span>
+    ),
+    {
+      Image: ({ alt, src }: any) => <img alt={alt} src={src} />,
+      Fallback: ({ children }: any) => <span>{children}</span>,
+    }
   ),
   TextField: ({ children, value, onChange, isReadOnly, isDisabled }: any) => (
     <input
@@ -104,7 +110,7 @@ describe("ProfileCard", () => {
 
     render(<ProfileCard />);
 
-    const src = screen.getByAltText("profile avatar").getAttribute("src");
+    const src = screen.getByAltText("Alice").getAttribute("src");
 
     expect(src).toBe("/avatars/user-1.png");
   });

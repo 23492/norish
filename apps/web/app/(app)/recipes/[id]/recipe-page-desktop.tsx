@@ -137,7 +137,7 @@ export default function RecipePageDesktop() {
           {/* Notes */}
           {recipe.notes && (
             <Card className="bg-surface rounded-2xl shadow-md">
-              <Card.Header className="flex items-center justify-between px-6 pt-6">
+              <Card.Header className="flex-row items-center justify-between px-6 pt-6 text-left">
                 <h2 className="text-lg font-semibold">{t("notes")}</h2>
               </Card.Header>
               <Card.Content className="p-6 pt-0">
@@ -148,11 +148,11 @@ export default function RecipePageDesktop() {
 
           {/* Steps Card (below image in right column) */}
           <Card className="bg-surface rounded-2xl shadow-md">
-            <Card.Header className="flex items-center justify-between px-6 pt-6">
+            <Card.Header className="flex-row items-center justify-between px-6 pt-6 text-left">
               <h2 className="text-lg font-semibold">{t("steps")}</h2>
               <WakeLockToggle />
             </Card.Header>
-            <Card.Content className="px-3 pt-2 pb-0">
+            <Card.Content className="px-3 pt-2 pb-0 text-left">
               <StepsList />
             </Card.Content>
 

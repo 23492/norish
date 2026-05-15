@@ -1,7 +1,7 @@
-import type { GroceryUpdateDto } from "@norish/shared/contracts";
-
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+
+import type { GroceryUpdateDto } from "@norish/shared/contracts";
 import { assertHouseholdAccess } from "@norish/auth/permissions";
 import { getUnits } from "@norish/config/server-config-loader";
 import {
@@ -34,7 +34,6 @@ import { parseIngredientWithDefaults } from "@norish/shared/lib/helpers";
 
 import { authedProcedure } from "../../middleware";
 import { router } from "../../trpc";
-
 import { groceryEmitter } from "./emitter";
 import {
   assignGroceryToStoreData,
@@ -63,7 +62,7 @@ const create = authedProcedure
     try {
       const result = await createGroceriesData(ctx, input);
 
-      return result.ids;
+      return result;
     } catch (err) {
       log.error({ err, userId: ctx.user.id }, "Failed to create groceries");
       groceryEmitter.emitToHousehold(ctx.householdKey, "failed", {

@@ -108,9 +108,9 @@ export function StoreManagerPanel({ open, onOpenChange, stores }: StoreManagerPa
   return (
     <>
       <Panel height={PANEL_HEIGHT_LARGE} open={open} title={t("title")} onOpenChange={onOpenChange}>
-        <div className="flex h-full flex-col gap-4">
+        <Panel.Body>
           {/* Store list */}
-          <div ref={dragConstraintsRef} className="flex-1 overflow-y-auto">
+          <div ref={dragConstraintsRef} className="min-h-0 flex-1">
             {stores.length === 0 && !editingStore && (
               <div className="text-muted py-8 text-center">
                 <p>{t("noStoresYet")}</p>
@@ -168,15 +168,18 @@ export function StoreManagerPanel({ open, onOpenChange, stores }: StoreManagerPa
               />
             </div>
           )}
-
-          {/* Add store button */}
-          {!editingStore && (
-            <Button className="shrink-0" onPress={handleStartCreate} variant="primary">
-              {<PlusIcon className="h-5 w-5" />}
-              {t("addStore")}
-            </Button>
-          )}
-        </div>
+        </Panel.Body>
+        {!editingStore && (
+          <Panel.Footer>
+            {/* Add store button */}
+            <div className="flex shrink-0 justify-end">
+              <Button className="min-w-24" onPress={handleStartCreate} variant="primary">
+                {<PlusIcon className="h-5 w-5" />}
+                {t("addStore")}
+              </Button>
+            </div>
+          </Panel.Footer>
+        )}
       </Panel>
 
       <DeleteStoreModal
@@ -285,6 +288,7 @@ function StoreEditForm({ editing, onChange, onSave, onCancel, translations }: St
       >
         <Label>{t("storeName")}</Label>
         <Input
+          variant="secondary"
           placeholder={t("storeNamePlaceholder")}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
@@ -347,16 +351,15 @@ function StoreEditForm({ editing, onChange, onSave, onCancel, translations }: St
 
       {/* Action buttons */}
       <div className="flex justify-end gap-2">
-        <Button size="sm" onPress={onCancel} variant="tertiary" className="min-w-16">
+        <Button onPress={onCancel} variant="tertiary" className="min-w-24">
           <XMarkIcon className="h-4 w-4" />
           {tActions("cancel")}
         </Button>
         <Button
           isDisabled={!editing.name.trim()}
-          size="sm"
           onPress={onSave}
           variant="primary"
-          className="min-w-16"
+          className="min-w-24"
         >
           <CheckIcon className="h-4 w-4" />
           {editing.id ? tActions("save") : t("create")}

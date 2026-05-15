@@ -33,7 +33,7 @@ export default function Filters({ isGlass = false }: FiltersProps) {
       <Button
         isIconOnly
         aria-label="Filters"
-        className={`relative h-12 w-12 ${isGlass ? cssGlassBackdrop : "bg-surface-secondary hover:bg-surface-tertiary"}`}
+        className={`shadow-field relative h-12 w-12 border border-transparent ${isGlass ? cssGlassBackdrop : "bg-field hover:bg-field-hover dark:bg-default dark:hover:bg-surface-tertiary"}`}
         onPress={() => setIsOpen(true)}
         variant="tertiary"
       >

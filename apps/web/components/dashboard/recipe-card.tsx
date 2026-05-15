@@ -112,14 +112,14 @@ function RecipeCardComponent({
       {
         key: "groceries",
         icon: ShoppingBagIcon,
-        color: "blue",
+        color: "accent",
         onPress: () => setGroceriesOpen(true),
         label: t("viewGroceries"),
       },
       {
         key: "calendar",
         icon: CalendarDaysIcon,
-        color: "yellow",
+        color: "warning",
         onPress: () => setCalendarOpen(true),
         label: t("addToCalendar"),
       },
@@ -164,7 +164,10 @@ function RecipeCardComponent({
           }}
         >
           <div className="group/row relative h-full w-full">
-            <Card className="bg-surface relative h-full w-full gap-0 overflow-hidden rounded-3xl p-0 shadow-sm focus-visible:outline-none">
+            <Card
+              className="border-border bg-surface shadow-surface relative h-full w-full gap-0 overflow-hidden rounded-3xl border p-0 focus-visible:outline-none"
+              variant="default"
+            >
               <DoubleTapContainer
                 className="relative h-[236px] w-full shrink-0 cursor-pointer overflow-hidden"
                 disabled={open || mobileSearchOpen}

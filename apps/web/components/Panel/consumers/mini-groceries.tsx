@@ -165,10 +165,15 @@ function MiniGroceriesContent({
                 }}
               >
                 <Checkbox
-                  className="mt-[-4px] [&_.checkbox__control]:rounded-sm"
+                  aria-label={item.ingredientName}
+                  className="mt-[-4px] [&_[data-slot='checkbox-default-indicator--checkmark']]:size-3"
                   isSelected={selectedIds.includes(item.ingredientId!)}
                   onChange={() => toggleSelect(item.ingredientId!)}
-                />
+                >
+                  <Checkbox.Control className="size-5 rounded-sm data-[selected=true]:border-accent data-[selected=true]:bg-accent">
+                    <Checkbox.Indicator className="text-accent-foreground" />
+                  </Checkbox.Control>
+                </Checkbox>
                 <div className="ml-2 flex min-w-0 flex-1 flex-col">
                   {isEditing ? (
                     <Input

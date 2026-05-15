@@ -53,38 +53,41 @@ const createRecurring = authedProcedure
       lastCheckedDate: null,
     };
 
-    createRecurringGrocery(recurringData)
-      .then(async (created) => {
-        const groceryData: GroceryInsertDto = {
-          userId: ctx.user.id,
-          name: created.name,
-          unit: created.unit || null,
-          amount: created.amount,
-          isDone: false,
-          recurringGroceryId: created.id,
-          recipeIngredientId: null,
-          storeId: input.storeId ?? null,
-        };
+    try {
+      const created = await createRecurringGrocery(recurringData);
+      const groceryData: GroceryInsertDto = {
+        userId: ctx.user.id,
+        name: created.name,
+        unit: created.unit || null,
+        amount: created.amount,
+        isDone: false,
+        recurringGroceryId: created.id,
+        recipeIngredientId: null,
+        storeId: input.storeId ?? null,
+      };
 
-        const grocery = await createGrocery(id, groceryData, ctx.userIds);
+      const grocery = await createGrocery(id, groceryData, ctx.userIds);
 
-        log.info(
-          { userId: ctx.user.id, recurringId: created.id, groceryId: id },
-          "Recurring grocery created"
-        );
-        groceryEmitter.emitToHousehold(ctx.householdKey, "recurringCreated", {
-          recurringGrocery: created,
-          grocery,
-        });
-      })
-      .catch((err) => {
-        log.error({ err, userId: ctx.user.id }, "Failed to create recurring grocery");
-        groceryEmitter.emitToHousehold(ctx.householdKey, "failed", {
-          reason: "Failed to create recurring grocery",
-        });
+      log.info(
+        { userId: ctx.user.id, recurringId: created.id, groceryId: id },
+        "Recurring grocery created"
+      );
+      groceryEmitter.emitToHousehold(ctx.householdKey, "recurringCreated", {
+        recurringGrocery: created,
+        grocery,
       });
 
-    return id;
+      return { recurringGrocery: created, grocery };
+    } catch (err) {
+      log.error({ err, userId: ctx.user.id }, "Failed to create recurring grocery");
+      groceryEmitter.emitToHousehold(ctx.householdKey, "failed", {
+        reason: "Failed to create recurring grocery",
+      });
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Failed to create recurring grocery",
+      });
+    }
   });
 
 const updateRecurring = authedProcedure

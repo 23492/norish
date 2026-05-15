@@ -1,13 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import UserAvatar from "@/components/shared/user-avatar";
 import { TrashIcon } from "@heroicons/react/16/solid";
 import { PencilIcon } from "@heroicons/react/20/solid";
 import { UserCircleIcon } from "@heroicons/react/24/outline";
-import { Avatar, Button, Card, Input, Label, TextField } from "@heroui/react";
+import { Button, Card, Input, Label, TextField } from "@heroui/react";
 import { useTranslations } from "next-intl";
-
-import { useUserAvatar } from "@norish/shared-react/hooks";
 
 import { useUserSettingsContext } from "../context";
 
@@ -77,10 +76,6 @@ export default function ProfileCard() {
   };
   const hasPendingChanges = name !== user?.name || pendingImageFile !== null;
   const hasImage = imagePreview || user?.image;
-  const { avatarSrc, fallbackStyle } = useUserAvatar({
-    image: imagePreview || user?.image,
-    fallbackSeed: user?.id || user?.email || user?.name || "U",
-  });
   return (
     <Card>
       <Card.Header>
@@ -92,13 +87,20 @@ export default function ProfileCard() {
       <Card.Content className="gap-4">
         <div className="flex items-center gap-4">
           <div className="relative">
-            <Avatar
-              className={`h-24 w-24 cursor-pointer border border-black/30 text-2xl font-semibold transition-opacity hover:opacity-80 dark:border-white/25 ${avatarSrc ? "bg-white dark:bg-black" : ""}`}
-              name={user?.name?.[0]?.toUpperCase() || "U"}
-              src={avatarSrc}
-              style={avatarSrc ? undefined : fallbackStyle}
+            <button
+              aria-label={t("avatarHint")}
+              className="rounded-full"
+              type="button"
               onClick={() => fileInputRef.current?.click()}
-            />
+            >
+              <UserAvatar
+                className="size-24 cursor-pointer text-2xl transition-opacity hover:opacity-80"
+                email={user?.email}
+                image={imagePreview || user?.image}
+                name={user?.name}
+                userId={user?.id}
+              />
+            </button>
             <input
               ref={fileInputRef}
               accept="image/*"
@@ -122,12 +124,12 @@ export default function ProfileCard() {
             <Button
               isIconOnly
               aria-label={t("avatarHint")}
-              className="absolute -right-1 -bottom-1 h-7 w-7 min-w-0 rounded-full"
+              className="absolute right-0 bottom-0 h-6 w-6 min-w-0 rounded-full"
               size="sm"
               onPress={() => fileInputRef.current?.click()}
               variant="primary"
             >
-              <PencilIcon className="h-3.5 w-3.5" />
+              <PencilIcon className="!size-3" />
             </Button>
           </div>
           <div className="flex flex-1 flex-col gap-2">

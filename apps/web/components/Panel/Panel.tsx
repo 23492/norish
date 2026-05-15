@@ -6,13 +6,14 @@ import React, {
   ReactNode,
   useCallback,
   useContext,
+  useMemo,
   useState,
 } from "react";
 import { Drawer } from "@heroui/react";
 
-export const PANEL_HEIGHT_COMPACT = 40;
-export const PANEL_HEIGHT_MEDIUM = 60;
-export const PANEL_HEIGHT_LARGE = 85; // Default height when none is specified
+export const PANEL_HEIGHT_COMPACT = 48;
+export const PANEL_HEIGHT_MEDIUM = 68;
+export const PANEL_HEIGHT_LARGE = 88; // Default height when none is specified
 
 export interface PanelProps {
   className?: string;
@@ -35,7 +36,31 @@ export function usePanel() {
   return useContext(PanelContext);
 }
 
-export const Panel: React.FC<PanelProps> = ({
+type PanelSectionProps = {
+  children: ReactNode;
+  className?: string;
+};
+
+export function PanelBody({ children, className = "" }: PanelSectionProps) {
+  return <div className={`flex min-h-0 flex-1 flex-col gap-4 ${className}`}>{children}</div>;
+}
+
+export function PanelFooter({ children, className = "" }: PanelSectionProps) {
+  return (
+    <div
+      className={`border-border bg-background sticky bottom-0 z-10 shrink-0 border-t px-4 py-3 ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+type PanelComponent = React.FC<PanelProps> & {
+  Body: typeof PanelBody;
+  Footer: typeof PanelFooter;
+};
+
+const PanelRoot: React.FC<PanelProps> = ({
   className = "",
   panelClassName = "",
   title = "",
@@ -59,6 +84,22 @@ export const Panel: React.FC<PanelProps> = ({
 
   const close = useCallback(() => setOpen(false), [setOpen]);
   const toggle = useCallback(() => setOpen(!open), [open, setOpen]);
+  const { bodyChildren, footerChildren } = useMemo(() => {
+    const body: ReactNode[] = [];
+    const footer: ReactNode[] = [];
+
+    React.Children.forEach(children, (child) => {
+      if (React.isValidElement(child) && child.type === PanelFooter) {
+        footer.push(child);
+      } else if (React.isValidElement(child) && child.type === PanelBody) {
+        body.push(child);
+      } else {
+        body.push(child);
+      }
+    });
+
+    return { bodyChildren: body, footerChildren: footer };
+  }, [children]);
 
   const triggerElement =
     trigger &&
@@ -95,8 +136,9 @@ export const Panel: React.FC<PanelProps> = ({
               </Drawer.Header>
 
               <Drawer.Body className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
-                {children}
+                {bodyChildren}
               </Drawer.Body>
+              {footerChildren}
             </Drawer.Dialog>
           </Drawer.Content>
         </Drawer.Backdrop>
@@ -104,5 +146,10 @@ export const Panel: React.FC<PanelProps> = ({
     </div>
   );
 };
+
+export const Panel = Object.assign(PanelRoot, {
+  Body: PanelBody,
+  Footer: PanelFooter,
+}) satisfies PanelComponent;
 
 export default Panel;

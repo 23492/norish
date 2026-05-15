@@ -69,7 +69,7 @@ export function EditPlannedRecipePanel({
   };
   return (
     <Panel height={PANEL_HEIGHT_COMPACT} open={open} title={t("title")} onOpenChange={onOpenChange}>
-      <div className="flex flex-col gap-4">
+      <Panel.Body>
         {/* Recipe preview */}
         <Link
           className="flex items-center gap-3 rounded-lg"
@@ -94,7 +94,12 @@ export function EditPlannedRecipePanel({
             value={selectedDate}
             onChange={(d) => d && setSelectedDate(d)}
           />
-          <Select className="flex-1" value={selectedSlot} onChange={handleSlotChange}>
+          <Select
+            className="flex-1"
+            selectedKey={selectedSlot}
+            variant="secondary"
+            onSelectionChange={handleSlotChange}
+          >
             <Label>{t("slot")}</Label>
             <Select.Trigger>
               <Select.Value />
@@ -112,19 +117,20 @@ export function EditPlannedRecipePanel({
             </Select.Popover>
           </Select>
         </div>
-
-        <div className="mt-2 flex justify-end gap-2">
-          <Button isIconOnly size="sm" onPress={handleDelete} variant="danger-soft">
+      </Panel.Body>
+      <Panel.Footer>
+        <div className="flex justify-end gap-2">
+          <Button isIconOnly onPress={handleDelete} variant="danger-soft">
             <TrashIcon className="h-4 w-4" />
           </Button>
-          <Button className="min-w-16" size="sm" onPress={handleDuplicate} variant="tertiary">
+          <Button className="min-w-24" onPress={handleDuplicate} variant="tertiary">
             {tActions("duplicate")}
           </Button>
-          <Button className="min-w-16" size="sm" onPress={handleSave} variant="primary">
+          <Button className="min-w-24" onPress={handleSave} variant="primary">
             {tActions("save")}
           </Button>
         </div>
-      </div>
+      </Panel.Footer>
     </Panel>
   );
 }

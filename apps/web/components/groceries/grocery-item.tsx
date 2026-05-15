@@ -3,10 +3,11 @@
 import { memo } from "react";
 import { RecurrencePill } from "@/app/(app)/groceries/components/recurrence-pill";
 import { useUnitFormatter } from "@/hooks/use-unit-formatter";
-import { Checkbox } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
 import type { GroceryDto, RecurringGroceryDto, StoreDto } from "@norish/shared/contracts";
+
+import { GroceryCheckbox } from "./grocery-checkbox";
 
 interface GroceryItemProps {
   grocery: GroceryDto;
@@ -41,11 +42,12 @@ function GroceryItemComponent({
     <div
       className={`bg-surface flex items-center gap-3 px-4 py-3 pl-10 ${roundedClass} ${hasSubtitle ? "min-h-[72px]" : "min-h-14"}`}
     >
-      <Checkbox
-        className="[&_.checkbox__control]:rounded-full"
+      <GroceryCheckbox
+        aria-label={grocery.name || t("unnamedItem")}
+        delayChangeOnSelect
         isSelected={grocery.isDone}
         size="lg"
-        onValueChange={(checked) => onToggle(grocery.id, checked)}
+        onChange={(checked) => onToggle(grocery.id, checked)}
       />
 
       {/* Clickable content area */}

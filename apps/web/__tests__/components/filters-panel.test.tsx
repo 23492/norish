@@ -37,9 +37,16 @@ vi.mock("motion/react", () => ({
   },
 }));
 
-vi.mock("@/components/Panel/Panel", () => ({
-  default: ({ children }: any) => <div>{children}</div>,
-}));
+vi.mock("@/components/Panel/Panel", () => {
+  const Panel = ({ children }: any) => <div>{children}</div>;
+
+  Panel.Body = ({ children }: any) => <div>{children}</div>;
+  Panel.Footer = ({ children }: any) => <div>{children}</div>;
+
+  return {
+    default: Panel,
+  };
+});
 
 vi.mock("@/components/dashboard/search-field-toggles", () => ({
   default: () => <div>search-field-toggles</div>,

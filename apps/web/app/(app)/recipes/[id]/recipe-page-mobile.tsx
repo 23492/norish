@@ -161,12 +161,12 @@ export default function RecipePageMobile() {
 
           {/* Steps Section */}
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-row items-center justify-between text-left">
               <h2 className="text-lg font-semibold">{t("steps")}</h2>
               <WakeLockToggle />
             </div>
 
-            <div className="-mx-1">
+            <div className="-mx-1 text-left">
               <StepsList />
             </div>
 

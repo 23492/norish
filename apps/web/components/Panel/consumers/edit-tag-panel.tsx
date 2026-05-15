@@ -62,53 +62,42 @@ export default function EditTagPanel({
       title={t("editTitle")}
       onOpenChange={onOpenChange}
     >
-      <div className="flex flex-col gap-4">
-        <form
-          className="flex flex-col gap-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleSubmit();
-          }}
-        >
-          <div className="space-y-3">
-            <TextField
-              className="border-accent-200 dark:border-accent text-lg font-medium"
-              isInvalid={isDuplicate}
-              value={tagName}
-              onChange={setTagName}
-            >
-              <Input
-                placeholder={t("editPlaceholder")}
-                style={{
-                  fontSize: "16px",
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleSubmit();
-                  }
-                }}
-              />
-              {isDuplicate && <FieldError>{t("duplicateTag")}</FieldError>}
-            </TextField>
-          </div>
-
-          <div className="flex justify-end gap-2">
-            <Button className="min-w-16" size="sm" onPress={handleDelete} variant="danger-soft">
-              {tActions("delete")}
-            </Button>
-            <Button
-              className="min-w-16"
-              isDisabled={!canSave}
-              size="sm"
-              onPress={handleSubmit}
-              variant="primary"
-            >
-              {tActions("save")}
-            </Button>
-          </div>
-        </form>
-      </div>
+      <Panel.Body>
+        <div className="space-y-3">
+          <TextField isInvalid={isDuplicate} value={tagName} onChange={setTagName}>
+            <Input
+              className="h-12 text-base font-medium"
+              variant="secondary"
+              placeholder={t("editPlaceholder")}
+              style={{
+                fontSize: "16px",
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleSubmit();
+                }
+              }}
+            />
+            {isDuplicate && <FieldError>{t("duplicateTag")}</FieldError>}
+          </TextField>
+        </div>
+      </Panel.Body>
+      <Panel.Footer>
+        <div className="flex justify-end gap-2">
+          <Button className="min-w-24" onPress={handleDelete} variant="danger-soft">
+            {tActions("delete")}
+          </Button>
+          <Button
+            className="min-w-24"
+            isDisabled={!canSave}
+            onPress={handleSubmit}
+            variant="primary"
+          >
+            {tActions("save")}
+          </Button>
+        </div>
+      </Panel.Footer>
     </Panel>
   );
 }

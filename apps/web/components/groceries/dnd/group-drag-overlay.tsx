@@ -2,10 +2,11 @@
 
 import { useUnitFormatter } from "@/hooks/use-unit-formatter";
 import { Bars3Icon, Square2StackIcon } from "@heroicons/react/16/solid";
-import { Checkbox } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
 import type { GroceryGroup } from "@norish/shared/lib/grocery-grouping";
+
+import { GroceryCheckbox } from "../grocery-checkbox";
 
 interface GroupDragOverlayProps {
   group: GroceryGroup;
@@ -29,9 +30,9 @@ export function GroupDragOverlay({ group }: GroupDragOverlayProps) {
         <Bars3Icon className="h-5 w-5" />
       </div>
 
-      <Checkbox
+      <GroceryCheckbox
+        aria-label={group.displayName || t("unnamedItem")}
         isDisabled
-        className="[&_.checkbox__control]:rounded-full"
         isIndeterminate={group.anyDone && !group.allDone}
         isSelected={group.allDone}
         size="lg"

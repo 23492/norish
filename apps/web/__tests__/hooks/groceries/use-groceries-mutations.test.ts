@@ -1,4 +1,4 @@
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -179,6 +179,42 @@ describe("useGroceriesMutations", () => {
       expect(typeof result.current.deleteGroceries).toBe("function");
       expect(typeof result.current.deleteRecurringGrocery).toBe("function");
       expect(typeof result.current.getRecurringGroceryForGrocery).toBe("function");
+    });
+
+    it("adds created groceries to the cache optimistically", async () => {
+      const initialData = createMockGroceriesData(
+        [createMockGrocery({ id: "existing", name: "Milk", storeId: "store-1", sortOrder: 0 })],
+        []
+      );
+
+      queryClient.setQueryData(["groceries", "list"], initialData);
+
+      const { useGroceriesMutations } = await import("@/hooks/groceries/use-groceries-mutations");
+      const { result } = renderHook(() => useGroceriesMutations(), {
+        wrapper: createTestWrapper(queryClient),
+      });
+
+      act(() => {
+        result.current.createGrocery("Apples", "store-1");
+      });
+
+      const data = queryClient.getQueryData<ReturnType<typeof createMockGroceriesData>>([
+        "groceries",
+        "list",
+      ]);
+
+      expect(data?.groceries[0]).toMatchObject({
+        name: "Apples",
+        amount: 1,
+        unit: "piece",
+        isDone: false,
+        storeId: "store-1",
+        sortOrder: 0,
+      });
+      expect(data?.groceries[1]).toMatchObject({
+        id: "existing",
+        sortOrder: 1,
+      });
     });
   });
 

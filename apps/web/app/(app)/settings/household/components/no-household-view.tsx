@@ -77,9 +77,13 @@ export default function NoHouseholdView() {
                   value={joinCode}
                   onChange={setJoinCode}
                 >
-                  <InputOTP.Group className="justify-start">
+                  <InputOTP.Group className="justify-start gap-2">
                     {Array.from({ length: 6 }).map((_, index) => (
-                      <InputOTP.Slot key={index} index={index} />
+                      <InputOTP.Slot
+                        key={index}
+                        className="border-field-border bg-field text-foreground shadow-field data-[active=true]:bg-field-focus data-[filled=true]:bg-field-focus h-12 w-10 flex-none"
+                        index={index}
+                      />
                     ))}
                   </InputOTP.Group>
                 </InputOTP>

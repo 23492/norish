@@ -196,6 +196,7 @@ export default function RecipeGrid() {
                 <div
                   key={virtualRow.key}
                   ref={virtualizer.measureElement}
+                  className="pb-4"
                   data-index={virtualRow.index}
                   style={{
                     position: "absolute",

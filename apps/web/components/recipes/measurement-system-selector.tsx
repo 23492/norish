@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Button, ButtonGroup } from "@heroui/react";
+import { ToggleButton, ToggleButtonGroup } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
 import { MeasurementSystem } from "@norish/shared/contracts";
@@ -36,13 +36,27 @@ export default function MeasurementSystemSelector({
           </span>
         )}
       </div>
-      <ButtonGroup className="w-full" size="md">
+      <ToggleButtonGroup
+        disallowEmptySelection
+        fullWidth
+        selectedKeys={[value]}
+        selectionMode="single"
+        size="md"
+        onSelectionChange={(keys) => {
+          const [system] = Array.from(keys);
+
+          if (system === "metric" || system === "us") {
+            onChange(system);
+          }
+        }}
+      >
         {systems.map((system) => (
-          <Button key={system} className="flex-1" onPress={() => onChange(system)}>
+          <ToggleButton key={system} className="flex-1" id={system}>
+            {system === "us" && <ToggleButtonGroup.Separator />}
             {systemLabels[system]}
-          </Button>
+          </ToggleButton>
         ))}
-      </ButtonGroup>
+      </ToggleButtonGroup>
     </div>
   );
 }

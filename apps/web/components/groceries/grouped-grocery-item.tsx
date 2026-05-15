@@ -5,12 +5,13 @@ import { memo, useCallback, useState } from "react";
 import { RecurrencePill } from "@/app/(app)/groceries/components/recurrence-pill";
 import { useUnitFormatter } from "@/hooks/use-unit-formatter";
 import { ChevronDownIcon } from "@heroicons/react/16/solid";
-import { Checkbox } from "@heroui/react";
 import { AnimatePresence, motion } from "motion/react";
 import { useTranslations } from "next-intl";
 
 import type { GroceryDto, RecurringGroceryDto } from "@norish/shared/contracts";
 import type { GroceryGroup, GroupedGrocerySource } from "@norish/shared/lib/grocery-grouping";
+
+import { GroceryCheckbox } from "./grocery-checkbox";
 
 /**
  * Format inline source breakdown showing recipe names and amounts.
@@ -18,11 +19,12 @@ import type { GroceryGroup, GroupedGrocerySource } from "@norish/shared/lib/groc
  */
 function formatInlineSourceBreakdown(
   sources: GroupedGrocerySource[],
-  formatFn: (amount: number | null | undefined, unit: string | null | undefined) => string
+  formatFn: (amount: number | null | undefined, unit: string | null | undefined) => string,
+  manualLabel: string
 ): string {
   return sources
     .map((source) => {
-      const name = source.recipeName ?? "Manual";
+      const name = source.recipeName ?? manualLabel;
       const amount = formatFn(source.grocery.amount, source.grocery.unit);
 
       return amount ? `${name} (${amount})` : name;
@@ -59,7 +61,9 @@ function GroupedGroceryItemComponent({
 }: GroupedGroceryItemProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const t = useTranslations("groceries.item");
+  const tEmpty = useTranslations("groceries.empty");
   const { formatAmountUnit } = useUnitFormatter();
+  const manualLabel = tEmpty("manual");
 
   const roundedClass =
     isFirst && isLast ? "rounded-lg" : isFirst ? "rounded-t-lg" : isLast ? "rounded-b-lg" : "";
@@ -113,12 +117,13 @@ function GroupedGroceryItemComponent({
         <div className="flex h-8 w-8 items-center justify-center">{dragHandle}</div>
 
         {/* Group checkbox - toggles all items */}
-        <Checkbox
-          className="[&_.checkbox__control]:rounded-full"
+        <GroceryCheckbox
+          aria-label={group.displayName || t("unnamedItem")}
+          delayChangeOnSelect
           isIndeterminate={group.anyDone && !group.allDone}
           isSelected={group.allDone}
           size="lg"
-          onValueChange={handleGroupToggle}
+          onChange={handleGroupToggle}
         />
 
         {/* Clickable content area */}
@@ -147,8 +152,10 @@ function GroupedGroceryItemComponent({
           </div>
 
           {/* Single item: show recipe name or recurrence */}
-          {isSingleItem && singleSource?.recipeName && !singleRecurringGrocery && (
-            <span className="text-muted mt-0.5 truncate text-xs">{singleSource.recipeName}</span>
+          {isSingleItem && !singleRecurringGrocery && (
+            <span className="text-muted mt-0.5 truncate text-xs">
+              {singleSource?.recipeName ?? manualLabel}
+            </span>
           )}
 
           {/* Single item: show recurring pill */}
@@ -159,7 +166,7 @@ function GroupedGroceryItemComponent({
           {/* Multiple items: show inline recipe breakdown */}
           {!isSingleItem && (
             <span className="text-muted mt-0.5 truncate text-xs">
-              {formatInlineSourceBreakdown(group.sources, formatAmountUnit)}
+              {formatInlineSourceBreakdown(group.sources, formatAmountUnit, manualLabel)}
             </span>
           )}
         </button>
@@ -220,6 +227,8 @@ interface SourceItemProps {
 function SourceItem({ source, recurringGroceries, onToggle, onEdit }: SourceItemProps) {
   const { grocery, recipeName } = source;
   const { formatAmountUnit } = useUnitFormatter();
+  const tEmpty = useTranslations("groceries.empty");
+  const manualLabel = tEmpty("manual");
 
   const recurringGrocery = grocery.recurringGroceryId
     ? (recurringGroceries.find((r) => r.id === grocery.recurringGroceryId) ?? null)
@@ -232,11 +241,12 @@ function SourceItem({ source, recurringGroceries, onToggle, onEdit }: SourceItem
     <div
       className={`flex items-center gap-3 px-4 py-2.5 ${hasSubtitle ? "min-h-[56px]" : "min-h-12"}`}
     >
-      <Checkbox
-        className="[&_.checkbox__control]:rounded-full"
+      <GroceryCheckbox
+        aria-label={grocery.name || "Grocery item"}
+        delayChangeOnSelect
         isSelected={grocery.isDone}
         size="md"
-        onValueChange={(checked) => onToggle(grocery.id, checked)}
+        onChange={(checked) => onToggle(grocery.id, checked)}
       />
 
       <button
@@ -274,7 +284,7 @@ function SourceItem({ source, recurringGroceries, onToggle, onEdit }: SourceItem
         {/* Manual indicator if no recipe */}
         {!recipeName && !recurringGrocery && (
           <span className={`truncate text-xs ${grocery.isDone ? "text-muted" : "text-muted"}`}>
-            Manual
+            {manualLabel}
           </span>
         )}
 

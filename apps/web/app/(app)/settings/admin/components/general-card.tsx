@@ -1,11 +1,11 @@
 "use client";
 
+import type { Key } from "react";
 import { useEffect, useState } from "react";
 import SettingsSwitch from "@/app/(app)/settings/components/settings-switch";
 import { showSafeErrorToast } from "@/lib/ui/safe-error-toast";
-import { ChevronDownIcon } from "@heroicons/react/16/solid";
 import { Cog6ToothIcon } from "@heroicons/react/24/outline";
-import { Button, Card, Label, ListBox, Popover, Select, Separator, toast } from "@heroui/react";
+import { Button, Card, Label, ListBox, Select, Separator, toast } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
 import { useAdminSettingsContext } from "../context";
@@ -51,13 +51,6 @@ export default function GeneralCard() {
       if (firstEnabled) {
         setDefaultLocale(firstEnabled);
       }
-    }
-  };
-  const handleLocaleToggle = (code: string, enabled: boolean) => {
-    if (enabled) {
-      handleEnabledLocalesChange([...enabledLocales, code]);
-    } else {
-      handleEnabledLocalesChange(enabledLocales.filter((c) => c !== code));
     }
   };
   const handleSaveLocales = async () => {
@@ -150,40 +143,44 @@ export default function GeneralCard() {
             <span className="text-muted text-base">{t("localesDescription")}</span>
           </div>
 
-          <Popover>
-            <Popover.Trigger>
-              <Button
-                className="max-w-xs justify-between"
-                isDisabled={isLoading || isSaving}
-                variant="secondary"
-              >
-                <span className="truncate">
-                  {enabledLocaleOptions.map((l) => l.name).join(", ") || t("locales")}
-                </span>
-                {<ChevronDownIcon className="h-4 w-4 shrink-0" />}
-              </Button>
-            </Popover.Trigger>
-            <Popover.Content className="w-64 items-stretch p-0" placement="bottom-start">
-              <Popover.Dialog>
-                <div className="flex w-full flex-col">
-                  {allLocales.map((locale) => (
-                    <div
-                      key={locale.code}
-                      className="hover:bg-surface-secondary flex w-full items-center justify-between px-4 py-3"
-                    >
-                      <span className="flex-1 text-sm">{locale.name}</span>
-                      <SettingsSwitch
-                        isDisabled={isLoading || isSaving}
-                        isSelected={enabledLocales.includes(locale.code)}
-                        size="sm"
-                        onValueChange={(checked) => handleLocaleToggle(locale.code, checked)}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </Popover.Dialog>
-            </Popover.Content>
-          </Popover>
+          <Select
+            className="max-w-xs"
+            isDisabled={isLoading || isSaving}
+            placeholder={t("locales")}
+            selectedKeys={new Set(enabledLocales)}
+            selectionMode="multiple"
+            variant="secondary"
+            onSelectionChange={(keys) => {
+              const selected =
+                keys === "all"
+                  ? allLocales.map((locale) => locale.code)
+                  : Array.from(keys as Set<Key>, String);
+
+              handleEnabledLocalesChange(selected);
+            }}
+          >
+            <Label>{t("locales")}</Label>
+            <Select.Trigger>
+              <Select.Value>
+                {({ defaultChildren, isPlaceholder }) =>
+                  isPlaceholder
+                    ? defaultChildren
+                    : enabledLocaleOptions.map((locale) => locale.name).join(", ")
+                }
+              </Select.Value>
+              <Select.Indicator />
+            </Select.Trigger>
+            <Select.Popover>
+              <ListBox selectionMode="multiple">
+                {allLocales.map((locale) => (
+                  <ListBox.Item key={locale.code} id={locale.code} textValue={locale.name}>
+                    {locale.name}
+                    <ListBox.ItemIndicator />
+                  </ListBox.Item>
+                ))}
+              </ListBox>
+            </Select.Popover>
+          </Select>
         </div>
 
         {/* Default Locale Selector */}
@@ -198,9 +195,9 @@ export default function GeneralCard() {
             className="max-w-xs"
             isDisabled={isLoading || isSaving}
             placeholder={t("defaultLocale")}
-            value={defaultLocale || null}
-            onChange={(selected) => {
-              if (typeof selected === "string") {
+            selectedKey={defaultLocale || null}
+            onSelectionChange={(selected) => {
+              if (typeof selected === "string" && selected) {
                 setDefaultLocale(selected);
               }
             }}
@@ -215,6 +212,7 @@ export default function GeneralCard() {
                 {enabledLocaleOptions.map((locale) => (
                   <ListBox.Item key={locale.code} id={locale.code} textValue={locale.name}>
                     {locale.name}
+                    <ListBox.ItemIndicator />
                   </ListBox.Item>
                 ))}
               </ListBox>

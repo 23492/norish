@@ -70,7 +70,7 @@ export function EditNotePanel({
   };
   return (
     <Panel height={PANEL_HEIGHT_COMPACT} open={open} title={t("title")} onOpenChange={onOpenChange}>
-      <div className="flex flex-col gap-4">
+      <Panel.Body>
         <TextField value={title} onChange={setTitle}>
           <Label>{t("noteLabel")}</Label>
           <Input
@@ -91,7 +91,12 @@ export function EditNotePanel({
             value={selectedDate}
             onChange={(d) => d && setSelectedDate(d)}
           />
-          <Select className="flex-1" value={selectedSlot} onChange={handleSlotChange}>
+          <Select
+            className="flex-1"
+            selectedKey={selectedSlot}
+            variant="secondary"
+            onSelectionChange={handleSlotChange}
+          >
             <Label>{t("slot")}</Label>
             <Select.Trigger>
               <Select.Value />
@@ -109,19 +114,20 @@ export function EditNotePanel({
             </Select.Popover>
           </Select>
         </div>
-
-        <div className="mt-2 flex justify-end gap-2">
-          <Button isIconOnly size="sm" onPress={handleDelete} variant="danger-soft">
+      </Panel.Body>
+      <Panel.Footer>
+        <div className="flex justify-end gap-2">
+          <Button isIconOnly onPress={handleDelete} variant="danger-soft">
             <TrashIcon className="h-4 w-4" />
           </Button>
-          <Button size="sm" onPress={handleDuplicate} variant="tertiary" className="min-w-16">
+          <Button onPress={handleDuplicate} variant="tertiary" className="min-w-24">
             {tActions("duplicate")}
           </Button>
-          <Button size="sm" onPress={handleSave} variant="primary" className="min-w-16">
+          <Button onPress={handleSave} variant="primary" className="min-w-24">
             {tActions("save")}
           </Button>
         </div>
-      </div>
+      </Panel.Footer>
     </Panel>
   );
 }

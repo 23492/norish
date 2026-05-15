@@ -100,97 +100,90 @@ export default function EditGroceryPanel({
         title={t("editTitle")}
         onOpenChange={onOpenChange}
       >
-        <div className="flex flex-col gap-4">
-          <form
-            className="flex flex-col gap-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleSubmit();
-            }}
-          >
-            <div className="space-y-3">
-              <Input
-                className="border-accent-200 dark:border-accent h-12 rounded-2xl text-lg font-medium"
-                placeholder={t("editPlaceholder")}
-                style={{
-                  fontSize: "16px",
-                }}
-                value={itemName}
-                onChange={(e) => setItemName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleSubmit();
-                  }
-                }}
-              />
+        <Panel.Body>
+          <div className="space-y-3">
+            <Input
+              className="h-12 text-base font-medium"
+              variant="secondary"
+              placeholder={t("editPlaceholder")}
+              style={{
+                fontSize: "16px",
+              }}
+              value={itemName}
+              onChange={(e) => setItemName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleSubmit();
+                }
+              }}
+            />
 
-              {/* Store selection */}
-              <StoreSelector
-                showWhenEmpty
-                label={t("selectStore")}
-                selectedStoreId={selectedStoreId}
-                stores={stores}
-                onSelectionChange={handleStoreChange}
-              />
+            {/* Store selection */}
+            <StoreSelector
+              showWhenEmpty
+              label={t("selectStore")}
+              selectedStoreId={selectedStoreId}
+              stores={stores}
+              onSelectionChange={handleStoreChange}
+            />
 
-              {/* Recurrence Pills Container */}
-              <AnimatePresence mode="popLayout">
-                <div className="flex flex-wrap items-center gap-2">
-                  {/* Suggested pill  */}
-                  {detectedPattern && (
-                    <RecurrenceSuggestion
-                      key="detected"
-                      itemName={itemName}
-                      pattern={detectedPattern.pattern}
-                      type="detected"
-                      onReplace={() => handleConfirmPattern(detectedPattern)}
-                    />
-                  )}
+            {/* Recurrence Pills Container */}
+            <AnimatePresence mode="popLayout">
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Suggested pill  */}
+                {detectedPattern && (
+                  <RecurrenceSuggestion
+                    key="detected"
+                    itemName={itemName}
+                    pattern={detectedPattern.pattern}
+                    type="detected"
+                    onReplace={() => handleConfirmPattern(detectedPattern)}
+                  />
+                )}
 
-                  {/* Active pill */}
-                  {confirmedPattern && (
-                    <RecurrenceSuggestion
-                      key="confirmed"
-                      itemName={itemName}
-                      pattern={confirmedPattern}
-                      type="confirmed"
-                      onEdit={() => setRecurrencePanelOpen(true)}
-                      onRemove={handleRemovePattern}
-                    />
-                  )}
-                </div>
-              </AnimatePresence>
+                {/* Active pill */}
+                {confirmedPattern && (
+                  <RecurrenceSuggestion
+                    key="confirmed"
+                    itemName={itemName}
+                    pattern={confirmedPattern}
+                    type="confirmed"
+                    onEdit={() => setRecurrencePanelOpen(true)}
+                    onRemove={handleRemovePattern}
+                  />
+                )}
+              </div>
+            </AnimatePresence>
 
-              {/* Link to manual recurrence editor */}
-              {!confirmedPattern && !detectedPattern && (
-                <Button
-                  className="-mt-1 min-w-16 font-medium"
-                  size="sm"
-                  onPress={() => setRecurrencePanelOpen(true)}
-                  variant="tertiary"
-                >
-                  {t("addRepeat")}
-                </Button>
-              )}
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <Button className="min-w-16" size="sm" onPress={onDelete} variant="danger-soft">
-                {tActions("delete")}
-              </Button>
+            {/* Link to manual recurrence editor */}
+            {!confirmedPattern && !detectedPattern && (
               <Button
-                className="min-w-16"
-                isDisabled={!itemName.trim()}
+                className="-mt-1 min-w-16 font-medium"
                 size="sm"
-                onPress={handleSubmit}
-                variant="primary"
+                onPress={() => setRecurrencePanelOpen(true)}
+                variant="tertiary"
               >
-                {tActions("save")}
+                {t("addRepeat")}
               </Button>
-            </div>
-          </form>
-        </div>
+            )}
+          </div>
+        </Panel.Body>
+        <Panel.Footer>
+          <div className="flex justify-end gap-2">
+            <Button className="min-w-24" onPress={onDelete} variant="danger-soft">
+              {tActions("delete")}
+            </Button>
+            <Button
+              className="min-w-24"
+              isDisabled={!itemName.trim()}
+              onPress={handleSubmit}
+              variant="primary"
+            >
+              {tActions("save")}
+            </Button>
+          </div>
+        </Panel.Footer>
       </Panel>
 
       {/* Recurrence Panel */}

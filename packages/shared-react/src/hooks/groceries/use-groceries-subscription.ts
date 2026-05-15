@@ -23,6 +23,35 @@ type CreateUseGroceriesSubscriptionOptions = CreateGroceriesHooksOptions & {
   useErrorAdapter: () => GroceriesSubscriptionErrorAdapter;
 };
 
+function getStoreKey(storeId: string | null) {
+  return storeId ?? "__no_store__";
+}
+
+function applyCreatedGroceriesToCache(groceries: GroceryDto[], createdGroceries: GroceryDto[]) {
+  if (createdGroceries.length === 0) return groceries;
+
+  const createdIds = new Set(createdGroceries.map((grocery) => grocery.id));
+  const createdCountByStore = new Map<string, number>();
+
+  for (const grocery of createdGroceries) {
+    if (grocery.isDone) continue;
+
+    const storeKey = getStoreKey(grocery.storeId);
+
+    createdCountByStore.set(storeKey, (createdCountByStore.get(storeKey) ?? 0) + 1);
+  }
+
+  const shifted = groceries.map((grocery) => {
+    if (grocery.isDone || createdIds.has(grocery.id)) return grocery;
+
+    const createdCount = createdCountByStore.get(getStoreKey(grocery.storeId)) ?? 0;
+
+    return createdCount > 0 ? { ...grocery, sortOrder: grocery.sortOrder + createdCount } : grocery;
+  });
+
+  return [...createdGroceries, ...shifted.filter((grocery) => !createdIds.has(grocery.id))];
+}
+
 export function createUseGroceriesSubscription({
   useTRPC,
   useGroceriesCacheHelpers,
@@ -46,7 +75,10 @@ export function createUseGroceriesSubscription({
 
             if (newGroceries.length === 0) return prev;
 
-            return { ...prev, groceries: [...newGroceries, ...existing] };
+            return {
+              ...prev,
+              groceries: applyCreatedGroceriesToCache(existing, newGroceries),
+            };
           });
         },
       })
@@ -100,7 +132,7 @@ export function createUseGroceriesSubscription({
 
             const groceries = prev.groceries.some((g) => g.id === newGrocery.id)
               ? prev.groceries.map((g) => (g.id === newGrocery.id ? newGrocery : g))
-              : [newGrocery, ...prev.groceries];
+              : applyCreatedGroceriesToCache(prev.groceries, [newGrocery]);
 
             const recurringGroceries = prev.recurringGroceries.some((r) => r.id === newRecurring.id)
               ? prev.recurringGroceries.map((r) => (r.id === newRecurring.id ? newRecurring : r))

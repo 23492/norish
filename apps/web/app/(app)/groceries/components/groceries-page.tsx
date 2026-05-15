@@ -3,6 +3,7 @@
 import { GroceryList, GroceryListByRecipe, StoreManagerPanel } from "@/components/groceries";
 import { AddGroceryPanel } from "@/components/Panel/consumers";
 import EditGroceryPanel from "@/components/Panel/consumers/edit-grocery-panel";
+import UiSwitch from "@/components/shared/ui-switch";
 import GrocerySkeleton from "@/components/skeleton/grocery-skeleton";
 import {
   BookOpenIcon,
@@ -11,7 +12,7 @@ import {
   Cog6ToothIcon,
   PlusIcon,
 } from "@heroicons/react/16/solid";
-import { Button, Dropdown, Header, Label, Separator, Switch } from "@heroui/react";
+import { Button, Dropdown, Header, Label, Separator } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
 import type { GroceryDto } from "@norish/shared/contracts";
@@ -76,8 +77,7 @@ export function GroceriesPage() {
       // Already recurring - update the recurring grocery
       updateRecurringGrocery(editingRecurringGrocery.id, editingGrocery.id, itemName, pattern);
     } else if (pattern) {
-      // Convert regular grocery to recurring
-      updateGrocery(editingGrocery.id, itemName);
+      // Convert regular grocery to recurring without racing an update against the delete.
       createRecurringGrocery(itemName, pattern, editingGrocery.storeId);
       deleteGroceries([editingGrocery.id]);
     } else {
@@ -159,7 +159,7 @@ export function GroceriesPage() {
                     >
                       <Label>{t("groupIngredients")}</Label>
                       {
-                        <Switch
+                        <UiSwitch
                           aria-label={t("groupIngredients")}
                           isSelected={groupSimilarIngredients}
                           size="sm"

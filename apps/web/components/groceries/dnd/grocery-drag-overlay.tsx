@@ -3,10 +3,11 @@
 import { RecurrencePill } from "@/app/(app)/groceries/components/recurrence-pill";
 import { useUnitFormatter } from "@/hooks/use-unit-formatter";
 import { Bars3Icon } from "@heroicons/react/16/solid";
-import { Checkbox } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
 import type { GroceryDto, RecurringGroceryDto } from "@norish/shared/contracts";
+
+import { GroceryCheckbox } from "../grocery-checkbox";
 
 interface GroceryDragOverlayProps {
   grocery: GroceryDto;
@@ -35,9 +36,9 @@ export function GroceryDragOverlay({
         <Bars3Icon className="h-5 w-5" />
       </div>
 
-      <Checkbox
+      <GroceryCheckbox
+        aria-label={grocery.name || t("unnamedItem")}
         isDisabled
-        className="[&_.checkbox__control]:rounded-full"
         isSelected={grocery.isDone}
         size="lg"
       />

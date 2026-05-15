@@ -195,6 +195,48 @@ describe("useGroceriesSubscription", () => {
 
       expect(cachedData?.groceries).toHaveLength(1);
     });
+
+    it("shifts existing groceries in the same store when a new grocery is created", async () => {
+      const existingGrocery = createMockGrocery({
+        id: "g1",
+        name: "Milk",
+        storeId: "store-1",
+        sortOrder: 0,
+      });
+      const otherStoreGrocery = createMockGrocery({
+        id: "g2",
+        name: "Bread",
+        storeId: "store-2",
+        sortOrder: 0,
+      });
+      const initialData = createMockGroceriesData([existingGrocery, otherStoreGrocery], []);
+
+      queryClient.setQueryData(mockQueryKey, initialData);
+
+      const { useGroceriesSubscription } =
+        await import("@/hooks/groceries/use-groceries-subscription");
+
+      renderHook(() => useGroceriesSubscription(), {
+        wrapper: createTestWrapper(queryClient),
+      });
+
+      const newGrocery = createMockGrocery({
+        id: "g3",
+        name: "Apples",
+        storeId: "store-1",
+        sortOrder: 0,
+      });
+
+      act(() => {
+        subscriptionCallbacks.onCreated(emitPayload({ groceries: [newGrocery] }));
+      });
+
+      const cachedData =
+        queryClient.getQueryData<ReturnType<typeof createMockGroceriesData>>(mockQueryKey);
+
+      expect(cachedData?.groceries.find((g) => g.id === "g1")?.sortOrder).toBe(1);
+      expect(cachedData?.groceries.find((g) => g.id === "g2")?.sortOrder).toBe(0);
+    });
   });
 
   describe("onUpdated handler", () => {

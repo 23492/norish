@@ -1,7 +1,7 @@
 "use client";
 
 import type { Key } from "react";
-import { Fragment, useMemo } from "react";
+import { useMemo } from "react";
 import { Label, ListBox, Select } from "@heroui/react";
 
 import type { StoreColor, StoreDto } from "@norish/shared/contracts";
@@ -57,10 +57,16 @@ export function StoreSelector({
   };
 
   return (
-    <Select placeholder={placeholder} value={selectedValue} onChange={handleChange}>
+    <Select
+      fullWidth
+      placeholder={placeholder}
+      selectedKey={selectedValue}
+      variant="secondary"
+      onSelectionChange={handleChange}
+    >
       <Label>{label}</Label>
-      <Select.Trigger className={size === "sm" ? "min-h-10" : "min-h-12"}>
-        <Select.Value />
+      <Select.Trigger className={`${size === "sm" ? "min-h-10" : "min-h-12"} items-center`}>
+        <Select.Value className="flex items-center" />
         <Select.Indicator />
       </Select.Trigger>
       <Select.Popover>
@@ -76,23 +82,21 @@ export function StoreSelector({
             </div>
             <ListBox.ItemIndicator />
           </ListBox.Item>
-          <Fragment>
-            {sortedStores.map((store) => {
-              const colorClasses = getStoreColorClasses(store.color as StoreColor);
+          {sortedStores.map((store) => {
+            const colorClasses = getStoreColorClasses(store.color as StoreColor);
 
-              return (
-                <ListBox.Item key={store.id} id={store.id} textValue={store.name}>
-                  <div className="flex items-center gap-2">
-                    <div className={`shrink-0 rounded-full p-1 ${colorClasses.bg}`}>
-                      <DynamicHeroIcon className="h-3 w-3 text-white" iconName={store.icon} />
-                    </div>
-                    <span>{store.name}</span>
+            return (
+              <ListBox.Item key={store.id} id={store.id} textValue={store.name}>
+                <div className="flex items-center gap-2">
+                  <div className={`shrink-0 rounded-full p-1 ${colorClasses.bg}`}>
+                    <DynamicHeroIcon className="h-3 w-3 text-white" iconName={store.icon} />
                   </div>
-                  <ListBox.ItemIndicator />
-                </ListBox.Item>
-              );
-            })}
-          </Fragment>
+                  <span>{store.name}</span>
+                </div>
+                <ListBox.ItemIndicator />
+              </ListBox.Item>
+            );
+          })}
         </ListBox>
       </Select.Popover>
     </Select>

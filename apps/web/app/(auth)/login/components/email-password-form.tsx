@@ -95,7 +95,8 @@ export function EmailPasswordForm({
       {error && <p className="text-danger text-center text-sm">{error}</p>}
 
       <Button
-        className="mt-2"
+        fullWidth
+        className="mt-2 h-11"
         isDisabled={!email || !password}
         isPending={isLoading}
         type="submit"
