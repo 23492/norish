@@ -155,7 +155,7 @@ export function TimerDock() {
                     scale: 1,
                   }
             }
-            className="fixed right-4 z-50 flex flex-col items-end space-y-2"
+            className="fixed right-4 z-[1200] flex flex-col items-end space-y-2"
             exit={{
               opacity: 0,
               y: 8,

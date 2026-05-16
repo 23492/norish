@@ -76,16 +76,4 @@
     width: 100%;
     border-radius: var(--radius-2xl);
   }
-
-  .button:not(.button--icon-only) {
-    min-width: 5rem;
-  }
-
-  .button--sm:not(.button--icon-only) {
-    min-width: 4rem;
-  }
-
-  .button--lg:not(.button--icon-only) {
-    min-width: 6rem;
-  }
 }

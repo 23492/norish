@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTRPC } from "@/app/providers/trpc-provider";
 import Panel from "@/components/Panel/Panel";
 import { useUnitsQuery } from "@/hooks/config";
 import { useGroceriesMutations } from "@/hooks/groceries";
 import { useRecipeIngredients } from "@/hooks/recipes/use-recipe-ingredients";
 import { MinusIcon, PlusIcon } from "@heroicons/react/16/solid";
 import { Button, Checkbox, Input, Separator, toast } from "@heroui/react";
+import { useQueries } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 
 import { formatServings, useServingsScaler } from "@norish/shared-react/hooks";
@@ -18,6 +20,90 @@ type MiniGroceriesProps = {
   initialServings?: number;
   originalServings?: number;
 };
+
+type GroceryIngredient = {
+  id: string;
+  ingredientId?: string | null;
+  ingredientName: string;
+  amount: number | null;
+  unit: string | null;
+  systemUsed: string;
+  order: number;
+};
+
+type EditedIngredient = {
+  name: string;
+  amount: number | null;
+  unit: string | null;
+};
+
+function extractLinkedRecipeIds(ingredients: GroceryIngredient[]) {
+  const ids = new Set<string>();
+
+  for (const ingredient of ingredients) {
+    const name = ingredient.ingredientName ?? "";
+
+    for (const match of name.matchAll(/\[[^\]]+\]\(id:([a-zA-Z0-9-]+)\)/g)) {
+      if (match[1]) ids.add(match[1]);
+    }
+  }
+
+  return Array.from(ids);
+}
+
+function isGroceryIngredient(ingredient: GroceryIngredient) {
+  const name = ingredient.ingredientName?.trim() ?? "";
+
+  return !name.startsWith("#") && !name.includes("(id:") && name && ingredient.ingredientId;
+}
+
+function parseAmountToken(token: string | undefined) {
+  if (!token) return null;
+
+  if (/^\d+\/\d+$/.test(token)) {
+    const [numerator, denominator] = token.split("/").map(Number);
+
+    return denominator ? numerator! / denominator : null;
+  }
+
+  const value = Number(token);
+
+  return Number.isFinite(value) ? value : null;
+}
+
+function parseEditedIngredientLine(value: string, fallback: GroceryIngredient): EditedIngredient {
+  const parts = value.trim().split(/\s+/).filter(Boolean);
+  const firstAmount = parseAmountToken(parts[0]);
+  let amount: number | null = fallback.amount ?? null;
+  let unit: string | null = fallback.unit ?? null;
+  let nameStart = 0;
+
+  if (firstAmount !== null) {
+    amount = firstAmount;
+    nameStart = 1;
+
+    const mixedFraction = parseAmountToken(parts[1]);
+
+    if (mixedFraction !== null && parts[1]?.includes("/")) {
+      amount += mixedFraction;
+      nameStart = 2;
+    }
+
+    if (fallback.unit && parts[nameStart]) {
+      unit = parts[nameStart] ?? null;
+      nameStart += 1;
+    }
+  }
+
+  const name = parts.slice(nameStart).join(" ").trim() || fallback.ingredientName;
+
+  return { amount, unit, name };
+}
+
+function formatEditableIngredient(item: GroceryIngredient) {
+  return [item.amount, item.unit, item.ingredientName].filter(Boolean).join(" ");
+}
+
 function MiniGroceriesContent({
   recipeId,
   onOpenChange,
@@ -30,25 +116,28 @@ function MiniGroceriesContent({
   originalServings: number;
 }) {
   const t = useTranslations("groceries.panel");
+  const trpc = useTRPC();
   const { createGroceriesFromData } = useGroceriesMutations();
   const { ingredients: rawIngredients, isLoading } = useRecipeIngredients(recipeId);
   const { units: _units } = useUnitsQuery();
 
-  // Filter out headings and recipe links - memoized to prevent infinite loops
-  const ingredients = useMemo(() => {
-    return rawIngredients.filter((i) => {
-      const name = i.ingredientName?.trim() ?? "";
+  const linkedRecipeIds = useMemo(
+    () => extractLinkedRecipeIds(rawIngredients as GroceryIngredient[]),
+    [rawIngredients]
+  );
+  const linkedRecipeQueries = useQueries({
+    queries: linkedRecipeIds.map((id) => trpc.recipes.get.queryOptions({ id })),
+  });
 
-      // Skip headings, recipe links, and empty names
-      return (
-        !name.startsWith("#") &&
-        !name.includes("(id:") &&
-        !name.includes("/recipe:") &&
-        name &&
-        i.ingredientId
-      );
-    });
-  }, [rawIngredients]);
+  const ingredients = useMemo(() => {
+    const linkedIngredients = linkedRecipeQueries.flatMap((query) =>
+      query.data?.recipeIngredients ? (query.data.recipeIngredients as GroceryIngredient[]) : []
+    );
+
+    return [...(rawIngredients as GroceryIngredient[]), ...linkedIngredients].filter(
+      isGroceryIngredient
+    );
+  }, [rawIngredients, linkedRecipeQueries]);
   const { servings, scaledIngredients, incrementServings, decrementServings } = useServingsScaler(
     ingredients,
     originalServings,
@@ -57,38 +146,66 @@ function MiniGroceriesContent({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>("");
+  const [editedIngredients, setEditedIngredients] = useState<Record<string, EditedIngredient>>({});
   const hasInitialized = useRef(false);
+  const knownIngredientIds = useRef<Set<string>>(new Set());
 
-  // Update selected IDs only once when ingredients first load
   useEffect(() => {
-    if (scaledIngredients.length > 0 && !hasInitialized.current) {
-      setSelectedIds(scaledIngredients.map((i) => i.ingredientId!).filter(Boolean));
+    const currentIds = scaledIngredients.map((i) => i.id).filter(Boolean);
+
+    if (currentIds.length > 0 && !hasInitialized.current) {
+      knownIngredientIds.current = new Set(currentIds);
+      setSelectedIds(currentIds);
       hasInitialized.current = true;
+
+      return;
+    }
+
+    const newIds = currentIds.filter((id) => !knownIngredientIds.current.has(id));
+
+    if (newIds.length > 0) {
+      newIds.forEach((id) => knownIngredientIds.current.add(id));
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...newIds])));
     }
   }, [scaledIngredients]);
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
   const handleEditStart = (id: string) => {
-    const item = scaledIngredients.find((i) => i.ingredientId === id);
+    const item = scaledIngredients.find((i) => i.id === id);
     if (!item) return;
-    setEditingId(id);
-    const text = [item.amount, item.unit, item.ingredientName].filter(Boolean).join(" ");
-    setEditValue(text);
+    setEditingId(item.id);
+    const edited = editedIngredients[item.id];
+
+    setEditValue(
+      edited
+        ? [edited.amount, edited.unit, edited.name].filter(Boolean).join(" ")
+        : formatEditableIngredient(item)
+    );
   };
   const handleEditSubmit = () => {
-    // For now, we don't support editing since it would require
-    // maintaining separate edited state alongside scaled ingredients
+    if (editingId) {
+      const item = scaledIngredients.find((ingredient) => ingredient.id === editingId);
+
+      if (item) {
+        setEditedIngredients((prev) => ({
+          ...prev,
+          [editingId]: parseEditedIngredientLine(editValue, item),
+        }));
+      }
+    }
     setEditingId(null);
   };
   const close = useCallback(() => onOpenChange(false), [onOpenChange]);
   const handleConfirm = () => {
     const selectedIngredients = scaledIngredients
-      .filter((g) => selectedIds.includes(g.ingredientId!))
+      .filter((g) => selectedIds.includes(g.id))
       .map((ri) => ({
-        name: ri.ingredientName,
-        amount: ri.amount ? parseFloat(String(ri.amount)) : null,
-        unit: ri.unit ?? null,
+        name: editedIngredients[ri.id]?.name ?? ri.ingredientName,
+        amount:
+          editedIngredients[ri.id]?.amount ??
+          (ri.amount !== null && ri.amount !== undefined ? Number(ri.amount) : null),
+        unit: editedIngredients[ri.id]?.unit ?? ri.unit ?? null,
         isDone: false,
         recipeIngredientId: ri.id,
       }));
@@ -149,28 +266,29 @@ function MiniGroceriesContent({
       ) : (
         <div className="divide-border/40 flex flex-col divide-y overflow-y-auto">
           {scaledIngredients.map((item) => {
-            const isEditing = editingId === item.ingredientId;
+            const isEditing = editingId === item.id;
             return (
               <div
-                key={item.ingredientId}
+                key={item.id}
                 className="flex cursor-pointer items-start px-2 py-2"
                 role="button"
                 tabIndex={0}
-                onClick={() => !isEditing && handleEditStart(item.ingredientId!)}
+                onClick={() => !isEditing && handleEditStart(item.id)}
                 onKeyDown={(e) => {
                   if ((e.key === "Enter" || e.key === " ") && !isEditing) {
                     e.preventDefault();
-                    handleEditStart(item.ingredientId!);
+                    handleEditStart(item.id);
                   }
                 }}
               >
                 <Checkbox
                   aria-label={item.ingredientName}
                   className="mt-[-4px] [&_[data-slot='checkbox-default-indicator--checkmark']]:size-3"
-                  isSelected={selectedIds.includes(item.ingredientId!)}
-                  onChange={() => toggleSelect(item.ingredientId!)}
+                  isSelected={selectedIds.includes(item.id)}
+                  onClick={(event) => event.stopPropagation()}
+                  onChange={() => toggleSelect(item.id)}
                 >
-                  <Checkbox.Control className="size-5 rounded-sm data-[selected=true]:border-accent data-[selected=true]:bg-accent">
+                  <Checkbox.Control className="data-[selected=true]:border-accent data-[selected=true]:bg-accent size-5 rounded-full before:rounded-full">
                     <Checkbox.Indicator className="text-accent-foreground" />
                   </Checkbox.Control>
                 </Checkbox>
@@ -194,13 +312,14 @@ function MiniGroceriesContent({
                   ) : (
                     <>
                       <span className="truncate text-base font-semibold">
-                        {item.ingredientName}
+                        {editedIngredients[item.id]?.name ?? item.ingredientName}
                       </span>
-                      {item.amount && (
+                      {(editedIngredients[item.id]?.amount ?? item.amount) ? (
                         <span className="text-accent mt-[-3px] text-xs font-medium">
-                          {item.amount} {item.unit ?? ""}
+                          {editedIngredients[item.id]?.amount ?? item.amount}{" "}
+                          {editedIngredients[item.id]?.unit ?? item.unit ?? ""}
                         </span>
-                      )}
+                      ) : null}
                     </>
                   )}
                 </div>
@@ -213,12 +332,9 @@ function MiniGroceriesContent({
       {scaledIngredients.length > 0 && (
         <div className="mt-4">
           <Separator className="bg-surface-tertiary/40 my-2" />
-          <button
-            className="bg-accent text-accent-foreground w-full rounded-md py-2 text-xs font-semibold transition hover:opacity-90"
-            onClick={handleConfirm}
-          >
+          <Button fullWidth onPress={handleConfirm} variant="primary">
             {t("addSelectedToGroceries")}
-          </button>
+          </Button>
         </div>
       )}
     </div>

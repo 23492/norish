@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { GroceryCheckbox } from "@/components/groceries/grocery-checkbox";
 import SmartMarkdownRenderer from "@/components/shared/smart-markdown-renderer";
 import { useAmountDisplayPreference } from "@/hooks/use-amount-display-preference";
 import { useUnitFormatter } from "@/hooks/use-unit-formatter";
-import { CheckIcon } from "@heroicons/react/20/solid";
 import { useLocale } from "next-intl";
 
 import type { UnitsMap } from "@norish/config/zod/server-config";
@@ -109,15 +109,18 @@ function ReadonlyIngredientsListContent({
                 onKeyDown={(e) => onKeyToggle(e, idx)}
               >
                 {interactive ? (
-                  <div
-                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all duration-200 ${
-                      isChecked
-                        ? "border-success bg-success"
-                        : "border-border-secondary group-hover:border-accent dark:border-border-secondary"
-                    }`}
+                  <span
+                    className="shrink-0"
+                    onClick={(event) => event.stopPropagation()}
+                    onKeyDown={(event) => event.stopPropagation()}
                   >
-                    {isChecked && <CheckIcon className="h-3.5 w-3.5 text-white" />}
-                  </div>
+                    <GroceryCheckbox
+                      aria-label={it.ingredientName}
+                      isSelected={isChecked}
+                      size="md"
+                      onChange={() => toggle(idx)}
+                    />
+                  </span>
                 ) : (
                   <span className="bg-surface-secondary mt-1 h-2.5 w-2.5 shrink-0 rounded-full" />
                 )}
