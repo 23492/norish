@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import notjoundjpg from "@/public/404.jpg";
 import { HomeIcon } from "@heroicons/react/16/solid";
 import { Button, Card } from "@heroui/react";
@@ -12,19 +12,21 @@ type Props = {
   message?: string;
 };
 export function NotFoundView({ title, message }: Props) {
+  const router = useRouter();
   const t = useTranslations("common.notFound");
   const tActions = useTranslations("common.actions");
   const displayTitle = title ?? t("title");
   const displayMessage = message ?? t("message");
+
   return (
     <div className="flex min-h-[60vh] items-center justify-center p-6">
-      <Card className="border-border bg-surface/70 w-full max-w-lg overflow-hidden rounded-3xl border text-center shadow-lg backdrop-blur-md">
+      <Card className="border-border bg-surface/70 group w-full max-w-lg gap-0 overflow-hidden rounded-3xl border p-0 text-center shadow-lg backdrop-blur-md">
         <div className="relative aspect-[4/3] w-full overflow-hidden">
           <Image
             fill
             priority
             alt="Nora looking confused"
-            className="object-cover"
+            className="object-cover transition-transform duration-300 ease-in-out group-hover:scale-105"
             src={notjoundjpg}
           />
           <div className="from-surface/90 absolute inset-0 bg-gradient-to-t via-transparent to-transparent" />
@@ -39,7 +41,11 @@ export function NotFoundView({ title, message }: Props) {
             </p>
           </div>
 
-          <Button as={Link} className="mt-4 rounded-lg px-6" href="/" variant="primary">
+          <Button
+            className="mt-4 rounded-lg px-6"
+            variant="primary"
+            onPress={() => router.push("/")}
+          >
             {<HomeIcon className="h-4 w-4" />}
             {tActions("goHome")}
           </Button>

@@ -43,7 +43,7 @@ export type SharedRecipesContextValue = {
   loadMore: () => void;
   importRecipe: (url: string) => void;
   importRecipeWithAI: (url: string) => void;
-  createRecipe: (input: FullRecipeInsertDTO) => void;
+  createRecipe: (input: FullRecipeInsertDTO) => Promise<void>;
   updateRecipe: (id: string, input: FullRecipeUpdateDTO) => void;
   deleteRecipe: (id: string, version: number) => void;
   invalidate: () => void;
@@ -166,9 +166,10 @@ export function createRecipesContext({
     );
 
     const wrappedCreateRecipe = useCallback(
-      (input: FullRecipeInsertDTO) => {
-        createRecipe(input);
-        input.id ? navigation.toRecipe(input.id) : navigation.toHome();
+      async (input: FullRecipeInsertDTO) => {
+        const recipeId = await createRecipe(input);
+
+        navigation.toRecipe(recipeId);
       },
       [createRecipe, navigation]
     );

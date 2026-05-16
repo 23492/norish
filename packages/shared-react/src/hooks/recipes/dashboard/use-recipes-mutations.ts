@@ -233,7 +233,7 @@ export type RecipesMutationsResult = {
   importRecipeFromImages: (files: File[]) => void;
   importRecipeFromPaste: (text: string) => void;
   importRecipeFromPasteWithAI: (text: string) => void;
-  createRecipe: (input: FullRecipeInsertDTO) => void;
+  createRecipe: (input: FullRecipeInsertDTO) => Promise<string>;
   updateRecipe: (id: string, input: FullRecipeUpdateDTO) => void;
   deleteRecipe: (id: string, version: number) => void;
   convertMeasurements: (recipeId: string, system: MeasurementSystem, version: number) => void;
@@ -500,8 +500,8 @@ export function createUseRecipesMutations(
       importMutation.mutate({ url, forceAI: true });
     };
 
-    const createRecipe = (input: FullRecipeInsertDTO): void => {
-      createMutation.mutate(input, {
+    const createRecipe = (input: FullRecipeInsertDTO): Promise<string> => {
+      return createMutation.mutateAsync(input, {
         onError: (error, _variables, context) => {
           onError?.(error, "create");
 

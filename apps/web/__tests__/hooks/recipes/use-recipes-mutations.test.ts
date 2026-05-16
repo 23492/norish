@@ -7,6 +7,7 @@ import type { FullRecipeDTO } from "@norish/shared/contracts";
 import { createMockInfiniteData, createTestQueryClient, createTestWrapper } from "./test-utils";
 
 const mockMutate = vi.fn();
+const mockMutateAsync = vi.fn();
 const mockCreateMutationOptions = vi.fn((options?: unknown) => options);
 const mockImportFromUrlMutationOptions = vi.fn((options?: unknown) => options);
 const mockImportFromPasteMutationOptions = vi.fn((options?: unknown) => options);
@@ -19,6 +20,7 @@ vi.mock("@tanstack/react-query", async () => {
     ...actual,
     useMutation: vi.fn(() => ({
       mutate: mockMutate,
+      mutateAsync: mockMutateAsync,
     })),
   };
 });
@@ -97,6 +99,8 @@ describe("useRecipesMutations", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockMutate.mockReset();
+    mockMutateAsync.mockReset();
+    mockMutateAsync.mockResolvedValue("11111111-1111-4111-8111-111111111111");
     mockCreateMutationOptions.mockClear();
     mockImportFromUrlMutationOptions.mockClear();
     mockImportFromPasteMutationOptions.mockClear();
@@ -218,7 +222,7 @@ describe("useRecipesMutations", () => {
       expect(() => result.current.createRecipe).not.toThrow();
     });
 
-    it("starts the create mutation without waiting for the backend job", async () => {
+    it("starts the create mutation and resolves the created recipe id", async () => {
       queryClient.setQueryData(["recipes", "list", {}], createMockInfiniteData());
       queryClient.setQueryData(["recipes", "pending"], []);
 
@@ -227,8 +231,10 @@ describe("useRecipesMutations", () => {
         wrapper: createTestWrapper(queryClient),
       });
 
-      act(() => {
-        result.current.createRecipe({
+      let createdRecipeId: string | undefined;
+
+      await act(async () => {
+        createdRecipeId = await result.current.createRecipe({
           name: "Metric recipe",
           systemUsed: "metric",
           recipeIngredients: [],
@@ -237,7 +243,8 @@ describe("useRecipesMutations", () => {
         });
       });
 
-      expect(mockMutate).toHaveBeenCalledWith(
+      expect(createdRecipeId).toBe("11111111-1111-4111-8111-111111111111");
+      expect(mockMutateAsync).toHaveBeenCalledWith(
         expect.objectContaining({ name: "Metric recipe", systemUsed: "metric" }),
         expect.objectContaining({ onError: expect.any(Function) })
       );

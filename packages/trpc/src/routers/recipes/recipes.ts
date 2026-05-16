@@ -1,9 +1,8 @@
-import type { RecipeListContext } from "@norish/db";
-
 import { randomUUID } from "node:crypto";
-
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+
+import type { RecipeListContext } from "@norish/db";
 import { canAccessResource, isAIEnabled as checkAIEnabled } from "@norish/auth/permissions";
 import { getRecipePermissionPolicy } from "@norish/config/server-config-loader";
 import {
@@ -46,7 +45,6 @@ import { FullRecipeSchema, RecipeListResultSchema } from "@norish/shared/contrac
 import { emitByPolicy } from "../../helpers";
 import { authedProcedure } from "../../middleware";
 import { router } from "../../trpc";
-
 import { recipeEmitter } from "./emitter";
 import { assertRecipeAccess, findRecipeForViewer, handleRecipeError } from "./helpers";
 import {
@@ -180,7 +178,7 @@ export const createRecipeProcedure = authedProcedure
       log.error({ inputId: input.id, generatedId: recipeId }, "Recipe ID mismatch detected!");
     }
 
-    createRecipeWithRefs(recipeId, ctx.user.id, input)
+    return createRecipeWithRefs(recipeId, ctx.user.id, input)
       .then(async (createdId) => {
         if (!createdId) {
           throw new TRPCError({
@@ -203,10 +201,19 @@ export const createRecipeProcedure = authedProcedure
             { recipe: dashboardDto }
           );
         }
-      })
-      .catch((err) => handleRecipeError(ctx, err, "create recipe", { recipeId }));
 
-    return recipeId;
+        return recipeId;
+      })
+      .catch((err) => {
+        handleRecipeError(ctx, err, "create recipe", { recipeId });
+
+        throw err instanceof TRPCError
+          ? err
+          : new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "Failed to create recipe",
+            });
+      });
   });
 
 const update = authedProcedure.input(RecipeUpdateInputSchema).mutation(({ ctx, input }) => {
