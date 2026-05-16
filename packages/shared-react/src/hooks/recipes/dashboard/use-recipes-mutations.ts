@@ -26,6 +26,12 @@ type ImportMutationContext = {
   optimisticPendingId: string;
 };
 
+type CreateMutationContext = {
+  detailQueryKey?: QueryKey;
+  previousDetail?: FullRecipeDTO | null | undefined;
+  previousRecipeLists?: [QueryKey, InfiniteRecipeData | undefined][];
+};
+
 type DeleteMutationContext = {
   detailQueryKey: QueryKey;
   previousDetail: FullRecipeDTO | null | undefined;
@@ -74,6 +80,151 @@ function restoreRecipeLists(
   for (const [queryKey, data] of previousRecipeLists) {
     queryClient.setQueryData<InfiniteRecipeData | undefined>(queryKey, data);
   }
+}
+
+function addRecipeToLists(
+  previousData: InfiniteRecipeData | undefined,
+  recipe: RecipeDashboardDTO
+): InfiniteRecipeData | undefined {
+  if (!previousData?.pages?.length) {
+    return {
+      pages: [{ recipes: [recipe], total: 1, nextCursor: null }],
+      pageParams: [0],
+    };
+  }
+
+  const firstPage = previousData.pages[0];
+
+  if (!firstPage) {
+    return previousData;
+  }
+
+  if (firstPage.recipes.some((currentRecipe) => currentRecipe.id === recipe.id)) {
+    return previousData;
+  }
+
+  return {
+    ...previousData,
+    pages: [
+      { ...firstPage, recipes: [recipe, ...firstPage.recipes], total: firstPage.total + 1 },
+      ...previousData.pages.slice(1),
+    ],
+  };
+}
+
+function toNumber(value: unknown, fallback = 0): number {
+  const numeric = Number(value);
+
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function toNullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  const numeric = Number(value);
+
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function createOptimisticId(): string {
+  return crypto.randomUUID();
+}
+
+function createOptimisticFullRecipe(input: FullRecipeInsertDTO): FullRecipeDTO | null {
+  if (!input.id) {
+    return null;
+  }
+
+  const now = new Date();
+  const systemUsed = input.systemUsed ?? "metric";
+
+  return {
+    id: input.id,
+    userId: null,
+    name: input.name,
+    description: input.description ?? null,
+    notes: input.notes ?? null,
+    url: input.url ?? null,
+    image: input.image ?? null,
+    servings: input.servings ?? 1,
+    prepMinutes: input.prepMinutes ?? null,
+    cookMinutes: input.cookMinutes ?? null,
+    totalMinutes: input.totalMinutes ?? null,
+    calories: input.calories ?? null,
+    fat: input.fat ?? null,
+    carbs: input.carbs ?? null,
+    protein: input.protein ?? null,
+    systemUsed,
+    createdAt: now,
+    updatedAt: now,
+    tags: (input.tags ?? []).map((tag) => ({ name: tag.name, version: 1 })),
+    categories: input.categories ?? [],
+    recipeIngredients: (input.recipeIngredients ?? []).map((ingredient, index) => ({
+      id: ingredient.id ?? createOptimisticId(),
+      ingredientId: ingredient.ingredientId ?? null,
+      ingredientName: ingredient.ingredientName ?? "",
+      amount: toNullableNumber(ingredient.amount),
+      unit: ingredient.unit ?? null,
+      order: toNumber(ingredient.order, index),
+      systemUsed: ingredient.systemUsed ?? systemUsed,
+      version: ingredient.version ?? 1,
+    })),
+    steps: (input.steps ?? []).map((step, index) => ({
+      step: step.step,
+      systemUsed: step.systemUsed ?? systemUsed,
+      order: toNumber(step.order, index),
+      version: step.version ?? 1,
+      images: (step.images ?? []).map((image) => ({
+        id: image.id ?? createOptimisticId(),
+        image: image.image,
+        order: toNumber(image.order),
+        version: image.version ?? 1,
+      })),
+    })),
+    author: undefined,
+    images: (input.images ?? []).map((image) => ({
+      id: image.id ?? createOptimisticId(),
+      image: image.image,
+      order: toNumber(image.order),
+      version: image.version ?? 1,
+    })),
+    videos: (input.videos ?? []).map((video) => ({
+      id: video.id ?? createOptimisticId(),
+      video: video.video,
+      thumbnail: video.thumbnail ?? null,
+      duration: toNullableNumber(video.duration),
+      order: toNumber(video.order),
+      version: video.version ?? 1,
+    })),
+    version: 1,
+  };
+}
+
+function createOptimisticDashboardRecipe(recipe: FullRecipeDTO): RecipeDashboardDTO {
+  return {
+    id: recipe.id,
+    userId: recipe.userId,
+    name: recipe.name,
+    description: recipe.description,
+    notes: recipe.notes,
+    url: recipe.url,
+    image: recipe.image,
+    servings: recipe.servings,
+    prepMinutes: recipe.prepMinutes,
+    cookMinutes: recipe.cookMinutes,
+    totalMinutes: recipe.totalMinutes,
+    calories: recipe.calories,
+    createdAt: recipe.createdAt,
+    updatedAt: recipe.updatedAt,
+    tags: recipe.tags,
+    categories: recipe.categories,
+    author: recipe.author,
+    averageRating: null,
+    ratingCount: 0,
+    version: recipe.version,
+  };
 }
 
 export type RecipesMutationsResult = {
@@ -212,7 +363,36 @@ export function createUseRecipesMutations(
         },
       })
     );
-    const createMutation = useMutation(trpc.recipes.create.mutationOptions());
+    const createMutation = useMutation(
+      trpc.recipes.create.mutationOptions({
+        onMutate: async (input) => {
+          const optimisticRecipe = createOptimisticFullRecipe(input);
+
+          if (!optimisticRecipe) {
+            return {};
+          }
+
+          const detailQueryKey = trpc.recipes.get.queryKey({ id: optimisticRecipe.id });
+
+          await Promise.all([
+            queryClient.cancelQueries({ queryKey: detailQueryKey }),
+            queryClient.cancelQueries({ queryKey: recipesPath }),
+          ]);
+
+          const previousDetail = queryClient.getQueryData<FullRecipeDTO | null>(detailQueryKey);
+          const previousRecipeLists = queryClient.getQueriesData<InfiniteRecipeData>({
+            queryKey: recipesPath,
+          });
+
+          queryClient.setQueryData<FullRecipeDTO | null>(detailQueryKey, optimisticRecipe);
+          setAllRecipesData((previousData) =>
+            addRecipeToLists(previousData, createOptimisticDashboardRecipe(optimisticRecipe))
+          );
+
+          return { detailQueryKey, previousDetail, previousRecipeLists };
+        },
+      })
+    );
     const updateMutation = useMutation(
       trpc.recipes.update.mutationOptions({
         onMutate: async ({ id, data }) => {
@@ -322,10 +502,21 @@ export function createUseRecipesMutations(
 
     const createRecipe = (input: FullRecipeInsertDTO): void => {
       createMutation.mutate(input, {
-        onError: (error) => {
+        onError: (error, _variables, context) => {
           onError?.(error, "create");
 
           if (!shouldPreserve(error)) {
+            const createContext = context as CreateMutationContext | undefined;
+
+            if (createContext?.detailQueryKey) {
+              queryClient.setQueryData(createContext.detailQueryKey, createContext.previousDetail);
+              queryClient.invalidateQueries({ queryKey: createContext.detailQueryKey });
+            }
+
+            if (createContext?.previousRecipeLists) {
+              restoreRecipeLists(queryClient, createContext.previousRecipeLists);
+            }
+
             invalidate();
           }
         },

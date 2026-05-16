@@ -7,6 +7,7 @@ import type { FullRecipeDTO } from "@norish/shared/contracts";
 import { createMockInfiniteData, createTestQueryClient, createTestWrapper } from "./test-utils";
 
 const mockMutate = vi.fn();
+const mockCreateMutationOptions = vi.fn((options?: unknown) => options);
 const mockImportFromUrlMutationOptions = vi.fn((options?: unknown) => options);
 const mockImportFromPasteMutationOptions = vi.fn((options?: unknown) => options);
 const mockUpdateMutationOptions = vi.fn((options?: unknown) => options);
@@ -72,7 +73,7 @@ vi.mock("@/app/providers/trpc-provider", () => ({
       importFromUrl: { mutationOptions: mockImportFromUrlMutationOptions },
       importFromImages: { mutationOptions: vi.fn() },
       importFromPaste: { mutationOptions: mockImportFromPasteMutationOptions },
-      create: { mutationOptions: vi.fn() },
+      create: { mutationOptions: mockCreateMutationOptions },
       update: { mutationOptions: mockUpdateMutationOptions },
       delete: { mutationOptions: vi.fn() },
       convertMeasurements: { mutationOptions: vi.fn() },
@@ -96,6 +97,7 @@ describe("useRecipesMutations", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockMutate.mockReset();
+    mockCreateMutationOptions.mockClear();
     mockImportFromUrlMutationOptions.mockClear();
     mockImportFromPasteMutationOptions.mockClear();
     mockUpdateMutationOptions.mockClear();
@@ -238,6 +240,84 @@ describe("useRecipesMutations", () => {
       expect(mockMutate).toHaveBeenCalledWith(
         expect.objectContaining({ name: "Metric recipe", systemUsed: "metric" }),
         expect.objectContaining({ onError: expect.any(Function) })
+      );
+    });
+
+    it("optimistically seeds the new recipe detail cache when an id is reserved", async () => {
+      const listQueryKey = [["recipes", "list"], { input: {}, type: "infinite" }];
+
+      queryClient.setQueryData(listQueryKey, createMockInfiniteData());
+      queryClient.setQueryData(["recipes", "pending"], []);
+
+      const { useRecipesMutations } = await import("@/hooks/recipes/use-recipes-mutations");
+
+      renderHook(() => useRecipesMutations(), {
+        wrapper: createTestWrapper(queryClient),
+      });
+
+      const mutationOpts = mockCreateMutationOptions.mock.calls[0][0] as {
+        onMutate: (input: {
+          id: string;
+          name: string;
+          systemUsed: "metric";
+          recipeIngredients: Array<{
+            ingredientName: string;
+            amount: number;
+            unit: string;
+            order: number;
+          }>;
+          steps: Array<{ step: string; systemUsed: "metric"; order: number }>;
+          tags: Array<{ name: string }>;
+        }) => Promise<unknown>;
+      };
+
+      await act(async () => {
+        await mutationOpts.onMutate({
+          id: "11111111-1111-4111-8111-111111111111",
+          name: "Metric recipe",
+          systemUsed: "metric",
+          recipeIngredients: [
+            {
+              ingredientName: "chickpeas",
+              amount: 400,
+              unit: "gram",
+              order: 0,
+            },
+          ],
+          steps: [{ step: "Mix", systemUsed: "metric", order: 0 }],
+          tags: [{ name: "dinner" }],
+        });
+      });
+
+      const cached = queryClient.getQueryData<FullRecipeDTO>([
+        ["recipes", "get"],
+        { input: { id: "11111111-1111-4111-8111-111111111111" }, type: "query" },
+      ]);
+
+      expect(cached).toEqual(
+        expect.objectContaining({
+          id: "11111111-1111-4111-8111-111111111111",
+          name: "Metric recipe",
+          systemUsed: "metric",
+        })
+      );
+      expect(cached?.recipeIngredients[0]).toEqual(
+        expect.objectContaining({
+          ingredientName: "chickpeas",
+          amount: 400,
+          unit: "gram",
+          systemUsed: "metric",
+        })
+      );
+
+      const cachedList =
+        queryClient.getQueryData<ReturnType<typeof createMockInfiniteData>>(listQueryKey);
+
+      expect(cachedList?.pages[0]?.recipes[0]).toEqual(
+        expect.objectContaining({
+          id: "11111111-1111-4111-8111-111111111111",
+          name: "Metric recipe",
+        })
       );
     });
   });
