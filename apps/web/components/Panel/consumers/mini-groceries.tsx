@@ -116,6 +116,7 @@ function MiniGroceriesContent({
   originalServings: number;
 }) {
   const t = useTranslations("groceries.panel");
+  const tActions = useTranslations("common.actions");
   const trpc = useTRPC();
   const { createGroceriesFromData } = useGroceriesMutations();
   const { ingredients: rawIngredients, isLoading } = useRecipeIngredients(recipeId);
@@ -333,7 +334,8 @@ function MiniGroceriesContent({
         <div className="mt-4">
           <Separator className="bg-surface-tertiary/40 my-2" />
           <Button fullWidth onPress={handleConfirm} variant="primary">
-            {t("addSelectedToGroceries")}
+            <PlusIcon className="h-5 w-5" />
+            {tActions("add")}
           </Button>
         </div>
       )}

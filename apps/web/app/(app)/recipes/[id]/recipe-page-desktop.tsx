@@ -3,7 +3,6 @@
 import Link from "next/link";
 import ActionsMenu from "@/app/(app)/recipes/[id]/components/actions-menu";
 import AddToGroceries from "@/app/(app)/recipes/[id]/components/add-to-groceries-button";
-import { CookModeButton } from "@/app/(app)/recipes/[id]/components/cook-mode";
 import IngredientsList from "@/app/(app)/recipes/[id]/components/ingredient-list";
 import StepsList from "@/app/(app)/recipes/[id]/components/steps-list";
 import SystemConvertMenu from "@/app/(app)/recipes/[id]/components/system-convert-menu";
@@ -96,7 +95,6 @@ export default function RecipePageDesktop() {
 
               {/* Add to groceries button */}
               <AddToGroceries recipeId={recipe.id} />
-              <CookModeButton recipe={recipe} />
             </Card.Content>
           </Card>
 
