@@ -129,7 +129,26 @@ function toNullableNumber(value: unknown): number | null {
 }
 
 function createOptimisticId(): string {
-  return crypto.randomUUID();
+  if (globalThis.crypto?.randomUUID) {
+    return globalThis.crypto.randomUUID();
+  }
+
+  const bytes = new Uint8Array(16);
+
+  if (globalThis.crypto?.getRandomValues) {
+    globalThis.crypto.getRandomValues(bytes);
+  } else {
+    for (let index = 0; index < bytes.length; index += 1) {
+      bytes[index] = Math.floor(Math.random() * 256);
+    }
+  }
+
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0"));
+
+  return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10, 16).join("")}`;
 }
 
 function createOptimisticFullRecipe(input: FullRecipeInsertDTO): FullRecipeDTO | null {
@@ -233,7 +252,7 @@ export type RecipesMutationsResult = {
   importRecipeFromImages: (files: File[]) => void;
   importRecipeFromPaste: (text: string) => void;
   importRecipeFromPasteWithAI: (text: string) => void;
-  createRecipe: (input: FullRecipeInsertDTO) => Promise<string>;
+  createRecipe: (input: FullRecipeInsertDTO) => void;
   updateRecipe: (id: string, input: FullRecipeUpdateDTO) => void;
   deleteRecipe: (id: string, version: number) => void;
   convertMeasurements: (recipeId: string, system: MeasurementSystem, version: number) => void;
@@ -500,8 +519,8 @@ export function createUseRecipesMutations(
       importMutation.mutate({ url, forceAI: true });
     };
 
-    const createRecipe = (input: FullRecipeInsertDTO): Promise<string> => {
-      return createMutation.mutateAsync(input, {
+    const createRecipe = (input: FullRecipeInsertDTO): void => {
+      createMutation.mutate(input, {
         onError: (error, _variables, context) => {
           onError?.(error, "create");
 

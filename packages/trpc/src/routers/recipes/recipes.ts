@@ -178,7 +178,7 @@ export const createRecipeProcedure = authedProcedure
       log.error({ inputId: input.id, generatedId: recipeId }, "Recipe ID mismatch detected!");
     }
 
-    return createRecipeWithRefs(recipeId, ctx.user.id, input)
+    createRecipeWithRefs(recipeId, ctx.user.id, input)
       .then(async (createdId) => {
         if (!createdId) {
           throw new TRPCError({
@@ -201,19 +201,10 @@ export const createRecipeProcedure = authedProcedure
             { recipe: dashboardDto }
           );
         }
-
-        return recipeId;
       })
-      .catch((err) => {
-        handleRecipeError(ctx, err, "create recipe", { recipeId });
+      .catch((err) => handleRecipeError(ctx, err, "create recipe", { recipeId }));
 
-        throw err instanceof TRPCError
-          ? err
-          : new TRPCError({
-              code: "INTERNAL_SERVER_ERROR",
-              message: "Failed to create recipe",
-            });
-      });
+    return recipeId;
   });
 
 const update = authedProcedure.input(RecipeUpdateInputSchema).mutation(({ ctx, input }) => {

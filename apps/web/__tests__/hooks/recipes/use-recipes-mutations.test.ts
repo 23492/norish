@@ -7,7 +7,6 @@ import type { FullRecipeDTO } from "@norish/shared/contracts";
 import { createMockInfiniteData, createTestQueryClient, createTestWrapper } from "./test-utils";
 
 const mockMutate = vi.fn();
-const mockMutateAsync = vi.fn();
 const mockCreateMutationOptions = vi.fn((options?: unknown) => options);
 const mockImportFromUrlMutationOptions = vi.fn((options?: unknown) => options);
 const mockImportFromPasteMutationOptions = vi.fn((options?: unknown) => options);
@@ -20,7 +19,6 @@ vi.mock("@tanstack/react-query", async () => {
     ...actual,
     useMutation: vi.fn(() => ({
       mutate: mockMutate,
-      mutateAsync: mockMutateAsync,
     })),
   };
 });
@@ -99,8 +97,6 @@ describe("useRecipesMutations", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockMutate.mockReset();
-    mockMutateAsync.mockReset();
-    mockMutateAsync.mockResolvedValue("11111111-1111-4111-8111-111111111111");
     mockCreateMutationOptions.mockClear();
     mockImportFromUrlMutationOptions.mockClear();
     mockImportFromPasteMutationOptions.mockClear();
@@ -222,7 +218,7 @@ describe("useRecipesMutations", () => {
       expect(() => result.current.createRecipe).not.toThrow();
     });
 
-    it("starts the create mutation and resolves the created recipe id", async () => {
+    it("starts the create mutation without waiting for the backend job", async () => {
       queryClient.setQueryData(["recipes", "list", {}], createMockInfiniteData());
       queryClient.setQueryData(["recipes", "pending"], []);
 
@@ -231,10 +227,8 @@ describe("useRecipesMutations", () => {
         wrapper: createTestWrapper(queryClient),
       });
 
-      let createdRecipeId: string | undefined;
-
-      await act(async () => {
-        createdRecipeId = await result.current.createRecipe({
+      act(() => {
+        result.current.createRecipe({
           name: "Metric recipe",
           systemUsed: "metric",
           recipeIngredients: [],
@@ -243,8 +237,7 @@ describe("useRecipesMutations", () => {
         });
       });
 
-      expect(createdRecipeId).toBe("11111111-1111-4111-8111-111111111111");
-      expect(mockMutateAsync).toHaveBeenCalledWith(
+      expect(mockMutate).toHaveBeenCalledWith(
         expect.objectContaining({ name: "Metric recipe", systemUsed: "metric" }),
         expect.objectContaining({ onError: expect.any(Function) })
       );
@@ -326,6 +319,63 @@ describe("useRecipesMutations", () => {
           name: "Metric recipe",
         })
       );
+    });
+
+    it("creates optimistic UUIDs when crypto.randomUUID is unavailable", async () => {
+      const originalCrypto = globalThis.crypto;
+
+      Object.defineProperty(globalThis, "crypto", {
+        configurable: true,
+        value: {
+          getRandomValues: (bytes: Uint8Array) => {
+            for (let index = 0; index < bytes.length; index += 1) {
+              bytes[index] = index + 1;
+            }
+
+            return bytes;
+          },
+        },
+      });
+
+      try {
+        const { useRecipesMutations } = await import("@/hooks/recipes/use-recipes-mutations");
+
+        renderHook(() => useRecipesMutations(), {
+          wrapper: createTestWrapper(queryClient),
+        });
+
+        const mutationOpts = mockCreateMutationOptions.mock.calls[0][0] as {
+          onMutate: (input: {
+            id: string;
+            name: string;
+            systemUsed: "metric";
+            recipeIngredients: Array<{ ingredientName: string }>;
+          }) => Promise<unknown>;
+        };
+
+        await act(async () => {
+          await mutationOpts.onMutate({
+            id: "22222222-2222-4222-8222-222222222222",
+            name: "LAN recipe",
+            systemUsed: "metric",
+            recipeIngredients: [{ ingredientName: "lentils" }],
+          });
+        });
+
+        const cached = queryClient.getQueryData<FullRecipeDTO>([
+          ["recipes", "get"],
+          { input: { id: "22222222-2222-4222-8222-222222222222" }, type: "query" },
+        ]);
+
+        expect(cached?.recipeIngredients[0]?.id).toMatch(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+        );
+      } finally {
+        Object.defineProperty(globalThis, "crypto", {
+          configurable: true,
+          value: originalCrypto,
+        });
+      }
     });
   });
 
