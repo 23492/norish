@@ -12,7 +12,7 @@ import {
   SunIcon,
   WrenchScrewdriverIcon,
 } from "@heroicons/react/16/solid";
-import { Chip } from "@heroui/react";
+import { Chip, Link } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
 import type { RecipeCategory } from "@norish/shared/contracts";
@@ -130,7 +130,7 @@ export function ReadonlyRecipeSummary({
           <h1 className="text-2xl leading-tight font-bold">
             {recipe.name}
             {recipe.url && (
-              <a
+              <Link
                 className="ml-2 inline-block align-middle"
                 href={recipe.url}
                 rel="noopener noreferrer"
@@ -138,7 +138,7 @@ export function ReadonlyRecipeSummary({
                 title={t("viewOriginal")}
               >
                 <ArrowTopRightOnSquareIcon className="text-muted hover:text-accent inline h-4 w-4" />
-              </a>
+              </Link>
             )}
           </h1>
         </div>

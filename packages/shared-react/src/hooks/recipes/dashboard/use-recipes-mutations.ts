@@ -1,4 +1,6 @@
 import type { InfiniteData, QueryClient, QueryKey } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+
 import type {
   FullRecipeDTO,
   FullRecipeInsertDTO,
@@ -6,13 +8,10 @@ import type {
   MeasurementSystem,
   RecipeDashboardDTO,
 } from "@norish/shared/contracts";
+
 import type { CreateRecipeHooksOptions } from "../types";
 import type { RecipesCacheHelpers } from "./use-recipes-cache";
-
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-
 import { shouldPreserveOptimisticUpdate as preserveOptimisticUpdate } from "../../optimistic-updates";
-
 import { OPTIMISTIC_PENDING_RECIPE_PREFIX } from "./use-recipes-cache";
 
 type RecipeListPage = {
@@ -31,6 +30,11 @@ type DeleteMutationContext = {
   detailQueryKey: QueryKey;
   previousDetail: FullRecipeDTO | null | undefined;
   previousRecipeLists: [QueryKey, InfiniteRecipeData | undefined][];
+};
+
+type UpdateMutationContext = {
+  detailQueryKey: QueryKey;
+  previousDetail: FullRecipeDTO | null | undefined;
 };
 
 function createOptimisticPendingRecipeId(): string {
@@ -209,7 +213,33 @@ export function createUseRecipesMutations(
       })
     );
     const createMutation = useMutation(trpc.recipes.create.mutationOptions());
-    const updateMutation = useMutation(trpc.recipes.update.mutationOptions());
+    const updateMutation = useMutation(
+      trpc.recipes.update.mutationOptions({
+        onMutate: async ({ id, data }) => {
+          const detailQueryKey = trpc.recipes.get.queryKey({ id });
+
+          await queryClient.cancelQueries({ queryKey: detailQueryKey });
+
+          const previousDetail = queryClient.getQueryData<FullRecipeDTO | null>(detailQueryKey);
+
+          queryClient.setQueryData<FullRecipeDTO | null | undefined>(detailQueryKey, (previous) => {
+            if (!previous) return previous;
+
+            return {
+              ...previous,
+              ...data,
+              recipeIngredients: data.recipeIngredients ?? previous.recipeIngredients,
+              steps: data.steps ?? previous.steps,
+              tags: data.tags ?? previous.tags,
+              images: data.images ?? previous.images,
+              videos: data.videos ?? previous.videos,
+            };
+          });
+
+          return { detailQueryKey, previousDetail };
+        },
+      })
+    );
     const deleteMutation = useMutation(
       trpc.recipes.delete.mutationOptions({
         onMutate: async ({ id }) => {
@@ -306,12 +336,21 @@ export function createUseRecipesMutations(
       updateMutation.mutate(
         { id, version: input.version ?? 1, data: input },
         {
-          onError: (error) => {
+          onError: (error, _variables, context) => {
             onError?.(error, "update");
 
-            if (!shouldPreserve(error)) {
-              invalidate();
+            if (shouldPreserve(error)) {
+              return;
             }
+
+            const updateContext = context as UpdateMutationContext | undefined;
+
+            if (updateContext?.detailQueryKey) {
+              queryClient.setQueryData(updateContext.detailQueryKey, updateContext.previousDetail);
+              queryClient.invalidateQueries({ queryKey: updateContext.detailQueryKey });
+            }
+
+            invalidate();
           },
         }
       );

@@ -2,11 +2,14 @@ import { act, renderHook } from "@testing-library/react";
 import { TRPCClientError } from "@trpc/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { FullRecipeDTO } from "@norish/shared/contracts";
+
 import { createMockInfiniteData, createTestQueryClient, createTestWrapper } from "./test-utils";
 
 const mockMutate = vi.fn();
 const mockImportFromUrlMutationOptions = vi.fn((options?: unknown) => options);
 const mockImportFromPasteMutationOptions = vi.fn((options?: unknown) => options);
+const mockUpdateMutationOptions = vi.fn((options?: unknown) => options);
 
 vi.mock("@tanstack/react-query", async () => {
   const actual = await vi.importActual("@tanstack/react-query");
@@ -46,6 +49,12 @@ vi.mock("@/app/providers/trpc-provider", () => ({
           queryFn: async () => [],
         }),
       },
+      get: {
+        queryKey: (params: { id: string }) => [
+          ["recipes", "get"],
+          { input: params, type: "query" },
+        ],
+      },
       getPendingAutoTagging: {
         queryKey: () => [["recipes", "getPendingAutoTagging"], { type: "query" }],
         queryOptions: () => ({
@@ -64,7 +73,7 @@ vi.mock("@/app/providers/trpc-provider", () => ({
       importFromImages: { mutationOptions: vi.fn() },
       importFromPaste: { mutationOptions: mockImportFromPasteMutationOptions },
       create: { mutationOptions: vi.fn() },
-      update: { mutationOptions: vi.fn() },
+      update: { mutationOptions: mockUpdateMutationOptions },
       delete: { mutationOptions: vi.fn() },
       convertMeasurements: { mutationOptions: vi.fn() },
     },
@@ -89,6 +98,7 @@ describe("useRecipesMutations", () => {
     mockMutate.mockReset();
     mockImportFromUrlMutationOptions.mockClear();
     mockImportFromPasteMutationOptions.mockClear();
+    mockUpdateMutationOptions.mockClear();
     queryClient = createTestQueryClient();
   });
 
@@ -121,8 +131,8 @@ describe("useRecipesMutations", () => {
     });
   });
 
-  describe("return types (fire-and-forget pattern)", () => {
-    it("all mutation functions return void", async () => {
+  describe("mutation signatures", () => {
+    it("exposes stable callable signatures", async () => {
       queryClient.setQueryData(["recipes", "list", {}], createMockInfiniteData());
       queryClient.setQueryData(["recipes", "pending"], []);
 
@@ -205,6 +215,31 @@ describe("useRecipesMutations", () => {
 
       expect(() => result.current.createRecipe).not.toThrow();
     });
+
+    it("starts the create mutation without waiting for the backend job", async () => {
+      queryClient.setQueryData(["recipes", "list", {}], createMockInfiniteData());
+      queryClient.setQueryData(["recipes", "pending"], []);
+
+      const { useRecipesMutations } = await import("@/hooks/recipes/use-recipes-mutations");
+      const { result } = renderHook(() => useRecipesMutations(), {
+        wrapper: createTestWrapper(queryClient),
+      });
+
+      act(() => {
+        result.current.createRecipe({
+          name: "Metric recipe",
+          systemUsed: "metric",
+          recipeIngredients: [],
+          steps: [],
+          tags: [],
+        });
+      });
+
+      expect(mockMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "Metric recipe", systemUsed: "metric" }),
+        expect.objectContaining({ onError: expect.any(Function) })
+      );
+    });
   });
 
   describe("importRecipeFromPaste", () => {
@@ -261,6 +296,63 @@ describe("useRecipesMutations", () => {
       });
 
       expect(() => result.current.updateRecipe).not.toThrow();
+    });
+
+    it("optimistically updates the detail cache for measurement system changes", async () => {
+      queryClient.setQueryData(["recipes", "list", {}], createMockInfiniteData());
+      queryClient.setQueryData(["recipes", "pending"], []);
+      queryClient.setQueryData<FullRecipeDTO>(
+        [["recipes", "get"], { input: { id: "recipe-1" }, type: "query" }],
+        {
+          id: "recipe-1",
+          userId: "user-1",
+          name: "Original recipe",
+          description: null,
+          notes: null,
+          url: null,
+          image: null,
+          servings: 1,
+          prepMinutes: null,
+          cookMinutes: null,
+          totalMinutes: null,
+          calories: null,
+          fat: null,
+          carbs: null,
+          protein: null,
+          systemUsed: "us",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          recipeIngredients: [],
+          steps: [],
+          tags: [],
+          categories: [],
+          author: { id: "user-1", name: "User", image: null, version: 1 },
+          images: [],
+          videos: [],
+          version: 1,
+        }
+      );
+
+      const { useRecipesMutations } = await import("@/hooks/recipes/use-recipes-mutations");
+
+      renderHook(() => useRecipesMutations(), {
+        wrapper: createTestWrapper(queryClient),
+      });
+
+      const mutationOpts = mockUpdateMutationOptions.mock.calls[0][0] as {
+        onMutate: (variables: { id: string; data: { systemUsed: "metric" } }) => Promise<unknown>;
+      };
+
+      await act(async () => {
+        await mutationOpts.onMutate({
+          id: "recipe-1",
+          data: { systemUsed: "metric" },
+        });
+      });
+
+      expect(
+        queryClient.getQueryData([["recipes", "get"], { input: { id: "recipe-1" }, type: "query" }])
+      ).toEqual(expect.objectContaining({ systemUsed: "metric" }));
     });
   });
 

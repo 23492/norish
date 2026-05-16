@@ -70,14 +70,16 @@ export default function RecipePageMobile() {
         >
           <ReadonlyRecipeMedia
             aspectRatio="4/3"
-            bottomRightContent={
+            topRightContent={
               showFavorites ? (
-                <HeartButton
-                  showBackground
-                  isFavorite={isFavorite}
-                  size="lg"
-                  onToggle={handleToggleFavorite}
-                />
+                <div className="mt-[calc(2.75rem+env(safe-area-inset-top))]">
+                  <HeartButton
+                    showBackground
+                    isFavorite={isFavorite}
+                    size="lg"
+                    onToggle={handleToggleFavorite}
+                  />
+                </div>
               ) : null
             }
             className="h-full rounded-none shadow-none"

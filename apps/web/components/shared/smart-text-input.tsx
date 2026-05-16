@@ -124,12 +124,12 @@ export default function SmartTextInput({
       <TextArea
         ref={textareaRef}
         className="border-border dark:border-border-tertiary w-full text-base"
-        minRows={minRows}
         placeholder={placeholder}
+        rows={minRows}
         value={value}
         onBlur={handleBlur}
+        onChange={(event) => handleChange(event.target.value)}
         onKeyDown={onKeyDown}
-        onValueChange={handleChange}
       />
 
       {showAutocomplete && (
