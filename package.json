@@ -45,5 +45,12 @@
     "turbo": "catalog:",
     "typescript": "catalog:"
   },
-  "prettier": "@norish/prettier-config"
+  "prettier": "@norish/prettier-config",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "heroui-pro",
+      "@heroui-pro/react",
+      "heroui-native-pro"
+    ]
+  }
 }

@@ -103,6 +103,9 @@ vi.mock("@/app/(app)/recipes/[id]/components/servings-control", () => ({
 vi.mock("@/app/(app)/recipes/[id]/components/amount-display-toggle", () => ({
   default: () => <div>amount-toggle</div>,
 }));
+vi.mock("@/app/(app)/recipes/[id]/components/cookingmode", () => ({
+  default: () => <div>cooking-mode</div>,
+}));
 vi.mock("@/app/(app)/recipes/[id]/components/steps-list", () => ({
   default: () => <div>steps-list</div>,
 }));

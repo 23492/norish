@@ -3,10 +3,10 @@
 import Link from "next/link";
 import ActionsMenu from "@/app/(app)/recipes/[id]/components/actions-menu";
 import AddToGroceries from "@/app/(app)/recipes/[id]/components/add-to-groceries-button";
+import CookingMode from "@/app/(app)/recipes/[id]/components/cookingmode";
 import IngredientsList from "@/app/(app)/recipes/[id]/components/ingredient-list";
 import StepsList from "@/app/(app)/recipes/[id]/components/steps-list";
 import SystemConvertMenu from "@/app/(app)/recipes/[id]/components/system-convert-menu";
-import WakeLockToggle from "@/app/(app)/recipes/[id]/components/wake-lock-toggle";
 import NutritionCard from "@/components/recipes/nutrition-card";
 import {
   ReadonlyRecipeMedia,
@@ -69,13 +69,16 @@ export default function RecipePageDesktop() {
         <div className="flex flex-col gap-6 md:col-span-1 lg:col-span-2">
           {/* Info Card */}
           <Card className="bg-surface rounded-2xl shadow-md">
-            <Card.Content className="p-6">
+            <Card.Content className="space-y-5 p-6">
               <ReadonlyRecipeSummary
                 actions={<ActionsMenu id={recipe.id} />}
                 allergies={allergies}
                 allergySet={allergySet}
                 recipe={recipe}
               />
+              <div className="pt-2">
+                <CookingMode fullWidth />
+              </div>
             </Card.Content>
           </Card>
 
@@ -150,7 +153,6 @@ export default function RecipePageDesktop() {
           <Card className="bg-surface rounded-2xl shadow-md">
             <Card.Header className="flex-row items-center justify-between px-6 pt-6 text-left">
               <h2 className="text-lg font-semibold">{t("steps")}</h2>
-              <WakeLockToggle />
             </Card.Header>
             <Card.Content className="px-3 pt-2 pb-0 text-left">
               <StepsList />

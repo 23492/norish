@@ -82,7 +82,7 @@ export default function SystemConvertMenu() {
         {currentSystem}
       </Button>
 
-      <Dropdown.Popover className="bg-overlay">
+      <Dropdown.Popover className="bg-overlay z-[1300]">
         <Dropdown.Menu aria-label={t("ariaLabel")} items={conversionOptions}>
           {(item: ConversionOption) => (
             <Dropdown.Item

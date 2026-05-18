@@ -61,10 +61,22 @@ function ReadonlyIngredientsListContent({
       return;
     }
 
+    if ((e.target as HTMLElement | null)?.closest("[data-ingredient-checkbox]")) {
+      return;
+    }
+
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       toggle(idx);
     }
+  };
+
+  const onRowClick = (e: React.MouseEvent, idx: number) => {
+    if ((e.target as HTMLElement | null)?.closest("[data-ingredient-checkbox]")) {
+      return;
+    }
+
+    toggle(idx);
   };
 
   return (
@@ -105,15 +117,11 @@ function ReadonlyIngredientsListContent({
                 className={wrapperClassName}
                 role={interactive ? "button" : undefined}
                 tabIndex={interactive ? 0 : undefined}
-                onClick={() => toggle(idx)}
+                onClick={(e) => onRowClick(e, idx)}
                 onKeyDown={(e) => onKeyToggle(e, idx)}
               >
                 {interactive ? (
-                  <span
-                    className="shrink-0"
-                    onClick={(event) => event.stopPropagation()}
-                    onKeyDown={(event) => event.stopPropagation()}
-                  >
+                  <span className="shrink-0" data-ingredient-checkbox>
                     <GroceryCheckbox
                       aria-label={it.ingredientName}
                       isSelected={isChecked}

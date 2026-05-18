@@ -1,11 +1,11 @@
 import ActionsMenu from "@/app/(app)/recipes/[id]/components/actions-menu";
 import AddToGroceries from "@/app/(app)/recipes/[id]/components/add-to-groceries-button";
 import AmountDisplayToggle from "@/app/(app)/recipes/[id]/components/amount-display-toggle";
+import CookingMode from "@/app/(app)/recipes/[id]/components/cookingmode";
 import IngredientsList from "@/app/(app)/recipes/[id]/components/ingredient-list";
 import ServingsControl from "@/app/(app)/recipes/[id]/components/servings-control";
 import StepsList from "@/app/(app)/recipes/[id]/components/steps-list";
 import SystemConvertMenu from "@/app/(app)/recipes/[id]/components/system-convert-menu";
-import WakeLockToggle from "@/app/(app)/recipes/[id]/components/wake-lock-toggle";
 import { MOBILE_RECIPE_MEDIA_HEIGHT_STYLE } from "@/app/(app)/recipes/[id]/recipe-layout-constants";
 import { NutritionSection } from "@/components/recipes/nutrition-card";
 import {
@@ -123,15 +123,17 @@ export default function RecipePageMobile() {
             timeVariant="mobile"
           />
 
+          <CookingMode fullWidth />
+
           <Separator />
 
           {/* Ingredients Section */}
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="text-lg font-semibold">{t("ingredients")}</h2>
-              <div className="flex items-center gap-2">
+              <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
                 <AmountDisplayToggle />
-                <ServingsControl />
+                {recipe.servings ? <ServingsControl /> : null}
                 {recipe.systemUsed && <SystemConvertMenu />}
               </div>
             </div>
@@ -165,7 +167,6 @@ export default function RecipePageMobile() {
           <div className="space-y-4">
             <div className="flex flex-row items-center justify-between text-left">
               <h2 className="text-lg font-semibold">{t("steps")}</h2>
-              <WakeLockToggle />
             </div>
 
             <div className="-mx-1 text-left">

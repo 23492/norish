@@ -44,7 +44,7 @@ export function TimerTicker() {
   }, [tick, hasRunningTimers]);
   return null;
 }
-export function TimerDock() {
+export function TimerDock({ className = "" }: { className?: string }) {
   const { timersEnabled } = useTimersEnabledQuery();
   const timers = useTimerStore((state) => state.timers);
   const clearAll = useTimerStore((state) => state.clearAll);
@@ -155,7 +155,7 @@ export function TimerDock() {
                     scale: 1,
                   }
             }
-            className="fixed right-4 z-50 flex flex-col items-end space-y-2"
+            className={`fixed right-4 flex flex-col items-end space-y-2 ${className || "z-50"}`}
             exit={{
               opacity: 0,
               y: 8,

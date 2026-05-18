@@ -15,12 +15,16 @@ export interface ImageLightboxProps {
   }[];
   initialIndex?: number;
   isOpen: boolean;
+  backdropClassName?: string;
+  containerClassName?: string;
   onClose: () => void;
 }
 export default function ImageLightbox({
   images,
   initialIndex = 0,
   isOpen,
+  backdropClassName,
+  containerClassName,
   onClose,
 }: ImageLightboxProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
@@ -83,8 +87,8 @@ export default function ImageLightbox({
   };
   return (
     <Modal>
-      <Modal.Backdrop isOpen={isOpen} onOpenChange={onClose}>
-        <Modal.Container size="full">
+      <Modal.Backdrop isOpen={isOpen} className={backdropClassName} onOpenChange={onClose}>
+        <Modal.Container className={containerClassName} size="full">
           <Modal.Dialog className="bg-transparent" onClick={(e) => e.stopPropagation()}>
             {() => (
               <div className="relative flex h-screen w-screen items-center justify-center">
