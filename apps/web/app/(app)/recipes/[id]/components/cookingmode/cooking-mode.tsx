@@ -16,9 +16,9 @@ import {
   ChevronUpIcon,
   FireIcon,
   ListBulletIcon,
-  PhotoIcon,
   XMarkIcon,
 } from "@heroicons/react/20/solid";
+import { Carousel } from "@heroui-pro/react";
 import {
   Button,
   Card,
@@ -29,6 +29,7 @@ import {
   Separator,
   Surface,
   Tabs,
+  Tooltip,
 } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
@@ -77,29 +78,23 @@ function StepImages({
     return null;
   }
 
-  const secondaryImages = step.images.slice(1);
-
   return (
     <div className={className}>
-      <div
-        className={
-          secondaryImages.length > 0 ? "grid gap-3 md:grid-cols-[minmax(0,1fr)_9rem]" : "max-w-3xl"
-        }
-      >
-        <div className="bg-surface-secondary relative aspect-[16/10] w-full overflow-hidden rounded-2xl shadow-sm">
+      {step.images.length === 1 ? (
+        <div className="bg-surface-secondary relative aspect-video max-h-36 w-full max-w-sm overflow-hidden rounded-xl">
           <Image
             fill
             unoptimized
             priority
             alt={`Step ${step.stepNumber} image 1`}
             className="object-cover"
-            sizes="(min-width: 768px) 720px, 92vw"
+            sizes="(min-width: 768px) 520px, 92vw"
             src={primaryImage.image}
           />
           <Button
             fullWidth
             aria-label={`Open step ${step.stepNumber} image 1`}
-            className="absolute inset-0 h-full min-h-0 rounded-2xl bg-transparent p-0 hover:bg-black/10"
+            className="absolute inset-0 h-full min-h-0 rounded-xl bg-transparent p-0 hover:bg-black/10"
             variant="tertiary"
             onPress={() => {
               setLightboxInitialIndex(0);
@@ -107,28 +102,19 @@ function StepImages({
             }}
           />
         </div>
-
-        {secondaryImages.length > 0 ? (
-          <ScrollShadow
-            className="-mx-1 w-[calc(100%+0.5rem)] px-1 md:mx-0 md:h-full md:w-full md:px-0"
-            orientation="horizontal"
-            size={32}
-          >
-            <div className="flex gap-2 pb-1 md:grid md:grid-cols-1 md:pb-0">
-              {secondaryImages.map((image, imageIndex) => {
-                const index = imageIndex + 1;
-
-                return (
-                  <div
-                    key={`${image.image}-${index}`}
-                    className="bg-surface-secondary relative aspect-[4/3] w-28 shrink-0 overflow-hidden rounded-xl md:w-full"
-                  >
+      ) : (
+        <div className="w-full max-w-sm">
+          <Carousel opts={{ loop: true }}>
+            <Carousel.Content>
+              {step.images.map((image, index) => (
+                <Carousel.Item key={`${image.image}-${index}`}>
+                  <div className="bg-surface-secondary relative aspect-video max-h-36 overflow-hidden rounded-xl">
                     <Image
                       fill
                       unoptimized
                       alt={`Step ${step.stepNumber} image ${index + 1}`}
                       className="object-cover"
-                      sizes="(min-width: 768px) 144px, 112px"
+                      sizes="(min-width: 768px) 384px, 92vw"
                       src={image.image}
                     />
                     <Button
@@ -142,12 +128,15 @@ function StepImages({
                       }}
                     />
                   </div>
-                );
-              })}
-            </div>
-          </ScrollShadow>
-        ) : null}
-      </div>
+                </Carousel.Item>
+              ))}
+            </Carousel.Content>
+            <Carousel.Previous className="bg-background/70 backdrop-blur-md" />
+            <Carousel.Next className="bg-background/70 backdrop-blur-md" />
+            <Carousel.Dots className="mt-2" />
+          </Carousel>
+        </div>
+      )}
 
       <ImageLightbox
         backdropClassName="z-[1500]"
@@ -200,14 +189,8 @@ function CookingStepView({
           <ScrollShadow className="h-full px-5 py-5 md:px-8 md:py-6" size={64}>
             <div className="mx-auto w-full max-w-5xl">
               <div className="mx-auto flex max-w-3xl flex-col gap-6">
-                <div className="order-1 flex min-w-0 items-center gap-4 md:gap-5">
-                  <div
-                    className="flex h-[3.75rem] w-[3.75rem] shrink-0 items-center justify-center rounded-full text-3xl font-bold tabular-nums shadow-md md:h-[4.5rem] md:w-[4.5rem] md:text-4xl"
-                    style={{
-                      backgroundColor: "var(--primary, var(--accent))",
-                      color: "var(--primary-foreground, var(--accent-foreground))",
-                    }}
-                  >
+                <div className="order-1 flex min-w-0 items-center gap-3 md:gap-4">
+                  <div className="bg-accent text-accent-foreground flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xl font-semibold tabular-nums md:h-12 md:w-12 md:text-2xl">
                     {step.stepNumber}
                   </div>
                   <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
@@ -215,12 +198,6 @@ function CookingStepView({
                       <Chip color="accent" variant="soft">
                         <BookOpenIcon className="size-4 translate-y-px" />
                         <Chip.Label>{step.heading}</Chip.Label>
-                      </Chip>
-                    ) : null}
-                    {step.images.length > 0 ? (
-                      <Chip variant="soft">
-                        <PhotoIcon className="size-4" />
-                        <Chip.Label>{step.images.length}</Chip.Label>
                       </Chip>
                     ) : null}
                   </div>
@@ -257,16 +234,19 @@ function CookingStepView({
           </Meter>
 
           <div className="flex items-center justify-between gap-3">
-            <Button
-              isIconOnly
-              aria-label={tCommon("back")}
-              isDisabled={previousDisabled}
-              variant="secondary"
-              onPress={() => onStepChange(clampStep(activeStep - 1, totalSteps))}
-            >
-              <ChevronUpIcon className="size-5 md:hidden" />
-              <ChevronUpIcon className="hidden size-5 md:block" />
-            </Button>
+            <Tooltip delay={0}>
+              <Button
+                isIconOnly
+                aria-label={tCommon("back")}
+                isDisabled={previousDisabled}
+                variant="secondary"
+                onPress={() => onStepChange(clampStep(activeStep - 1, totalSteps))}
+              >
+                <ChevronUpIcon className="size-5 md:hidden" />
+                <ChevronUpIcon className="hidden size-5 md:block" />
+              </Button>
+              <Tooltip.Content placement="top">{tCommon("back")}</Tooltip.Content>
+            </Tooltip>
 
             <div className="text-muted text-sm font-medium tabular-nums">
               {tCookMode("stepCounter", {
@@ -275,16 +255,21 @@ function CookingStepView({
               })}
             </div>
 
-            <Button
-              isIconOnly
-              aria-label={nextDisabled ? tCommon("done") : tCommon("next")}
-              isDisabled={nextDisabled}
-              variant="primary"
-              onPress={() => onStepChange(clampStep(activeStep + 1, totalSteps))}
-            >
-              <ChevronDownIcon className="size-5 md:hidden" />
-              <ChevronDownIcon className="hidden size-5 md:block" />
-            </Button>
+            <Tooltip delay={0}>
+              <Button
+                isIconOnly
+                aria-label={nextDisabled ? tCommon("done") : tCommon("next")}
+                isDisabled={nextDisabled}
+                variant="primary"
+                onPress={() => onStepChange(clampStep(activeStep + 1, totalSteps))}
+              >
+                <ChevronDownIcon className="size-5 md:hidden" />
+                <ChevronDownIcon className="hidden size-5 md:block" />
+              </Button>
+              <Tooltip.Content placement="top">
+                {nextDisabled ? tCommon("done") : tCommon("next")}
+              </Tooltip.Content>
+            </Tooltip>
           </div>
         </div>
       </Card>
@@ -441,7 +426,7 @@ export default function CookingMode({ className = "", fullWidth = false }: Cooki
       >
         <Modal.Container className="z-[1100] items-center justify-center md:p-8" size="full">
           <Modal.Dialog className="flex items-center justify-center bg-transparent p-0">
-            <div className="bg-background md:bg-surface flex h-[100dvh] w-screen flex-col md:h-[min(92dvh,900px)] md:w-[min(1180px,calc(100vw-4rem))] md:overflow-hidden md:rounded-lg md:shadow-2xl">
+            <div className="bg-background md:bg-surface flex h-[100dvh] w-screen flex-col overflow-hidden rounded-none md:h-[min(92dvh,900px)] md:w-[min(1180px,calc(100vw-4rem))] md:rounded-3xl md:shadow-2xl">
               <Tabs
                 className="flex min-h-0 flex-1 flex-col"
                 selectedKey={activeTab}
@@ -450,20 +435,21 @@ export default function CookingMode({ className = "", fullWidth = false }: Cooki
                 <header className="flex shrink-0 flex-col gap-3 px-4 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-3 md:px-6 md:pt-5">
                   <div className="flex min-w-0 items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-muted text-xs font-semibold uppercase">
-                        {tDetail("cook")}
-                      </p>
+                      <p className="text-muted text-xs font-semibold">{tDetail("cook")}</p>
                       <h2 className="truncate text-lg font-semibold md:text-xl">{recipe.name}</h2>
                     </div>
-                    <Button
-                      isIconOnly
-                      aria-label={tCommon("close")}
-                      className="size-10 min-w-10 rounded-full"
-                      variant="tertiary"
-                      onPress={close}
-                    >
-                      <XMarkIcon className="size-5" />
-                    </Button>
+                    <Tooltip delay={0}>
+                      <Button
+                        isIconOnly
+                        aria-label={tCommon("close")}
+                        className="size-10 min-w-10 rounded-full"
+                        variant="tertiary"
+                        onPress={close}
+                      >
+                        <XMarkIcon className="size-5" />
+                      </Button>
+                      <Tooltip.Content placement="bottom">{tCommon("close")}</Tooltip.Content>
+                    </Tooltip>
                   </div>
 
                   <Tabs.ListContainer>

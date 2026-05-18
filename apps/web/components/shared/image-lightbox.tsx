@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import { ChevronLeftIcon, ChevronRightIcon, XMarkIcon } from "@heroicons/react/16/solid";
-import { Button, Modal } from "@heroui/react";
+import { Button } from "@heroui/react";
 import { AnimatePresence, motion } from "motion/react";
+import { createPortal } from "react-dom";
 
 import { FallbackPlaceholder, useImageErrors } from "./fallback-image";
 
@@ -29,15 +30,31 @@ export default function ImageLightbox({
 }: ImageLightboxProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [direction, setDirection] = useState(0);
+  const [isMounted, setIsMounted] = useState(false);
   const { handleImageError, hasError } = useImageErrors();
 
-  // Reset to initial index when opening
   useEffect(() => {
-    if (isOpen) {
-      setCurrentIndex(initialIndex);
-      setDirection(0);
-    }
-  }, [isOpen, initialIndex]);
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen || images.length === 0) return;
+
+    setCurrentIndex(Math.max(0, Math.min(initialIndex, images.length - 1)));
+    setDirection(0);
+  }, [images.length, initialIndex, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isOpen]);
+
   const goToPrevious = useCallback(() => {
     if (images.length <= 1) return;
     setDirection(-1);
@@ -49,9 +66,9 @@ export default function ImageLightbox({
     setCurrentIndex((prev) => (prev === images.length - 1 ? 0 : prev + 1));
   }, [images.length]);
 
-  // Keyboard navigation
   useEffect(() => {
     if (!isOpen) return;
+
     const handleKeyDown = (e: KeyboardEvent) => {
       switch (e.key) {
         case "ArrowLeft":
@@ -65,11 +82,15 @@ export default function ImageLightbox({
           break;
       }
     };
+
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, goToPrevious, goToNext, onClose]);
-  if (images.length === 0) return null;
-  const currentImage = images[currentIndex];
+
+  if (!isOpen || !isMounted || images.length === 0) return null;
+
+  const safeCurrentIndex = Math.max(0, Math.min(currentIndex, images.length - 1));
+  const currentImage = images[safeCurrentIndex];
   const showNavigation = images.length > 1;
   const slideVariants = {
     enter: (dir: number) => ({
@@ -85,133 +106,135 @@ export default function ImageLightbox({
       opacity: 0,
     }),
   };
-  return (
-    <Modal>
-      <Modal.Backdrop isOpen={isOpen} className={backdropClassName} onOpenChange={onClose}>
-        <Modal.Container className={containerClassName} size="full">
-          <Modal.Dialog className="bg-transparent" onClick={(e) => e.stopPropagation()}>
-            {() => (
-              <div className="relative flex h-screen w-screen items-center justify-center">
-                {/* Close button */}
-                <Button
-                  isIconOnly
-                  className="absolute right-4 z-50 rounded-full bg-black/50 text-white hover:bg-black/70"
-                  size="lg"
-                  style={{
-                    top: "calc(1rem + env(safe-area-inset-top))",
-                  }}
-                  onPress={onClose}
-                  variant="tertiary"
-                >
-                  <XMarkIcon className="h-6 w-6" />
-                </Button>
 
-                {/* Image counter */}
-                {showNavigation && (
-                  <div
-                    className="absolute left-4 z-50 rounded-full bg-black/50 px-4 py-2 text-sm text-white"
-                    style={{
-                      top: "calc(1rem + env(safe-area-inset-top))",
-                    }}
-                  >
-                    {currentIndex + 1} / {images.length}
-                  </div>
-                )}
+  return createPortal(
+    <div
+      aria-label={currentImage?.alt || `Image ${safeCurrentIndex + 1}`}
+      aria-modal="true"
+      className={`fixed inset-0 z-[5000] bg-black/95 text-white ${backdropClassName ?? ""}`}
+      role="dialog"
+    >
+      <div
+        className={`fixed inset-0 z-[5001] flex h-[100dvh] w-[100dvw] flex-col overflow-hidden ${containerClassName ?? ""}`}
+      >
+        <header className="relative z-30 flex shrink-0 items-center justify-between gap-3 px-4 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-2 sm:px-6 sm:pt-[calc(1rem+env(safe-area-inset-top))] sm:pb-3">
+          {showNavigation ? (
+            <div className="rounded-full bg-white/10 px-3 py-1.5 text-sm font-medium tabular-nums backdrop-blur-md">
+              {safeCurrentIndex + 1} / {images.length}
+            </div>
+          ) : (
+            <div />
+          )}
 
-                {/* Previous button */}
-                {showNavigation && (
-                  <Button
-                    isIconOnly
-                    className="absolute left-4 z-50 rounded-full bg-black/50 text-white hover:bg-black/70"
-                    size="lg"
-                    onPress={goToPrevious}
-                    variant="tertiary"
-                  >
-                    <ChevronLeftIcon className="h-6 w-6" />
-                  </Button>
-                )}
+          <Button
+            isIconOnly
+            aria-label="Close image viewer"
+            className="size-10 min-w-10 rounded-full bg-white/10 text-white backdrop-blur-md hover:bg-white/15"
+            variant="tertiary"
+            onPress={onClose}
+          >
+            <XMarkIcon className="size-5" />
+          </Button>
+        </header>
 
-                {/* Image container */}
-                <div className="relative h-[80vh] w-[90vw] overflow-hidden">
-                  <AnimatePresence custom={direction} initial={false} mode="wait">
-                    <motion.div
-                      key={currentIndex}
-                      animate="center"
-                      className="absolute inset-0 flex items-center justify-center"
-                      custom={direction}
-                      exit="exit"
-                      initial="enter"
-                      transition={{
-                        x: {
-                          type: "spring",
-                          stiffness: 300,
-                          damping: 30,
-                        },
-                        opacity: {
-                          duration: 0.2,
-                        },
-                      }}
-                      variants={slideVariants}
-                    >
-                      {hasError(currentImage?.src || "") ? (
-                        <FallbackPlaceholder className="rounded-lg" />
-                      ) : (
-                        <Image
-                          fill
-                          unoptimized
-                          alt={currentImage?.alt || `Image ${currentIndex + 1}`}
-                          className="object-contain"
-                          src={currentImage?.src || ""}
-                          onError={() => handleImageError(currentImage?.src || "")}
-                        />
-                      )}
-                    </motion.div>
-                  </AnimatePresence>
-                </div>
-
-                {/* Next button */}
-                {showNavigation && (
-                  <Button
-                    isIconOnly
-                    className="absolute right-4 z-50 rounded-full bg-black/50 text-white hover:bg-black/70"
-                    size="lg"
-                    onPress={goToNext}
-                    variant="tertiary"
-                  >
-                    <ChevronRightIcon className="h-6 w-6" />
-                  </Button>
-                )}
-
-                {/* Thumbnail strip (optional for multiple images) */}
-                {showNavigation && (
-                  <div className="absolute bottom-6 left-1/2 z-50 flex -translate-x-1/2 gap-2">
-                    {images.map((img, idx) => (
-                      <button
-                        key={`${img.src}-${idx}`}
-                        className={`h-16 w-16 overflow-hidden rounded-lg border-2 transition-all ${idx === currentIndex ? "border-white opacity-100" : "border-transparent opacity-60 hover:opacity-80"}`}
-                        type="button"
-                        onClick={() => {
-                          setDirection(idx > currentIndex ? 1 : -1);
-                          setCurrentIndex(idx);
-                        }}
-                      >
-                        <Image
-                          unoptimized
-                          alt={img.alt || `Thumbnail ${idx + 1}`}
-                          className="h-full w-full object-cover"
-                          height={64}
-                          src={img.src}
-                          width={64}
-                        />
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+        <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-4 py-2 sm:px-16 sm:py-4">
+          <div className="relative h-[min(62dvh,720px)] w-full max-w-5xl sm:h-[min(68dvh,760px)]">
+            {showNavigation && (
+              <Button
+                isIconOnly
+                aria-label="Previous image"
+                className="absolute top-1/2 left-2 z-30 size-10 min-w-10 -translate-y-1/2 rounded-full bg-white/15 text-white backdrop-blur-md hover:bg-white/20 sm:-left-14 sm:size-12 sm:min-w-12"
+                variant="tertiary"
+                onPress={goToPrevious}
+              >
+                <ChevronLeftIcon className="size-5 sm:size-6" />
+              </Button>
             )}
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </Modal>
+
+            <AnimatePresence custom={direction} initial={false} mode="wait">
+              <motion.div
+                key={safeCurrentIndex}
+                animate="center"
+                className="absolute inset-0 flex items-center justify-center"
+                custom={direction}
+                exit="exit"
+                initial="enter"
+                transition={{
+                  x: {
+                    type: "spring",
+                    stiffness: 300,
+                    damping: 30,
+                  },
+                  opacity: {
+                    duration: 0.2,
+                  },
+                }}
+                variants={slideVariants}
+              >
+                {hasError(currentImage?.src || "") ? (
+                  <FallbackPlaceholder className="max-h-full max-w-full rounded-2xl" />
+                ) : (
+                  <Image
+                    fill
+                    unoptimized
+                    alt={currentImage?.alt || `Image ${safeCurrentIndex + 1}`}
+                    className="object-contain"
+                    sizes="(min-width: 1024px) 1024px, 92vw"
+                    src={currentImage?.src || ""}
+                    onError={() => handleImageError(currentImage?.src || "")}
+                  />
+                )}
+              </motion.div>
+            </AnimatePresence>
+
+            {showNavigation && (
+              <Button
+                isIconOnly
+                aria-label="Next image"
+                className="absolute top-1/2 right-2 z-30 size-10 min-w-10 -translate-y-1/2 rounded-full bg-white/15 text-white backdrop-blur-md hover:bg-white/20 sm:-right-14 sm:size-12 sm:min-w-12"
+                variant="tertiary"
+                onPress={goToNext}
+              >
+                <ChevronRightIcon className="size-5 sm:size-6" />
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {showNavigation && (
+          <footer className="relative z-30 shrink-0 px-4 pt-2 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-3 sm:pb-[calc(1rem+env(safe-area-inset-bottom))]">
+            <div className="mx-auto flex max-w-full justify-start gap-2 overflow-x-auto py-1 sm:justify-center">
+              {images.map((img, idx) => (
+                <button
+                  key={`${img.src}-${idx}`}
+                  aria-label={`Show image ${idx + 1}`}
+                  aria-current={idx === safeCurrentIndex}
+                  className={`relative size-12 shrink-0 overflow-hidden rounded-xl border-2 transition-opacity sm:size-14 ${
+                    idx === safeCurrentIndex
+                      ? "border-white opacity-100"
+                      : "border-transparent opacity-55 hover:opacity-85"
+                  }`}
+                  type="button"
+                  onClick={() => {
+                    setDirection(idx > safeCurrentIndex ? 1 : -1);
+                    setCurrentIndex(idx);
+                  }}
+                >
+                  <Image
+                    fill
+                    unoptimized
+                    alt={img.alt || `Thumbnail ${idx + 1}`}
+                    className="object-cover"
+                    sizes="56px"
+                    src={img.src}
+                  />
+                </button>
+              ))}
+            </div>
+          </footer>
+        )}
+      </div>
+    </div>,
+    document.body
   );
 }

@@ -1,13 +1,21 @@
 @import "tailwindcss";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/fira-code";
 @import "@heroui/styles";
-@import "@heroui-pro/react/css"; 
+@import "@heroui-pro/react/css";
+@import "@norish/tailwind-config/heroui-theme";
 @source "../../../node_modules/@heroui/styles/dist/**/*.{css,js,ts,jsx,tsx}";
 
 @custom-variant light (&:is(:root, .light *, [data-theme="light"] *));
 @custom-variant dark (&:is(.dark *, [data-theme="dark"] *));
 
-/* Import the shared HeroUI v3 theme tokens */
-@import "@norish/tailwind-config/heroui-theme";
+@layer theme {
+  :root {
+    --font-inter: "Inter Variable", system-ui, sans-serif;
+    --font-mono:
+      "Fira Code Variable", ui-monospace, "SFMono-Regular", "Menlo", "Monaco", "Consolas", monospace;
+  }
+}
 
 /* Custom fade-in animation */
 @keyframes fade-in {
