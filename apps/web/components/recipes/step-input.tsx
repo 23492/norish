@@ -378,7 +378,7 @@ function StepRow({
                     src={img.image}
                   />
                   <button
-                    className="bg-danger hover:bg-danger-600 absolute top-0 right-0 z-10 flex h-6 w-6 items-center justify-center rounded-full shadow-lg transition-colors"
+                    className="bg-danger hover:bg-danger/90 absolute top-0 right-0 z-10 flex h-6 w-6 items-center justify-center rounded-full shadow-lg transition-colors"
                     type="button"
                     onClick={() => onRemoveImage(imgIndex)}
                   >

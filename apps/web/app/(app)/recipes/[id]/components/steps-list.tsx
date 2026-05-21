@@ -123,7 +123,7 @@ export function ReadonlyStepsList({
                 aria-pressed={interactive ? isDone : undefined}
                 className={`flex gap-4 rounded-xl p-3 transition-all duration-200 select-none ${
                   interactive
-                    ? "group hover:bg-surface-secondary dark:hover:bg-surface-secondary/10 cursor-pointer"
+                    ? "group hover:bg-surface-secondary cursor-pointer"
                     : "bg-transparent"
                 }`}
                 role={interactive ? "button" : undefined}
@@ -172,10 +172,10 @@ export function ReadonlyStepsList({
                       {stepImages.map((img, imgIndex) => (
                         <button
                           key={imgIndex}
-                          className={`group/img ring-border focus:ring-accent dark:ring-border-secondary relative h-16 w-16 overflow-hidden rounded-lg shadow-sm ring-1 transition-all duration-200 focus:ring-2 focus:outline-none md:h-20 md:w-20 ${
+                          className={`group/img ring-border focus:ring-accent relative h-16 w-16 overflow-hidden rounded-lg shadow-sm ring-1 transition-all duration-200 focus:ring-2 focus:outline-none md:h-20 md:w-20 ${
                             interactive && isDone
                               ? "opacity-50 grayscale"
-                              : "hover:ring-accent-300 dark:hover:ring-accent-600 hover:scale-105 hover:shadow-md"
+                              : "hover:ring-accent hover:scale-105 hover:shadow-md"
                           }`}
                           type="button"
                           onClick={(e) =>

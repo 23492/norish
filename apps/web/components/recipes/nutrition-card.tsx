@@ -23,34 +23,35 @@ const MACROS = [
     labelKey: "calories",
     unit: "kcal",
     icon: FireIcon,
-    color: "text-orange-500",
-    bg: "bg-orange-100 dark:bg-orange-900/30",
+    color: "text-warning",
+    bg: "bg-warning/10",
   },
   {
     key: "fat",
     labelKey: "fat",
     unit: "g",
     icon: BeakerIcon,
-    color: "text-yellow-500",
-    bg: "bg-yellow-100 dark:bg-yellow-900/30",
+    color: "text-accent",
+    bg: "bg-accent/10",
   },
   {
     key: "carbs",
     labelKey: "carbs",
     unit: "g",
     icon: CubeIcon,
-    color: "text-blue-500",
-    bg: "bg-blue-100 dark:bg-blue-900/30",
+    color: "text-accent",
+    bg: "bg-accent/10",
   },
   {
     key: "protein",
     labelKey: "protein",
     unit: "g",
     icon: BoltIcon,
-    color: "text-rose-500",
-    bg: "bg-rose-100 dark:bg-rose-900/30",
+    color: "text-danger",
+    bg: "bg-danger/10",
   },
 ] as const;
+
 
 function getNutritionData(recipe: NutritionRecipeLike, portions: number) {
   const parsedFat = typeof recipe.fat === "string" ? parseFloat(recipe.fat) : recipe.fat;
@@ -122,7 +123,7 @@ function NutritionValues({
   );
 
   return inCard ? (
-    <Card className="bg-surface rounded-2xl shadow-md">
+    <Card className="rounded-2xl">
       <Card.Content className="p-5">{content}</Card.Content>
     </Card>
   ) : (
@@ -222,7 +223,7 @@ function NutritionDisplay({ inCard = true }: { inCard?: boolean }) {
   );
 
   return inCard ? (
-    <Card className="bg-surface rounded-2xl shadow-md">
+    <Card className="rounded-2xl">
       <Card.Content className="p-5">{content}</Card.Content>
     </Card>
   ) : (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import NextImage from "next/image";
 import { FallbackPlaceholder, useImageErrors } from "@/components/shared/fallback-image";
 import ImageLightbox from "@/components/shared/image-lightbox";
@@ -94,8 +94,7 @@ type MediaCarouselSlidesProps = {
   mediaBoxClassName: string;
   onActiveItemChange?: (item: MediaItem, index: number) => void;
   onActiveVideoControlsVisibilityChange?: (visible: boolean) => void;
-  onItemClick: (item: MediaItem, itemIndex: number, clickDetail: number) => void;
-  openLightboxForItem: (item: MediaItem, itemIndex: number) => void;
+  onImageClick: (item: MediaItem, itemIndex: number) => void;
   sortedItems: MediaItem[];
 };
 
@@ -105,8 +104,7 @@ function MediaCarouselSlides({
   mediaBoxClassName,
   onActiveItemChange,
   onActiveVideoControlsVisibilityChange,
-  onItemClick,
-  openLightboxForItem,
+  onImageClick,
   sortedItems,
 }: MediaCarouselSlidesProps) {
   const { selectedIndex } = useCarousel();
@@ -145,11 +143,11 @@ function MediaCarouselSlides({
                 className="group relative h-full w-full cursor-pointer"
                 role="button"
                 tabIndex={0}
-                onClick={(e) => onItemClick(item, index, e.detail)}
+                onClick={() => onImageClick(item, index)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    openLightboxForItem(item, index);
+                    onImageClick(item, index);
                   }
                 }}
               >
@@ -158,6 +156,7 @@ function MediaCarouselSlides({
                   unoptimized
                   alt={`Recipe media ${index + 1}`}
                   className="object-cover transition-transform duration-500 group-hover:scale-105"
+                  sizes="(min-width: 1024px) 60vw, (min-width: 768px) 50vw, 100vw"
                   src={item.src}
                   onError={() => handleImageError(item.src)}
                 />
@@ -182,7 +181,6 @@ export default function MediaCarousel({
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const { handleImageError, hasError } = useImageErrors();
-  const lightboxOpenTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const t = useTranslations("recipes.carousel");
 
@@ -204,17 +202,7 @@ export default function MediaCarousel({
         alt: `Recipe media ${item.id || ""}`,
       }));
   }, [sortedItems]);
-  const clearPendingLightboxOpen = useCallback(() => {
-    if (lightboxOpenTimeoutRef.current) {
-      clearTimeout(lightboxOpenTimeoutRef.current);
-      lightboxOpenTimeoutRef.current = null;
-    }
-  }, []);
-  useEffect(() => {
-    return () => {
-      clearPendingLightboxOpen();
-    };
-  }, [clearPendingLightboxOpen]);
+
   useEffect(() => {
     if (sortedItems.length !== 1) return;
 
@@ -225,8 +213,11 @@ export default function MediaCarousel({
       onActiveVideoControlsVisibilityChange?.(false);
     }
   }, [onActiveItemChange, onActiveVideoControlsVisibilityChange, sortedItems]);
+
   const openLightboxForItem = useCallback(
     (item: MediaItem, itemIndex: number) => {
+      if (item.type !== "image") return;
+
       const imgIndex = lightboxImages.findIndex((img) => img.src === item.src);
       if (imgIndex !== -1) {
         setLightboxIndex(imgIndex);
@@ -236,20 +227,7 @@ export default function MediaCarousel({
     },
     [lightboxImages, onImageClick]
   );
-  const handleItemClick = (item: MediaItem, itemIndex: number, clickDetail: number) => {
-    if (item.type !== "image") {
-      return;
-    }
-    if (clickDetail > 1 || lightboxOpenTimeoutRef.current) {
-      clearPendingLightboxOpen();
-      return;
-    }
-    clearPendingLightboxOpen();
-    lightboxOpenTimeoutRef.current = setTimeout(() => {
-      openLightboxForItem(item, itemIndex);
-      lightboxOpenTimeoutRef.current = null;
-    }, 250);
-  };
+
   const aspectRatioClass = {
     video: "aspect-video",
     square: "aspect-square",
@@ -292,7 +270,7 @@ export default function MediaCarousel({
               className="group relative h-full w-full cursor-pointer"
               role="button"
               tabIndex={0}
-              onClick={(e) => handleItemClick(item, 0, e.detail)}
+              onClick={() => openLightboxForItem(item, 0)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
@@ -305,6 +283,7 @@ export default function MediaCarousel({
                 unoptimized
                 alt="Recipe image"
                 className="object-cover transition-transform duration-500 group-hover:scale-105"
+                sizes="(min-width: 1024px) 60vw, (min-width: 768px) 50vw, 100vw"
                 src={item.src}
                 onError={() => handleImageError(item.src)}
               />
@@ -332,8 +311,7 @@ export default function MediaCarousel({
           sortedItems={sortedItems}
           onActiveItemChange={onActiveItemChange}
           onActiveVideoControlsVisibilityChange={onActiveVideoControlsVisibilityChange}
-          onItemClick={handleItemClick}
-          openLightboxForItem={openLightboxForItem}
+          onImageClick={openLightboxForItem}
         />
         <Carousel.Previous className="bg-background/70 text-foreground backdrop-blur-md" />
         <Carousel.Next className="bg-background/70 text-foreground backdrop-blur-md" />

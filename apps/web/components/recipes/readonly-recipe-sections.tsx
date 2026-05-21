@@ -86,7 +86,7 @@ export function ReadonlyRecipeMedia({
   const mediaItems = buildMediaItems(recipe);
 
   return (
-    <div className={`relative overflow-hidden rounded-[1.75rem] shadow-md ${className}`}>
+    <div className={`relative overflow-hidden rounded-2xl ${className}`}>
       <MediaCarousel
         aspectRatio={aspectRatio}
         className="h-full min-h-[400px] w-full"

@@ -57,7 +57,7 @@ export default function RecipePageDesktop() {
     <div className="hidden flex-col space-y-6 px-6 pb-10 md:flex">
       {/* Back link */}
       <div className="w-fit">
-        <Link className="text-muted flex items-center gap-1 text-base hover:underline" href="/">
+        <Link className="text-muted flex items-center gap-1 text-base no-underline hover:text-foreground" href="/">
           <ArrowLeftIcon className="h-4 w-4" />
           {t("backToRecipes")}
         </Link>
@@ -68,7 +68,7 @@ export default function RecipePageDesktop() {
         {/* LEFT column: Info card + Ingredients card (stacked) */}
         <div className="flex flex-col gap-6 md:col-span-1 lg:col-span-2">
           {/* Info Card */}
-          <Card className="bg-surface rounded-2xl shadow-md">
+          <Card className="rounded-2xl">
             <Card.Content className="space-y-5 p-6">
               <ReadonlyRecipeSummary
                 actions={<ActionsMenu id={recipe.id} />}
@@ -83,7 +83,7 @@ export default function RecipePageDesktop() {
           </Card>
 
           {/* Ingredients Card (separate) */}
-          <Card className="bg-surface rounded-2xl shadow-md">
+          <Card className="rounded-2xl">
             <Card.Content className="space-y-4 p-6">
               <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-center">
                 <h2 className="text-lg font-semibold">{t("ingredients")}</h2>
@@ -139,7 +139,7 @@ export default function RecipePageDesktop() {
 
           {/* Notes */}
           {recipe.notes && (
-            <Card className="bg-surface rounded-2xl shadow-md">
+            <Card className="rounded-2xl">
               <Card.Header className="flex-row items-center justify-between px-6 pt-6 text-left">
                 <h2 className="text-lg font-semibold">{t("notes")}</h2>
               </Card.Header>
@@ -150,7 +150,7 @@ export default function RecipePageDesktop() {
           )}
 
           {/* Steps Card (below image in right column) */}
-          <Card className="bg-surface rounded-2xl shadow-md">
+          <Card className="rounded-2xl">
             <Card.Header className="flex-row items-center justify-between px-6 pt-6 text-left">
               <h2 className="text-lg font-semibold">{t("steps")}</h2>
             </Card.Header>

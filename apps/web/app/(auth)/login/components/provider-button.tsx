@@ -40,11 +40,7 @@ export function ProviderButton({
     }
   };
   return (
-    <Button
-      className="border-border bg-surface-secondary hover:bg-surface-secondary active:bg-surface-tertiary flex h-11 w-full items-center justify-center gap-3 rounded-xl border shadow-sm transition-colors"
-      onPress={handleSignIn}
-      variant="tertiary"
-    >
+    <Button fullWidth className="h-11 gap-3" onPress={handleSignIn} variant="secondary">
       {<ProviderIcon icon={icon} providerName={providerName} width={20} />}
       {t("signInWith", {
         provider: providerName,

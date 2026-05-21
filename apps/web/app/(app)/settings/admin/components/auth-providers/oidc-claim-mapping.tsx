@@ -51,7 +51,7 @@ export function OIDCClaimMapping({ values, onChange, isDirty = false }: OIDCClai
       <p className="text-muted text-sm">{tClaimMapping("description")}</p>
 
       {values.enabled && (
-        <div className="bg-warning-50 border-warning-200 text-warning-700 flex items-start gap-2 rounded-lg border p-3">
+        <div className="bg-warning/10 border-warning/30 text-warning flex items-start gap-2 rounded-lg border p-3">
           <ExclamationTriangleIcon className="mt-0.5 h-4 w-4 flex-shrink-0" />
           <p className="text-sm">{tClaimMapping("securityWarning")}</p>
         </div>

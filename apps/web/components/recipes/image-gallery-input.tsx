@@ -315,7 +315,7 @@ export default function ImageGalleryInput({
                   )}
 
                   {uploadError && (
-                    <div className="bg-danger-50 text-danger absolute inset-0 flex items-center justify-center rounded-xl p-2 text-center text-xs">
+                    <div className="bg-danger/10 text-danger absolute inset-0 flex items-center justify-center rounded-xl p-2 text-center text-xs">
                       {uploadError}
                     </div>
                   )}

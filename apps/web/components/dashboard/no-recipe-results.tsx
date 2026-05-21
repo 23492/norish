@@ -14,7 +14,7 @@ export default function NoRecipeResults({ onClear }: NoRecipeResultsProps) {
     <div className="flex flex-col items-center justify-center px-4 py-16">
       <Card className="bg-surface/80 shadow-surface w-full max-w-2xl backdrop-blur-xl">
         <Card.Content className="flex flex-col items-center gap-5 p-8 text-center">
-          <div className="bg-warning-500/15 text-warning-500 flex h-12 w-12 items-center justify-center rounded-full">
+          <div className="bg-warning/15 text-warning flex h-12 w-12 items-center justify-center rounded-full">
             <FunnelIcon className="h-6 w-6" />
           </div>
 

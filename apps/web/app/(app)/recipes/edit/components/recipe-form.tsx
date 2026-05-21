@@ -436,7 +436,7 @@ export default function RecipeForm({ mode, initialData }: RecipeFormProps) {
         </div>
 
         {errors.submit && (
-          <div className="bg-danger-50 dark:bg-danger-100/10 border-danger-200 dark:border-danger-800 text-danger-600 dark:text-danger-400 mt-4 rounded-lg border p-4">
+          <div className="bg-danger/10 dark:bg-danger/10 border-danger/30 dark:border-danger/30 text-danger dark:text-danger mt-4 rounded-lg border p-4">
             {errors.submit}
           </div>
         )}
@@ -455,7 +455,7 @@ export default function RecipeForm({ mode, initialData }: RecipeFormProps) {
             {recipeId && (
               <MediaGalleryInput media={media} recipeId={recipeId} onChange={setMedia} />
             )}
-            {errors.image && <p className="text-danger-600 mt-2 text-base">{errors.image}</p>}
+            {errors.image && <p className="text-danger mt-2 text-base">{errors.image}</p>}
           </div>
         </section>
 
@@ -502,7 +502,7 @@ export default function RecipeForm({ mode, initialData }: RecipeFormProps) {
               3
             </span>
             {t("ingredients")}
-            <span className="text-danger-500 text-lg">*</span>
+            <span className="text-danger text-lg">*</span>
           </h2>
           <div className="ml-0 md:ml-9">
             <p className="text-muted mb-3 flex items-center gap-1 text-base">
@@ -515,7 +515,7 @@ export default function RecipeForm({ mode, initialData }: RecipeFormProps) {
               onChange={setIngredients}
             />
             {errors.ingredients && (
-              <p className="text-danger-600 mt-2 text-base">{errors.ingredients}</p>
+              <p className="text-danger mt-2 text-base">{errors.ingredients}</p>
             )}
           </div>
         </section>
@@ -527,7 +527,7 @@ export default function RecipeForm({ mode, initialData }: RecipeFormProps) {
               4
             </span>
             {t("instructions")}
-            <span className="text-danger-500 text-lg">*</span>
+            <span className="text-danger text-lg">*</span>
           </h2>
           <div className="ml-0 md:ml-9">
             <p className="text-muted mb-3 flex items-center gap-1 text-base">
@@ -540,7 +540,7 @@ export default function RecipeForm({ mode, initialData }: RecipeFormProps) {
               systemUsed={systemUsed}
               onChange={setSteps}
             />
-            {errors.steps && <p className="text-danger-600 mt-2 text-base">{errors.steps}</p>}
+            {errors.steps && <p className="text-danger mt-2 text-base">{errors.steps}</p>}
           </div>
         </section>
 

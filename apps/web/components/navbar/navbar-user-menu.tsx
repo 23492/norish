@@ -169,7 +169,7 @@ export default function NavbarUserMenu({ trigger = "avatar" }: NavbarUserMenuPro
               key="logout"
               id="logout"
               textValue={t("logout")}
-              className={`text-danger-400 py-3 ${cssButtonPillDanger}`}
+              className={`text-danger py-3 ${cssButtonPillDanger}`}
               variant="danger"
               onPress={() => {
                 setUserMenuOpen(false);

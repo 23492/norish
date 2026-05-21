@@ -105,8 +105,8 @@ function ReadonlyIngredientsListContent({
           const wrapperClassName = interactive
             ? `group flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200 select-none ${
                 isChecked
-                  ? "bg-surface-secondary/50 dark:bg-surface-secondary/5"
-                  : "hover:bg-surface-secondary dark:hover:bg-surface-secondary/10"
+                  ? "bg-surface-secondary/50"
+                  : "hover:bg-surface-secondary"
               }`
             : "flex items-start gap-3 rounded-xl px-3 py-2.5";
 
@@ -152,7 +152,7 @@ function ReadonlyIngredientsListContent({
                       className={`text-base font-bold ${
                         interactive && isChecked
                           ? "text-muted line-through"
-                          : "text-accent dark:text-accent"
+                          : "text-accent"
                       }`}
                     >
                       {unit}

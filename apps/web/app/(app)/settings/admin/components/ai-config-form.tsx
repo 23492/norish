@@ -377,7 +377,7 @@ export default function AIConfigForm({ onDirtyChange }: AIConfigFormProps) {
                 <div className="flex items-center justify-between gap-2">
                   <span>{item.value}</span>
                   {item.supportsVision && (
-                    <span className="text-success-500 text-xs">{t("vision")}</span>
+                    <span className="text-success text-xs">{t("vision")}</span>
                   )}
                 </div>
               </ListBox.Item>
@@ -414,7 +414,7 @@ export default function AIConfigForm({ onDirtyChange }: AIConfigFormProps) {
                 <div className="flex items-center justify-between gap-2">
                   <span>{item.value}</span>
                   {item.supportsVision && (
-                    <span className="text-success-500 text-xs">{t("vision")}</span>
+                    <span className="text-success text-xs">{t("vision")}</span>
                   )}
                 </div>
               </ListBox.Item>
@@ -525,7 +525,7 @@ export default function AIConfigForm({ onDirtyChange }: AIConfigFormProps) {
 
       {testResult && (
         <div
-          className={`flex items-center gap-2 rounded-lg p-2 ${testResult.success ? "bg-success-100 text-success-700" : "bg-danger-100 text-danger-700"}`}
+          className={`flex items-center gap-2 rounded-lg p-2 ${testResult.success ? "bg-success/10 text-success" : "bg-danger/10 text-danger"}`}
         >
           {testResult.success ? (
             <>

@@ -17,7 +17,7 @@ export default function DangerZoneCard() {
   };
   return (
     <>
-      <Card className="border-danger-200 dark:border-danger-900">
+      <Card className="border-danger/30 dark:border-danger/30">
         <Card.Header>
           <h2 className="text-danger text-lg font-semibold">{t("title")}</h2>
         </Card.Header>

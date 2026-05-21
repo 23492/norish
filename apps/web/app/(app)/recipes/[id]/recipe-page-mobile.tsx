@@ -101,12 +101,12 @@ export default function RecipePageMobile() {
       </div>
 
       {/* Unified Content Card - contains all sections */}
-      <Card className="bg-surface relative z-10 -mt-6 overflow-visible rounded-t-3xl rounded-b-none shadow-sm">
+      <Card className="relative z-10 -mt-6 overflow-visible rounded-t-3xl rounded-b-none border-0 shadow-none">
         <Card.Content className="space-y-6 px-4 py-5">
           {/* Back link and Actions */}
           <div className="flex items-center justify-between">
-            <div className="w-fit hover:underline">
-              <Link className="text-muted flex items-center gap-1 text-base" href="/">
+            <div className="w-fit">
+              <Link className="text-muted flex items-center gap-1 text-base no-underline hover:text-foreground" href="/">
                 <ArrowLeftIcon className="h-4 w-4" />
                 {t("backToRecipes")}
               </Link>
@@ -138,9 +138,7 @@ export default function RecipePageMobile() {
               </div>
             </div>
 
-            <div className="-mx-1">
-              <IngredientsList />
-            </div>
+            <IngredientsList />
 
             {/* Add to groceries button - below ingredients */}
             <AddToGroceries recipeId={recipe.id} />
@@ -169,13 +167,13 @@ export default function RecipePageMobile() {
               <h2 className="text-lg font-semibold">{t("steps")}</h2>
             </div>
 
-            <div className="-mx-1 text-left">
+            <div className="text-left">
               <StepsList />
             </div>
 
             {/* Rating Section */}
             {showRatings && (
-              <div className="bg-surface-secondary -mx-1 flex flex-col items-center gap-4 rounded-xl py-6">
+              <div className="bg-surface-secondary flex flex-col items-center gap-4 rounded-xl py-6">
                 <p className="text-muted font-medium">{t("ratingPrompt")}</p>
                 <StarRating
                   isLoading={isRating || isRatingLoading}

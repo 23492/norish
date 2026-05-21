@@ -27,17 +27,17 @@ export default function RestartConfirmationModal({
             </Modal.Header>
             <Modal.Body>
               <p>{t("confirmMessage")}</p>
-              <div className="bg-warning-50 dark:bg-warning-900/20 border-warning-200 dark:border-warning-800 mt-2 rounded-lg border p-4">
-                <p className="text-warning-700 dark:text-warning-300 text-base font-medium">
+              <div className="bg-warning/10 dark:bg-warning/10 border-warning/30 dark:border-warning/30 mt-2 rounded-lg border p-4">
+                <p className="text-warning dark:text-warning text-base font-medium">
                   {t("importantTitle")}
                 </p>
-                <ul className="text-warning-600 dark:text-warning-400 mt-2 list-inside list-disc space-y-1 text-base">
+                <ul className="text-warning dark:text-warning mt-2 list-inside list-disc space-y-1 text-base">
                   <li>{t("warning1")}</li>
                   <li>{t("warning2")}</li>
                   <li>
                     {t.rich("warning3", {
                       code: (chunks) => (
-                        <code className="bg-warning-100 dark:bg-warning-800 rounded px-1">
+                        <code className="bg-warning/10 dark:bg-warning/20 rounded px-1">
                           {chunks}
                         </code>
                       ),
