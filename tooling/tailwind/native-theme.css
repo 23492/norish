@@ -18,6 +18,14 @@
     --focus: oklch(46.37% 0.0828 150.36);
     --foreground: oklch(21.03% 0.0015 150.36);
     --muted: oklch(55.17% 0.003 150.36);
+    --nutrition-calories: oklch(78.19% 0.159 59.91);
+    --nutrition-calories-soft: color-mix(in oklch, var(--nutrition-calories) 14%, transparent);
+    --nutrition-carbs: oklch(58.82% 0.1533 253.28);
+    --nutrition-carbs-soft: color-mix(in oklch, var(--nutrition-carbs) 12%, transparent);
+    --nutrition-fat: oklch(73.29% 0.1941 138.39);
+    --nutrition-fat-soft: color-mix(in oklch, var(--nutrition-fat) 12%, transparent);
+    --nutrition-protein: oklch(65.32% 0.2335 13.32);
+    --nutrition-protein-soft: color-mix(in oklch, var(--nutrition-protein) 12%, transparent);
     --overlay: oklch(100% 0.0004 150.36);
     --overlay-foreground: oklch(21.03% 0.0015 150.36);
     --scrollbar: oklch(87.1% 0.0015 150.36);
@@ -57,6 +65,14 @@
     --focus: oklch(46.37% 0.0828 150.36);
     --foreground: oklch(99.11% 0.0015 150.36);
     --muted: oklch(70.5% 0.003 150.36);
+    --nutrition-calories: oklch(82.03% 0.1392 63.92);
+    --nutrition-calories-soft: color-mix(in oklch, var(--nutrition-calories) 16%, transparent);
+    --nutrition-carbs: oklch(70.64% 0.1312 252.72);
+    --nutrition-carbs-soft: color-mix(in oklch, var(--nutrition-carbs) 16%, transparent);
+    --nutrition-fat: oklch(73.29% 0.1941 138.39);
+    --nutrition-fat-soft: color-mix(in oklch, var(--nutrition-fat) 15%, transparent);
+    --nutrition-protein: oklch(59.4% 0.1973 12.21);
+    --nutrition-protein-soft: color-mix(in oklch, var(--nutrition-protein) 16%, transparent);
     --overlay: oklch(23.5% 0.003 150.36);
     --overlay-foreground: oklch(99.11% 0.0015 150.36);
     --scrollbar: oklch(70.5% 0.0015 150.36);
@@ -77,4 +93,47 @@
     --field-radius: 0.75rem;
     --font-sans: var(--font-inter);
   }
+}
+
+@theme inline {
+  --color-nutrition-calories: var(--nutrition-calories);
+  --color-nutrition-calories-soft: var(--nutrition-calories-soft);
+  --color-nutrition-carbs: var(--nutrition-carbs);
+  --color-nutrition-carbs-soft: var(--nutrition-carbs-soft);
+  --color-nutrition-fat: var(--nutrition-fat);
+  --color-nutrition-fat-soft: var(--nutrition-fat-soft);
+  --color-nutrition-protein: var(--nutrition-protein);
+  --color-nutrition-protein-soft: var(--nutrition-protein-soft);
+}
+
+@utility text-nutrition-calories {
+  color: var(--nutrition-calories);
+}
+
+@utility bg-nutrition-calories-soft {
+  background-color: var(--nutrition-calories-soft);
+}
+
+@utility text-nutrition-carbs {
+  color: var(--nutrition-carbs);
+}
+
+@utility bg-nutrition-carbs-soft {
+  background-color: var(--nutrition-carbs-soft);
+}
+
+@utility text-nutrition-fat {
+  color: var(--nutrition-fat);
+}
+
+@utility bg-nutrition-fat-soft {
+  background-color: var(--nutrition-fat-soft);
+}
+
+@utility text-nutrition-protein {
+  color: var(--nutrition-protein);
+}
+
+@utility bg-nutrition-protein-soft {
+  background-color: var(--nutrition-protein-soft);
 }

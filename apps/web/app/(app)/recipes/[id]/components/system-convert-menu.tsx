@@ -13,12 +13,16 @@ import { cssAIGradientText, cssAIIconColor, cssButtonPill } from "@norish/web/co
 
 import { useRecipeContextRequired } from "../context";
 
+type SystemConvertMenuProps = {
+  compact?: boolean;
+};
+
 type ConversionOption = {
   key: MeasurementSystem;
   label: string;
   requiresAI: boolean;
 };
-export default function SystemConvertMenu() {
+export default function SystemConvertMenu({ compact = false }: SystemConvertMenuProps) {
   const { recipe, convertingTo, startConversion } = useRecipeContextRequired();
   const { user } = useUserContext();
   const showConversion = getShowConversionButtonPreference(user);
@@ -69,7 +73,9 @@ export default function SystemConvertMenu() {
   return (
     <Dropdown>
       <Button
-        className="bg-surface-secondary text-foreground min-w-16 capitalize transition-opacity duration-150 data-[hovered=true]:opacity-80"
+        className={`bg-surface-secondary text-foreground capitalize transition-opacity duration-150 data-[hovered=true]:opacity-80 ${
+          compact ? "h-8 min-w-14 px-2 text-xs" : "min-w-16"
+        }`}
         isDisabled={convertingTo != null}
         size="sm"
         variant="tertiary"

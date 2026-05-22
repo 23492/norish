@@ -106,7 +106,10 @@ export default function RecipePageMobile() {
           {/* Back link and Actions */}
           <div className="flex items-center justify-between">
             <div className="w-fit">
-              <Link className="text-muted flex items-center gap-1 text-base no-underline hover:text-foreground" href="/">
+              <Link
+                className="text-muted hover:text-foreground flex items-center gap-1 text-base no-underline"
+                href="/"
+              >
                 <ArrowLeftIcon className="h-4 w-4" />
                 {t("backToRecipes")}
               </Link>
@@ -129,12 +132,12 @@ export default function RecipePageMobile() {
 
           {/* Ingredients Section */}
           <div className="space-y-4">
-            <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center justify-between gap-3">
               <h2 className="text-lg font-semibold">{t("ingredients")}</h2>
-              <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
-                <AmountDisplayToggle />
-                {recipe.servings ? <ServingsControl /> : null}
-                {recipe.systemUsed && <SystemConvertMenu />}
+              <div className="flex min-w-0 shrink-0 items-center justify-end gap-1.5 overflow-x-auto">
+                <AmountDisplayToggle compact />
+                {recipe.servings ? <ServingsControl compact /> : null}
+                {recipe.systemUsed && <SystemConvertMenu compact />}
               </div>
             </div>
 

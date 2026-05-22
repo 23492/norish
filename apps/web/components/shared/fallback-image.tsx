@@ -5,16 +5,17 @@ import { useState } from "react";
 import NextImage, { ImageProps as NextImageProps } from "next/image";
 import { useTranslations } from "next-intl";
 
-interface FallbackPlaceholderProps {
+interface FallbackPlaceholderProps extends ComponentProps<"div"> {
   className?: string;
   message?: string;
 }
 
-function FallbackPlaceholder({ className = "", message }: FallbackPlaceholderProps) {
+function FallbackPlaceholder({ className = "", message, ...props }: FallbackPlaceholderProps) {
   const t = useTranslations("recipes.carousel");
 
   return (
     <div
+      {...props}
       className={`bg-surface-tertiary flex h-full w-full items-center justify-center ${className}`}
     >
       <span className="text-muted font-medium">{message || t("noImageAvailable")}</span>

@@ -23,35 +23,34 @@ const MACROS = [
     labelKey: "calories",
     unit: "kcal",
     icon: FireIcon,
-    color: "text-warning",
-    bg: "bg-warning/10",
+    color: "text-nutrition-calories",
+    bg: "bg-nutrition-calories-soft",
   },
   {
     key: "fat",
     labelKey: "fat",
     unit: "g",
     icon: BeakerIcon,
-    color: "text-accent",
-    bg: "bg-accent/10",
+    color: "text-nutrition-fat",
+    bg: "bg-nutrition-fat-soft",
   },
   {
     key: "carbs",
     labelKey: "carbs",
     unit: "g",
     icon: CubeIcon,
-    color: "text-accent",
-    bg: "bg-accent/10",
+    color: "text-nutrition-carbs",
+    bg: "bg-nutrition-carbs-soft",
   },
   {
     key: "protein",
     labelKey: "protein",
     unit: "g",
     icon: BoltIcon,
-    color: "text-danger",
-    bg: "bg-danger/10",
+    color: "text-nutrition-protein",
+    bg: "bg-nutrition-protein-soft",
   },
 ] as const;
-
 
 function getNutritionData(recipe: NutritionRecipeLike, portions: number) {
   const parsedFat = typeof recipe.fat === "string" ? parseFloat(recipe.fat) : recipe.fat;

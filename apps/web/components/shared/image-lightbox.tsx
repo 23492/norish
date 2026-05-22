@@ -1,7 +1,7 @@
 "use client";
 
 import type { EmblaCarouselType } from "embla-carousel";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { XMarkIcon } from "@heroicons/react/16/solid";
 import { Carousel } from "@heroui-pro/react";
@@ -26,6 +26,8 @@ function getSafeIndex(index: number, count: number) {
   return Math.min(Math.max(index, 0), count - 1);
 }
 
+const TAP_MOVEMENT_THRESHOLD = 8;
+
 export default function ImageLightbox({
   images,
   initialIndex = 0,
@@ -36,6 +38,7 @@ export default function ImageLightbox({
 }: ImageLightboxProps) {
   const [api, setApi] = useState<EmblaCarouselType>();
   const [currentIndex, setCurrentIndex] = useState(() => getSafeIndex(initialIndex, images.length));
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
   const { handleImageError, hasError } = useImageErrors();
 
   const safeInitialIndex = useMemo(
@@ -76,6 +79,38 @@ export default function ImageLightbox({
 
   if (!isOpen || images.length === 0 || !currentImage) return null;
 
+  const handleBackdropPointerDown = (event: React.PointerEvent<HTMLElement>) => {
+    pointerStartRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+    };
+  };
+
+  const handleBackdropPointerUp = (event: React.PointerEvent<HTMLElement>) => {
+    const start = pointerStartRef.current;
+    pointerStartRef.current = null;
+
+    if (!start) {
+      return;
+    }
+
+    const moved =
+      Math.abs(event.clientX - start.x) > TAP_MOVEMENT_THRESHOLD ||
+      Math.abs(event.clientY - start.y) > TAP_MOVEMENT_THRESHOLD;
+
+    if (moved) {
+      return;
+    }
+
+    const target = event.target as HTMLElement | null;
+
+    if (target?.closest("[data-lightbox-interactive]")) {
+      return;
+    }
+
+    onClose();
+  };
+
   return (
     <Modal.Backdrop
       isDismissable
@@ -92,8 +127,15 @@ export default function ImageLightbox({
           to the Modal.Backdrop, which triggers onOpenChange(false) → dismiss.
           Only interactive children get pointer-events-auto.
         */}
-        <Modal.Dialog className="flex h-[100dvh] w-[100dvw] flex-col bg-transparent p-0 shadow-none !pointer-events-none">
-          <header className="pointer-events-auto relative z-30 flex shrink-0 items-center justify-between gap-3 px-4 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-2 sm:px-6 sm:pt-[calc(1rem+env(safe-area-inset-top))] sm:pb-3">
+        <Modal.Dialog
+          className="flex h-[100dvh] w-[100dvw] flex-col bg-transparent p-0 shadow-none"
+          onPointerDown={handleBackdropPointerDown}
+          onPointerUp={handleBackdropPointerUp}
+        >
+          <header
+            className="relative z-30 flex shrink-0 items-center justify-between gap-3 px-4 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-2 sm:px-6 sm:pt-[calc(1rem+env(safe-area-inset-top))] sm:pb-3"
+            data-lightbox-interactive
+          >
             {showNavigation ? (
               <div className="rounded-full bg-white/20 px-3 py-1.5 text-sm font-medium tabular-nums backdrop-blur-md">
                 {getSafeIndex(currentIndex, images.length) + 1} / {images.length}
@@ -123,17 +165,24 @@ export default function ImageLightbox({
                 opts={{ loop: true, startIndex: safeInitialIndex }}
                 setApi={setApi}
               >
-                <div className="pointer-events-auto w-full">
+                <div className="w-full">
                   <Carousel.Content className="items-center">
                     {images.map((image, index) => (
-                      <Carousel.Item key={`${image.src}-${index}`} className="flex items-center justify-center">
+                      <Carousel.Item
+                        key={`${image.src}-${index}`}
+                        className="flex items-center justify-center"
+                      >
                         {hasError(image.src) ? (
-                          <FallbackPlaceholder className="h-64 w-full rounded-2xl bg-white/10 sm:rounded-3xl" />
+                          <FallbackPlaceholder
+                            className="h-64 w-full rounded-2xl bg-white/10 sm:rounded-3xl"
+                            data-lightbox-interactive
+                          />
                         ) : (
                           <Image
                             unoptimized
                             alt={image.alt || `Image ${index + 1}`}
                             className="max-h-[68dvh] w-auto max-w-full rounded-2xl object-contain select-none sm:rounded-3xl"
+                            data-lightbox-interactive
                             draggable={false}
                             height={760}
                             sizes="(min-width: 1280px) 1120px, 92vw"
@@ -146,9 +195,19 @@ export default function ImageLightbox({
                     ))}
                   </Carousel.Content>
                 </div>
-                <Carousel.Previous className="pointer-events-auto bg-black/60 text-white backdrop-blur-md hover:bg-black/80" />
-                <Carousel.Next className="pointer-events-auto bg-black/60 text-white backdrop-blur-md hover:bg-black/80" />
-                <Carousel.Thumbnails className="pointer-events-auto mt-3 justify-start overflow-x-auto py-1 sm:justify-center" scrollShadowSize={24}>
+                <Carousel.Previous
+                  className="bg-black/60 text-white backdrop-blur-md hover:bg-black/80"
+                  data-lightbox-interactive
+                />
+                <Carousel.Next
+                  className="bg-black/60 text-white backdrop-blur-md hover:bg-black/80"
+                  data-lightbox-interactive
+                />
+                <Carousel.Thumbnails
+                  className="mt-3 justify-start overflow-x-auto py-1 sm:justify-center"
+                  data-lightbox-interactive
+                  scrollShadowSize={24}
+                >
                   {images.map((image, index) => (
                     <Carousel.Thumbnail
                       key={`${image.src}-thumbnail-${index}`}
@@ -161,14 +220,18 @@ export default function ImageLightbox({
               </Carousel>
             ) : (
               /* Single image — no carousel needed */
-              <div className="pointer-events-auto flex items-center justify-center">
+              <div className="flex items-center justify-center">
                 {hasError(currentImage.src) ? (
-                  <FallbackPlaceholder className="h-64 w-full max-w-5xl rounded-2xl bg-white/10 sm:rounded-3xl" />
+                  <FallbackPlaceholder
+                    className="h-64 w-full max-w-5xl rounded-2xl bg-white/10 sm:rounded-3xl"
+                    data-lightbox-interactive
+                  />
                 ) : (
                   <Image
                     unoptimized
                     alt={currentImage.alt || "Image"}
                     className="max-h-[68dvh] w-auto max-w-full rounded-2xl object-contain select-none sm:rounded-3xl"
+                    data-lightbox-interactive
                     draggable={false}
                     height={760}
                     sizes="(min-width: 1280px) 1120px, 92vw"

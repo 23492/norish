@@ -34,9 +34,9 @@ export function CookingIngredientsView({
       onPointerUp={onPointerUp}
     >
       <div className="flex h-full min-h-0 flex-col">
-        <div className="flex flex-col items-stretch gap-4 px-4 pt-4 md:flex-row md:items-center md:justify-between md:px-6 md:pt-5">
+        <div className="flex items-center justify-between gap-3 px-4 pt-4 md:px-6 md:pt-5">
           {showTitle ? (
-            <div>
+            <div className="min-w-0">
               <h3 className="text-lg font-semibold">{tCookMode("ingredients")}</h3>
               {recipeServings ? (
                 <p className="text-muted text-sm">
@@ -45,10 +45,10 @@ export function CookingIngredientsView({
               ) : null}
             </div>
           ) : null}
-          <div className="flex w-full flex-wrap items-center gap-2 md:w-auto">
-            <AmountDisplayToggle />
-            {recipeServings ? <ServingsControl /> : null}
-            {recipeSystemUsed ? <SystemConvertMenu /> : null}
+          <div className="flex min-w-0 shrink-0 items-center justify-end gap-1.5 overflow-x-auto md:gap-2">
+            <AmountDisplayToggle compact={!showTitle} />
+            {recipeServings ? <ServingsControl compact={!showTitle} /> : null}
+            {recipeSystemUsed ? <SystemConvertMenu compact={!showTitle} /> : null}
           </div>
         </div>
         <Separator className="mt-4" />
