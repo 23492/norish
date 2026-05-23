@@ -3,7 +3,7 @@ import CreateRecipeButton from "@/components/dashboard/create-recipe-button";
 import FloatingRecipeChip from "@/components/dashboard/floating-recipe-chip";
 import RecipeGrid from "@/components/dashboard/recipe-grid";
 import SearchInput from "@/components/dashboard/search-input";
-import TodaysMeals from "@/components/dashboard/todays-meals";
+import TodaysMeals from "@/components/dashboard/today/todays-meals";
 import { getTranslations } from "next-intl/server";
 
 import { auth } from "@norish/auth/auth";

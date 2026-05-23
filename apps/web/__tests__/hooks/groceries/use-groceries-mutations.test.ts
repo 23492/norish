@@ -195,7 +195,7 @@ describe("useGroceriesMutations", () => {
       });
 
       act(() => {
-        result.current.createGrocery("Apples", "store-1");
+        result.current.createGrocery("1 piece Apples", "store-1");
       });
 
       const data = queryClient.getQueryData<ReturnType<typeof createMockGroceriesData>>([

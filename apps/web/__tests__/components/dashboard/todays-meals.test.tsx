@@ -1,4 +1,4 @@
-import TodaysMeals from "@/components/dashboard/todays-meals";
+import TodaysMeals from "@/components/dashboard/today/todays-meals";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 

@@ -3,6 +3,7 @@
 import type { ComponentProps } from "react";
 import { useState } from "react";
 import NextImage, { ImageProps as NextImageProps } from "next/image";
+import { PhotoIcon } from "@heroicons/react/24/outline";
 import { useTranslations } from "next-intl";
 
 interface FallbackPlaceholderProps extends ComponentProps<"div"> {
@@ -18,7 +19,7 @@ function FallbackPlaceholder({ className = "", message, ...props }: FallbackPlac
       {...props}
       className={`bg-surface-tertiary flex h-full w-full items-center justify-center ${className}`}
     >
-      <span className="text-muted font-medium">{message || t("noImageAvailable")}</span>
+      <PhotoIcon aria-label={message || t("noImageAvailable")} className="text-muted h-12 w-12" />
     </div>
   );
 }

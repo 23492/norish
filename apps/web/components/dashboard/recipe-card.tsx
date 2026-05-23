@@ -9,6 +9,7 @@ import { useUserContext } from "@/context/user-context";
 import { useRecipePrefetch } from "@/hooks/recipes/use-recipe-prefetch";
 import { useAppStore } from "@/stores/useAppStore";
 import { CalendarDaysIcon, ShoppingBagIcon, TrashIcon } from "@heroicons/react/20/solid";
+import { PhotoIcon } from "@heroicons/react/24/outline";
 import { Card, useOverlayState } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
@@ -191,7 +192,7 @@ function RecipeCardComponent({
                     <div
                       className={`bg-surface-secondary text-muted flex h-full w-full items-center justify-center transition-all duration-300 ease-in-out ${open ? "scale-100" : "group-hover/row:scale-105"} `}
                     >
-                      <span className="text-sm font-medium opacity-70">{t("noImage")}</span>
+                      <PhotoIcon aria-label={t("noImage")} className="h-12 w-12 opacity-70" />
                     </div>
                   )}
                 </div>
