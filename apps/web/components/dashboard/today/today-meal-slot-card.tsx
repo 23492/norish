@@ -1,14 +1,30 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import type { TodayMealSlotCardProps } from "./todays-meals-types";
+
 import { PlusIcon } from "@heroicons/react/16/solid";
-import { PhotoIcon } from "@heroicons/react/24/outline";
 import { Button, Card, Chip } from "@heroui/react";
 import { useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
 
-import type { TodayMealSlotCardProps } from "./todays-meals-types";
 import { buildPlannedItemSubtitle, getPlannedItemTitle } from "./todays-meals-helpers";
 import TodaysMealsSlotChip from "./todays-meals-slot-chip";
+
+import FallbackImage, { FallbackPlaceholder } from "@/components/shared/fallback-image";
+
+const cardClassName = "h-[184px] w-[144px] shrink-0 overflow-hidden rounded-2xl p-0 sm:w-[152px]";
+const triggerClassName =
+  "group relative grid h-full min-h-0 w-full min-w-0 cursor-[var(--cursor-interactive)] grid-rows-[132px_52px] overflow-hidden rounded-2xl border-0 bg-transparent p-0 text-left focus-visible:outline-none";
+const mediaClassName = "bg-surface-secondary relative h-[132px] w-full overflow-hidden";
+const imageClassName =
+  "block h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-105";
+const imageFallbackClassName =
+  "bg-surface-secondary text-muted h-full w-full transition-transform duration-300 group-hover:scale-105";
+const slotChipPositionClassName = "absolute top-2 left-2 z-20 max-w-[calc(100%-1rem)]";
+const constrainedSlotChipPositionClassName = "absolute top-2 left-2 z-20 max-w-[calc(100%-4.5rem)]";
+const slotChipClassName = "bg-overlay/85 text-foreground backdrop-blur";
+const remainingChipClassName =
+  "absolute top-2 right-2 z-10 inline-flex w-fit bg-overlay/85 text-foreground backdrop-blur";
 
 export default function TodayMealSlotCard({
   slot,
@@ -33,11 +49,13 @@ export default function TodayMealSlotCard({
   const handleOpen = () => {
     if (primaryItem?.itemType === "recipe" && primaryItem.recipeId) {
       router.push(`/recipes/${primaryItem.recipeId}`);
+
       return;
     }
 
     if (!primaryItem) {
       onPlan(slot);
+
       return;
     }
 
@@ -45,50 +63,45 @@ export default function TodayMealSlotCard({
   };
 
   return (
-    <Card
-      className="!h-[184px] !max-h-[184px] !min-h-[184px] !w-[144px] !max-w-[144px] !min-w-[144px] shrink-0 overflow-hidden rounded-2xl p-0 sm:!w-[152px] sm:!max-w-[152px] sm:!min-w-[152px]"
-      variant={isPlanned ? "default" : "secondary"}
-    >
+    <Card className={cardClassName} variant={isPlanned ? "default" : "secondary"}>
       <Button
         aria-label={isPlanned ? title : `${tCalendarPanel("addRecipe")} ${slotLabel}`}
-        className="group grid !h-[184px] !max-h-[184px] !min-h-[184px] !w-full !max-w-full !min-w-0 cursor-[var(--cursor-interactive)] grid-rows-[120px_64px] overflow-hidden rounded-2xl border-0 bg-transparent p-0 text-left focus-visible:outline-none"
+        className={triggerClassName}
         variant="ghost"
         onPress={handleOpen}
       >
+        <div
+          className={
+            remainingCount > 0 ? constrainedSlotChipPositionClassName : slotChipPositionClassName
+          }
+        >
+          <TodaysMealsSlotChip className={slotChipClassName} slot={slot} slotLabel={slotLabel} />
+        </div>
+
         {isPlanned ? (
           <>
-            <div className="bg-surface-secondary relative !h-[120px] !max-h-[120px] !min-h-[120px] w-full overflow-hidden">
+            <div className={mediaClassName}>
               {imageSrc ? (
-                <img
+                <FallbackImage
                   alt={title}
-                  className="block !h-full !max-h-full !min-h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-105"
+                  className={imageClassName}
+                  fallbackClassName={imageFallbackClassName}
                   loading="lazy"
                   src={imageSrc}
+                  variant="hero"
                 />
               ) : (
-                <div className="text-muted flex h-full w-full items-center justify-center">
-                  <PhotoIcon className="h-8 w-8" />
-                </div>
+                <FallbackPlaceholder className={imageFallbackClassName} />
               )}
 
-              <TodaysMealsSlotChip
-                className="bg-overlay/85 text-foreground absolute top-2 left-2 max-w-[calc(100%-4rem)] backdrop-blur"
-                slot={slot}
-                slotLabel={slotLabel}
-              />
-
               {remainingCount > 0 ? (
-                <Chip
-                  className="bg-overlay/85 text-foreground absolute top-2 right-2 backdrop-blur"
-                  size="sm"
-                  variant="secondary"
-                >
+                <Chip className={remainingChipClassName} size="sm" variant="soft">
                   +{remainingCount}
                 </Chip>
               ) : null}
             </div>
 
-            <Card.Content className="flex !h-[64px] !max-h-[64px] !min-h-[64px] w-full flex-col justify-center gap-0.5 overflow-hidden rounded-b-2xl px-2.5 py-1.5">
+            <Card.Content className="flex h-[52px] w-full flex-col justify-start gap-0.5 overflow-hidden px-2.5 py-1.5">
               <Card.Title
                 className="text-foreground w-full min-w-0 truncate text-left text-xs leading-[15px]"
                 title={title}
@@ -103,19 +116,16 @@ export default function TodayMealSlotCard({
             </Card.Content>
           </>
         ) : (
-          <Card.Content className="relative row-span-2 flex !h-[184px] !max-h-[184px] !min-h-[184px] flex-col rounded-b-2xl p-3">
-            <TodaysMealsSlotChip
-              className="bg-overlay/85 text-foreground absolute top-2 left-2 max-w-[calc(100%-4rem)] backdrop-blur"
-              slot={slot}
-              slotLabel={slotLabel}
-            />
-            <div className="text-muted flex h-full flex-col items-center justify-center gap-2 self-stretch pt-6 text-center">
+          <>
+            <div className={mediaClassName} />
+            <div className="bg-surface-secondary h-[52px] w-full" />
+            <div className="text-muted pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1.5 p-3 pt-7 text-center">
               <PlusIcon className="h-6 w-6" />
-              <span className="text-foreground text-sm font-medium">
+              <span className="text-foreground text-xs font-medium">
                 {tCalendarPanel("addRecipe")}
               </span>
             </div>
-          </Card.Content>
+          </>
         )}
       </Button>
     </Card>

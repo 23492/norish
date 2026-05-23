@@ -1,9 +1,11 @@
 "use client";
 
-import { MealIcon } from "@/lib/meal-icon";
+import type { Slot } from "@norish/shared/contracts";
+
 import { Chip } from "@heroui/react";
 
-import type { Slot } from "@norish/shared/contracts";
+import { MealIcon } from "@/lib/meal-icon";
+
 
 type TodaysMealsSlotChipProps = {
   slot: Slot;
@@ -17,7 +19,11 @@ export default function TodaysMealsSlotChip({
   className,
 }: TodaysMealsSlotChipProps) {
   return (
-    <Chip className={`max-w-full min-w-0 ${className ?? ""}`} size="sm" variant="soft">
+    <Chip
+      className={`inline-flex w-fit max-w-full min-w-0 shrink-0 justify-start ${className ?? ""}`}
+      size="sm"
+      variant="soft"
+    >
       <MealIcon className="h-3.5 w-3.5 shrink-0" slot={slot} />
       <Chip.Label className="min-w-0 truncate">{slotLabel}</Chip.Label>
     </Chip>
