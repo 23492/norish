@@ -1028,7 +1028,7 @@ async function syncRecipeIngredientsTx(
       amount: ingredient.amount ?? null,
       unit: ingredient.unit ? normalizeUnit(ingredient.unit, units) : null,
       order: ingredient.order ?? index,
-      systemUsed: ingredient.systemUsed ?? systemUsed,
+      systemUsed,
     };
 
     if (ingredient.id && existingById.has(ingredient.id)) {
@@ -1119,7 +1119,7 @@ async function syncRecipeStepsTx(
       recipeId,
       step: step.step,
       order: index,
-      systemUsed: step.systemUsed ?? systemUsed,
+      systemUsed,
     };
 
     if (existingStep) {

@@ -239,20 +239,39 @@ export default function RecipeForm({ mode, initialData }: RecipeFormProps) {
     initializedRecipeIdRef.current = initialData.id;
   }, [initialData, isLoadingUnits, locale, mode, units]);
 
-  // Detect measurement system from ingredients and auto-select
+  // Detect measurement system from ingredients and auto-select for new recipes only.
+  // Existing recipes already have an explicit active system, and re-detection can flip it on save.
   useEffect(() => {
-    if (ingredients.length > 0 && !manuallySetSystem) {
-      const ingredientLines = ingredients.map((ing) =>
-        `${ing.amount ?? ""} ${ing.unit ?? ""} ${ing.ingredientName}`.trim()
+    if (mode !== "create" || ingredients.length === 0 || manuallySetSystem) return;
+
+    const ingredientLines = ingredients.map((ing) =>
+      `${ing.amount ?? ""} ${ing.unit ?? ""} ${ing.ingredientName}`.trim()
+    );
+    const parsed = parseIngredientWithDefaults(ingredientLines, units);
+
+    if (parsed.length > 0) {
+      const detected = inferSystemUsedFromParsed(parsed);
+
+      setDetectedSystem(detected);
+      setSystemUsed(detected);
+      setIngredients((prev) =>
+        prev.some((ing) => ing.systemUsed !== detected)
+          ? prev.map((ing) => ({
+              ...ing,
+              systemUsed: detected,
+            }))
+          : prev
       );
-      const parsed = parseIngredientWithDefaults(ingredientLines, units);
-      if (parsed.length > 0) {
-        const detected = inferSystemUsedFromParsed(parsed);
-        setDetectedSystem(detected);
-        setSystemUsed(detected);
-      }
+      setSteps((prev) =>
+        prev.some((step) => step.systemUsed !== detected)
+          ? prev.map((step) => ({
+              ...step,
+              systemUsed: detected,
+            }))
+          : prev
+      );
     }
-  }, [ingredients, manuallySetSystem, units]);
+  }, [ingredients, manuallySetSystem, mode, units]);
   const toggleCategory = useCallback((category: RecipeCategory) => {
     setCategories((prev) =>
       prev.includes(category) ? prev.filter((c) => c !== category) : [...prev, category]
