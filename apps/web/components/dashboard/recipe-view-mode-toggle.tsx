@@ -18,18 +18,30 @@ export default function RecipeViewModeToggle() {
   return (
     <Segment
       aria-label={t("label")}
+      className="shrink-0"
       selectedKey={viewMode}
       size="sm"
-      variant="ghost"
       onSelectionChange={(key) => setViewMode(toRecipeDashboardViewMode(key))}
     >
-      <Segment.Item aria-label={t("grid")} className="w-9 justify-center px-0" id="grid">
+      <Segment.Item
+        aria-label={t("grid")}
+        className="min-w-8 px-2.5 sm:min-w-16"
+        id="grid"
+        title={t("grid")}
+      >
+        <Segment.Separator />
         <Squares2X2Icon className="h-4 w-4" />
-        <span className="sr-only">{t("grid")}</span>
+        <span className="sr-only sm:not-sr-only">{t("grid")}</span>
       </Segment.Item>
-      <Segment.Item aria-label={t("list")} className="w-9 justify-center px-0" id="list">
+      <Segment.Item
+        aria-label={t("list")}
+        className="min-w-8 px-2.5 sm:min-w-16"
+        id="list"
+        title={t("list")}
+      >
+        <Segment.Separator />
         <ListBulletIcon className="h-4 w-4" />
-        <span className="sr-only">{t("list")}</span>
+        <span className="sr-only sm:not-sr-only">{t("list")}</span>
       </Segment.Item>
     </Segment>
   );

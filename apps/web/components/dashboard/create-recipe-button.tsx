@@ -70,7 +70,7 @@ export default function CreateRecipeButton() {
       <Dropdown>
         <Button
           aria-label={t("addRecipe")}
-          className="mx-2 min-w-10 rounded-full font-medium md:mx-0 md:min-w-20"
+          className="min-w-10 rounded-full font-medium md:min-w-20"
           size="md"
           variant="primary"
         >
