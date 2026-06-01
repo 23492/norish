@@ -9,7 +9,7 @@ import React, {
   useMemo,
   useState,
 } from "react";
-import { Drawer } from "@heroui/react";
+import { Sheet } from "@heroui-pro/react";
 
 export const PANEL_HEIGHT_COMPACT = 48;
 export const PANEL_HEIGHT_MEDIUM = 68;
@@ -23,6 +23,7 @@ export interface PanelProps {
   trigger?: ReactElement;
   open?: boolean;
   height?: number;
+  nested?: boolean;
   onOpenChange?: (open: boolean) => void;
 }
 
@@ -39,6 +40,12 @@ export function usePanel() {
 type PanelSectionProps = {
   children: ReactNode;
   className?: string;
+};
+
+type PanelTriggerProps = {
+  "aria-expanded"?: boolean;
+  "aria-haspopup"?: "dialog";
+  onClick?: (event: unknown) => void;
 };
 
 export function PanelBody({ children, className = "" }: PanelSectionProps) {
@@ -65,6 +72,7 @@ const PanelRoot: React.FC<PanelProps> = ({
   panelClassName = "",
   title = "",
   height = PANEL_HEIGHT_LARGE,
+  nested = false,
   children,
   trigger,
   open: controlledOpen,
@@ -101,47 +109,53 @@ const PanelRoot: React.FC<PanelProps> = ({
     return { bodyChildren: body, footerChildren: footer };
   }, [children]);
 
+  const panelTrigger = trigger as ReactElement<PanelTriggerProps> | undefined;
   const triggerElement =
-    trigger &&
-    React.cloneElement(trigger as ReactElement<any>, {
+    panelTrigger &&
+    React.cloneElement(panelTrigger, {
       "aria-haspopup": "dialog",
       "aria-expanded": open,
-      onClick: (e: any) => {
-        const original = (trigger as any).props?.onClick;
+      onClick: (event: unknown) => {
+        const original = panelTrigger.props.onClick;
 
-        if (typeof original === "function") original(e);
+        if (typeof original === "function") original(event);
         toggle();
       },
     });
+  const Root = nested ? Sheet.NestedRoot : Sheet.Root;
 
   return (
     <div data-panel className={className}>
       {trigger && <span className="inline-flex">{triggerElement}</span>}
 
       <PanelContext.Provider value={{ open, close, toggle }}>
-        <Drawer.Backdrop className="z-[1000]" isOpen={open} variant="opaque" onOpenChange={setOpen}>
-          <Drawer.Content placement="bottom">
-            <Drawer.Dialog
-              aria-label={title || "Panel"}
-              className={`bg-background mx-auto h-[var(--panel-height)] max-h-dvh w-full overflow-hidden rounded-t-2xl md:max-w-md ${panelClassName}`}
+        <Root isHandleOnly isOpen={open} placement="bottom" onOpenChange={setOpen}>
+          <Sheet.Backdrop className="z-[1000]" variant="opaque">
+            <Sheet.Content
+              className="mx-auto h-[var(--panel-height)] max-h-dvh w-full md:max-w-md"
               style={{ "--panel-height": `${height}dvh` } as React.CSSProperties}
             >
-              <Drawer.Handle />
-              <Drawer.CloseTrigger aria-label="Close panel" />
+              <Sheet.Dialog
+                aria-label={title || "Panel"}
+                className={`bg-background h-full overflow-hidden rounded-t-2xl ${panelClassName}`}
+              >
+                <Sheet.Handle />
+                <Sheet.CloseTrigger aria-label="Close panel" />
 
-              <Drawer.Header className="border-border relative flex shrink-0 items-center justify-center border-b px-12 py-4 select-none">
-                <Drawer.Heading className="text-center text-lg font-semibold">
-                  {title}
-                </Drawer.Heading>
-              </Drawer.Header>
+                <Sheet.Header className="border-border relative flex shrink-0 items-center justify-center border-b px-12 py-4 select-none">
+                  <Sheet.Heading className="text-center text-lg font-semibold">
+                    {title}
+                  </Sheet.Heading>
+                </Sheet.Header>
 
-              <Drawer.Body className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
-                {bodyChildren}
-              </Drawer.Body>
-              {footerChildren}
-            </Drawer.Dialog>
-          </Drawer.Content>
-        </Drawer.Backdrop>
+                <Sheet.Body className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
+                  {bodyChildren}
+                </Sheet.Body>
+                {footerChildren}
+              </Sheet.Dialog>
+            </Sheet.Content>
+          </Sheet.Backdrop>
+        </Root>
       </PanelContext.Provider>
     </div>
   );

@@ -19,6 +19,7 @@ type RecurrencePanelProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialPattern?: RecurrencePattern | null;
+  nested?: boolean;
   onSave: (pattern: RecurrencePattern | null) => void;
   returnToPreviousPanel?: () => void;
   height?: number;
@@ -26,6 +27,7 @@ type RecurrencePanelProps = {
 const WEEKDAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 export function RecurrencePanel({
   open,
+  nested = false,
   onOpenChange,
   initialPattern,
   onSave,
@@ -112,7 +114,9 @@ export function RecurrencePanel({
   const showWeekdaySelector = pattern?.rule === "week" || pattern?.rule === "month";
   return (
     <Panel
+      className={nested ? "contents" : undefined}
       height={height}
+      nested={nested}
       open={open}
       title={t("title")}
       onOpenChange={(isOpen) => {

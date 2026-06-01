@@ -74,13 +74,17 @@ export default function AddGroceryPanel({
     setConfirmedPattern(pattern);
     setRecurrencePanelOpen(false);
   };
+  const handlePanelOpenChange = (isOpen: boolean) => {
+    if (!isOpen) setRecurrencePanelOpen(false);
+    onOpenChange(isOpen);
+  };
   return (
     <>
       <Panel
         height={PANEL_HEIGHT_COMPACT}
-        open={open && !recurrencePanelOpen}
+        open={open}
         title={t("addTitle")}
-        onOpenChange={onOpenChange}
+        onOpenChange={handlePanelOpenChange}
       >
         <Panel.Body>
           <div className="space-y-3">
@@ -164,15 +168,16 @@ export default function AddGroceryPanel({
             </Button>
           </div>
         </Panel.Footer>
-      </Panel>
 
-      <RecurrencePanel
-        initialPattern={confirmedPattern}
-        open={recurrencePanelOpen}
-        returnToPreviousPanel={() => setRecurrencePanelOpen(false)}
-        onOpenChange={setRecurrencePanelOpen}
-        onSave={handleRecurrenceSave}
-      />
+        <RecurrencePanel
+          nested
+          initialPattern={confirmedPattern}
+          open={open && recurrencePanelOpen}
+          returnToPreviousPanel={() => setRecurrencePanelOpen(false)}
+          onOpenChange={setRecurrencePanelOpen}
+          onSave={handleRecurrenceSave}
+        />
+      </Panel>
     </>
   );
 }
