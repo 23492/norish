@@ -1,11 +1,12 @@
 import type { TRPCSubscriptionProcedure } from "@trpc/server";
+
 import type { PermissionLevel } from "@norish/config/zod/server-config";
 import type { SubscriptionMultiplexer } from "@norish/queue/redis/subscription-multiplexer";
 import type { RealtimeEventEnvelope } from "@norish/shared/contracts/realtime-envelope";
-import type { TypedEmitter } from "./emitter";
-
 import { trpcLogger as log } from "@norish/shared-server/logger";
+import { unwrapPayload } from "@norish/shared/lib/operation-helpers";
 
+import type { TypedEmitter } from "./emitter";
 import { authedProcedure } from "./middleware";
 
 type AuthedSubscriptionProcedure = TRPCSubscriptionProcedure<{
@@ -73,11 +74,17 @@ export function createSubscriptionIterable<T>(
   channel: string,
   signal?: AbortSignal
 ): AsyncIterable<T> {
-  if (multiplexer) {
-    return multiplexer.subscribe<T>(channel, signal);
-  }
+  const iterable = multiplexer
+    ? multiplexer.subscribe<unknown>(channel, signal)
+    : (emitter.createSubscription(channel, signal) as AsyncIterable<unknown>);
 
-  return emitter.createSubscription(channel, signal) as AsyncIterable<T>;
+  return unwrapSubscriptionIterable<T>(iterable);
+}
+
+async function* unwrapSubscriptionIterable<T>(iterable: AsyncIterable<unknown>): AsyncGenerator<T> {
+  for await (const data of iterable) {
+    yield unwrapPayload<T>(data);
+  }
 }
 
 export function createEnvelopeSubscriptionIterable<T>(
