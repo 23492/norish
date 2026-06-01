@@ -17,9 +17,9 @@ const triggerClassName =
   "group relative grid h-full min-h-0 w-full min-w-0 cursor-[var(--cursor-interactive)] grid-rows-[132px_52px] overflow-hidden rounded-2xl border-0 bg-transparent p-0 text-left focus-visible:outline-none";
 const mediaClassName = "bg-surface-secondary relative h-[132px] w-full overflow-hidden";
 const imageClassName =
-  "block h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-105";
+  "absolute inset-0 block h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-105";
 const imageFallbackClassName =
-  "bg-surface-secondary text-muted h-full w-full transition-transform duration-300 group-hover:scale-105";
+  "bg-surface-secondary text-muted absolute inset-0 h-full w-full transition-transform duration-300 group-hover:scale-105";
 const slotChipPositionClassName = "absolute top-2 left-2 z-20 max-w-[calc(100%-1rem)]";
 const constrainedSlotChipPositionClassName = "absolute top-2 left-2 z-20 max-w-[calc(100%-4.5rem)]";
 const slotChipClassName = "bg-overlay/85 text-foreground backdrop-blur";
