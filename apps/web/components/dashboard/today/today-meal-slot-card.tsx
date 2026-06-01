@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import FallbackImage from "@/components/shared/fallback-image";
 import { PlusIcon } from "@heroicons/react/16/solid";
 import { PhotoIcon } from "@heroicons/react/24/outline";
-import { Button, Card, Chip } from "@heroui/react";
+import { Card, Chip } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
 import type { TodayMealSlotCardProps } from "./todays-meals-types";
@@ -13,7 +13,7 @@ import TodaysMealsSlotChip from "./todays-meals-slot-chip";
 
 const cardClassName = "h-[184px] w-[144px] shrink-0 overflow-hidden rounded-2xl p-0 sm:w-[152px]";
 const triggerClassName =
-  "group relative grid h-full min-h-0 w-full min-w-0 cursor-[var(--cursor-interactive)] grid-rows-[132px_52px] overflow-hidden rounded-2xl border-0 bg-transparent p-0 text-left focus-visible:outline-none";
+  "group relative grid h-full min-h-0 w-full min-w-0 cursor-[var(--cursor-interactive)] grid-rows-[132px_52px] overflow-hidden rounded-2xl border-0 bg-transparent p-0 text-left focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none";
 const mediaClassName = "bg-surface-secondary relative h-[132px] w-full overflow-hidden";
 const imageClassName =
   "absolute inset-0 block h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-105";
@@ -63,11 +63,11 @@ export default function TodayMealSlotCard({
 
   return (
     <Card className={cardClassName} variant={isPlanned ? "default" : "secondary"}>
-      <Button
+      <button
         aria-label={isPlanned ? title : `${tCalendarPanel("addRecipe")} ${slotLabel}`}
         className={triggerClassName}
-        variant="ghost"
-        onPress={handleOpen}
+        type="button"
+        onClick={handleOpen}
       >
         <div
           className={
@@ -128,7 +128,7 @@ export default function TodayMealSlotCard({
             </div>
           </>
         )}
-      </Button>
+      </button>
     </Card>
   );
 }
