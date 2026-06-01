@@ -26,20 +26,24 @@ export default async function Home() {
         className="flex min-h-0 flex-1 flex-col gap-5"
       >
         <div className="flex shrink-0 flex-col gap-4">
-          <div className="flex min-h-10 flex-wrap items-center justify-between gap-4">
+          <div className="flex min-h-10 items-center justify-between gap-4">
             <h1
               id="recipe-library-heading"
               className="text-foreground text-2xl leading-8 font-semibold"
             >
               {t("title")}
             </h1>
-            <div className="flex items-center gap-2">
-              <RecipeViewModeToggle />
-              <CreateRecipeButton />
-            </div>
+            <CreateRecipeButton />
           </div>
 
-          <SearchInput />
+          <div className="flex min-w-0 items-start gap-2">
+            <div className="min-w-0 flex-1">
+              <SearchInput />
+            </div>
+            <div className="shrink-0 pt-2">
+              <RecipeViewModeToggle />
+            </div>
+          </div>
         </div>
 
         <div className="min-h-0 flex-1">

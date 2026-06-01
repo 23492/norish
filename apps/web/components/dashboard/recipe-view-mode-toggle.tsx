@@ -23,14 +23,13 @@ export default function RecipeViewModeToggle() {
       variant="ghost"
       onSelectionChange={(key) => setViewMode(toRecipeDashboardViewMode(key))}
     >
-      <Segment.Item id="grid">
+      <Segment.Item aria-label={t("grid")} className="w-9 justify-center px-0" id="grid">
         <Squares2X2Icon className="h-4 w-4" />
-        {t("grid")}
+        <span className="sr-only">{t("grid")}</span>
       </Segment.Item>
-      <Segment.Item id="list">
-        <Segment.Separator />
+      <Segment.Item aria-label={t("list")} className="w-9 justify-center px-0" id="list">
         <ListBulletIcon className="h-4 w-4" />
-        {t("list")}
+        <span className="sr-only">{t("list")}</span>
       </Segment.Item>
     </Segment>
   );

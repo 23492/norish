@@ -20,7 +20,7 @@ import {
   UserGroupIcon,
 } from "@heroicons/react/20/solid";
 import { PhotoIcon } from "@heroicons/react/24/outline";
-import { Button, Card, Chip, useOverlayState } from "@heroui/react";
+import { Button, Card, Chip, Tooltip, useOverlayState } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
 import { RecipeDashboardDTO } from "@norish/shared/contracts";
@@ -158,21 +158,25 @@ function RecipeCardComponent({
   }, [showDeleteAction, handleDeleteClick, t]);
 
   const optionsButton = (
-    <Button
-      isIconOnly
-      aria-label={t("recipeOptions")}
-      className="h-8 w-8 min-w-0 shrink-0 p-0"
-      size="sm"
-      type="button"
-      variant="tertiary"
-      onClick={stopParentActivation}
-      onPress={() => {
-        if (rowRef.current?.isOpen()) rowRef.current?.closeRow();
-        else rowRef.current?.openRow();
-      }}
-    >
-      <EllipsisHorizontalIcon className="h-5 w-5" />
-    </Button>
+    <div onClick={stopParentActivation}>
+      <Tooltip delay={0}>
+        <Button
+          isIconOnly
+          aria-label={t("recipeOptions")}
+          className="text-muted hover:text-foreground h-8 w-8 min-w-0 shrink-0 rounded-full p-0"
+          size="sm"
+          type="button"
+          variant="ghost"
+          onPress={() => {
+            if (rowRef.current?.isOpen()) rowRef.current?.closeRow();
+            else rowRef.current?.openRow();
+          }}
+        >
+          <EllipsisHorizontalIcon className="h-5 w-5" />
+        </Button>
+        <Tooltip.Content placement="top">{t("recipeOptions")}</Tooltip.Content>
+      </Tooltip>
+    </div>
   );
 
   const recipeImage = (
@@ -247,11 +251,11 @@ function RecipeCardComponent({
         }}
       >
         <div className="group/row relative h-full w-full">
-          <Card className="border-border bg-surface relative h-full w-full rounded-2xl border p-3">
-            <div className="flex h-full min-w-0 items-center gap-3">
+          <Card className="border-border bg-surface relative h-full w-full overflow-hidden rounded-2xl border p-0">
+            <div className="flex h-full min-w-0 items-stretch">
               <div onClick={stopParentActivation}>
                 <DoubleTapContainer
-                  className="relative h-[104px] w-[104px] shrink-0 cursor-pointer overflow-hidden rounded-xl"
+                  className="bg-surface-secondary relative h-full w-[128px] shrink-0 cursor-pointer overflow-hidden"
                   disabled={open || mobileSearchOpen}
                   doubleTapEnabled={showFavorites}
                   onDoubleTap={() => {
@@ -274,8 +278,8 @@ function RecipeCardComponent({
                 </DoubleTapContainer>
               </div>
 
-              <Card.Content className="flex h-full min-w-0 flex-1 flex-col justify-center p-0">
-                <div className="flex min-w-0 items-start gap-2">
+              <Card.Content className="relative flex h-full min-w-0 flex-1 flex-col justify-center py-3 pr-12 pl-4">
+                <div className="flex min-w-0 items-start">
                   <div className="min-w-0 flex-1">
                     <h3
                       className={`text-foreground truncate text-base leading-5 font-semibold ${open ? "" : "group-hover/row:underline"} `}
@@ -289,10 +293,10 @@ function RecipeCardComponent({
                       </p>
                     )}
                   </div>
-                  {optionsButton}
                 </div>
 
                 <div className="mt-3">{metadataChips}</div>
+                <div className="absolute top-1/2 right-3 -translate-y-1/2">{optionsButton}</div>
               </Card.Content>
             </div>
           </Card>
