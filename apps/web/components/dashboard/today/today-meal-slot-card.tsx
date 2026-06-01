@@ -1,16 +1,15 @@
 "use client";
 
-import type { TodayMealSlotCardProps } from "./todays-meals-types";
-
+import { useRouter } from "next/navigation";
+import FallbackImage from "@/components/shared/fallback-image";
 import { PlusIcon } from "@heroicons/react/16/solid";
+import { PhotoIcon } from "@heroicons/react/24/outline";
 import { Button, Card, Chip } from "@heroui/react";
 import { useTranslations } from "next-intl";
-import { useRouter } from "next/navigation";
 
+import type { TodayMealSlotCardProps } from "./todays-meals-types";
 import { buildPlannedItemSubtitle, getPlannedItemTitle } from "./todays-meals-helpers";
 import TodaysMealsSlotChip from "./todays-meals-slot-chip";
-
-import FallbackImage, { FallbackPlaceholder } from "@/components/shared/fallback-image";
 
 const cardClassName = "h-[184px] w-[144px] shrink-0 overflow-hidden rounded-2xl p-0 sm:w-[152px]";
 const triggerClassName =
@@ -19,7 +18,7 @@ const mediaClassName = "bg-surface-secondary relative h-[132px] w-full overflow-
 const imageClassName =
   "absolute inset-0 block h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-105";
 const imageFallbackClassName =
-  "bg-surface-secondary text-muted absolute inset-0 h-full w-full transition-transform duration-300 group-hover:scale-105";
+  "bg-surface-secondary text-muted absolute inset-0 flex h-full w-full items-center justify-center transition-transform duration-300 group-hover:scale-105";
 const slotChipPositionClassName = "absolute top-2 left-2 z-20 max-w-[calc(100%-1rem)]";
 const constrainedSlotChipPositionClassName = "absolute top-2 left-2 z-20 max-w-[calc(100%-4.5rem)]";
 const slotChipClassName = "bg-overlay/85 text-foreground backdrop-blur";
@@ -91,7 +90,9 @@ export default function TodayMealSlotCard({
                   variant="hero"
                 />
               ) : (
-                <FallbackPlaceholder className={imageFallbackClassName} />
+                <div className={imageFallbackClassName}>
+                  <PhotoIcon aria-hidden="true" className="h-10 w-10 opacity-70" />
+                </div>
               )}
 
               {remainingCount > 0 ? (

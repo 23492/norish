@@ -255,7 +255,7 @@ function RecipeCardComponent({
             <div className="flex h-full min-w-0 items-stretch">
               <div onClick={stopParentActivation}>
                 <DoubleTapContainer
-                  className="bg-surface-secondary relative h-full w-[128px] shrink-0 cursor-pointer overflow-hidden"
+                  className="bg-surface-secondary relative h-full w-[112px] shrink-0 cursor-pointer overflow-hidden"
                   disabled={open || mobileSearchOpen}
                   doubleTapEnabled={showFavorites}
                   onDoubleTap={() => {
