@@ -158,7 +158,7 @@ function RecipeCardComponent({
   }, [showDeleteAction, handleDeleteClick, t]);
 
   const optionsButton = (
-    <div onClick={stopParentActivation}>
+    <div className="hidden md:block" onClick={stopParentActivation}>
       <Tooltip delay={0}>
         <Button
           isIconOnly
@@ -278,7 +278,7 @@ function RecipeCardComponent({
                 </DoubleTapContainer>
               </div>
 
-              <Card.Content className="relative flex h-full min-w-0 flex-1 flex-col justify-center py-3 pr-12 pl-4">
+              <Card.Content className="relative flex h-full min-w-0 flex-1 flex-col justify-center py-3 pr-4 pl-4 md:pr-12">
                 <div className="flex min-w-0 items-start">
                   <div className="min-w-0 flex-1">
                     <h3

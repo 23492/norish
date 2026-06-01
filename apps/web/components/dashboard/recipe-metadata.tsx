@@ -77,15 +77,17 @@ export default function RecipeMetadata({
           </Chip>
         )}
 
-        <Button
-          isIconOnly
-          className={`text-white ${cssGlassBackdropChip} h-6 w-6 min-w-0 p-0`}
-          size="sm"
-          onPress={onOptionsPress}
-          variant="tertiary"
-        >
-          <EllipsisHorizontalIcon className="h-4 w-4" />
-        </Button>
+        {onOptionsPress && (
+          <Button
+            isIconOnly
+            className={`hidden text-white md:flex ${cssGlassBackdropChip} h-6 w-6 min-w-0 p-0`}
+            size="sm"
+            onPress={onOptionsPress}
+            variant="tertiary"
+          >
+            <EllipsisHorizontalIcon className="h-4 w-4" />
+          </Button>
+        )}
       </div>
     </>
   );
