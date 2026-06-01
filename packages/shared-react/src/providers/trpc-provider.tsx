@@ -2,14 +2,14 @@
 
 import type { AnyTRPCRouter } from "@trpc/server";
 import type { ReactNode } from "react";
-import type { CreateTRPCProviderBundleOptions } from "./trpc-links";
-
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createTRPCClient } from "@trpc/client";
 import { createTRPCContext } from "@trpc/tanstack-react-query";
-import { normalizeSubscriptionData } from "@norish/shared/lib/operation-helpers";
 
+import { unwrapPayload } from "@norish/shared/lib/operation-helpers";
+
+import type { CreateTRPCProviderBundleOptions } from "./trpc-links";
 import {
   createTRPCClientLinks,
   defaultGetBaseUrl,
@@ -44,7 +44,7 @@ export function wrapSubscriptionObserverOptions(options: unknown): unknown {
 
   return {
     ...observerOptions,
-    onData: (data: unknown) => observerOptions.onData?.(normalizeSubscriptionData(data)),
+    onData: (data: unknown) => observerOptions.onData?.(unwrapPayload(data)),
   };
 }
 
