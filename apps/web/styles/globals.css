@@ -63,6 +63,14 @@
     padding: 0.375rem;
   }
 
+  [data-panel-backdrop][data-sheet-overlay][data-sheet-snap-points="true"]::before,
+  [data-panel-backdrop][data-sheet-overlay][data-sheet-snap-points="true"][data-sheet-dragging]::before,
+  [data-panel-backdrop][data-sheet-overlay][data-sheet-snap-points="true"]:not(
+      [data-sheet-snap-points-overlay="true"]
+    ):not([data-sheet-dragging])::before {
+    opacity: 1 !important;
+  }
+
   .menu-item {
     min-height: 2.5rem;
     border-radius: 9999px;

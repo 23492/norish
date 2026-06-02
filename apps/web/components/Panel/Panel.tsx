@@ -160,7 +160,7 @@ const PanelRoot: React.FC<PanelProps> = ({
           onActiveSnapPointChange={hasSnapPoints ? setActiveSnapPoint : undefined}
           onOpenChange={setOpen}
         >
-          <Sheet.Backdrop className="z-[1000]" variant="opaque">
+          <Sheet.Backdrop data-panel-backdrop className="z-[1000]" variant="opaque">
             <Sheet.Content
               className={`mx-auto w-full md:max-w-md ${
                 hasSnapPoints ? "h-dvh max-h-dvh" : "h-[var(--panel-height)] max-h-dvh"
@@ -171,8 +171,8 @@ const PanelRoot: React.FC<PanelProps> = ({
                 aria-label={title || "Panel"}
                 className={`bg-background h-full overflow-hidden rounded-t-2xl ${panelClassName}`}
               >
-                <Sheet.Handle />
-                <Sheet.CloseTrigger aria-label="Close panel" />
+                <Sheet.Handle className="relative z-10" />
+                <Sheet.CloseTrigger aria-label="Close panel" className="z-30" />
 
                 <Sheet.Header className="border-border relative flex shrink-0 items-center justify-center border-b px-12 py-4 select-none">
                   <Sheet.Heading className="text-center text-lg font-semibold">
