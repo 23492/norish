@@ -18,6 +18,17 @@ export const PANEL_HEIGHT_MEDIUM = 68;
 export const PANEL_HEIGHT_LARGE = 88; // Default height when none is specified
 
 type PanelSnapPoint = number | string;
+type PanelBackdropStyle = React.CSSProperties & {
+  "--sheet-backdrop-opacity"?: string;
+};
+
+function getSnapPointHeight(snapPoint: PanelSnapPoint | null, fallbackHeight: number) {
+  if (typeof snapPoint === "number") {
+    return `${Math.min(Math.max(snapPoint, 0.25), 1) * 100}dvh`;
+  }
+
+  return snapPoint ?? `${fallbackHeight}dvh`;
+}
 
 export interface PanelProps {
   className?: string;
@@ -96,6 +107,15 @@ const PanelRoot: React.FC<PanelProps> = ({
   const hasSnapPoints = effectiveSnapPoints.length > 1;
   const initialSnapPoint = effectiveSnapPoints[0] ?? null;
   const [activeSnapPoint, setActiveSnapPoint] = useState<PanelSnapPoint | null>(initialSnapPoint);
+  const activeSnapPointIndex = hasSnapPoints
+    ? effectiveSnapPoints.findIndex((snapPoint) => snapPoint === activeSnapPoint)
+    : -1;
+  const activeSnapPointHeight = getSnapPointHeight(activeSnapPoint, height);
+  const backdropStyle = hasSnapPoints
+    ? ({
+        "--sheet-backdrop-opacity": open ? "1" : "0",
+      } satisfies PanelBackdropStyle)
+    : undefined;
 
   useEffect(() => {
     if (!open) {
@@ -153,14 +173,14 @@ const PanelRoot: React.FC<PanelProps> = ({
         <Root
           isHandleOnly
           activeSnapPoint={hasSnapPoints ? activeSnapPoint : undefined}
-          fadeFromIndex={hasSnapPoints ? 0 : undefined}
+          fadeFromIndex={hasSnapPoints ? Math.max(activeSnapPointIndex, 0) : undefined}
           isOpen={open}
           placement="bottom"
           snapPoints={hasSnapPoints ? effectiveSnapPoints : undefined}
           onActiveSnapPointChange={hasSnapPoints ? setActiveSnapPoint : undefined}
           onOpenChange={setOpen}
         >
-          <Sheet.Backdrop data-panel-backdrop className="z-[1000]" variant="opaque">
+          <Sheet.Backdrop className="z-[1000]" style={backdropStyle} variant="opaque">
             <Sheet.Content
               className={`mx-auto w-full md:max-w-md ${
                 hasSnapPoints ? "h-dvh max-h-dvh" : "h-[var(--panel-height)] max-h-dvh"
@@ -169,7 +189,17 @@ const PanelRoot: React.FC<PanelProps> = ({
             >
               <Sheet.Dialog
                 aria-label={title || "Panel"}
-                className={`bg-background h-full overflow-hidden rounded-t-2xl ${panelClassName}`}
+                className={`bg-background overflow-hidden rounded-t-2xl ${
+                  hasSnapPoints ? "" : "h-full"
+                } ${panelClassName}`}
+                style={
+                  hasSnapPoints
+                    ? {
+                        height: activeSnapPointHeight,
+                        maxHeight: "100dvh",
+                      }
+                    : undefined
+                }
               >
                 <Sheet.Handle className="relative z-10" />
                 <Sheet.CloseTrigger aria-label="Close panel" className="z-30" />
