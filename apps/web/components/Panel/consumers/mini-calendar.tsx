@@ -58,7 +58,7 @@ const DayRow = memo(function DayRow({
 }) {
   return (
     <div className="border-border border-b last:border-none">
-      <div className="bg-background hover:bg-surface-secondary/50 flex flex-col gap-3 px-4 py-4 transition-colors">
+      <div className="flex flex-col gap-3 px-4 py-4">
         <div className="flex items-center justify-between gap-3">
           <div className={`text-sm font-semibold ${isToday ? "text-accent" : "text-foreground"}`}>
             {weekdayLong.format(date)}, {monthLong.format(date)} {date.getDate()}
@@ -315,6 +315,7 @@ export default function MiniCalendar({ open, onOpenChange, recipeId }: MiniCalen
   const t = useTranslations("calendar.panel");
   return (
     <Panel
+      backdropVariant="transparent"
       contentClassName="max-h-[80dvh]"
       open={open}
       panelClassName="h-[80dvh] max-h-[80dvh]"
