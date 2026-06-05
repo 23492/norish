@@ -111,22 +111,22 @@ export default function SiteAuthTokensCard() {
 
           {/* Create form */}
           <div className="flex flex-col gap-3">
-            <div className="flex items-end gap-2">
-              <TextField className="flex-1" value={domain} onChange={setDomain}>
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_9rem] lg:items-end">
+              <TextField className="min-w-0" value={domain} onChange={setDomain}>
                 <Label>{t("domain")}</Label>
                 <Input variant="secondary" placeholder={t("domainPlaceholder")} />
               </TextField>
-              <TextField className="flex-1" value={name} onChange={setName}>
+              <TextField className="min-w-0" value={name} onChange={setName}>
                 <Label>{t("name")}</Label>
                 <Input variant="secondary" placeholder={t("namePlaceholder")} />
               </TextField>
-              <TextField className="flex-1" type="password" value={value} onChange={setValue}>
+              <TextField className="min-w-0" type="password" value={value} onChange={setValue}>
                 <Label>{t("value")}</Label>
                 <Input variant="secondary" placeholder={t("valuePlaceholder")} />
               </TextField>
               <Select
                 variant="secondary"
-                className="w-36 shrink-0"
+                className="min-w-0"
                 placeholder={t("type")}
                 value={type}
                 onChange={(selected) => {

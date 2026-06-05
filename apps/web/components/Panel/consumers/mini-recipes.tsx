@@ -244,6 +244,7 @@ function MiniRecipesContent({
           style={{
             fontSize: "16px",
           }}
+          variant="secondary"
           value={rawInput}
           onChange={handleInputChange}
         />
@@ -262,6 +263,7 @@ function MiniRecipesContent({
         style={{
           fontSize: "16px",
         }}
+        variant="secondary"
         value={rawInput}
         onChange={handleInputChange}
       />

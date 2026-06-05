@@ -31,6 +31,29 @@ type SubscriptionObserverOptions = {
   onData?: (data: unknown) => void;
 };
 
+function withPayloadCompatibility(data: unknown): unknown {
+  const payload = unwrapPayload(data);
+
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return payload;
+  }
+
+  const prototype = Object.getPrototypeOf(payload);
+
+  if (prototype !== Object.prototype && prototype !== null) {
+    return payload;
+  }
+
+  if ("payload" in payload) {
+    return payload;
+  }
+
+  return {
+    ...(payload as Record<string, unknown>),
+    payload,
+  };
+}
+
 export function wrapSubscriptionObserverOptions(options: unknown): unknown {
   if (!options || typeof options !== "object") {
     return options;
@@ -44,7 +67,7 @@ export function wrapSubscriptionObserverOptions(options: unknown): unknown {
 
   return {
     ...observerOptions,
-    onData: (data: unknown) => observerOptions.onData?.(unwrapPayload(data)),
+    onData: (data: unknown) => observerOptions.onData?.(withPayloadCompatibility(data)),
   };
 }
 

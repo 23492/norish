@@ -1,5 +1,6 @@
 "use client";
 
+import type { DateValue } from "@internationalized/date";
 import type { Key } from "react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -7,7 +8,16 @@ import { useCalendarContext } from "@/app/(app)/calendar/context";
 import { PlannedItemThumbnail } from "@/components/calendar/planned-item-thumbnail";
 import { Panel } from "@/components/Panel/Panel";
 import { ArrowTopRightOnSquareIcon, TrashIcon } from "@heroicons/react/16/solid";
-import { Button, DatePicker, Label, ListBox, Select } from "@heroui/react";
+import {
+  Button,
+  Calendar,
+  DateField,
+  DatePicker,
+  Label,
+  ListBox,
+  Select,
+  Tooltip,
+} from "@heroui/react";
 import { parseDate } from "@internationalized/date";
 import { useTranslations } from "next-intl";
 
@@ -35,7 +45,7 @@ export function EditPlannedRecipePanel({
   slot,
 }: EditPlannedRecipePanelProps) {
   const { deletePlanned, moveItem, planMeal } = useCalendarContext();
-  const [selectedDate, setSelectedDate] = useState(parseDate(date));
+  const [selectedDate, setSelectedDate] = useState<DateValue>(parseDate(date));
   const [selectedSlot, setSelectedSlot] = useState<Slot>(slot);
   const t = useTranslations("calendar.editPlannedRecipe");
   const tSlots = useTranslations("common.slots");
@@ -69,10 +79,10 @@ export function EditPlannedRecipePanel({
   };
   return (
     <Panel open={open} title={t("title")} onOpenChange={onOpenChange}>
-      <Panel.Body>
+      <Panel.Body className="gap-5">
         {/* Recipe preview */}
         <Link
-          className="flex items-center gap-3 rounded-lg"
+          className="bg-surface-secondary hover:bg-surface-tertiary focus-visible:ring-accent flex items-center gap-3 rounded-xl p-3 outline-none focus-visible:ring-2"
           href={`/recipes/${recipeId}`}
           onClick={() => onOpenChange(false)}
         >
@@ -86,19 +96,54 @@ export function EditPlannedRecipePanel({
           </div>
         </Link>
 
-        <div className="flex gap-3">
+        <div className="grid gap-4 sm:grid-cols-2">
           <DatePicker
             isRequired
-            className="flex-1"
-            label={t("date")}
+            className="w-full"
+            name="planned-recipe-date"
             value={selectedDate}
             onChange={(d) => d && setSelectedDate(d)}
-          />
+          >
+            <Label>{t("date")}</Label>
+            <DateField.Group fullWidth variant="secondary">
+              <DateField.Input>
+                {(segment) => <DateField.Segment segment={segment} />}
+              </DateField.Input>
+              <DateField.Suffix>
+                <DatePicker.Trigger>
+                  <DatePicker.TriggerIndicator />
+                </DatePicker.Trigger>
+              </DateField.Suffix>
+            </DateField.Group>
+            <DatePicker.Popover>
+              <Calendar aria-label={t("date")}>
+                <Calendar.Header>
+                  <Calendar.YearPickerTrigger>
+                    <Calendar.YearPickerTriggerHeading />
+                    <Calendar.YearPickerTriggerIndicator />
+                  </Calendar.YearPickerTrigger>
+                  <Calendar.NavButton slot="previous" />
+                  <Calendar.NavButton slot="next" />
+                </Calendar.Header>
+                <Calendar.Grid>
+                  <Calendar.GridHeader>
+                    {(day) => <Calendar.HeaderCell>{day}</Calendar.HeaderCell>}
+                  </Calendar.GridHeader>
+                  <Calendar.GridBody>{(date) => <Calendar.Cell date={date} />}</Calendar.GridBody>
+                </Calendar.Grid>
+                <Calendar.YearPickerGrid>
+                  <Calendar.YearPickerGridBody>
+                    {({ year }) => <Calendar.YearPickerCell year={year} />}
+                  </Calendar.YearPickerGridBody>
+                </Calendar.YearPickerGrid>
+              </Calendar>
+            </DatePicker.Popover>
+          </DatePicker>
           <Select
-            className="flex-1"
-            selectedKey={selectedSlot}
+            className="w-full"
+            value={selectedSlot}
             variant="secondary"
-            onSelectionChange={handleSlotChange}
+            onChange={(value) => handleSlotChange(value)}
           >
             <Label>{t("slot")}</Label>
             <Select.Trigger>
@@ -119,14 +164,28 @@ export function EditPlannedRecipePanel({
         </div>
       </Panel.Body>
       <Panel.Footer>
-        <div className="flex justify-end gap-2">
-          <Button isIconOnly onPress={handleDelete} variant="danger-soft">
-            <TrashIcon className="h-4 w-4" />
-          </Button>
-          <Button className="min-w-24" onPress={handleDuplicate} variant="tertiary">
+        <div className="flex w-full items-center gap-2">
+          <Tooltip delay={0}>
+            <Button
+              isIconOnly
+              aria-label={tActions("delete")}
+              onPress={handleDelete}
+              variant="danger-soft"
+            >
+              <TrashIcon className="h-4 w-4" />
+            </Button>
+            <Tooltip.Content placement="top">
+              <p>{tActions("delete")}</p>
+            </Tooltip.Content>
+          </Tooltip>
+          <Button
+            className="ml-auto min-w-24 flex-1 sm:flex-none"
+            onPress={handleDuplicate}
+            variant="tertiary"
+          >
             {tActions("duplicate")}
           </Button>
-          <Button className="min-w-24" onPress={handleSave} variant="primary">
+          <Button className="min-w-24 flex-1 sm:flex-none" onPress={handleSave} variant="primary">
             {tActions("save")}
           </Button>
         </div>

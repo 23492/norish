@@ -25,5 +25,6 @@ runs:
     - name: Install dependencies
       shell: bash
       env:
+        HEROUI_AUTH_TOKEN: ${{ env.HEROUI_AUTH_TOKEN }}
         SKIP_PARSER_API_INSTALL: "1"
       run: pnpm install --frozen-lockfile

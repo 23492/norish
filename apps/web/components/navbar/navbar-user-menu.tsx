@@ -182,7 +182,7 @@ export default function NavbarUserMenu({ trigger = "avatar" }: NavbarUserMenuPro
               <Label className="text-danger text-base font-medium">{t("logout")}</Label>
             </Dropdown.Item>
           </Dropdown.Menu>
-          <div className="border-border text-muted mt-1 flex min-w-0 flex-wrap items-center justify-end gap-x-2 gap-y-1 border-t px-3 pt-2 text-xs">
+          <div className="border-border text-muted mt-2 flex min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-1.5 border-t px-4 py-3 text-xs">
             {updateAvailable && releaseUrl && latestVersion && (
               <a
                 className="text-accent min-w-0 truncate hover:underline"

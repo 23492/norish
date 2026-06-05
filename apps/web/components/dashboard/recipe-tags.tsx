@@ -5,7 +5,6 @@ import { Chip } from "@heroui/react";
 import { motion, useMotionValue } from "motion/react";
 
 import { isAllergenTag, sortTagsWithAllergyPriority } from "@norish/shared/lib/helpers";
-import { cssGlassBackdropChip } from "@norish/web/config/css-tokens";
 
 interface RecipeTagsProps {
   tags: { name: string }[];
@@ -63,8 +62,8 @@ export default function RecipeTags({ tags, allergies = [] }: RecipeTagsProps) {
               key={i}
               className={`shrink-0 ${
                 isAllergen
-                  ? "bg-warning/80 text-warning-foreground backdrop-blur-md"
-                  : `text-white ${cssGlassBackdropChip}`
+                  ? "bg-warning/90 text-warning-foreground ring-warning/30 shadow-sm ring-1 backdrop-blur-md"
+                  : "bg-surface/90 text-foreground shadow-sm ring-1 ring-black/10 backdrop-blur-md dark:ring-white/15"
               }`}
               size="sm"
               variant="soft"

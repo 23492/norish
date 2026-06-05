@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1.7
+
 ##############################
 # Base image (minimal, no pnpm needed at runtime)
 ##############################
@@ -67,6 +69,8 @@ COPY tooling/typescript/package.json ./tooling/typescript/package.json
 COPY patches/ ./patches/
 
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+  --mount=type=secret,id=HEROUI_AUTH_TOKEN \
+  HEROUI_AUTH_TOKEN="$(cat /run/secrets/HEROUI_AUTH_TOKEN 2>/dev/null || true)" \
   SKIP_PARSER_API_INSTALL=1 pnpm install --frozen-lockfile
 
 ##############################

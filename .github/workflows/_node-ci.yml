@@ -7,9 +7,13 @@ env:
   SKIP_ENV_VALIDATION: "1"
   AUTH_URL: http://localhost:3000
   CHROME_WS_ENDPOINT: ws://localhost:3000
+  HEROUI_AUTH_TOKEN: ${{ secrets.HEROUI_AUTH_TOKEN }}
 
 on:
   workflow_call:
+    secrets:
+      HEROUI_AUTH_TOKEN:
+        required: false
     inputs:
       run-build:
         required: false

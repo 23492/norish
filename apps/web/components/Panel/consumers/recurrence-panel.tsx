@@ -282,7 +282,7 @@ export function RecurrencePanel({
                 opacity: 1,
                 scale: 1,
               }}
-              className="bg-accent/5 flex flex-col gap-1.5 rounded-lg px-3 py-2.5"
+              className="bg-surface-secondary flex flex-col gap-3 rounded-xl px-3.5 py-3"
               exit={{
                 opacity: 0,
                 scale: 0.95,
@@ -306,13 +306,11 @@ export function RecurrencePanel({
                 </div>
               </div>
               {nextOccurrence && (
-                <div className="ml-6.5 pl-0.5">
-                  <p className="text-muted text-xs">
-                    {t("next")}{" "}
-                    <span className="text-foreground font-medium">
-                      {formatNextOccurrence(nextOccurrence, formatterTranslations)}
-                    </span>
-                  </p>
+                <div className="bg-surface-tertiary text-muted ml-6 flex w-fit items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs">
+                  <span>{t("next")}</span>
+                  <span className="text-foreground font-medium tabular-nums">
+                    {formatNextOccurrence(nextOccurrence, formatterTranslations)}
+                  </span>
                 </div>
               )}
             </motion.div>

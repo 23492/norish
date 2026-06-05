@@ -10,7 +10,7 @@ import {
 import { wrapTrpcProxy } from "./trpc-provider";
 
 describe("createTRPCProviderBundle", () => {
-  it("unwraps subscription envelopes before invoking onData", () => {
+  it("exposes envelope payloads both at the top level and under payload", () => {
     const onDataInput: unknown[] = [];
     const onData = vi.fn();
     const trpc = wrapTrpcProxy(
@@ -49,10 +49,11 @@ describe("createTRPCProviderBundle", () => {
     options.onData(envelope);
 
     expect(onData).toHaveBeenCalledOnce();
-    expect(onDataInput[0]).toEqual(envelope.payload);
+    expect(onDataInput[0]).toMatchObject(envelope.payload);
+    expect((onDataInput[0] as any).payload).toEqual(envelope.payload);
   });
 
-  it("passes raw subscription payloads through before invoking onData", () => {
+  it("exposes raw subscription payloads both at the top level and under payload", () => {
     const onDataInput: unknown[] = [];
     const onData = vi.fn();
     const trpc = wrapTrpcProxy(
@@ -81,7 +82,8 @@ describe("createTRPCProviderBundle", () => {
     options.onData(payload);
 
     expect(onData).toHaveBeenCalledOnce();
-    expect(onDataInput[0]).toEqual(payload);
+    expect(onDataInput[0]).toMatchObject(payload);
+    expect((onDataInput[0] as any).payload).toEqual(payload);
   });
 
   it("detects unauthorized WebSocket close reasons from React Native events", () => {
