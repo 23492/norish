@@ -5,11 +5,10 @@
  * All subscriptions use createSubscription() with async iterators.
  */
 
-import type { RealtimeEventEnvelope } from "@norish/shared/contracts/realtime-envelope";
-
 import { on } from "node:events";
-
 import superjson from "superjson";
+
+import type { RealtimeEventEnvelope } from "@norish/shared/contracts/realtime-envelope";
 import { getCurrentOperationId } from "@norish/shared-server/lib/operation-context";
 import { redisLogger } from "@norish/shared-server/logger";
 import { ENVELOPE_VERSION } from "@norish/shared/contracts/realtime-envelope";
@@ -80,7 +79,7 @@ export class TypedRedisEmitter<TEvents extends Record<string, unknown>> {
   async *createSubscription<K extends keyof TEvents & string>(
     channel: string,
     signal?: AbortSignal
-  ): AsyncGenerator<TEvents[K]> {
+  ): AsyncGenerator<RealtimeEventEnvelope<TEvents[K]> | TEvents[K]> {
     const subscriber = await createSubscriberClient();
 
     // Early exit if already aborted
@@ -98,7 +97,7 @@ export class TypedRedisEmitter<TEvents extends Record<string, unknown>> {
       for await (const [receivedChannel, message] of on(subscriber, "message", { signal })) {
         if (receivedChannel === channel) {
           try {
-            const parsed = superjson.parse<TEvents[K]>(message);
+            const parsed = superjson.parse<RealtimeEventEnvelope<TEvents[K]> | TEvents[K]>(message);
 
             yield parsed;
           } catch (err) {

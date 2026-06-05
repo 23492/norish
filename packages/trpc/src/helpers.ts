@@ -4,7 +4,7 @@ import type { PermissionLevel } from "@norish/config/zod/server-config";
 import type { SubscriptionMultiplexer } from "@norish/queue/redis/subscription-multiplexer";
 import type { RealtimeEventEnvelope } from "@norish/shared/contracts/realtime-envelope";
 import { trpcLogger as log } from "@norish/shared-server/logger";
-import { unwrapPayload } from "@norish/shared/lib/operation-helpers";
+import { assertEventEnvelope, unwrapPayload } from "@norish/shared/lib/operation-helpers";
 
 import type { TypedEmitter } from "./emitter";
 import { authedProcedure } from "./middleware";
@@ -76,7 +76,7 @@ export function createSubscriptionIterable<T>(
 ): AsyncIterable<T> {
   const iterable = multiplexer
     ? multiplexer.subscribe<unknown>(channel, signal)
-    : (emitter.createSubscription(channel, signal) as AsyncIterable<unknown>);
+    : emitter.createSubscription(channel, signal);
 
   return unwrapSubscriptionIterable<T>(iterable);
 }
@@ -93,11 +93,30 @@ export function createEnvelopeSubscriptionIterable<T>(
   channel: string,
   signal?: AbortSignal
 ): AsyncIterable<RealtimeEventEnvelope<T>> {
-  if (multiplexer) {
-    return multiplexer.subscribe<RealtimeEventEnvelope<T>>(channel, signal);
-  }
+  const iterable = multiplexer
+    ? multiplexer.subscribe<unknown>(channel, signal)
+    : emitter.createSubscription(channel, signal);
 
-  return emitter.createSubscription(channel, signal) as AsyncIterable<RealtimeEventEnvelope<T>>;
+  return assertEnvelopeSubscriptionIterable<T>(iterable, channel);
+}
+
+async function* assertEnvelopeSubscriptionIterable<T>(
+  iterable: AsyncIterable<unknown>,
+  channel: string
+): AsyncGenerator<RealtimeEventEnvelope<T>> {
+  for await (const data of iterable) {
+    try {
+      assertEventEnvelope<T>(
+        data,
+        `Expected realtime event envelope from subscription channel "${channel}"`
+      );
+    } catch (err) {
+      log.error({ err, channel }, "Rejected non-envelope realtime subscription data");
+      throw err;
+    }
+
+    yield data;
+  }
 }
 
 /**
@@ -168,7 +187,7 @@ export async function* mergeAsyncIterables<T>(
 
     pending.set(
       idx,
-      new Promise((resolve) => {
+      new Promise((resolve, reject) => {
         queueMicrotask(() => {
           // Double-check abort inside microtask since signal may have changed
           if (signal?.aborted) return;
@@ -178,7 +197,7 @@ export async function* mergeAsyncIterables<T>(
             return;
           }
 
-          iterator.next().then((result) => resolve({ index: idx, result }));
+          iterator.next().then((result) => resolve({ index: idx, result }), reject);
         });
       })
     );
@@ -220,12 +239,15 @@ export async function* mergeAsyncIterables<T>(
  * }
  * ```
  */
-export function createPolicyAwareIterables<TEvents extends Record<string, unknown>>(
+export function createPolicyAwareIterables<
+  TEvents extends Record<string, unknown>,
+  K extends keyof TEvents & string,
+>(
   emitter: TypedEmitter<TEvents>,
   ctx: PolicySubscribeContext,
-  event: keyof TEvents & string,
+  event: K,
   signal?: AbortSignal
-): AsyncIterable<RealtimeEventEnvelope<TEvents[typeof event]>>[] {
+): AsyncIterable<RealtimeEventEnvelope<TEvents[K]>>[] {
   const householdEventName = emitter.householdEvent(ctx.householdKey, event);
   const broadcastEventName = emitter.broadcastEvent(event);
   const userEventName = emitter.userEvent(ctx.userId, event);
@@ -245,32 +267,35 @@ export function createPolicyAwareIterables<TEvents extends Record<string, unknow
   // This consolidates all subscriptions into a single Redis connection
   if (ctx.multiplexer) {
     return [
-      ctx.multiplexer.subscribe<RealtimeEventEnvelope<TEvents[typeof event]>>(
-        householdEventName,
-        signal
+      assertEnvelopeSubscriptionIterable<TEvents[K]>(
+        ctx.multiplexer.subscribe<unknown>(householdEventName, signal),
+        householdEventName
       ),
-      ctx.multiplexer.subscribe<RealtimeEventEnvelope<TEvents[typeof event]>>(
-        broadcastEventName,
-        signal
+      assertEnvelopeSubscriptionIterable<TEvents[K]>(
+        ctx.multiplexer.subscribe<unknown>(broadcastEventName, signal),
+        broadcastEventName
       ),
-      ctx.multiplexer.subscribe<RealtimeEventEnvelope<TEvents[typeof event]>>(
-        userEventName,
-        signal
+      assertEnvelopeSubscriptionIterable<TEvents[K]>(
+        ctx.multiplexer.subscribe<unknown>(userEventName, signal),
+        userEventName
       ),
     ];
   }
 
   // Fallback to direct subscriptions (HTTP polling, tests, etc.)
   return [
-    emitter.createSubscription(householdEventName, signal) as AsyncIterable<
-      RealtimeEventEnvelope<TEvents[typeof event]>
-    >,
-    emitter.createSubscription(broadcastEventName, signal) as AsyncIterable<
-      RealtimeEventEnvelope<TEvents[typeof event]>
-    >,
-    emitter.createSubscription(userEventName, signal) as AsyncIterable<
-      RealtimeEventEnvelope<TEvents[typeof event]>
-    >,
+    assertEnvelopeSubscriptionIterable<TEvents[K]>(
+      emitter.createSubscription<K>(householdEventName, signal),
+      householdEventName
+    ),
+    assertEnvelopeSubscriptionIterable<TEvents[K]>(
+      emitter.createSubscription<K>(broadcastEventName, signal),
+      broadcastEventName
+    ),
+    assertEnvelopeSubscriptionIterable<TEvents[K]>(
+      emitter.createSubscription<K>(userEventName, signal),
+      userEventName
+    ),
   ];
 }
 
@@ -310,7 +335,7 @@ export function createEnvelopeAwareSubscription<
 
       for await (const data of mergeAsyncIterables(iterables, signal)) {
         // Yield the full envelope — consumers get { meta, payload }
-        yield data as RealtimeEventEnvelope<TEvents[K]>;
+        yield data;
       }
     } finally {
       log.trace(
