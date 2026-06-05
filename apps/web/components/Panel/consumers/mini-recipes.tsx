@@ -3,11 +3,11 @@
 import { ChangeEvent, memo, useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useCalendarContext } from "@/app/(app)/calendar/context";
 import Panel from "@/components/Panel/Panel";
+import { ActionButton } from "@/components/shared/action-button";
 import { SlotDropdown } from "@/components/shared/slot-dropdown";
 import MiniRecipeSkeleton from "@/components/skeleton/mini-recipe-skeleton";
 import { useRandomRecipe, useRecipesQuery } from "@/hooks/recipes";
-import { ArrowPathIcon, PlusIcon } from "@heroicons/react/16/solid";
-import { Button, Input } from "@heroui/react";
+import { Input } from "@heroui/react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AnimatePresence, motion } from "motion/react";
 import { useTranslations } from "next-intl";
@@ -293,29 +293,27 @@ function MiniRecipesContent({
             }}
           >
             {slot ? (
-              <Button
-                className="w-full min-w-16 justify-center"
+              <ActionButton
+                action="add"
+                className="max-w-full min-w-16 justify-center"
                 size="sm"
                 onPress={handleDirectNote}
-                variant="primary"
               >
-                {<PlusIcon className="h-4 w-4 shrink-0" />}
-                <span className="truncate">
+                <span className="min-w-0 truncate">
                   {t("addNote", {
                     input: rawInput,
                   })}
                 </span>
-              </Button>
+              </ActionButton>
             ) : (
               <SlotDropdown ariaLabel="Choose slot for note" onSelectSlot={handlePlanNote}>
-                <Button className="w-full min-w-16 justify-center" size="sm" variant="primary">
-                  {<PlusIcon className="h-4 w-4 shrink-0" />}
-                  <span className="truncate">
+                <ActionButton action="add" className="max-w-full min-w-16 justify-center" size="sm">
+                  <span className="min-w-0 truncate">
                     {t("addNote", {
                       input: rawInput,
                     })}
                   </span>
-                </Button>
+                </ActionButton>
               </SlotDropdown>
             )}
           </motion.div>
@@ -343,16 +341,16 @@ function MiniRecipesContent({
               ease: "easeInOut",
             }}
           >
-            <Button
-              className="w-full min-w-16 justify-center"
+            <ActionButton
+              action="random"
+              className="max-w-full min-w-16 justify-center"
+              isPending={isRandomLoading}
               size="sm"
               onPress={handleRandomSelect}
-              variant="primary"
-              isPending={isRandomLoading}
+              showIcon={!isRandomLoading}
             >
-              {!isRandomLoading && <ArrowPathIcon className="h-4 w-4 shrink-0" />}
               {t("randomRecipe")}
-            </Button>
+            </ActionButton>
           </motion.div>
         )}
       </AnimatePresence>

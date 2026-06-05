@@ -4,8 +4,12 @@ import type { Key } from "react";
 import { useEffect, useState } from "react";
 import { useCalendarContext } from "@/app/(app)/calendar/context";
 import { Panel } from "@/components/Panel/Panel";
-import { TrashIcon } from "@heroicons/react/16/solid";
-import { Button, DatePicker, Input, Label, ListBox, Select, TextField } from "@heroui/react";
+import {
+  ActionButton,
+  ActionButtonGroup,
+  IconActionButton,
+} from "@/components/shared/action-button";
+import { DatePicker, Input, Label, ListBox, Select, TextField } from "@heroui/react";
 import { parseDate } from "@internationalized/date";
 import { useTranslations } from "next-intl";
 
@@ -116,17 +120,15 @@ export function EditNotePanel({
         </div>
       </Panel.Body>
       <Panel.Footer>
-        <div className="flex justify-end gap-2">
-          <Button isIconOnly onPress={handleDelete} variant="danger-soft">
-            <TrashIcon className="h-4 w-4" />
-          </Button>
-          <Button onPress={handleDuplicate} variant="tertiary" className="min-w-24">
+        <ActionButtonGroup>
+          <IconActionButton action="delete" label={tActions("delete")} onPress={handleDelete} />
+          <ActionButton action="duplicate" onPress={handleDuplicate}>
             {tActions("duplicate")}
-          </Button>
-          <Button onPress={handleSave} variant="primary" className="min-w-24">
+          </ActionButton>
+          <ActionButton action="save" onPress={handleSave}>
             {tActions("save")}
-          </Button>
-        </div>
+          </ActionButton>
+        </ActionButtonGroup>
       </Panel.Footer>
     </Panel>
   );

@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTRPC } from "@/app/providers/trpc-provider";
 import Panel from "@/components/Panel/Panel";
+import { ActionButton, IconActionButton } from "@/components/shared/action-button";
 import { useUnitsQuery } from "@/hooks/config";
 import { useGroceriesMutations } from "@/hooks/groceries";
 import { useRecipeIngredients } from "@/hooks/recipes/use-recipe-ingredients";
-import { MinusIcon, PlusIcon } from "@heroicons/react/16/solid";
-import { Button, Checkbox, Input, Separator, toast } from "@heroui/react";
+import { Checkbox, Input, Separator, toast } from "@heroui/react";
 import { useQueries } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 
@@ -232,29 +232,25 @@ function MiniGroceriesContent({
       <div className="mb-3 flex items-center justify-between px-2">
         <span className="text-foreground text-sm font-medium">{t("servings")}</span>
         <div className="inline-flex items-center gap-2">
-          <Button
-            isIconOnly
-            aria-label="Decrease servings"
+          <IconActionButton
+            action="decrease"
             className="bg-surface-secondary"
+            label="Decrease servings"
             size="sm"
             onPress={decrementServings}
-            variant="tertiary"
-          >
-            <MinusIcon className="h-4 w-4" />
-          </Button>
+            tooltipPlacement="bottom"
+          />
           <span className="min-w-8 text-center text-sm font-semibold">
             {formatServings(servings)}
           </span>
-          <Button
-            isIconOnly
-            aria-label="Increase servings"
+          <IconActionButton
+            action="increase"
             className="bg-surface-secondary"
+            label="Increase servings"
             size="sm"
             onPress={incrementServings}
-            variant="tertiary"
-          >
-            <PlusIcon className="h-4 w-4" />
-          </Button>
+            tooltipPlacement="bottom"
+          />
         </div>
       </div>
 
@@ -333,10 +329,11 @@ function MiniGroceriesContent({
       {scaledIngredients.length > 0 && (
         <div className="mt-4">
           <Separator className="bg-surface-tertiary/40 my-2" />
-          <Button fullWidth onPress={handleConfirm} variant="primary">
-            <PlusIcon className="h-5 w-5" />
-            {tActions("add")}
-          </Button>
+          <div className="flex justify-end">
+            <ActionButton action="add" onPress={handleConfirm}>
+              {tActions("add")}
+            </ActionButton>
+          </div>
         </div>
       )}
     </div>

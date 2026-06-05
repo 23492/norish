@@ -3,12 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import SearchFieldToggles from "@/components/dashboard/search-field-toggles";
 import Panel from "@/components/Panel/Panel";
+import { ActionButton, ActionButtonGroup } from "@/components/shared/action-button";
 import ChipSkeleton from "@/components/skeleton/chip-skeleton";
 import { useRecipesFiltersContext } from "@/context/recipes-filters-context";
 import { useUserContext } from "@/context/user-context";
 import { useTagsQuery } from "@/hooks/config";
 import {
-  ArrowPathIcon,
   ArrowRightIcon,
   CheckIcon,
   HeartIcon,
@@ -409,16 +409,14 @@ function FiltersPanelContent({ onOpenChange }: { onOpenChange: (open: boolean) =
       </Panel.Body>
 
       <Panel.Footer>
-        <div className="flex justify-end gap-3">
-          <Button onPress={handleReset} variant="danger-soft" className="min-w-24">
-            {<ArrowPathIcon className="size-4" />}
+        <ActionButtonGroup>
+          <ActionButton action="reset" onPress={handleReset}>
             {tActions("reset")}
-          </Button>
-          <Button onPress={apply} variant="primary" className="min-w-24">
-            {<CheckIcon className="size-4" />}
+          </ActionButton>
+          <ActionButton action="apply" onPress={apply}>
             {tActions("apply")}
-          </Button>
-        </div>
+          </ActionButton>
+        </ActionButtonGroup>
       </Panel.Footer>
     </>
   );

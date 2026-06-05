@@ -303,7 +303,7 @@ export default function MediaCarousel({
   // Case 2+: Carousel
   return (
     <>
-      <Carousel className="relative w-full" opts={{ loop: true }}>
+      <Carousel className={`relative w-full ${className}`} opts={{ loop: true }}>
         <MediaCarouselSlides
           handleImageError={handleImageError}
           hasError={hasError}

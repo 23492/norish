@@ -61,6 +61,7 @@ type ReadonlyRecipeMediaProps = {
   };
   aspectRatio?: "video" | "square" | "4/3";
   className?: string;
+  mediaClassName?: string;
   rounded?: boolean;
   topLeftContent?: React.ReactNode;
   topRightContent?: React.ReactNode;
@@ -78,6 +79,7 @@ export function ReadonlyRecipeMedia({
   recipe,
   aspectRatio = "video",
   className = "",
+  mediaClassName = "",
   rounded = false,
   topLeftContent,
   topRightContent,
@@ -89,7 +91,7 @@ export function ReadonlyRecipeMedia({
     <div className={`relative overflow-hidden rounded-2xl ${className}`}>
       <MediaCarousel
         aspectRatio={aspectRatio}
-        className="h-full min-h-[400px] w-full"
+        className={`h-full w-full ${mediaClassName}`}
         items={mediaItems}
         rounded={rounded}
       />

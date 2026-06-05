@@ -4,17 +4,15 @@ import { useRef, useState } from "react";
 import { DynamicHeroIcon, STORE_ICON_NAMES } from "@/components/groceries/dynamic-hero-icon";
 import { getStoreColorClasses, STORE_COLOR_OPTIONS } from "@/components/groceries/store-colors";
 import Panel from "@/components/Panel/Panel";
+import {
+  ActionButton,
+  ActionButtonGroup,
+  IconActionButton,
+} from "@/components/shared/action-button";
 import { useGroceriesQuery } from "@/hooks/groceries";
 import { useStoresMutations } from "@/hooks/stores";
-import {
-  Bars3Icon,
-  CheckIcon,
-  PencilIcon,
-  PlusIcon,
-  TrashIcon,
-  XMarkIcon,
-} from "@heroicons/react/24/solid";
-import { Button, Input, Label, TextField } from "@heroui/react";
+import { Bars3Icon } from "@heroicons/react/24/solid";
+import { Input, Label, TextField } from "@heroui/react";
 import { Reorder, useDragControls } from "motion/react";
 import { useTranslations } from "next-intl";
 
@@ -130,6 +128,10 @@ export function StoreManagerPanel({ open, onOpenChange, stores }: StoreManagerPa
                   dragConstraintsRef={dragConstraintsRef}
                   isEditing={editingStore?.id === store.id}
                   store={store}
+                  translations={{
+                    deleteLabel: tActions("delete"),
+                    editLabel: tActions("edit"),
+                  }}
                   onDelete={() => handleDeleteClick(store)}
                   onEdit={() => handleStartEdit(store)}
                 />
@@ -171,13 +173,11 @@ export function StoreManagerPanel({ open, onOpenChange, stores }: StoreManagerPa
         </Panel.Body>
         {!editingStore && (
           <Panel.Footer>
-            {/* Add store button */}
-            <div className="flex shrink-0 justify-end">
-              <Button className="min-w-24" onPress={handleStartCreate} variant="primary">
-                {<PlusIcon className="h-5 w-5" />}
+            <ActionButtonGroup>
+              <ActionButton action="add" onPress={handleStartCreate}>
                 {t("addStore")}
-              </Button>
-            </div>
+              </ActionButton>
+            </ActionButtonGroup>
           </Panel.Footer>
         )}
       </Panel>
@@ -201,6 +201,10 @@ interface StoreListItemProps {
   store: StoreDto;
   isEditing: boolean;
   dragConstraintsRef: React.RefObject<HTMLDivElement | null>;
+  translations: {
+    deleteLabel: string;
+    editLabel: string;
+  };
   onEdit: () => void;
   onDelete: () => void;
 }
@@ -208,6 +212,7 @@ function StoreListItem({
   store,
   isEditing,
   dragConstraintsRef,
+  translations,
   onEdit,
   onDelete,
 }: StoreListItemProps) {
@@ -248,12 +253,13 @@ function StoreListItem({
 
       {/* Actions */}
       <div className="flex shrink-0 gap-1">
-        <Button isIconOnly size="sm" onPress={onEdit} variant="tertiary">
-          <PencilIcon className="h-4 w-4" />
-        </Button>
-        <Button isIconOnly size="sm" onPress={onDelete} variant="danger-soft">
-          <TrashIcon className="h-4 w-4" />
-        </Button>
+        <IconActionButton action="edit" label={translations.editLabel} size="sm" onPress={onEdit} />
+        <IconActionButton
+          action="delete"
+          label={translations.deleteLabel}
+          size="sm"
+          onPress={onDelete}
+        />
       </div>
     </Reorder.Item>
   );
@@ -350,21 +356,18 @@ function StoreEditForm({ editing, onChange, onSave, onCancel, translations }: St
       </div>
 
       {/* Action buttons */}
-      <div className="flex justify-end gap-2">
-        <Button onPress={onCancel} variant="tertiary" className="min-w-24">
-          <XMarkIcon className="h-4 w-4" />
+      <ActionButtonGroup>
+        <ActionButton action="cancel" onPress={onCancel}>
           {tActions("cancel")}
-        </Button>
-        <Button
+        </ActionButton>
+        <ActionButton
+          action={editing.id ? "save" : "create"}
           isDisabled={!editing.name.trim()}
           onPress={onSave}
-          variant="primary"
-          className="min-w-24"
         >
-          <CheckIcon className="h-4 w-4" />
           {editing.id ? tActions("save") : t("create")}
-        </Button>
-      </div>
+        </ActionButton>
+      </ActionButtonGroup>
     </div>
   );
 }

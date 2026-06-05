@@ -2,8 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Panel from "@/components/Panel/Panel";
-import { CalendarIcon, MinusIcon, PlusIcon } from "@heroicons/react/16/solid";
-import { Button, ToggleButton, ToggleButtonGroup } from "@heroui/react";
+import {
+  ActionButton,
+  ActionButtonGroup,
+  IconActionButton,
+} from "@/components/shared/action-button";
+import { CalendarIcon } from "@heroicons/react/16/solid";
+import { ToggleButton, ToggleButtonGroup } from "@heroui/react";
 import { AnimatePresence, motion } from "motion/react";
 import { useTranslations } from "next-intl";
 
@@ -179,16 +184,15 @@ export function RecurrencePanel({
               {t("interval")}
             </span>
             <div className="flex items-center gap-2">
-              <Button
-                isIconOnly
+              <IconActionButton
+                action="decrease"
                 className="h-8 min-w-8 shrink-0"
                 isDisabled={pattern.interval <= 1}
+                label="Decrease interval"
                 size="sm"
                 onPress={() => handleIntervalChange(-1)}
-                variant="tertiary"
-              >
-                <MinusIcon className="h-4 w-4" />
-              </Button>
+                tooltipPlacement="bottom"
+              />
               <div className="bg-surface-secondary flex-1 rounded-lg px-2 py-2.5 text-center">
                 <span className="text-foreground text-xl font-bold">{pattern.interval}</span>
                 <span className="text-muted ml-1.5 text-xs">
@@ -205,15 +209,14 @@ export function RecurrencePanel({
                         : t("months")}
                 </span>
               </div>
-              <Button
-                isIconOnly
+              <IconActionButton
+                action="increase"
                 className="h-8 min-w-8 shrink-0"
+                label="Increase interval"
                 size="sm"
                 onPress={() => handleIntervalChange(1)}
-                variant="tertiary"
-              >
-                <PlusIcon className="h-4 w-4" />
-              </Button>
+                tooltipPlacement="bottom"
+              />
             </div>
           </motion.div>
         )}
@@ -318,22 +321,21 @@ export function RecurrencePanel({
         </AnimatePresence>
       </Panel.Body>
       <Panel.Footer>
-        <div className="flex justify-end gap-2">
+        <ActionButtonGroup>
           {initialPattern && (
-            <Button className="min-w-24 font-medium" onPress={handleRemove} variant="danger-soft">
+            <ActionButton action="remove" className="font-medium" onPress={handleRemove}>
               {tActions("remove")}
-            </Button>
+            </ActionButton>
           )}
-          <Button
-            className="min-w-24 font-medium"
+          <ActionButton
+            action="done"
+            className="font-medium"
             isDisabled={!pattern}
             onPress={handleSave}
-            variant="primary"
           >
-            <PlusIcon className="h-4 w-4" />
             {tActions("done")}
-          </Button>
-        </div>
+          </ActionButton>
+        </ActionButtonGroup>
       </Panel.Footer>
     </Panel>
   );

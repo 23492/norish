@@ -7,17 +7,13 @@ import Link from "next/link";
 import { useCalendarContext } from "@/app/(app)/calendar/context";
 import { PlannedItemThumbnail } from "@/components/calendar/planned-item-thumbnail";
 import { Panel } from "@/components/Panel/Panel";
-import { ArrowTopRightOnSquareIcon, TrashIcon } from "@heroicons/react/16/solid";
 import {
-  Button,
-  Calendar,
-  DateField,
-  DatePicker,
-  Label,
-  ListBox,
-  Select,
-  Tooltip,
-} from "@heroui/react";
+  ActionButton,
+  ActionButtonGroup,
+  IconActionButton,
+} from "@/components/shared/action-button";
+import { ArrowTopRightOnSquareIcon } from "@heroicons/react/16/solid";
+import { Calendar, DateField, DatePicker, Label, ListBox, Select } from "@heroui/react";
 import { parseDate } from "@internationalized/date";
 import { useTranslations } from "next-intl";
 
@@ -164,31 +160,15 @@ export function EditPlannedRecipePanel({
         </div>
       </Panel.Body>
       <Panel.Footer>
-        <div className="flex w-full items-center gap-2">
-          <Tooltip delay={0}>
-            <Button
-              isIconOnly
-              aria-label={tActions("delete")}
-              onPress={handleDelete}
-              variant="danger-soft"
-            >
-              <TrashIcon className="h-4 w-4" />
-            </Button>
-            <Tooltip.Content placement="top">
-              <p>{tActions("delete")}</p>
-            </Tooltip.Content>
-          </Tooltip>
-          <Button
-            className="ml-auto min-w-24 flex-1 sm:flex-none"
-            onPress={handleDuplicate}
-            variant="tertiary"
-          >
+        <ActionButtonGroup>
+          <IconActionButton action="delete" label={tActions("delete")} onPress={handleDelete} />
+          <ActionButton action="duplicate" onPress={handleDuplicate}>
             {tActions("duplicate")}
-          </Button>
-          <Button className="min-w-24 flex-1 sm:flex-none" onPress={handleSave} variant="primary">
+          </ActionButton>
+          <ActionButton action="save" onPress={handleSave}>
             {tActions("save")}
-          </Button>
-        </div>
+          </ActionButton>
+        </ActionButtonGroup>
       </Panel.Footer>
     </Panel>
   );

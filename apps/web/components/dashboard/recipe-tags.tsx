@@ -12,6 +12,23 @@ interface RecipeTagsProps {
   allergies?: string[];
 }
 
+function dedupeTagsByName(tags: { name: string }[]) {
+  const seen = new Set<string>();
+  const deduped: { name: string }[] = [];
+
+  for (const tag of tags) {
+    const name = tag.name.trim();
+    const key = name.toLowerCase();
+
+    if (!name || seen.has(key)) continue;
+
+    seen.add(key);
+    deduped.push({ name });
+  }
+
+  return deduped;
+}
+
 export default function RecipeTags({ tags, allergies = [] }: RecipeTagsProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dragLimit, setDragLimit] = useState(0);
@@ -22,7 +39,7 @@ export default function RecipeTags({ tags, allergies = [] }: RecipeTagsProps) {
 
   // Sort tags: allergens first, then rest alphabetically
   const sortedTags = useMemo(() => {
-    return sortTagsWithAllergyPriority(tags, allergies);
+    return sortTagsWithAllergyPriority(dedupeTagsByName(tags), allergies);
   }, [tags, allergies]);
 
   useEffect(() => {
@@ -54,12 +71,12 @@ export default function RecipeTags({ tags, allergies = [] }: RecipeTagsProps) {
         dragElastic={0.1}
         style={{ x }}
       >
-        {sortedTags.map((t, i) => {
+        {sortedTags.map((t) => {
           const isAllergen = isAllergenTag(t.name, allergySet);
 
           return (
             <Chip
-              key={i}
+              key={t.name.toLowerCase()}
               className={`shrink-0 ${
                 isAllergen
                   ? "bg-warning/90 text-warning-foreground ring-warning/30 shadow-sm ring-1 backdrop-blur-md"

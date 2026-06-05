@@ -20,6 +20,10 @@ import RecipeCard from "./recipe-card";
 // Estimated row height (card height + gap)
 const ESTIMATED_GRID_ROW_HEIGHT = 356;
 const ESTIMATED_LIST_ROW_HEIGHT = 144;
+const GRID_ROW_OVERSCAN = 3;
+const LIST_ROW_OVERSCAN = 12;
+const GRID_LOAD_MORE_ROW_THRESHOLD = 2;
+const LIST_LOAD_MORE_ROW_THRESHOLD = 6;
 
 export default function RecipeGrid() {
   const {
@@ -49,6 +53,9 @@ export default function RecipeGrid() {
   // Responsive column count from CSS variable
   const columnCount = useContainerColumns();
   const effectiveColumnCount = viewMode === "list" ? 1 : columnCount;
+  const rowOverscan = viewMode === "list" ? LIST_ROW_OVERSCAN : GRID_ROW_OVERSCAN;
+  const loadMoreRowThreshold =
+    viewMode === "list" ? LIST_LOAD_MORE_ROW_THRESHOLD : GRID_LOAD_MORE_ROW_THRESHOLD;
 
   // Track window size to recalculate scrollMargin on resize
   const { height: _windowHeight } = useWindowSize();
@@ -85,7 +92,7 @@ export default function RecipeGrid() {
     count: rowCount,
     estimateSize: () =>
       viewMode === "list" ? ESTIMATED_LIST_ROW_HEIGHT : ESTIMATED_GRID_ROW_HEIGHT,
-    overscan: 2,
+    overscan: rowOverscan,
     scrollMargin,
     initialOffset: savedState?.scrollOffset,
     initialMeasurementsCache: savedState?.measurementsCache,
@@ -111,8 +118,7 @@ export default function RecipeGrid() {
 
     if (!lastRow) return;
 
-    // Check if we're within 2 rows of the end
-    const isNearEnd = lastRow.index >= rowCount - 2;
+    const isNearEnd = lastRow.index >= rowCount - loadMoreRowThreshold;
 
     if (isNearEnd && !isFetchingMore && !hasTriggeredLoadMoreRef.current) {
       hasTriggeredLoadMoreRef.current = true;
@@ -123,7 +129,7 @@ export default function RecipeGrid() {
     if (!isNearEnd) {
       hasTriggeredLoadMoreRef.current = false;
     }
-  }, [virtualRows, rowCount, isFetchingMore, loadMore]);
+  }, [virtualRows, rowCount, loadMoreRowThreshold, isFetchingMore, loadMore]);
 
   // Show skeleton loading state logic
   useEffect(() => {

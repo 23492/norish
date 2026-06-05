@@ -5,9 +5,9 @@ import { RecurrenceSuggestion } from "@/app/(app)/groceries/components/recurrenc
 import { StoreSelector } from "@/components/groceries/store-selector";
 import { RecurrencePanel } from "@/components/Panel/consumers/recurrence-panel";
 import Panel from "@/components/Panel/Panel";
+import { ActionButton, ActionButtonGroup } from "@/components/shared/action-button";
 import { useRecurrenceDetection } from "@/hooks/use-recurrence-detection";
-import { PlusIcon } from "@heroicons/react/16/solid";
-import { Button, Input } from "@heroui/react";
+import { Input } from "@heroui/react";
 import { AnimatePresence } from "motion/react";
 import { useTranslations } from "next-intl";
 
@@ -141,29 +141,24 @@ export default function AddGroceryPanel({
 
             {/* Link to manual recurrence editor */}
             {!confirmedPattern && !detectedPattern && (
-              <Button
+              <ActionButton
+                action="add"
                 className="min-w-16 font-medium"
                 size="sm"
                 onPress={() => setRecurrencePanelOpen(true)}
                 variant="tertiary"
               >
                 {t("addRepeat")}
-              </Button>
+              </ActionButton>
             )}
           </div>
         </Panel.Body>
         <Panel.Footer>
-          <div className="flex justify-end gap-2">
-            <Button
-              className="min-w-24"
-              isDisabled={!itemName.trim()}
-              onPress={handleSubmit}
-              variant="primary"
-            >
-              <PlusIcon className="h-4 w-4" />
+          <ActionButtonGroup>
+            <ActionButton action="add" isDisabled={!itemName.trim()} onPress={handleSubmit}>
               {tActions("add")}
-            </Button>
-          </div>
+            </ActionButton>
+          </ActionButtonGroup>
         </Panel.Footer>
 
         <RecurrencePanel

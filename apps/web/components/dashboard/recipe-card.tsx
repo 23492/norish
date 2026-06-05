@@ -45,6 +45,32 @@ type RecipeCardProps = {
   onDelete: (recipeId: string, version: number) => void;
 };
 
+type RecipeTagValue = RecipeDashboardDTO["tags"][number] | string | null | undefined;
+
+function normalizeRecipeTagNames(tags: readonly RecipeTagValue[] | null | undefined) {
+  const seen = new Set<string>();
+  const names: string[] = [];
+
+  for (const tag of tags ?? []) {
+    const name = (typeof tag === "string" ? tag : tag?.name)?.trim();
+
+    if (!name) continue;
+
+    const key = name.toLowerCase();
+
+    if (seen.has(key)) continue;
+
+    seen.add(key);
+    names.push(name);
+  }
+
+  return names;
+}
+
+function getRecipeTagsSignature(tags: RecipeDashboardDTO["tags"] | null | undefined) {
+  return normalizeRecipeTagNames(tags).join("\u0000");
+}
+
 function RecipeCardComponent({
   recipe,
   isFavorite: recipeIsFavorite,
@@ -89,7 +115,10 @@ function RecipeCardComponent({
   const timeLabel = formatMinutesHM(totalMinutes);
 
   const servings = recipe.servings;
-  const allTags = recipe.tags ?? [];
+  const tagNames = useMemo(() => normalizeRecipeTagNames(recipe.tags), [recipe.tags]);
+  const visibleTagNames = tagNames.slice(0, 2);
+  const hiddenTagCount = tagNames.length - visibleTagNames.length;
+  const allTags = useMemo(() => tagNames.map((name) => ({ name })), [tagNames]);
   const description = recipe.description?.trim() || "";
 
   // Get thumbnail from the legacy image field
@@ -200,7 +229,10 @@ function RecipeCardComponent({
     );
 
   const metadataChips = (
-    <div className="flex min-w-0 flex-wrap items-center gap-1.5 overflow-hidden">
+    <div
+      className="flex min-w-0 flex-wrap items-center gap-1.5 overflow-hidden"
+      title={tagNames.length > 0 ? tagNames.join(", ") : undefined}
+    >
       {typeof averageRating === "number" && averageRating > 0 && showRatings && (
         <Chip className="shrink-0 rounded-full px-2 text-[11px]" size="sm" variant="soft">
           <StarIcon className="text-warning h-3.5 w-3.5" />
@@ -222,11 +254,34 @@ function RecipeCardComponent({
         </Chip>
       )}
 
-      {allTags.slice(0, 2).map((tag) => (
-        <Chip key={tag} className="max-w-[8rem] min-w-0 rounded-full px-2 text-[11px]" size="sm">
+      {visibleTagNames.map((tag) => (
+        <Chip
+          key={tag.toLowerCase()}
+          className="max-w-[8rem] min-w-0 rounded-full px-2 text-[11px]"
+          size="sm"
+        >
           <Chip.Label className="truncate">{tag}</Chip.Label>
         </Chip>
       ))}
+
+      {hiddenTagCount > 0 && (
+        <Tooltip delay={0}>
+          <Tooltip.Trigger aria-label={tagNames.join(", ")} onClick={stopParentActivation}>
+            <Chip className="shrink-0 rounded-full px-2 text-[11px]" size="sm" variant="soft">
+              <Chip.Label>+{hiddenTagCount}</Chip.Label>
+            </Chip>
+          </Tooltip.Trigger>
+          <Tooltip.Content className="max-w-64">
+            <div className="flex flex-wrap gap-1.5 p-1">
+              {tagNames.map((tag) => (
+                <Chip key={tag.toLowerCase()} className="max-w-48 rounded-full px-2" size="sm">
+                  <Chip.Label className="truncate">{tag}</Chip.Label>
+                </Chip>
+              ))}
+            </div>
+          </Tooltip.Content>
+        </Tooltip>
+      )}
     </div>
   );
 
@@ -442,7 +497,7 @@ const RecipeCard = memo(RecipeCardComponent, (prevProps, nextProps) => {
     prev.totalMinutes === next.totalMinutes &&
     prev.averageRating === next.averageRating &&
     prev.updatedAt?.getTime() === next.updatedAt?.getTime() &&
-    prev.tags?.length === next.tags?.length
+    getRecipeTagsSignature(prev.tags) === getRecipeTagsSignature(next.tags)
   );
 });
 

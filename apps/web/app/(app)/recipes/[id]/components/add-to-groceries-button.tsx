@@ -2,8 +2,7 @@
 
 import React, { useState } from "react";
 import { MiniGroceries } from "@/components/Panel/consumers";
-import { PlusIcon } from "@heroicons/react/16/solid";
-import { Button } from "@heroui/react";
+import { ActionButton } from "@/components/shared/action-button";
 import { useTranslations } from "next-intl";
 
 import { useRecipeContextRequired } from "../context";
@@ -14,14 +13,12 @@ type Props = {
 export default function AddToGroceries({ recipeId }: Props) {
   const [open, setOpen] = useState(false);
   const { currentServings, recipe } = useRecipeContextRequired();
-  const t = useTranslations("recipes.detail");
   const tActions = useTranslations("common.actions");
   return (
     <>
-      <Button fullWidth onPress={() => setOpen(true)} variant="primary">
-        {<PlusIcon className="h-5 w-5" />}
+      <ActionButton fullWidth action="add" onPress={() => setOpen(true)}>
         {tActions("add")}
-      </Button>
+      </ActionButton>
       <MiniGroceries
         initialServings={currentServings}
         open={open}

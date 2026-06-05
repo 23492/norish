@@ -57,7 +57,10 @@ export default function RecipePageDesktop() {
     <div className="hidden flex-col space-y-6 px-6 pb-10 md:flex">
       {/* Back link */}
       <div className="w-fit">
-        <Link className="text-muted flex items-center gap-1 text-base no-underline hover:text-foreground" href="/">
+        <Link
+          className="text-muted hover:text-foreground flex items-center gap-1 text-base no-underline"
+          href="/"
+        >
           <ArrowLeftIcon className="h-4 w-4" />
           {t("backToRecipes")}
         </Link>
@@ -108,12 +111,15 @@ export default function RecipePageDesktop() {
         {/* RIGHT column: Image + Steps (stacked) */}
         <div className="flex flex-col gap-6 md:col-span-1 lg:col-span-3">
           <DoubleTapContainer
+            className="overflow-hidden rounded-2xl"
             doubleTapEnabled={showFavorites}
             onDoubleTap={() => {
               if (showFavorites) handleToggleFavorite();
             }}
           >
             <ReadonlyRecipeMedia
+              className="h-[clamp(360px,42vw,520px)] rounded-2xl"
+              mediaClassName="min-h-0"
               recipe={recipe}
               topLeftContent={
                 recipe.author ? (

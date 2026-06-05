@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Panel from "@/components/Panel/Panel";
-import { Button, FieldError, Input, TextField } from "@heroui/react";
+import { ActionButton, ActionButtonGroup } from "@/components/shared/action-button";
+import { FieldError, Input, TextField } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
 type EditTagPanelProps = {
@@ -79,19 +80,14 @@ export default function EditTagPanel({
         </div>
       </Panel.Body>
       <Panel.Footer>
-        <div className="flex justify-end gap-2">
-          <Button className="min-w-24" onPress={handleDelete} variant="danger-soft">
+        <ActionButtonGroup>
+          <ActionButton action="delete" onPress={handleDelete}>
             {tActions("delete")}
-          </Button>
-          <Button
-            className="min-w-24"
-            isDisabled={!canSave}
-            onPress={handleSubmit}
-            variant="primary"
-          >
+          </ActionButton>
+          <ActionButton action="save" isDisabled={!canSave} onPress={handleSubmit}>
             {tActions("save")}
-          </Button>
-        </div>
+          </ActionButton>
+        </ActionButtonGroup>
       </Panel.Footer>
     </Panel>
   );

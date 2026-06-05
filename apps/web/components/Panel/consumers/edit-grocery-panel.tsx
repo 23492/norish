@@ -5,8 +5,9 @@ import { RecurrenceSuggestion } from "@/app/(app)/groceries/components/recurrenc
 import { StoreSelector } from "@/components/groceries/store-selector";
 import { RecurrencePanel } from "@/components/Panel/consumers/recurrence-panel";
 import Panel from "@/components/Panel/Panel";
+import { ActionButton, ActionButtonGroup } from "@/components/shared/action-button";
 import { useRecurrenceDetection } from "@/hooks/use-recurrence-detection";
-import { Button, Input } from "@heroui/react";
+import { Input } from "@heroui/react";
 import { AnimatePresence } from "motion/react";
 import { useTranslations } from "next-intl";
 
@@ -157,31 +158,27 @@ export default function EditGroceryPanel({
 
             {/* Link to manual recurrence editor */}
             {!confirmedPattern && !detectedPattern && (
-              <Button
+              <ActionButton
+                action="add"
                 className="-mt-1 min-w-16 font-medium"
                 size="sm"
                 onPress={() => setRecurrencePanelOpen(true)}
                 variant="tertiary"
               >
                 {t("addRepeat")}
-              </Button>
+              </ActionButton>
             )}
           </div>
         </Panel.Body>
         <Panel.Footer>
-          <div className="flex justify-end gap-2">
-            <Button className="min-w-24" onPress={onDelete} variant="danger-soft">
+          <ActionButtonGroup>
+            <ActionButton action="delete" onPress={onDelete}>
               {tActions("delete")}
-            </Button>
-            <Button
-              className="min-w-24"
-              isDisabled={!itemName.trim()}
-              onPress={handleSubmit}
-              variant="primary"
-            >
+            </ActionButton>
+            <ActionButton action="save" isDisabled={!itemName.trim()} onPress={handleSubmit}>
               {tActions("save")}
-            </Button>
-          </div>
+            </ActionButton>
+          </ActionButtonGroup>
         </Panel.Footer>
 
         <RecurrencePanel
