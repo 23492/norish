@@ -371,8 +371,17 @@ function MiniRecipesContent({
 export default function MiniRecipes({ open, onOpenChange, date, slot }: MiniRecipesProps) {
   const t = useTranslations("calendar.panel");
   return (
-    <Panel open={open} title={t("addRecipe")} onOpenChange={onOpenChange}>
-      {open && <MiniRecipesContent date={date} slot={slot} onOpenChange={onOpenChange} />}
+    <Panel
+      backdropVariant="blur"
+      contentClassName="max-h-[80dvh]"
+      open={open}
+      panelClassName="h-[80dvh] max-h-[80dvh]"
+      title={t("addRecipe")}
+      onOpenChange={onOpenChange}
+    >
+      <Panel.Body className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {open && <MiniRecipesContent date={date} slot={slot} onOpenChange={onOpenChange} />}
+      </Panel.Body>
     </Panel>
   );
 }

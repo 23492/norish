@@ -13,7 +13,9 @@ import { Sheet } from "@heroui-pro/react";
 
 export interface PanelProps {
   className?: string;
+  contentClassName?: string;
   panelClassName?: string;
+  backdropVariant?: "opaque" | "blur" | "transparent";
   title?: string;
   children: ReactNode;
   trigger?: ReactElement;
@@ -62,7 +64,9 @@ type PanelComponent = React.FC<PanelProps> & {
 
 const PanelRoot: React.FC<PanelProps> = ({
   className = "",
+  contentClassName = "",
   panelClassName = "",
+  backdropVariant = "opaque",
   title = "",
   nested = false,
   children,
@@ -114,6 +118,7 @@ const PanelRoot: React.FC<PanelProps> = ({
     };
   }, [children]);
   const hasFooter = footerChildren.length > 0;
+  const contentClasses = ["mx-auto max-w-md", contentClassName].filter(Boolean).join(" ");
 
   const panelTrigger = trigger as ReactElement<PanelTriggerProps> | undefined;
   const triggerElement =
@@ -135,9 +140,9 @@ const PanelRoot: React.FC<PanelProps> = ({
       {trigger && <span className="inline-flex">{triggerElement}</span>}
 
       <PanelContext.Provider value={{ open, close, toggle }}>
-        <Root  isOpen={open} placement="bottom" onOpenChange={setOpen}>
-          <Sheet.Backdrop className="z-[1000]" variant="opaque">
-            <Sheet.Content className="mx-auto max-w-md">
+        <Root isOpen={open} placement="bottom" onOpenChange={setOpen}>
+          <Sheet.Backdrop className="z-[1000]" variant={backdropVariant}>
+            <Sheet.Content className={contentClasses}>
               <Sheet.Dialog aria-label={title || "Panel"} className={panelClassName}>
                 <Sheet.Handle className="relative z-10" />
                 <Sheet.CloseTrigger aria-label="Close panel" className="z-30" />

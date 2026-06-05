@@ -77,14 +77,14 @@ function FilterSearchInput({
       <MagnifyingGlassIcon className="text-muted pointer-events-none absolute top-1/2 left-3 z-10 h-4 w-4 -translate-y-1/2" />
       <Input
         fullWidth
-        className={`${compact ? "h-9 text-sm" : "h-10 text-base"} bg-field shadow-field focus-visible:border-accent/60 focus-visible:ring-accent/20 rounded-full border border-transparent px-9 transition-colors outline-none focus-visible:ring-2`}
+        className={compact ? "h-9 text-sm" : undefined}
         placeholder={placeholder}
         style={{
           paddingLeft: "2.25rem",
           paddingRight: value.length > 0 ? "2.25rem" : "0.875rem",
         }}
         value={value}
-        variant="primary"
+        variant="secondary"
         onChange={(e) => onChange(e.target.value)}
       />
       {value.length > 0 && (

@@ -314,10 +314,16 @@ function MiniCalendarContent({
 export default function MiniCalendar({ open, onOpenChange, recipeId }: MiniCalendarProps) {
   const t = useTranslations("calendar.panel");
   return (
-    <Panel open={open} title={t("addToCalendar")} onOpenChange={onOpenChange}>
-      <div className="flex min-h-0 flex-1 flex-col">
+    <Panel
+      contentClassName="max-h-[80dvh]"
+      open={open}
+      panelClassName="h-[80dvh] max-h-[80dvh]"
+      title={t("addToCalendar")}
+      onOpenChange={onOpenChange}
+    >
+      <Panel.Body className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {open && <MiniCalendarContent recipeId={recipeId} onOpenChange={onOpenChange} />}
-      </div>
+      </Panel.Body>
     </Panel>
   );
 }

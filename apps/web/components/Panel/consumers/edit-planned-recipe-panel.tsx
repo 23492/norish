@@ -82,14 +82,14 @@ export function EditPlannedRecipePanel({
       <Panel.Body className="gap-5">
         {/* Recipe preview */}
         <Link
-          className="bg-surface-secondary hover:bg-surface-tertiary focus-visible:ring-accent flex items-center gap-3 rounded-xl p-3 outline-none focus-visible:ring-2"
+          className="focus-visible:ring-accent group flex items-center gap-3 rounded-xl p-2 outline-none focus-visible:ring-2"
           href={`/recipes/${recipeId}`}
           onClick={() => onOpenChange(false)}
         >
           <PlannedItemThumbnail alt={recipeName} image={recipeImage} itemType="recipe" size="md" />
           <div className="flex min-w-0 flex-1 flex-col">
             <span className="text-foreground truncate text-base font-medium">{recipeName}</span>
-            <span className="text-accent flex items-center gap-1 text-sm">
+            <span className="text-accent flex items-center gap-1 text-sm group-hover:underline">
               {tTimeline("goToRecipe")}
               <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
             </span>
