@@ -62,6 +62,18 @@
     "savePreference": "Husk butikk for denne varen",
     "addAnother": "Legg til enda en",
     "addRepeat": "+ Legg til gjentakelse",
+    "recurrenceEnabled": "Gjentakende",
+    "recurrenceSheet": {
+      "title": "Gjentakelse",
+      "subtitle": "Legg automatisk denne varen til handlelisten igjen",
+      "enable": "Aktiver gjentakelse",
+      "disable": "Deaktiver gjentakelse",
+      "frequency": "Hyppighet",
+      "weekly": "Ukentlig",
+      "biweekly": "Hver 2. uke",
+      "monthly": "Månedlig",
+      "confirm": "Bekreft"
+    },
     "storeOptional": "Butikk (valgfritt)",
     "autoDetectFromHistory": "Registrer automatisk fra historikk",
     "autoDetectOrSelect": "Registrer automatisk eller velg",

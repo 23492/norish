@@ -14,6 +14,11 @@
       "ingredients": "Ingredienser",
       "steps": "Trinn",
       "tags": "Tags"
+    },
+    "viewMode": {
+      "label": "Oppskriftsvisning",
+      "grid": "Rutenett",
+      "list": "Liste"
     }
   },
   "empty": {
@@ -26,7 +31,8 @@
     "noImage": "Ingen bilde tilgjengelig",
     "viewGroceries": "Se handleliste",
     "addToCalendar": "Legg til i kalender",
-    "deleteRecipe": "Slett oppskrift"
+    "deleteRecipe": "Slett oppskrift",
+    "recipeOptions": "Oppskriftsvalg"
   },
   "detail": {
     "backToRecipes": "Tilbake til oppskrifter",
