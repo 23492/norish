@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Panel, { PANEL_HEIGHT_MEDIUM } from "@/components/Panel/Panel";
+import Panel from "@/components/Panel/Panel";
 import { CalendarIcon, MinusIcon, PlusIcon } from "@heroicons/react/16/solid";
 import { Button, ToggleButton, ToggleButtonGroup } from "@heroui/react";
 import { AnimatePresence, motion } from "motion/react";
@@ -22,7 +22,6 @@ type RecurrencePanelProps = {
   nested?: boolean;
   onSave: (pattern: RecurrencePattern | null) => void;
   returnToPreviousPanel?: () => void;
-  height?: number;
 };
 const WEEKDAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 export function RecurrencePanel({
@@ -32,7 +31,6 @@ export function RecurrencePanel({
   initialPattern,
   onSave,
   returnToPreviousPanel,
-  height = PANEL_HEIGHT_MEDIUM,
 }: RecurrencePanelProps) {
   const t = useTranslations("common.recurrence");
   const tActions = useTranslations("common.actions");
@@ -115,7 +113,6 @@ export function RecurrencePanel({
   return (
     <Panel
       className={nested ? "contents" : undefined}
-      height={height}
       nested={nested}
       open={open}
       title={t("title")}
@@ -335,6 +332,7 @@ export function RecurrencePanel({
             onPress={handleSave}
             variant="primary"
           >
+            <PlusIcon className="h-4 w-4" />
             {tActions("done")}
           </Button>
         </div>

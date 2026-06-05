@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { DynamicHeroIcon, STORE_ICON_NAMES } from "@/components/groceries/dynamic-hero-icon";
 import { getStoreColorClasses, STORE_COLOR_OPTIONS } from "@/components/groceries/store-colors";
-import Panel, { PANEL_HEIGHT_LARGE } from "@/components/Panel/Panel";
+import Panel from "@/components/Panel/Panel";
 import { useGroceriesQuery } from "@/hooks/groceries";
 import { useStoresMutations } from "@/hooks/stores";
 import {
@@ -107,7 +107,7 @@ export function StoreManagerPanel({ open, onOpenChange, stores }: StoreManagerPa
   };
   return (
     <>
-      <Panel height={PANEL_HEIGHT_LARGE} open={open} title={t("title")} onOpenChange={onOpenChange}>
+      <Panel open={open} title={t("title")} onOpenChange={onOpenChange}>
         <Panel.Body>
           {/* Store list */}
           <div ref={dragConstraintsRef} className="min-h-0 flex-1">

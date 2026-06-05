@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useTRPC } from "@/app/providers/trpc-provider";
-import Panel, { PANEL_HEIGHT_LARGE } from "@/components/Panel/Panel";
+import Panel from "@/components/Panel/Panel";
 import RecipeShareStatusChip from "@/components/recipes/recipe-share-status-chip";
 import { sharedRecipeShareHooks } from "@/hooks/recipes/shared-recipe-hooks";
 import { showSafeErrorToast } from "@/lib/ui/safe-error-toast";
@@ -99,7 +99,7 @@ export default function RecipeSharePanel({ open, onOpenChange }: Props) {
     });
   };
   return (
-    <Panel height={PANEL_HEIGHT_LARGE} open={open} title={t("title")} onOpenChange={onOpenChange}>
+    <Panel open={open} title={t("title")} onOpenChange={onOpenChange}>
       <div className="flex flex-col gap-4">
         <p className="text-muted text-sm">
           {t("description", {

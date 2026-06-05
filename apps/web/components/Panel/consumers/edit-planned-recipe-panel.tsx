@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useCalendarContext } from "@/app/(app)/calendar/context";
 import { PlannedItemThumbnail } from "@/components/calendar/planned-item-thumbnail";
-import { Panel, PANEL_HEIGHT_COMPACT } from "@/components/Panel/Panel";
+import { Panel } from "@/components/Panel/Panel";
 import { ArrowTopRightOnSquareIcon, TrashIcon } from "@heroicons/react/16/solid";
 import { Button, DatePicker, Label, ListBox, Select } from "@heroui/react";
 import { parseDate } from "@internationalized/date";
@@ -68,7 +68,7 @@ export function EditPlannedRecipePanel({
     }
   };
   return (
-    <Panel height={PANEL_HEIGHT_COMPACT} open={open} title={t("title")} onOpenChange={onOpenChange}>
+    <Panel open={open} title={t("title")} onOpenChange={onOpenChange}>
       <Panel.Body>
         {/* Recipe preview */}
         <Link

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Panel, { PANEL_HEIGHT_COMPACT } from "@/components/Panel/Panel";
+import Panel from "@/components/Panel/Panel";
 import { Button, FieldError, Input, TextField } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
@@ -56,12 +56,7 @@ export default function EditTagPanel({
     onOpenChange(false);
   };
   return (
-    <Panel
-      height={PANEL_HEIGHT_COMPACT}
-      open={open}
-      title={t("editTitle")}
-      onOpenChange={onOpenChange}
-    >
+    <Panel open={open} title={t("editTitle")} onOpenChange={onOpenChange}>
       <Panel.Body>
         <div className="space-y-3">
           <TextField isInvalid={isDuplicate} value={tagName} onChange={setTagName}>

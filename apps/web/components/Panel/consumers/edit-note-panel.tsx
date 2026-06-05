@@ -3,7 +3,7 @@
 import type { Key } from "react";
 import { useEffect, useState } from "react";
 import { useCalendarContext } from "@/app/(app)/calendar/context";
-import { Panel, PANEL_HEIGHT_COMPACT } from "@/components/Panel/Panel";
+import { Panel } from "@/components/Panel/Panel";
 import { TrashIcon } from "@heroicons/react/16/solid";
 import { Button, DatePicker, Input, Label, ListBox, Select, TextField } from "@heroui/react";
 import { parseDate } from "@internationalized/date";
@@ -69,7 +69,7 @@ export function EditNotePanel({
     }
   };
   return (
-    <Panel height={PANEL_HEIGHT_COMPACT} open={open} title={t("title")} onOpenChange={onOpenChange}>
+    <Panel open={open} title={t("title")} onOpenChange={onOpenChange}>
       <Panel.Body>
         <TextField value={title} onChange={setTitle}>
           <Label>{t("noteLabel")}</Label>

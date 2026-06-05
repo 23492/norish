@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { RecurrenceSuggestion } from "@/app/(app)/groceries/components/recurrence-suggestion";
 import { StoreSelector } from "@/components/groceries/store-selector";
 import { RecurrencePanel } from "@/components/Panel/consumers/recurrence-panel";
-import Panel, { PANEL_HEIGHT_FORM } from "@/components/Panel/Panel";
+import Panel from "@/components/Panel/Panel";
 import { useRecurrenceDetection } from "@/hooks/use-recurrence-detection";
+import { PlusIcon } from "@heroicons/react/16/solid";
 import { Button, Input } from "@heroui/react";
 import { AnimatePresence } from "motion/react";
 import { useTranslations } from "next-intl";
@@ -80,12 +81,7 @@ export default function AddGroceryPanel({
   };
   return (
     <>
-      <Panel
-        height={PANEL_HEIGHT_FORM}
-        open={open}
-        title={t("addTitle")}
-        onOpenChange={handlePanelOpenChange}
-      >
+      <Panel open={open} title={t("addTitle")} onOpenChange={handlePanelOpenChange}>
         <Panel.Body>
           <div className="space-y-3">
             <Input
@@ -164,6 +160,7 @@ export default function AddGroceryPanel({
               onPress={handleSubmit}
               variant="primary"
             >
+              <PlusIcon className="h-4 w-4" />
               {tActions("add")}
             </Button>
           </div>
