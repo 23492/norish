@@ -187,7 +187,7 @@ function RecipeCardComponent({
   }, [showDeleteAction, handleDeleteClick, t]);
 
   const optionsButton = (
-    <div className="hidden md:block" onClick={stopParentActivation}>
+    <div className="hidden md:block" role="presentation" onClick={stopParentActivation}>
       <Tooltip delay={0}>
         <Button
           isIconOnly
@@ -308,7 +308,7 @@ function RecipeCardComponent({
         <div className="group/row relative h-full w-full">
           <Card className="border-border bg-surface relative h-full w-full overflow-hidden rounded-2xl border p-0">
             <div className="flex h-full min-w-0 items-stretch">
-              <div onClick={stopParentActivation}>
+              <div role="presentation" onClick={stopParentActivation}>
                 <DoubleTapContainer
                   className="bg-surface-secondary relative h-full w-[112px] shrink-0 cursor-pointer overflow-hidden"
                   disabled={open || mobileSearchOpen}

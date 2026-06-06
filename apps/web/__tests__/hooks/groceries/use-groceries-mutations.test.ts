@@ -122,7 +122,7 @@ vi.mock("@/hooks/config", () => ({
 vi.mock("@norish/shared/lib/helpers", () => ({
   parseIngredientWithDefaults: vi.fn((raw: string) => [
     {
-      description: raw.trim(),
+      description: raw.trim().replace(/^\d+(?:\.\d+)?\s+\S+\s+/u, ""),
       quantity: 1,
       unitOfMeasure: "piece",
     },

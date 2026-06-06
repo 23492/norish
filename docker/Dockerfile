@@ -58,7 +58,6 @@ COPY packages/ui/package.json ./packages/ui/package.json
 COPY tooling/eslint/package.json ./tooling/eslint/package.json
 COPY tooling/prettier/package.json ./tooling/prettier/package.json
 COPY tooling/tailwind/package.json ./tooling/tailwind/package.json
-COPY tooling/tailwind/hero.ts ./tooling/tailwind/hero.ts
 COPY tooling/tailwind/heroui-theme.css ./tooling/tailwind/heroui-theme.css
 COPY tooling/tailwind/heroui-theme.js ./tooling/tailwind/heroui-theme.js
 COPY tooling/tailwind/postcss-config.js ./tooling/tailwind/postcss-config.js
