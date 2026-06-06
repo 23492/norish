@@ -56,7 +56,8 @@ jobs:
       - name: Read package versions
         id: versions
         run: |
-          echo "report=$(node tooling/monorepo/scripts/print-package-versions.mjs)" >> "$GITHUB_OUTPUT"
+          report="$(node tooling/monorepo/scripts/print-package-versions.mjs)"
+          echo "report=${report}" >> "$GITHUB_OUTPUT"
 
       - name: Build Docker images (multi-arch)
         uses: docker/build-push-action@v7
