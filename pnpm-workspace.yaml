@@ -1,5 +1,6 @@
 packages:
   - apps/*
+  - "!apps/quick-import-extension"
   - packages/*
   - tooling/*
 
