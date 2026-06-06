@@ -4,8 +4,8 @@
   "type": "module",
   "exports": {
     "./heroui-theme": {
-      "node": "./native-theme.js",
-      "default": "./native-theme.css"
+      "node": "./heroui-theme.js",
+      "default": "./heroui-theme.css"
     },
     "./postcss-config": "./postcss-config.js"
   },

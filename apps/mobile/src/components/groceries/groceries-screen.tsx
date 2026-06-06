@@ -1,10 +1,9 @@
 import type { GroceryRecurrenceSettings } from "@/components/shell/sheet/grocery-recurrence-sheet";
-import type { GroceryDto } from "@norish/shared/contracts";
 import React, { useCallback, useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
-import { useGroceriesContext } from "@/context/groceries-context";
 import { GroceryEditorSheet } from "@/components/shell/sheet/grocery-editor-sheet";
 import { DEFAULT_GROCERY_RECURRENCE_SETTINGS } from "@/components/shell/sheet/grocery-recurrence-sheet";
+import { useGroceriesContext } from "@/context/groceries-context";
 import { useStoresContext } from "@/context/stores-context";
 import {
   buildRecipeSections,
@@ -14,6 +13,9 @@ import {
 import { Stack } from "expo-router";
 import { useThemeColor } from "heroui-native";
 
+import type { GroceryDto } from "@norish/shared/contracts";
+
+import type { GroceryViewMode } from "./types";
 import { GroceriesMenu } from "./groceries-menu";
 import { GrocerySectionCard } from "./grocery-section-card";
 
@@ -23,8 +25,6 @@ const SORT_DELAY_MS = 380;
 function buildGroceryInputText(item: GroceryDto) {
   return [formatAmountUnit(item.amount, item.unit), item.name].filter(Boolean).join(" ");
 }
-
-export type GroceryViewMode = "store" | "recipe";
 
 export function GroceriesScreen() {
   const {
@@ -167,7 +167,15 @@ export function GroceriesScreen() {
 
       setEditingItemId(null);
     },
-    [editingItemId, editingItem, updateRecurringGrocery, deleteGroceries, createRecurringGrocery, updateGrocery, assignGroceryToStore]
+    [
+      editingItemId,
+      editingItem,
+      updateRecurringGrocery,
+      deleteGroceries,
+      createRecurringGrocery,
+      updateGrocery,
+      assignGroceryToStore,
+    ]
   );
 
   return (
@@ -260,7 +268,9 @@ function GroceriesStateMessage({
 }) {
   return (
     <View style={{ paddingHorizontal: 18, paddingVertical: 36, gap: 8 }}>
-      <Text style={{ color: foregroundColor, fontSize: 18, fontWeight: "700", textAlign: "center" }}>
+      <Text
+        style={{ color: foregroundColor, fontSize: 18, fontWeight: "700", textAlign: "center" }}
+      >
         {title}
       </Text>
       <Text style={{ color: mutedColor, fontSize: 14, lineHeight: 20, textAlign: "center" }}>

@@ -1,8 +1,9 @@
-import type { GroceryViewMode } from "./groceries-screen";
 import React from "react";
 import { ShellMenu } from "@/components/shell/menu";
-import { Button as UIButton, Divider } from "@expo/ui/swift-ui";
+import { Divider, Button as UIButton } from "@expo/ui/swift-ui";
 import { useThemeColor } from "heroui-native";
+
+import type { GroceryViewMode } from "./types";
 
 type GroceriesMenuProps = {
   viewMode: GroceryViewMode;
