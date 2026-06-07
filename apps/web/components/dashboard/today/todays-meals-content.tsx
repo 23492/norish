@@ -47,7 +47,7 @@ export default function TodaysMealsContent() {
   return (
     <section className="flex shrink-0 flex-col gap-4" aria-labelledby="today-meals-heading">
       <div className="min-w-0">
-        <h2 id="today-meals-heading" className="text-foreground text-xl font-semibold">
+        <h2 id="today-meals-heading" className="text-foreground text-2xl leading-8 font-semibold">
           {tCalendar("mobile.today")}
         </h2>
         <p className="text-muted mt-1 text-sm">{dateLabel}</p>

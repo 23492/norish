@@ -5,7 +5,7 @@ import { usePermissionsContext } from "@/context/permissions-context";
 import { useRecipesContext } from "@/context/recipes-context";
 import { showSafeErrorToast } from "@/lib/ui/safe-error-toast";
 import { ArrowDownTrayIcon, SparklesIcon } from "@heroicons/react/16/solid";
-import { Button, Input, Modal } from "@heroui/react";
+import { Button, Input, Label, Modal, TextField } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
 interface ImportRecipeModalProps {
@@ -19,19 +19,29 @@ export default function ImportRecipeModal({ isOpen, onOpenChange }: ImportRecipe
   const { importRecipe, importRecipeWithAI } = useRecipesContext();
   const { isAIEnabled } = usePermissionsContext();
   const [importUrl, setImportUrl] = useState("");
+
+  function handleOpenChange(open: boolean) {
+    if (!open) {
+      setImportUrl("");
+    }
+    onOpenChange(open);
+  }
   useEffect(() => {
     if (!isOpen || typeof navigator === "undefined" || !navigator.clipboard?.readText) {
       return;
     }
     let isCancelled = false;
+
     async function fillUrlFromClipboard() {
       try {
         const clipboardText = (await navigator.clipboard.readText()).trim();
+
         if (!clipboardText) {
           return;
         }
         const parsedUrl = new URL(clipboardText);
         const isHttpUrl = parsedUrl.protocol === "http:" || parsedUrl.protocol === "https:";
+
         if (isHttpUrl && !isCancelled) {
           setImportUrl((currentValue) =>
             currentValue.trim() === "" ? clipboardText : currentValue
@@ -40,6 +50,7 @@ export default function ImportRecipeModal({ isOpen, onOpenChange }: ImportRecipe
       } catch {}
     }
     void fillUrlFromClipboard();
+
     return () => {
       isCancelled = true;
     };
@@ -80,34 +91,30 @@ export default function ImportRecipeModal({ isOpen, onOpenChange }: ImportRecipe
       });
     }
   }
+
   return (
     <Modal>
-      <Modal.Backdrop className="z-[1099]" isOpen={isOpen} onOpenChange={onOpenChange}>
+      <Modal.Backdrop className="z-[1099]" isOpen={isOpen} onOpenChange={handleOpenChange}>
         <Modal.Container className="z-[1100]" size="md">
           <Modal.Dialog>
             {() => (
               <>
+                <Modal.CloseTrigger />
                 <Modal.Header className="flex flex-col gap-1">{t("title")}</Modal.Header>
                 <Modal.Body>
-                  <Input
-                    label={t("label")}
-                    placeholder={t("placeholder")}
-                    type="url"
-                    value={importUrl}
-                    onChange={(e) => setImportUrl(e.target.value)}
-                  />
+                  <TextField fullWidth type="url" value={importUrl} onChange={setImportUrl}>
+                    <Label>{t("label")}</Label>
+                    <Input fullWidth placeholder={t("placeholder")} variant="secondary" />
+                  </TextField>
                 </Modal.Body>
                 <Modal.Footer>
                   {isAIEnabled && (
-                    <Button
-                      className="bg-gradient-to-r from-rose-400 via-fuchsia-500 to-indigo-500 text-white hover:brightness-110"
-                      onPress={handleAIImport}
-                    >
+                    <Button variant="secondary" onPress={handleAIImport}>
                       {<SparklesIcon className="h-4 w-4" />}
                       {tActions("aiImport")}
                     </Button>
                   )}
-                  <Button onPress={handleImportFromUrl} variant="primary">
+                  <Button variant="primary" onPress={handleImportFromUrl}>
                     {<ArrowDownTrayIcon className="h-4 w-4" />}
                     {tActions("import")}
                   </Button>

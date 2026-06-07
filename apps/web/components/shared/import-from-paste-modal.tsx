@@ -6,7 +6,7 @@ import { usePermissionsContext } from "@/context/permissions-context";
 import { useRecipesMutations } from "@/hooks/recipes";
 import { showSafeErrorToast } from "@/lib/ui/safe-error-toast";
 import { ArrowDownTrayIcon, SparklesIcon } from "@heroicons/react/16/solid";
-import { Button, Modal, TextArea, toast } from "@heroui/react";
+import { Button, Label, Modal, TextArea, TextField, toast } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
 import { MAX_RECIPE_PASTE_CHARS } from "@norish/shared/contracts/uploads";
@@ -26,6 +26,7 @@ export default function ImportFromPasteModal({ isOpen, onOpenChange }: ImportFro
   const [isSubmitting, setIsSubmitting] = useState(false);
   const handleImport = useCallback(() => {
     const trimmed = text.trim();
+
     if (!trimmed) return;
     setIsSubmitting(true);
     try {
@@ -51,6 +52,7 @@ export default function ImportFromPasteModal({ isOpen, onOpenChange }: ImportFro
   }, [importRecipeFromPaste, onOpenChange, router, t, tErrors, text]);
   const handleAIImport = useCallback(() => {
     const trimmed = text.trim();
+
     if (!trimmed) return;
     if (trimmed.length > MAX_RECIPE_PASTE_CHARS) {
       toast(t("tooLarge"), {
@@ -59,6 +61,7 @@ export default function ImportFromPasteModal({ isOpen, onOpenChange }: ImportFro
         }),
         variant: "warning",
       });
+
       return;
     }
     setIsSubmitting(true);
@@ -83,27 +86,30 @@ export default function ImportFromPasteModal({ isOpen, onOpenChange }: ImportFro
       setIsSubmitting(false);
     }
   }, [importRecipeFromPasteWithAI, onOpenChange, router, t, tErrors, text]);
-  const _handleClose = useCallback(() => {
-    onOpenChange(false);
-    setText("");
-  }, [onOpenChange]);
+  const handleOpenChange = useCallback(
+    (open: boolean) => {
+      if (!open) {
+        setText("");
+      }
+      onOpenChange(open);
+    },
+    [onOpenChange]
+  );
+
   return (
     <Modal>
-      <Modal.Backdrop className="z-[1099]" isOpen={isOpen} onOpenChange={onOpenChange}>
+      <Modal.Backdrop className="z-[1099]" isOpen={isOpen} onOpenChange={handleOpenChange}>
         <Modal.Container className="z-[1100]" size="lg">
           <Modal.Dialog>
             {() => (
               <>
+                <Modal.CloseTrigger />
                 <Modal.Header className="flex flex-col gap-1">{t("title")}</Modal.Header>
                 <Modal.Body>
-                  <TextArea
-                    label={t("label")}
-                    maxRows={18}
-                    minRows={8}
-                    placeholder={t("placeholder")}
-                    value={text}
-                    onValueChange={setText}
-                  />
+                  <TextField fullWidth value={text} variant="secondary" onChange={setText}>
+                    <Label>{t("label")}</Label>
+                    <TextArea fullWidth placeholder={t("placeholder")} rows={8} />
+                  </TextField>
                   <p className="text-muted text-xs">
                     {t("maxCharacters", {
                       max: MAX_RECIPE_PASTE_CHARS.toLocaleString(),
@@ -113,10 +119,10 @@ export default function ImportFromPasteModal({ isOpen, onOpenChange }: ImportFro
                 <Modal.Footer>
                   {isAIEnabled && (
                     <Button
-                      className="bg-gradient-to-r from-rose-400 via-fuchsia-500 to-indigo-500 text-white hover:brightness-110"
                       isDisabled={text.trim().length === 0}
-                      onPress={handleAIImport}
                       isPending={isSubmitting}
+                      variant="secondary"
+                      onPress={handleAIImport}
                     >
                       {!isSubmitting && <SparklesIcon className="h-4 w-4" />}
                       {tActions("aiImport")}
@@ -124,9 +130,9 @@ export default function ImportFromPasteModal({ isOpen, onOpenChange }: ImportFro
                   )}
                   <Button
                     isDisabled={text.trim().length === 0}
-                    onPress={handleImport}
-                    variant="primary"
                     isPending={isSubmitting}
+                    variant="primary"
+                    onPress={handleImport}
                   >
                     {!isSubmitting && <ArrowDownTrayIcon className="h-4 w-4" />}
                     {tActions("import")}

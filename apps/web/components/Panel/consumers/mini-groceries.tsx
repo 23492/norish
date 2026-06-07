@@ -3,8 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTRPC } from "@/app/providers/trpc-provider";
 import Panel from "@/components/Panel/Panel";
-import { ActionButton, IconActionButton } from "@/components/shared/action-button";
-import { useUnitsQuery } from "@/hooks/config";
+import {
+  ActionButton,
+  ActionButtonGroup,
+  IconActionButton,
+} from "@/components/shared/action-button";
 import { useGroceriesMutations } from "@/hooks/groceries";
 import { useRecipeIngredients } from "@/hooks/recipes/use-recipe-ingredients";
 import { Checkbox, Input, Separator, toast } from "@heroui/react";
@@ -104,23 +107,18 @@ function formatEditableIngredient(item: GroceryIngredient) {
   return [item.amount, item.unit, item.ingredientName].filter(Boolean).join(" ");
 }
 
-function MiniGroceriesContent({
+export default function MiniGroceries({
+  open,
   recipeId,
   onOpenChange,
   initialServings = 1,
   originalServings = 1,
-}: {
-  recipeId: string;
-  onOpenChange: (open: boolean) => void;
-  initialServings: number;
-  originalServings: number;
-}) {
+}: MiniGroceriesProps) {
   const t = useTranslations("groceries.panel");
   const tActions = useTranslations("common.actions");
   const trpc = useTRPC();
   const { createGroceriesFromData } = useGroceriesMutations();
-  const { ingredients: rawIngredients, isLoading } = useRecipeIngredients(recipeId);
-  const { units: _units } = useUnitsQuery();
+  const { ingredients: rawIngredients, isLoading } = useRecipeIngredients(open ? recipeId : null);
 
   const linkedRecipeIds = useMemo(
     () => extractLinkedRecipeIds(rawIngredients as GroceryIngredient[]),
@@ -150,6 +148,15 @@ function MiniGroceriesContent({
   const [editedIngredients, setEditedIngredients] = useState<Record<string, EditedIngredient>>({});
   const hasInitialized = useRef(false);
   const knownIngredientIds = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    hasInitialized.current = false;
+    knownIngredientIds.current = new Set();
+    setSelectedIds([]);
+    setEditingId(null);
+    setEditValue("");
+    setEditedIngredients({});
+  }, [open, recipeId]);
 
   useEffect(() => {
     const currentIds = scaledIngredients.map((i) => i.id).filter(Boolean);
@@ -223,139 +230,122 @@ function MiniGroceriesContent({
         });
       });
   };
-  if (isLoading) {
-    return <div className="text-muted p-4 text-base">{t("loadingIngredients")}</div>;
-  }
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      {/* Servings Control */}
-      <div className="mb-3 flex items-center justify-between px-2">
-        <span className="text-foreground text-sm font-medium">{t("servings")}</span>
-        <div className="inline-flex items-center gap-2">
-          <IconActionButton
-            action="decrease"
-            className="bg-surface-secondary"
-            label="Decrease servings"
-            size="sm"
-            onPress={decrementServings}
-            tooltipPlacement="bottom"
-          />
-          <span className="min-w-8 text-center text-sm font-semibold">
-            {formatServings(servings)}
-          </span>
-          <IconActionButton
-            action="increase"
-            className="bg-surface-secondary"
-            label="Increase servings"
-            size="sm"
-            onPress={incrementServings}
-            tooltipPlacement="bottom"
-          />
-        </div>
-      </div>
-
-      <Separator className="bg-surface-tertiary/40 mb-2" />
-
-      {scaledIngredients.length === 0 ? (
-        <div className="text-muted flex flex-1 items-center justify-center text-base">
-          {t("noIngredients")}
-        </div>
-      ) : (
-        <div className="divide-border/40 flex flex-col divide-y overflow-y-auto">
-          {scaledIngredients.map((item) => {
-            const isEditing = editingId === item.id;
-            return (
-              <div
-                key={item.id}
-                className="flex cursor-pointer items-start px-2 py-2"
-                role="button"
-                tabIndex={0}
-                onClick={() => !isEditing && handleEditStart(item.id)}
-                onKeyDown={(e) => {
-                  if ((e.key === "Enter" || e.key === " ") && !isEditing) {
-                    e.preventDefault();
-                    handleEditStart(item.id);
-                  }
-                }}
-              >
-                <Checkbox
-                  aria-label={item.ingredientName}
-                  className="mt-[-4px] [&_[data-slot='checkbox-default-indicator--checkmark']]:size-3"
-                  isSelected={selectedIds.includes(item.id)}
-                  onClick={(event) => event.stopPropagation()}
-                  onChange={() => toggleSelect(item.id)}
-                >
-                  <Checkbox.Control className="data-[selected=true]:border-accent data-[selected=true]:bg-accent size-5 rounded-full before:rounded-full">
-                    <Checkbox.Indicator className="text-accent-foreground" />
-                  </Checkbox.Control>
-                </Checkbox>
-                <div className="ml-2 flex min-w-0 flex-1 flex-col">
-                  {isEditing ? (
-                    <Input
-                      className="text-base"
-                      size="sm"
-                      style={{
-                        fontSize: "16px",
-                      }}
-                      value={editValue}
-                      variant="underlined"
-                      onBlur={handleEditSubmit}
-                      onChange={(e) => setEditValue(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleEditSubmit();
-                        if (e.key === "Escape") setEditingId(null);
-                      }}
-                    />
-                  ) : (
-                    <>
-                      <span className="truncate text-base font-semibold">
-                        {editedIngredients[item.id]?.name ?? item.ingredientName}
-                      </span>
-                      {(editedIngredients[item.id]?.amount ?? item.amount) ? (
-                        <span className="text-accent mt-[-3px] text-xs font-medium">
-                          {editedIngredients[item.id]?.amount ?? item.amount}{" "}
-                          {editedIngredients[item.id]?.unit ?? item.unit ?? ""}
-                        </span>
-                      ) : null}
-                    </>
-                  )}
-                </div>
+    <Panel open={open} title={t("addToGroceries")} onOpenChange={onOpenChange}>
+      <Panel.Body className="flex min-h-0 flex-1 flex-col">
+        {open && isLoading ? (
+          <div className="text-muted p-4 text-base">{t("loadingIngredients")}</div>
+        ) : open ? (
+          <div className="flex min-h-0 flex-1 flex-col">
+            {/* Servings Control */}
+            <div className="mb-3 flex items-center justify-between px-2">
+              <span className="text-foreground text-sm font-medium">{t("servings")}</span>
+              <div className="inline-flex items-center gap-2">
+                <IconActionButton
+                  action="decrease"
+                  className="bg-surface-secondary"
+                  label="Decrease servings"
+                  size="sm"
+                  tooltipPlacement="bottom"
+                  onPress={decrementServings}
+                />
+                <span className="min-w-8 text-center text-sm font-semibold">
+                  {formatServings(servings)}
+                </span>
+                <IconActionButton
+                  action="increase"
+                  className="bg-surface-secondary"
+                  label="Increase servings"
+                  size="sm"
+                  tooltipPlacement="bottom"
+                  onPress={incrementServings}
+                />
               </div>
-            );
-          })}
-        </div>
-      )}
+            </div>
 
-      {scaledIngredients.length > 0 && (
-        <div className="mt-4">
-          <Separator className="bg-surface-tertiary/40 my-2" />
-          <div className="flex justify-end">
+            <Separator className="bg-surface-tertiary/40 mb-2" />
+
+            {scaledIngredients.length === 0 ? (
+              <div className="text-muted flex flex-1 items-center justify-center text-base">
+                {t("noIngredients")}
+              </div>
+            ) : (
+              <div className="divide-border/40 flex min-h-0 flex-1 flex-col divide-y overflow-y-auto">
+                {scaledIngredients.map((item) => {
+                  const isEditing = editingId === item.id;
+                  return (
+                    <div
+                      key={item.id}
+                      className="flex cursor-pointer items-start px-2 py-2"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => !isEditing && handleEditStart(item.id)}
+                      onKeyDown={(e) => {
+                        if ((e.key === "Enter" || e.key === " ") && !isEditing) {
+                          e.preventDefault();
+                          handleEditStart(item.id);
+                        }
+                      }}
+                    >
+                      <Checkbox
+                        aria-label={item.ingredientName}
+                        className="mt-[-4px] [&_[data-slot='checkbox-default-indicator--checkmark']]:size-3"
+                        isSelected={selectedIds.includes(item.id)}
+                        onClick={(event) => event.stopPropagation()}
+                        onChange={() => toggleSelect(item.id)}
+                      >
+                        <Checkbox.Control className="data-[selected=true]:border-accent data-[selected=true]:bg-accent size-5 rounded-full before:rounded-full">
+                          <Checkbox.Indicator className="text-accent-foreground" />
+                        </Checkbox.Control>
+                      </Checkbox>
+                      <div className="ml-2 flex min-w-0 flex-1 flex-col">
+                        {isEditing ? (
+                          <Input
+                            className="text-base"
+                            size="sm"
+                            style={{
+                              fontSize: "16px",
+                            }}
+                            value={editValue}
+                            variant="underlined"
+                            onBlur={handleEditSubmit}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleEditSubmit();
+                              if (e.key === "Escape") setEditingId(null);
+                            }}
+                          />
+                        ) : (
+                          <>
+                            <span className="truncate text-base font-semibold">
+                              {editedIngredients[item.id]?.name ?? item.ingredientName}
+                            </span>
+                            {(editedIngredients[item.id]?.amount ?? item.amount) ? (
+                              <span className="text-accent mt-[-3px] text-xs font-medium">
+                                {editedIngredients[item.id]?.amount ?? item.amount}{" "}
+                                {editedIngredients[item.id]?.unit ?? item.unit ?? ""}
+                              </span>
+                            ) : null}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ) : null}
+      </Panel.Body>
+
+      {open && !isLoading && scaledIngredients.length > 0 && (
+        <Panel.Footer>
+          <ActionButtonGroup>
             <ActionButton action="add" onPress={handleConfirm}>
               {tActions("add")}
             </ActionButton>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-export default function MiniGroceries({
-  open,
-  onOpenChange,
-  recipeId,
-  initialServings = 1,
-  originalServings = 1,
-}: MiniGroceriesProps) {
-  const t = useTranslations("groceries.panel");
-  return (
-    <Panel open={open} title={t("addToGroceries")} onOpenChange={onOpenChange}>
-      {open && (
-        <MiniGroceriesContent
-          initialServings={initialServings}
-          originalServings={originalServings}
-          recipeId={recipeId}
-          onOpenChange={onOpenChange}
-        />
+          </ActionButtonGroup>
+        </Panel.Footer>
       )}
     </Panel>
   );

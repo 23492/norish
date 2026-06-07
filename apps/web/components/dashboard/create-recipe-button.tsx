@@ -18,45 +18,51 @@ import { useTranslations } from "next-intl";
 export default function CreateRecipeButton() {
   const router = useRouter();
   const { isAIEnabled } = usePermissionsContext();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
   const [showPasteModal, setShowPasteModal] = useState(false);
   const t = useTranslations("recipes.dashboard");
   const tCommon = useTranslations("common.actions");
+
+  function openModal(setModalOpen: (open: boolean) => void) {
+    setIsMenuOpen(false);
+    setModalOpen(true);
+  }
   const renderMenuItems = () => (
     <>
       <Dropdown.Item
-        id="import"
         key="import"
+        id="import"
         textValue={t("importFromUrl")}
-        onPress={() => setShowImportModal(true)}
+        onPress={() => openModal(setShowImportModal)}
       >
         {<ArrowDownTrayIcon className="h-4 w-4" />}
         <Label>{t("importFromUrl")}</Label>
       </Dropdown.Item>
       <Dropdown.Item
-        id="paste"
         key="paste"
+        id="paste"
         textValue={t("importFromPaste")}
-        onPress={() => setShowPasteModal(true)}
+        onPress={() => openModal(setShowPasteModal)}
       >
         {<ClipboardDocumentIcon className="h-4 w-4" />}
         <Label>{t("importFromPaste")}</Label>
       </Dropdown.Item>
       {isAIEnabled ? (
         <Dropdown.Item
-          id="image"
           key="image"
+          id="image"
           textValue={t("importFromImage")}
-          onPress={() => setShowImageModal(true)}
+          onPress={() => openModal(setShowImageModal)}
         >
           {<PhotoIcon className="h-4 w-4" />}
           <Label>{t("importFromImage")}</Label>
         </Dropdown.Item>
       ) : null}
       <Dropdown.Item
-        id="create"
         key="create"
+        id="create"
         textValue={tCommon("create")}
         onPress={() => router.push("/recipes/new")}
       >
@@ -65,9 +71,10 @@ export default function CreateRecipeButton() {
       </Dropdown.Item>
     </>
   );
+
   return (
     <>
-      <Dropdown>
+      <Dropdown isOpen={isMenuOpen} onOpenChange={setIsMenuOpen}>
         <Button
           aria-label={t("addRecipe")}
           className="min-w-10 rounded-full font-medium md:min-w-20"

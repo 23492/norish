@@ -28,16 +28,18 @@ interface NavbarUserMenuProps {
 }
 export default function NavbarUserMenu({ trigger = "avatar" }: NavbarUserMenuProps) {
   const t = useTranslations("navbar.userMenu");
-  const { user, userMenuOpen: _userMenuOpen, setUserMenuOpen, signOut } = useUserContext();
+  const { user, userMenuOpen, setUserMenuOpen, signOut } = useUserContext();
   const router = useRouter();
   const [showUrlModal, setShowUrlModal] = useState(false);
   const themeSwitch = useThemeSwitch();
   const languageSwitch = useLanguageSwitch();
   const { currentVersion, latestVersion, updateAvailable, releaseUrl } = useVersionQuery();
+
   if (!user) return null;
+
   return (
     <>
-      <Dropdown onOpenChange={setUserMenuOpen}>
+      <Dropdown isOpen={userMenuOpen} onOpenChange={setUserMenuOpen}>
         {trigger === "avatar" ? (
           <Button
             isIconOnly
@@ -83,9 +85,9 @@ export default function NavbarUserMenu({ trigger = "avatar" }: NavbarUserMenuPro
           <Dropdown.Menu aria-label="User menu" className="w-full">
             <Dropdown.Item
               key="language"
+              className={`py-3 ${cssButtonPill}`}
               id="language"
               textValue="Language"
-              className={`py-3 ${cssButtonPill}`}
               onPress={languageSwitch.cycleLocale}
             >
               <LanguageSwitchContent {...languageSwitch} />
@@ -93,9 +95,9 @@ export default function NavbarUserMenu({ trigger = "avatar" }: NavbarUserMenuPro
 
             <Dropdown.Item
               key="create-recipe"
+              className={`py-3 ${cssButtonPill}`}
               id="create-recipe"
               textValue={t("newRecipe.title")}
-              className={`py-3 ${cssButtonPill}`}
               onPress={() => {
                 setUserMenuOpen(false);
                 router.push("/recipes/new");
@@ -116,9 +118,9 @@ export default function NavbarUserMenu({ trigger = "avatar" }: NavbarUserMenuPro
 
             <Dropdown.Item
               key="import-url"
+              className={`py-3 ${cssButtonPill}`}
               id="import-url"
               textValue={t("importUrl.title")}
-              className={`py-3 ${cssButtonPill}`}
               onPress={() => {
                 setUserMenuOpen(false);
                 setShowUrlModal(true);
@@ -139,19 +141,19 @@ export default function NavbarUserMenu({ trigger = "avatar" }: NavbarUserMenuPro
 
             <Dropdown.Item
               key="theme"
+              className={`py-3 ${cssButtonPill}`}
               id="theme"
               textValue="Theme"
-              className={`py-3 ${cssButtonPill}`}
               onPress={themeSwitch.cycleTheme}
             >
               <ThemeSwitchContent {...themeSwitch} />
             </Dropdown.Item>
             <Dropdown.Item
               key="settings"
-              id="settings"
-              textValue={t("settings.title")}
               className={`py-3 ${cssButtonPill}`}
               href="/settings?tab=user"
+              id="settings"
+              textValue={t("settings.title")}
               onPress={() => setUserMenuOpen(false)}
             >
               <span className="text-muted">
@@ -167,9 +169,9 @@ export default function NavbarUserMenu({ trigger = "avatar" }: NavbarUserMenuPro
 
             <Dropdown.Item
               key="logout"
+              className={`text-danger py-3 ${cssButtonPillDanger}`}
               id="logout"
               textValue={t("logout")}
-              className={`text-danger py-3 ${cssButtonPillDanger}`}
               variant="danger"
               onPress={() => {
                 setUserMenuOpen(false);

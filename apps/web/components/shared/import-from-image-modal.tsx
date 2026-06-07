@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import type { DropZoneAreaProps } from "@heroui-pro/react";
+import { useCallback, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useUploadLimitsQuery } from "@/hooks/config";
@@ -8,10 +9,15 @@ import { useRecipesMutations } from "@/hooks/recipes";
 import { useClipboardImagePaste } from "@/hooks/use-clipboard-image-paste";
 import { showSafeErrorToast } from "@/lib/ui/safe-error-toast";
 import { PhotoIcon, SparklesIcon, XMarkIcon } from "@heroicons/react/16/solid";
+import { DropZone } from "@heroui-pro/react";
 import { Button, Kbd, Modal, toast } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
-import { ALLOWED_OCR_MIME_SET, MAX_OCR_FILES } from "@norish/shared/contracts";
+import {
+  ALLOWED_OCR_MIME_SET,
+  ALLOWED_OCR_MIME_TYPES,
+  MAX_OCR_FILES,
+} from "@norish/shared/contracts";
 
 interface ImportFromImageModalProps {
   isOpen: boolean;
@@ -22,6 +28,8 @@ interface FilePreview {
   file: File;
   preview: string;
 }
+const OCR_IMAGE_ACCEPT = ALLOWED_OCR_MIME_TYPES.join(",");
+
 export default function ImportFromImageModal({ isOpen, onOpenChange }: ImportFromImageModalProps) {
   const t = useTranslations("common.import.image");
   const tErrors = useTranslations("common.errors");
@@ -31,7 +39,6 @@ export default function ImportFromImageModal({ isOpen, onOpenChange }: ImportFro
   const { limits } = useUploadLimitsQuery();
   const [files, setFiles] = useState<FilePreview[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const handleAddFiles = useCallback(
     (selectedFiles: File[] | FileList | null) => {
       if (!selectedFiles) return;
@@ -44,6 +51,7 @@ export default function ImportFromImageModal({ isOpen, onOpenChange }: ImportFro
             (_, idx) => selectedFiles[idx]!
           );
       const newFiles: FilePreview[] = [];
+
       for (let i = 0; i < fileArray.length; i++) {
         const file = fileArray[i]!;
 
@@ -77,21 +85,39 @@ export default function ImportFromImageModal({ isOpen, onOpenChange }: ImportFro
         });
       }
       setFiles((prev) => {
-        const total = prev.length + newFiles.length;
-        if (total > MAX_OCR_FILES) {
+        const availableSlots = MAX_OCR_FILES - prev.length;
+
+        if (availableSlots <= 0) {
+          newFiles.forEach((file) => URL.revokeObjectURL(file.preview));
           toast(t("tooMany"), {
             description: t("maxFiles", {
               max: MAX_OCR_FILES,
             }),
             variant: "warning",
           });
-          return [...prev, ...newFiles.slice(0, MAX_OCR_FILES - prev.length)];
+
+          return prev;
         }
+        if (newFiles.length > availableSlots) {
+          const acceptedFiles = newFiles.slice(0, availableSlots);
+
+          newFiles.slice(availableSlots).forEach((file) => URL.revokeObjectURL(file.preview));
+          toast(t("tooMany"), {
+            description: t("maxFiles", {
+              max: MAX_OCR_FILES,
+            }),
+            variant: "warning",
+          });
+
+          return [...prev, ...acceptedFiles];
+        }
+
         return [...prev, ...newFiles];
       });
     },
     [t, limits.maxImageSize]
   );
+
   useClipboardImagePaste({
     enabled: isOpen,
     onFiles: (pastedFiles) => handleAddFiles(pastedFiles),
@@ -99,20 +125,32 @@ export default function ImportFromImageModal({ isOpen, onOpenChange }: ImportFro
   const handleRemoveFile = useCallback((id: string) => {
     setFiles((prev) => {
       const file = prev.find((f) => f.id === id);
+
       if (file) URL.revokeObjectURL(file.preview);
+
       return prev.filter((f) => f.id !== id);
     });
   }, []);
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      handleAddFiles(e.dataTransfer.files);
+  const handleDrop = useCallback<NonNullable<DropZoneAreaProps["onDrop"]>>(
+    (event) => {
+      void (async () => {
+        const droppedFiles: File[] = [];
+
+        for (const item of event.items) {
+          if (item.kind === "file") {
+            droppedFiles.push(await item.getFile());
+          }
+        }
+
+        handleAddFiles(droppedFiles);
+      })();
     },
     [handleAddFiles]
   );
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-  }, []);
+  const getDropOperation = useCallback<NonNullable<DropZoneAreaProps["getDropOperation"]>>(
+    (types) => (ALLOWED_OCR_MIME_TYPES.some((type) => types.has(type)) ? "copy" : "cancel"),
+    []
+  );
   const handleImport = useCallback(() => {
     if (files.length === 0) return;
     setIsSubmitting(true);
@@ -143,47 +181,43 @@ export default function ImportFromImageModal({ isOpen, onOpenChange }: ImportFro
       setIsSubmitting(false);
     }
   }, [files, importRecipeFromImages, onOpenChange, router, t, tErrors]);
-  const _handleClose = useCallback(() => {
-    files.forEach((f) => {
-      URL.revokeObjectURL(f.preview);
-    });
-    setFiles([]);
-    onOpenChange(false);
-  }, [files, onOpenChange]);
+  const handleOpenChange = useCallback(
+    (open: boolean) => {
+      if (!open) {
+        files.forEach((f) => {
+          URL.revokeObjectURL(f.preview);
+        });
+        setFiles([]);
+      }
+      onOpenChange(open);
+    },
+    [files, onOpenChange]
+  );
+
   return (
     <Modal>
-      <Modal.Backdrop className="z-[1099]" isOpen={isOpen} onOpenChange={onOpenChange}>
+      <Modal.Backdrop className="z-[1099]" isOpen={isOpen} onOpenChange={handleOpenChange}>
         <Modal.Container className="z-[1100]" size="lg">
           <Modal.Dialog>
             {() => (
               <>
+                <Modal.CloseTrigger />
                 <Modal.Header className="flex flex-col gap-1">{t("title")}</Modal.Header>
                 <Modal.Body>
-                  {/* Dropzone */}
-                  <button
-                    className="border-border-secondary hover:border-accent flex min-h-[180px] cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-6 transition-colors"
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    onDragOver={handleDragOver}
-                    onDrop={handleDrop}
-                  >
-                    <PhotoIcon className="text-muted h-12 w-12" />
-                    <div className="text-center">
-                      <p className="text-muted text-sm font-medium">{t("dropzone")}</p>
-                      <p className="text-muted mt-1 flex items-center justify-center gap-1.5 text-xs">
+                  <DropZone className="w-full">
+                    <DropZone.Area getDropOperation={getDropOperation} onDrop={handleDrop}>
+                      <DropZone.Icon>
+                        <PhotoIcon />
+                      </DropZone.Icon>
+                      <DropZone.Label>{t("dropzone")}</DropZone.Label>
+                      <DropZone.Description>{t("formats")}</DropZone.Description>
+                      <DropZone.Description className="flex items-center justify-center gap-1.5">
                         <Kbd keys={["ctrl"]}>V</Kbd> {t("paste")}
-                      </p>
-                      <p className="text-muted mt-1 text-xs">{t("formats")}</p>
-                    </div>
-                    <input
-                      ref={fileInputRef}
-                      multiple
-                      accept="image/jpeg,image/png,image/webp"
-                      className="hidden"
-                      type="file"
-                      onChange={(e) => handleAddFiles(e.target.files)}
-                    />
-                  </button>
+                      </DropZone.Description>
+                      <DropZone.Trigger>{t("library")}</DropZone.Trigger>
+                    </DropZone.Area>
+                    <DropZone.Input multiple accept={OCR_IMAGE_ACCEPT} onSelect={handleAddFiles} />
+                  </DropZone>
 
                   {/* File previews */}
                   {files.length > 0 && (
@@ -199,7 +233,8 @@ export default function ImportFromImageModal({ isOpen, onOpenChange }: ImportFro
                             width={160}
                           />
                           <button
-                            className="bg-danger absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full text-white opacity-0 transition-opacity group-hover:opacity-100"
+                            aria-label={`Remove ${file.name}`}
+                            className="bg-danger absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full text-white opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
@@ -223,10 +258,10 @@ export default function ImportFromImageModal({ isOpen, onOpenChange }: ImportFro
                 </Modal.Body>
                 <Modal.Footer>
                   <Button
-                    className="bg-gradient-to-r from-rose-400 via-fuchsia-500 to-indigo-500 text-white hover:brightness-110"
                     isDisabled={files.length === 0}
-                    onPress={handleImport}
                     isPending={isSubmitting}
+                    variant="primary"
+                    onPress={handleImport}
                   >
                     {!isSubmitting && <SparklesIcon className="h-4 w-4" />}
                     {tActions("importWithAI")}

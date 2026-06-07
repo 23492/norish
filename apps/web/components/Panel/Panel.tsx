@@ -45,7 +45,7 @@ type PanelTriggerProps = {
   onClick?: (event: unknown) => void;
 };
 
-const PANEL_MAX_HEIGHT_CLASS = "max-h-[80dvh]";
+const PANEL_MAX_HEIGHT_CLASS = "max-h-[95vh]";
 
 function getClassName(element: ReactElement<PanelSectionProps>) {
   return element.props.className ?? "";
@@ -120,11 +120,14 @@ const PanelRoot: React.FC<PanelProps> = ({
     };
   }, [children]);
   const hasFooter = footerChildren.length > 0;
-  const contentClasses = ["mx-auto max-w-md", PANEL_MAX_HEIGHT_CLASS, contentClassName]
+  const contentClasses = ["mx-auto max-w-[420px]", PANEL_MAX_HEIGHT_CLASS, contentClassName]
     .filter(Boolean)
     .join(" ");
-  const dialogClasses = [PANEL_MAX_HEIGHT_CLASS, panelClassName].filter(Boolean).join(" ");
-  const bodyClasses = ["min-h-0", bodyClassName].filter(Boolean).join(" ");
+  const dialogClasses = ["min-h-0", PANEL_MAX_HEIGHT_CLASS, panelClassName]
+    .filter(Boolean)
+    .join(" ");
+  const bodyClasses = ["flex min-h-0 flex-1 flex-col", bodyClassName].filter(Boolean).join(" ");
+  const footerClasses = ["shrink-0", footerClassName].filter(Boolean).join(" ");
 
   const panelTrigger = trigger as ReactElement<PanelTriggerProps> | undefined;
   const triggerElement =
@@ -159,7 +162,7 @@ const PanelRoot: React.FC<PanelProps> = ({
 
                 <Sheet.Body className={bodyClasses}>{bodyChildren}</Sheet.Body>
                 {hasFooter && (
-                  <Sheet.Footer className={footerClassName}>{footerChildren}</Sheet.Footer>
+                  <Sheet.Footer className={footerClasses}>{footerChildren}</Sheet.Footer>
                 )}
               </Sheet.Dialog>
             </Sheet.Content>
