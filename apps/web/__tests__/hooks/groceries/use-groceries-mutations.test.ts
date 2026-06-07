@@ -1,5 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   createMockGroceriesData,
@@ -134,8 +134,14 @@ vi.mock("@norish/shared/lib/recurrence/calculator", () => ({
   getTodayString: vi.fn(() => "2025-01-15"),
 }));
 
+let useGroceriesMutations: (typeof import("@/hooks/groceries/use-groceries-mutations"))["useGroceriesMutations"];
+
 describe("useGroceriesMutations", () => {
   let queryClient: ReturnType<typeof createTestQueryClient>;
+
+  beforeAll(async () => {
+    ({ useGroceriesMutations } = await import("@/hooks/groceries/use-groceries-mutations"));
+  });
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -152,8 +158,6 @@ describe("useGroceriesMutations", () => {
 
       queryClient.setQueryData(["groceries", "list"], initialData);
 
-      // Import and render the hook
-      const { useGroceriesMutations } = await import("@/hooks/groceries/use-groceries-mutations");
       const { result } = renderHook(() => useGroceriesMutations(), {
         wrapper: createTestWrapper(queryClient),
       });
@@ -189,7 +193,6 @@ describe("useGroceriesMutations", () => {
 
       queryClient.setQueryData(["groceries", "list"], initialData);
 
-      const { useGroceriesMutations } = await import("@/hooks/groceries/use-groceries-mutations");
       const { result } = renderHook(() => useGroceriesMutations(), {
         wrapper: createTestWrapper(queryClient),
       });
@@ -227,7 +230,6 @@ describe("useGroceriesMutations", () => {
 
       queryClient.setQueryData(["groceries", "list"], initialData);
 
-      const { useGroceriesMutations } = await import("@/hooks/groceries/use-groceries-mutations");
       const { result } = renderHook(() => useGroceriesMutations(), {
         wrapper: createTestWrapper(queryClient),
       });
@@ -244,7 +246,6 @@ describe("useGroceriesMutations", () => {
 
       queryClient.setQueryData(["groceries", "list"], initialData);
 
-      const { useGroceriesMutations } = await import("@/hooks/groceries/use-groceries-mutations");
       const { result } = renderHook(() => useGroceriesMutations(), {
         wrapper: createTestWrapper(queryClient),
       });
@@ -259,7 +260,6 @@ describe("useGroceriesMutations", () => {
 
       queryClient.setQueryData(["groceries", "list"], initialData);
 
-      const { useGroceriesMutations } = await import("@/hooks/groceries/use-groceries-mutations");
       const { result } = renderHook(() => useGroceriesMutations(), {
         wrapper: createTestWrapper(queryClient),
       });
@@ -276,7 +276,6 @@ describe("useGroceriesMutations", () => {
 
       queryClient.setQueryData(["groceries", "list"], createMockGroceriesData([grocery], []));
 
-      const { useGroceriesMutations } = await import("@/hooks/groceries/use-groceries-mutations");
       const { result } = renderHook(() => useGroceriesMutations(), {
         wrapper: createTestWrapper(queryClient),
       });
@@ -297,7 +296,6 @@ describe("useGroceriesMutations", () => {
 
       queryClient.setQueryData(["groceries", "list"], createMockGroceriesData(groceries, []));
 
-      const { useGroceriesMutations } = await import("@/hooks/groceries/use-groceries-mutations");
       const { result } = renderHook(() => useGroceriesMutations(), {
         wrapper: createTestWrapper(queryClient),
       });
@@ -324,7 +322,6 @@ describe("useGroceriesMutations", () => {
         createMockGroceriesData([grocery], [recurring])
       );
 
-      const { useGroceriesMutations } = await import("@/hooks/groceries/use-groceries-mutations");
       const { result } = renderHook(() => useGroceriesMutations(), {
         wrapper: createTestWrapper(queryClient),
       });
@@ -352,7 +349,6 @@ describe("useGroceriesMutations", () => {
 
       queryClient.setQueryData(["groceries", "list"], createMockGroceriesData(groceries, []));
 
-      const { useGroceriesMutations } = await import("@/hooks/groceries/use-groceries-mutations");
       const { result } = renderHook(() => useGroceriesMutations(), {
         wrapper: createTestWrapper(queryClient),
       });
@@ -380,7 +376,6 @@ describe("useGroceriesMutations", () => {
 
       queryClient.setQueryData(["groceries", "list"], createMockGroceriesData(groceries, []));
 
-      const { useGroceriesMutations } = await import("@/hooks/groceries/use-groceries-mutations");
       const { result } = renderHook(() => useGroceriesMutations(), {
         wrapper: createTestWrapper(queryClient),
       });

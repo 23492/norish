@@ -1,5 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   createMockGroceriesData,
@@ -108,8 +108,14 @@ vi.mock("@/app/providers/trpc-provider", () => ({
   }),
 }));
 
+let useGroceriesSubscription: (typeof import("@/hooks/groceries/use-groceries-subscription"))["useGroceriesSubscription"];
+
 describe("useGroceriesSubscription", () => {
   let queryClient: ReturnType<typeof createTestQueryClient>;
+
+  beforeAll(async () => {
+    ({ useGroceriesSubscription } = await import("@/hooks/groceries/use-groceries-subscription"));
+  });
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -125,9 +131,6 @@ describe("useGroceriesSubscription", () => {
       const initialData = createMockGroceriesData();
 
       queryClient.setQueryData(mockQueryKey, initialData);
-
-      const { useGroceriesSubscription } =
-        await import("@/hooks/groceries/use-groceries-subscription");
 
       renderHook(() => useGroceriesSubscription(), {
         wrapper: createTestWrapper(queryClient),
@@ -150,9 +153,6 @@ describe("useGroceriesSubscription", () => {
       const initialData = createMockGroceriesData([existingGrocery], []);
 
       queryClient.setQueryData(mockQueryKey, initialData);
-
-      const { useGroceriesSubscription } =
-        await import("@/hooks/groceries/use-groceries-subscription");
 
       renderHook(() => useGroceriesSubscription(), {
         wrapper: createTestWrapper(queryClient),
@@ -177,9 +177,6 @@ describe("useGroceriesSubscription", () => {
       const initialData = createMockGroceriesData([existingGrocery], []);
 
       queryClient.setQueryData(mockQueryKey, initialData);
-
-      const { useGroceriesSubscription } =
-        await import("@/hooks/groceries/use-groceries-subscription");
 
       renderHook(() => useGroceriesSubscription(), {
         wrapper: createTestWrapper(queryClient),
@@ -213,9 +210,6 @@ describe("useGroceriesSubscription", () => {
 
       queryClient.setQueryData(mockQueryKey, initialData);
 
-      const { useGroceriesSubscription } =
-        await import("@/hooks/groceries/use-groceries-subscription");
-
       renderHook(() => useGroceriesSubscription(), {
         wrapper: createTestWrapper(queryClient),
       });
@@ -246,9 +240,6 @@ describe("useGroceriesSubscription", () => {
 
       queryClient.setQueryData(mockQueryKey, initialData);
 
-      const { useGroceriesSubscription } =
-        await import("@/hooks/groceries/use-groceries-subscription");
-
       renderHook(() => useGroceriesSubscription(), {
         wrapper: createTestWrapper(queryClient),
       });
@@ -271,9 +262,6 @@ describe("useGroceriesSubscription", () => {
       const initialData = createMockGroceriesData([grocery1, grocery2], []);
 
       queryClient.setQueryData(mockQueryKey, initialData);
-
-      const { useGroceriesSubscription } =
-        await import("@/hooks/groceries/use-groceries-subscription");
 
       renderHook(() => useGroceriesSubscription(), {
         wrapper: createTestWrapper(queryClient),
@@ -301,9 +289,6 @@ describe("useGroceriesSubscription", () => {
 
       queryClient.setQueryData(mockQueryKey, initialData);
 
-      const { useGroceriesSubscription } =
-        await import("@/hooks/groceries/use-groceries-subscription");
-
       renderHook(() => useGroceriesSubscription(), {
         wrapper: createTestWrapper(queryClient),
       });
@@ -327,9 +312,6 @@ describe("useGroceriesSubscription", () => {
 
       queryClient.setQueryData(mockQueryKey, initialData);
 
-      const { useGroceriesSubscription } =
-        await import("@/hooks/groceries/use-groceries-subscription");
-
       renderHook(() => useGroceriesSubscription(), {
         wrapper: createTestWrapper(queryClient),
       });
@@ -351,9 +333,6 @@ describe("useGroceriesSubscription", () => {
       const initialData = createMockGroceriesData([], []);
 
       queryClient.setQueryData(mockQueryKey, initialData);
-
-      const { useGroceriesSubscription } =
-        await import("@/hooks/groceries/use-groceries-subscription");
 
       renderHook(() => useGroceriesSubscription(), {
         wrapper: createTestWrapper(queryClient),
@@ -389,9 +368,6 @@ describe("useGroceriesSubscription", () => {
 
       queryClient.setQueryData(mockQueryKey, initialData);
 
-      const { useGroceriesSubscription } =
-        await import("@/hooks/groceries/use-groceries-subscription");
-
       renderHook(() => useGroceriesSubscription(), {
         wrapper: createTestWrapper(queryClient),
       });
@@ -425,9 +401,6 @@ describe("useGroceriesSubscription", () => {
 
       queryClient.setQueryData(mockQueryKey, initialData);
 
-      const { useGroceriesSubscription } =
-        await import("@/hooks/groceries/use-groceries-subscription");
-
       renderHook(() => useGroceriesSubscription(), {
         wrapper: createTestWrapper(queryClient),
       });
@@ -451,9 +424,6 @@ describe("useGroceriesSubscription", () => {
       const initialData = createMockGroceriesData();
 
       queryClient.setQueryData(mockQueryKey, initialData);
-
-      const { useGroceriesSubscription } =
-        await import("@/hooks/groceries/use-groceries-subscription");
 
       renderHook(() => useGroceriesSubscription(), {
         wrapper: createTestWrapper(queryClient),

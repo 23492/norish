@@ -32,10 +32,27 @@ vi.mock("@heroui/react", () => ({
     },
     Dialog: ({ children }: any) =>
       typeof children === "function" ? <div>{children(vi.fn())}</div> : <div>{children}</div>,
+    CloseTrigger: () => <button aria-label="Close" type="button" />,
     Header: ({ children }: any) => <div>{children}</div>,
     Body: ({ children }: any) => <div>{children}</div>,
     Footer: ({ children }: any) => <div>{children}</div>,
   }),
+  TextField: ({ children, value, onChange, type }: any) => {
+    const childrenArray = Array.isArray(children) ? children : [children];
+    const label = childrenArray.find((child) => child?.type?.name === "Label")?.props?.children;
+    const input = childrenArray.find((child) => child?.type?.name === "Input");
+
+    return (
+      <input
+        aria-label={label}
+        placeholder={input?.props?.placeholder}
+        type={type}
+        value={value}
+        onChange={(event) => onChange?.(event.target.value)}
+      />
+    );
+  },
+  Label: ({ children }: any) => <span>{children}</span>,
   Input: ({ value, onChange, label, placeholder, type }: any) => (
     <input
       aria-label={label}
