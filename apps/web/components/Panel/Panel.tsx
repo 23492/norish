@@ -45,6 +45,8 @@ type PanelTriggerProps = {
   onClick?: (event: unknown) => void;
 };
 
+const PANEL_MAX_HEIGHT_CLASS = "max-h-[80dvh]";
+
 function getClassName(element: ReactElement<PanelSectionProps>) {
   return element.props.className ?? "";
 }
@@ -118,7 +120,11 @@ const PanelRoot: React.FC<PanelProps> = ({
     };
   }, [children]);
   const hasFooter = footerChildren.length > 0;
-  const contentClasses = ["mx-auto max-w-md", contentClassName].filter(Boolean).join(" ");
+  const contentClasses = ["mx-auto max-w-md", PANEL_MAX_HEIGHT_CLASS, contentClassName]
+    .filter(Boolean)
+    .join(" ");
+  const dialogClasses = [PANEL_MAX_HEIGHT_CLASS, panelClassName].filter(Boolean).join(" ");
+  const bodyClasses = ["min-h-0", bodyClassName].filter(Boolean).join(" ");
 
   const panelTrigger = trigger as ReactElement<PanelTriggerProps> | undefined;
   const triggerElement =
@@ -143,7 +149,7 @@ const PanelRoot: React.FC<PanelProps> = ({
         <Root isOpen={open} placement="bottom" onOpenChange={setOpen}>
           <Sheet.Backdrop className="z-[1000]" variant={backdropVariant}>
             <Sheet.Content className={contentClasses}>
-              <Sheet.Dialog aria-label={title || "Panel"} className={panelClassName}>
+              <Sheet.Dialog aria-label={title || "Panel"} className={dialogClasses}>
                 <Sheet.Handle className="relative z-10" />
                 <Sheet.CloseTrigger aria-label="Close panel" className="z-30" />
 
@@ -151,7 +157,7 @@ const PanelRoot: React.FC<PanelProps> = ({
                   <Sheet.Heading>{title}</Sheet.Heading>
                 </Sheet.Header>
 
-                <Sheet.Body className={bodyClassName}>{bodyChildren}</Sheet.Body>
+                <Sheet.Body className={bodyClasses}>{bodyChildren}</Sheet.Body>
                 {hasFooter && (
                   <Sheet.Footer className={footerClassName}>{footerChildren}</Sheet.Footer>
                 )}

@@ -342,6 +342,7 @@ function MiniRecipesContent({
             }}
           >
             <ActionButton
+              fullWidth
               action="random"
               className="max-w-full min-w-16 justify-center"
               isPending={isRandomLoading}
@@ -371,9 +372,8 @@ export default function MiniRecipes({ open, onOpenChange, date, slot }: MiniReci
   return (
     <Panel
       backdropVariant="blur"
-      contentClassName="max-h-[80dvh]"
       open={open}
-      panelClassName="h-[80dvh] max-h-[80dvh]"
+      panelClassName="h-[80dvh]"
       title={t("addRecipe")}
       onOpenChange={onOpenChange}
     >

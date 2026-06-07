@@ -316,9 +316,8 @@ export default function MiniCalendar({ open, onOpenChange, recipeId }: MiniCalen
   return (
     <Panel
       backdropVariant="transparent"
-      contentClassName="max-h-[80dvh]"
       open={open}
-      panelClassName="h-[80dvh] max-h-[80dvh]"
+      panelClassName="h-[80dvh]"
       title={t("addToCalendar")}
       onOpenChange={onOpenChange}
     >

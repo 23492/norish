@@ -5,7 +5,6 @@ import NextImage from "next/image";
 import { FallbackPlaceholder, useImageErrors } from "@/components/shared/fallback-image";
 import ImageLightbox from "@/components/shared/image-lightbox";
 import VideoPlayer from "@/components/shared/video-player";
-import { PlayIcon } from "@heroicons/react/16/solid";
 import { Carousel, useCarousel } from "@heroui-pro/react";
 import { useTranslations } from "next-intl";
 
@@ -122,9 +121,9 @@ function MediaCarouselSlides({
   }, [onActiveItemChange, onActiveVideoControlsVisibilityChange, safeIndex, sortedItems]);
 
   return (
-    <Carousel.Content>
+    <Carousel.Content className="h-full">
       {sortedItems.map((item, index) => (
-        <Carousel.Item key={`${item.id ?? item.src}-${index}`}>
+        <Carousel.Item key={`${item.id ?? item.src}-${index}`} className="h-full">
           <div className={mediaBoxClassName}>
             {item.type === "video" ? (
               <VideoPlayer
@@ -235,6 +234,13 @@ export default function MediaCarousel({
   }[aspectRatio];
   const roundedClass = rounded ? "rounded-2xl" : "";
   const mediaBoxClassName = `bg-surface-tertiary relative w-full overflow-hidden ${roundedClass} ${aspectRatioClass} ${className}`;
+  const carouselClassName = [
+    "relative w-full [--carousel-gap:0px]",
+    "[&_[data-slot=carousel-viewport-wrapper]]:h-full [&_[data-slot=carousel-viewport]]:h-full",
+    className,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   // Case 0: No items
   if (!sortedItems || sortedItems.length === 0) {
@@ -303,7 +309,7 @@ export default function MediaCarousel({
   // Case 2+: Carousel
   return (
     <>
-      <Carousel className={`relative w-full ${className}`} opts={{ loop: true }}>
+      <Carousel className={carouselClassName} opts={{ loop: true }}>
         <MediaCarouselSlides
           handleImageError={handleImageError}
           hasError={hasError}
@@ -315,29 +321,7 @@ export default function MediaCarousel({
         />
         <Carousel.Previous className="bg-background/70 text-foreground backdrop-blur-md" />
         <Carousel.Next className="bg-background/70 text-foreground backdrop-blur-md" />
-        <Carousel.Dots className="absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full bg-black/20 px-2 py-1 backdrop-blur-sm" />
-        <Carousel.Thumbnails className="mt-3 hidden px-2 sm:flex" scrollShadowSize={24}>
-          {sortedItems.map((item, index) =>
-            item.type === "image" || item.thumbnail ? (
-              <Carousel.Thumbnail
-                key={`${item.id ?? item.src}-thumbnail`}
-                alt={`Recipe media ${index + 1}`}
-                index={index}
-                src={item.type === "image" ? item.src : (item.thumbnail ?? undefined)}
-              />
-            ) : (
-              <Carousel.Thumbnail
-                key={`${item.id ?? item.src}-thumbnail`}
-                aria-label={`Recipe media ${index + 1}`}
-                index={index}
-              >
-                <div className="bg-surface-secondary text-muted flex h-full w-full items-center justify-center rounded-2xl">
-                  <PlayIcon className="size-5" />
-                </div>
-              </Carousel.Thumbnail>
-            )
-          )}
-        </Carousel.Thumbnails>
+        <Carousel.Dots className="absolute bottom-10 left-1/2 z-10 -translate-x-1/2 rounded-full bg-black/20 px-2 py-1 backdrop-blur-sm" />
       </Carousel>
 
       <ImageLightbox
