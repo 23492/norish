@@ -1,10 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import NextLink from "next/link";
 import { usePathname } from "next/navigation";
 import NavbarUserMenu from "@/components/navbar/navbar-user-menu";
-import { useUserContext } from "@/context/user-context";
 import { useAutoHide } from "@/hooks/auto-hide";
 import { CalendarDaysIcon, ClipboardDocumentListIcon, HomeIcon } from "@heroicons/react/20/solid";
 import { AnimatePresence, motion } from "motion/react";
@@ -23,7 +22,7 @@ const navLabelKeys: Record<string, "home" | "calendar" | "groceries"> = {
 export const MobileNav = () => {
   const tNav = useTranslations("navbar.nav");
   const pathname = usePathname();
-  const { userMenuOpen, setUserMenuOpen } = useUserContext();
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   const rootRef = useRef<HTMLDivElement | null>(null);
 
@@ -122,7 +121,7 @@ export const MobileNav = () => {
           <div
             className={`flex h-13 w-13 shrink-0 items-center justify-center rounded-full ${cssGlassBackdrop}`}
           >
-            <NavbarUserMenu />
+            <NavbarUserMenu isOpen={userMenuOpen} onOpenChange={setUserMenuOpen} />
           </div>
         </div>
       </motion.div>

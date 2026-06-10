@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import ImportRecipeModal from "@/components/shared/import-recipe-modal";
 import { LanguageSwitchContent } from "@/components/shared/language-switch";
@@ -24,22 +24,38 @@ import { ThemeSwitchContent, useThemeSwitch } from "./theme-switch";
 
 type TriggerVariant = "avatar" | "ellipsis";
 interface NavbarUserMenuProps {
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
   trigger?: TriggerVariant;
 }
-export default function NavbarUserMenu({ trigger = "avatar" }: NavbarUserMenuProps) {
+export default function NavbarUserMenu({
+  isOpen,
+  onOpenChange,
+  trigger = "avatar",
+}: NavbarUserMenuProps) {
   const t = useTranslations("navbar.userMenu");
-  const { user, userMenuOpen, setUserMenuOpen, signOut } = useUserContext();
+  const { user, signOut } = useUserContext();
   const router = useRouter();
+  const [localOpen, setLocalOpen] = useState(false);
   const [showUrlModal, setShowUrlModal] = useState(false);
   const themeSwitch = useThemeSwitch();
   const languageSwitch = useLanguageSwitch();
   const { currentVersion, latestVersion, updateAvailable, releaseUrl } = useVersionQuery();
+  const menuOpen = isOpen ?? localOpen;
+
+  const handleOpenChange = useCallback(
+    (open: boolean) => {
+      setLocalOpen(open);
+      onOpenChange?.(open);
+    },
+    [onOpenChange]
+  );
 
   if (!user) return null;
 
   return (
     <>
-      <Dropdown isOpen={userMenuOpen} onOpenChange={setUserMenuOpen}>
+      <Dropdown isOpen={menuOpen} onOpenChange={handleOpenChange}>
         {trigger === "avatar" ? (
           <Button
             isIconOnly
@@ -99,7 +115,7 @@ export default function NavbarUserMenu({ trigger = "avatar" }: NavbarUserMenuPro
               id="create-recipe"
               textValue={t("newRecipe.title")}
               onPress={() => {
-                setUserMenuOpen(false);
+                handleOpenChange(false);
                 router.push("/recipes/new");
               }}
             >
@@ -122,7 +138,7 @@ export default function NavbarUserMenu({ trigger = "avatar" }: NavbarUserMenuPro
               id="import-url"
               textValue={t("importUrl.title")}
               onPress={() => {
-                setUserMenuOpen(false);
+                handleOpenChange(false);
                 setShowUrlModal(true);
               }}
             >
@@ -154,7 +170,7 @@ export default function NavbarUserMenu({ trigger = "avatar" }: NavbarUserMenuPro
               href="/settings?tab=user"
               id="settings"
               textValue={t("settings.title")}
-              onPress={() => setUserMenuOpen(false)}
+              onPress={() => handleOpenChange(false)}
             >
               <span className="text-muted">
                 <Cog6ToothIcon className="size-5" />
@@ -174,7 +190,7 @@ export default function NavbarUserMenu({ trigger = "avatar" }: NavbarUserMenuPro
               textValue={t("logout")}
               variant="danger"
               onPress={() => {
-                setUserMenuOpen(false);
+                handleOpenChange(false);
                 signOut();
               }}
             >
