@@ -72,7 +72,9 @@ services:
 
   # Camoufox browser for recipe scraping
   camofox:
-    image: ghcr.io/jo-inc/camofox-browser:1.11.2
+    build:
+      context: ./camofox
+      # Dockerfile defaults pin Camoufox 135.0.1/beta.24; pass args here only if they ever differ.
     container_name: norish-camofox-test
     restart: unless-stopped
     environment:
