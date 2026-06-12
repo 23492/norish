@@ -10,6 +10,14 @@ services:
     volumes:
       - norish_db_data:/var/lib/postgresql/data
 
+  # Camoufox browser for recipe scraping
+  camofox:
+    image: ghcr.io/jo-inc/camofox-browser:1.11.2
+    restart: unless-stopped
+    environment:
+      CAMOFOX_PORT: "9377"
+    shm_size: "1gb" # Firefox needs shared memory
+
   # Redis for real-time events
   redis:
     image: redis:8.6.2

@@ -68,6 +68,7 @@ services:
     depends_on:
       - db
       - redis
+      - camofox
 
   # PostgreSQL Database
   db:
@@ -82,6 +83,26 @@ services:
       - db_data:/var/lib/postgresql/data
     ports:
       - "5433:5432"
+
+  # Camoufox browser for recipe scraping
+  camofox:
+    image: ghcr.io/jo-inc/camofox-browser:1.11.2
+    container_name: norish-camofox
+    restart: unless-stopped
+    environment:
+      CAMOFOX_PORT: "9377"
+      # CAMOFOX_API_KEY: <key>  # optional, generate with: openssl rand -hex 32 -- only needed for per-site cookie/login injection; must match the app's CAMOFOX_API_KEY
+    shm_size: "1gb" # Firefox needs shared memory
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "require(''http'').get(''http://localhost:9377/health'', r => process.exit(r.statusCode===200?0:1))"',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   # Redis for real-time events
   redis:

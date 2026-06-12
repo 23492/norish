@@ -4,6 +4,11 @@ services:
     ports:
       - "5432:5432"
 
+  camofox:
+    container_name: norish-camofox-local
+    ports:
+      - "9377:9377"
+
   redis:
     container_name: norish-redis-local
     ports:

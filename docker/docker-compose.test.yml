@@ -35,6 +35,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      camofox:
+        condition: service_healthy
 
   # PostgreSQL Database
   db:
@@ -67,6 +69,25 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  # Camoufox browser for recipe scraping
+  camofox:
+    image: ghcr.io/jo-inc/camofox-browser:1.11.2
+    container_name: norish-camofox-test
+    restart: unless-stopped
+    environment:
+      CAMOFOX_PORT: "9377"
+    shm_size: "1gb"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "require(''http'').get(''http://localhost:9377/health'', r => process.exit(r.statusCode===200?0:1))"',
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
 
 volumes:
   db_data:
