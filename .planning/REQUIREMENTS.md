@@ -36,7 +36,7 @@
 - [ ] **SETUP-01**: Fork builds via `pnpm docker:build` on LXC 110 and deploys to the existing stack.
 - [ ] **SETUP-02**: Diff vs upstream is minimal + isolated; upstream remote tracked.
 - [ ] **SETUP-03**: No extra runtime setup vs off-the-shelf norish (config/env only).
-- [ ] **SETUP-04**: Camoufox is bundled in the compose (self-contained); no external browser service required; `CAMOFOX_URL` can override to reuse an external one.
+- [ ] **SETUP-04**: Camoufox is bundled in the compose (self-contained) by building the **vendored camofox-browser v1.4.1** source under `docker/camofox/` (no external image/registry — the published 1.8-1.11 images regressed on Akamai); no external browser service required; `CAMOFOX_URL` can override to reuse an external one.
 - [ ] **SETUP-05**: All cloud API keys (AI provider, transcription/AssemblyAI, OAuth) are configurable via the admin UI and persisted (encrypted) in the DB — not required as environment variables.
 
 ## v2 Requirements

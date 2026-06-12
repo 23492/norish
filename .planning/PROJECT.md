@@ -52,8 +52,8 @@ Reliable recipe import & management for Kiran's groups — including bot-protect
 | AssemblyAI as native transcription provider | User choice; folds boot-patch into source | — Pending |
 | Dev+build on LXC 110, gh account 23492 | User directive | Done |
 | gsd-core minimal profile | Adhere to gsd-core; minimal footprint | Done |
-| Camoufox bundled by default (ghcr.io/jo-inc/camofox-browser) | Standalone package, no external browser service; overridable via CAMOFOX_URL | Done |
+| Camoufox bundled via vendored camofox-browser v1.4.1, built in compose | Standalone package, no external browser service; published 1.8-1.11 images regressed on Akamai (fail AH.nl), so vendor + build the proven v1.4.1; overridable via CAMOFOX_URL | Done |
 | Cloud keys via admin UI, not env | Zero-secret env; keys persisted encrypted in DB, configured post-install | Done |
 
 ---
-*Last updated: 2026-06-12 after fork setup*
+*Last updated: 2026-06-12 after vendoring + building camofox-browser v1.4.1 (verified beats AH.nl)*
