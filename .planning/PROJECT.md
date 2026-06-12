@@ -6,7 +6,7 @@ A self-hosted fork of [norish](https://github.com/norish-recipes/norish) (AGPL-3
 
 ## Core Value
 
-Reliable recipe import & management for Kiran's groups — including bot-protected sources (AH.nl etc.) — with no more setup than the off-the-shelf norish.
+Reliable recipe import & management for Kiran's groups — including bot-protected sources (AH.nl etc.) — with no more setup than the off-the-shelf norish. The package is self-contained: the Camoufox browser is bundled in the compose by default, so no external scraping service is required.
 
 ## Requirements
 
@@ -40,6 +40,7 @@ Reliable recipe import & management for Kiran's groups — including bot-protect
 - **Env**: All development via SSH on LXC 110. Build with `pnpm docker:build` on 110. Deploy the built image to 110.
 - **Licensing**: AGPL-3.0 (private use fine; offer source if exposed publicly).
 - **Quality**: Complete work, no placeholders. Per-cookbook isolation (Phase 2) is security-critical.
+- **Standalone**: Camoufox is bundled in the compose by default (overridable via `CAMOFOX_URL`); all cloud API keys (AI extraction, transcription, OAuth) are set in the admin UI — never required as env.
 
 ## Key Decisions
 
@@ -51,6 +52,8 @@ Reliable recipe import & management for Kiran's groups — including bot-protect
 | AssemblyAI as native transcription provider | User choice; folds boot-patch into source | — Pending |
 | Dev+build on LXC 110, gh account 23492 | User directive | Done |
 | gsd-core minimal profile | Adhere to gsd-core; minimal footprint | Done |
+| Camoufox bundled by default (ghcr.io/jo-inc/camofox-browser) | Standalone package, no external browser service; overridable via CAMOFOX_URL | Done |
+| Cloud keys via admin UI, not env | Zero-secret env; keys persisted encrypted in DB, configured post-install | Done |
 
 ---
 *Last updated: 2026-06-12 after fork setup*
