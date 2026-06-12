@@ -642,9 +642,6 @@ importers:
       openai:
         specifier: 6.35.0
         version: 6.35.0(ws@8.20.0)(zod@4.4.2)
-      playwright-core:
-        specifier: npm:rebrowser-playwright-core@^1.52.0
-        version: rebrowser-playwright-core@1.52.0
       superjson:
         specifier: 'catalog:'
         version: 2.2.6
@@ -10017,11 +10014,6 @@ packages:
     resolution: {integrity: sha512-57frrGM/OCTLqLOAh0mhVA9VBMHd+9U7Zb2THMGdBUoZVOtGbJzjxsYGDJ3A9AYYCP4hn6y1TVbaOfzWtm5GFg==}
     engines: {node: '>= 12.13.0'}
 
-  rebrowser-playwright-core@1.52.0:
-    resolution: {integrity: sha512-gjrvLNh0RX6B/tg6pWaPNGf+9+z1Jl2EyAh5MXD5xMa2lputGRZ9V2MJ/uofcC5Np3vSOJ3SdVSRqwteC0FjfQ==}
-    engines: {node: '>=18'}
-    hasBin: true
-
   redent@3.0.0:
     resolution: {integrity: sha512-6tDA8g98We0zd0GvVeMT9arEOnTw9qM03L9cJXaCjrip1OO764RDBLBfrB4cwzNGDj5OA5ioymC9GkizgWJDUg==}
     engines: {node: '>=8'}
@@ -14414,7 +14406,6 @@ snapshots:
       mime: 4.1.0
       next: 16.2.4(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       openai: 6.35.0(ws@8.20.0)(zod@4.3.6)
-      playwright-core: rebrowser-playwright-core@1.52.0
       superjson: 2.2.6
       yt-dlp-wrap: 2.3.12
       zod: 4.3.6
@@ -22987,8 +22978,6 @@ snapshots:
     optional: true
 
   real-require@0.2.0: {}
-
-  rebrowser-playwright-core@1.52.0: {}
 
   redent@3.0.0:
     dependencies:

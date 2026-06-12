@@ -27,7 +27,6 @@ export default defineConfig({
     "libheif-js",
     "yt-dlp-wrap",
     "ffmpeg-static",
-    "playwright-core",
     "bullmq",
     "ioredis",
     // --- Frameworks ---
