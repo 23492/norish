@@ -6,7 +6,7 @@ This is a fork of upstream **norish-recipes/norish** (AGPL-3.0). Treat the rules
 
 - **Complete work, no placeholders.** No TODOs, stubs, or "left as an exercise". Every change compiles, type-checks, lints, and is tested.
 - **Before changing anything, ask: is it needed? is it the best way? can it be simpler? is it complete?**
-- **Match upstream conventions exactly.** Mirror the style of the file/package you are editing. Keep diffs minimal and isolated so the fork stays re-baseable against upstream.
+- **Stay as close as possible to the original repo's code style.** Match upstream norish conventions exactly: naming, file/module layout, import ordering, error handling, typing, formatting (the repo's Prettier/ESLint config), and test style. Mirror the style of the file/package you are editing, and prefer an existing upstream pattern over inventing a new one. Keep every diff minimal and well-isolated so the fork stays cleanly re-baseable against upstream.
 - **Track upstream.** `upstream` remote = norish-recipes/norish. Prefer additive, well-contained changes; consider upstreaming features.
 
 ## Stack & tooling (do not drift)
@@ -21,6 +21,14 @@ This is a fork of upstream **norish-recipes/norish** (AGPL-3.0). Treat the rules
 - **All development happens via SSH on Proxmox LXC 110** (`/opt/norish-src`). Build with `pnpm docker:build` on LXC 110; deploy the built image to the LXC 110 docker stack.
 - **Follow gsd-core**: work through the phase loop (Discuss → Plan → Execute → Verify → Ship); keep `.planning/` artifacts current; verify-before-ship.
 - **Conventional Commits** (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`), imperative, scoped where useful.
+
+## Documentation (Obsidian vault)
+
+- **Document this project in Kiran's Obsidian vault** (homelab knowledge base, `projects/homelab/references/`), in addition to the repo's `.planning/` artifacts.
+- Keep [[norish-feature-roadmap]] current — update the status table and append to the milestone log **semi-live, as each milestone lands** (decisions made, phases shipped, deploys done).
+- When architecture changes, update/add the relevant reference pages (e.g. `norish-camofox-integration`, `camofox-browser-server`, `norish-deployment`).
+- Follow the vault's llm-wiki conventions (frontmatter with summary/sources/base_confidence/provenance/lifecycle; full-path wikilinks; provenance markers). The vault's own root `CLAUDE.md` is canonical for those rules.
+- Mirror significant decisions in `.planning/PROJECT.md` (Key Decisions) so the repo and the vault stay in sync.
 
 ## Fork-specific architecture
 
