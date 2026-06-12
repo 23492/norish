@@ -114,7 +114,7 @@ services:
       AUTH_URL: http://norish.example.com
       DATABASE_URL: postgres://postgres:norish@db:5432/norish
       MASTER_KEY: <32-byte-base64-key> # openssl rand -base64 32
-      CHROME_WS_ENDPOINT: ws://chrome-headless:3000
+      CAMOFOX_URL: http://camofox:9377
       REDIS_URL: redis://redis:6379
       UPLOADS_DIR: /app/uploads
 
@@ -243,7 +243,7 @@ When no component vars are set, the fallback URL is:
 | Variable             | Description                                    | Typical value                |
 | -------------------- | ---------------------------------------------- | ---------------------------- |
 | `AUTH_URL`           | Public URL used for callbacks and links        | `https://norish.example.com` |
-| `CHROME_WS_ENDPOINT` | Playwright CDP WebSocket endpoint for scraping | `ws://chrome-headless:3000`  |
+| `CAMOFOX_URL`        | Camoufox REST service endpoint for scraping    | `http://camofox:9377`        |
 | `REDIS_URL`          | Redis connection URL for events and jobs       | `redis://redis:6379`         |
 
 ### Optional general Runtime
@@ -256,7 +256,7 @@ When no component vars are set, the fallback URL is:
 | `AUTH_URL`            | Public URL for auth callbacks and links    | `http://localhost:3000`                           |
 | `TRUSTED_ORIGINS`     | Comma-separated additional trusted origins | (empty)                                           |
 | `UPLOADS_DIR`         | Upload storage directory                   | `./.runtime/uploads` (dev), `/app/uploads` (prod) |
-| `CHROME_WS_ENDPOINT`  | Playwright CDP WebSocket endpoint          | `ws://chrome-headless:3000`                       |
+| `CAMOFOX_URL`         | Camoufox REST service endpoint             | `http://camofox:9377`                             |
 | `PARSER_API_TIMEOUT_MS` | Parser API timeout in milliseconds       | `15000`                                           |
 | `LEGACY_RECIPE_PARSER_ROLLBACK` | Re-enable deprecated legacy structured parser | `false`                        |
 | `REDIS_URL`           | Redis connection URL                       | `redis://localhost:6379`                          |
