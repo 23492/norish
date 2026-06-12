@@ -7,7 +7,7 @@ Fork upstream norish and evolve it in three feature phases — native Camoufox s
 ## Phases
 
 - [x] **Phase 0: Fork & tooling setup** - Fork, gsd-core, dev env on LXC 110, stock self-build de-risk
-- [ ] **Phase 1: Native Camoufox scraping** - Replace headless Chrome with the Camoufox REST client in source
+- [x] **Phase 1: Native Camoufox scraping** - Replace headless Chrome with the Camoufox REST client in source
 - [ ] **Phase 2: Multi-household cookbooks** - Multiple households per user + per-cookbook recipe scoping
 - [ ] **Phase 3: AssemblyAI transcription** - Native AssemblyAI provider for video imports
 
@@ -25,22 +25,22 @@ Fork upstream norish and evolve it in three feature phases — native Camoufox s
 
 Plans:
 - [x] 00-01: Fork + clone + Node/pnpm + gsd-core + .planning/ + CLAUDE.md
-- [ ] 00-02: Reproduce stock self-build + verify deploy on LXC 110
+- [x] 00-02: Reproduce stock self-build + verify deploy on LXC 110
 
 ### Phase 1: Native Camoufox scraping
 **Goal**: The browser fetch layer talks to the Camoufox REST service natively; chrome-headless removed.
 **Depends on**: Phase 0
-**Requirements**: SCRAPE-01, SCRAPE-02, SCRAPE-03, SCRAPE-04, SCRAPE-05, SCRAPE-06
+**Requirements**: SCRAPE-01, SCRAPE-02, SCRAPE-03, SCRAPE-04, SCRAPE-05, SCRAPE-06, SETUP-04
 **Success Criteria** (what must be TRUE):
   1. Recipe import of a bot-protected URL (ah.nl) succeeds with no chrome-headless service running.
   2. Cookie/header site-auth tokens are honored via Camoufox.
   3. The built image needs no boot-patch; if Camoufox is unreachable the import fails with a clear error, not a silent empty result.
-**Plans**: TBD (~3)
+**Plans**: 3 plans
 
 Plans:
-- [ ] 01-01: CAMOFOX_URL config + Camoufox REST client (packages/api/src/camofox.ts)
-- [ ] 01-02: Rewrite parser/fetch.ts fetch path onto the client (tokens, waits, HTML); update 3 callers
-- [ ] 01-03: Remove chrome-headless from compose/config; dependency cleanup; tests
+- [x] 01-01: CAMOFOX_URL config + Camoufox REST client (packages/api/src/camofox.ts)
+- [x] 01-02: Rewrite parser/fetch.ts fetch path onto the client (tokens, waits, HTML); update callers
+- [x] 01-03: Remove chrome-headless from compose/config; bundle vendored camofox-browser v1.4.1; tests
 
 ### Phase 2: Multi-household cookbooks
 **Goal**: Users belong to multiple households, switch the active cookbook, and recipes are scoped per cookbook with isolation.
@@ -50,13 +50,15 @@ Plans:
   1. A user creates/joins two households + a personal cookbook and switches between them.
   2. Recipes show only for the active cookbook; another household's recipes are not visible (isolation).
   3. Import assigns the recipe to the active cookbook.
-**Plans**: TBD (~4-5)
+**Plans**: 4 plans (planned 2026-06-12)
+
+Canonical refs: `.planning/phases/02-multi-household/02-CONTEXT.md` (D-01..D-15)
 
 Plans:
-- [ ] 02-01: Schema migration (recipes.household_id, user.active_household_id; drop single-household guard)
-- [ ] 02-02: Backend — active-household at tRPC context; multi-membership repo; recipe scoping + secondary repos
-- [ ] 02-03: Permissions — per-cookbook isolation (security-critical) + tests
-- [ ] 02-04: Frontend — switcher, create/join/leave, assign-to-cookbook; i18n nl+en
+- [ ] 02-01: Schema + migration (recipes.household_id, user.active_household_id; swap uq_recipes_url_user→(url,household_id); relation + recipe zod; generate 0035 migration) — wave 1
+- [ ] 02-02: Backend core (active-household resolver/setter + multi-membership; tRPC context/middleware; households list+switchActive; recipe scoping rewrite by household_id; import queue carries householdId; secondary-repo callers) — wave 2
+- [ ] 02-03: Permissions + per-cookbook isolation tests (security-critical: canAccessResource by recipe household_id + member household ids; dedicated DB + tRPC isolation suites) — wave 3
+- [ ] 02-04: Frontend + i18n (cookbook switcher navbar+mobile with Personal option; list/active/switch hooks+context; assign-to-active import; nl+en real + all 11 locales for i18n:check) — wave 4 (has human-verify checkpoint)
 
 ### Phase 3: AssemblyAI transcription
 **Goal**: AssemblyAI is a native transcription provider; video imports transcribe through it.
