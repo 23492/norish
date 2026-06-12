@@ -61,6 +61,11 @@ Reliable recipe import & management for Kiran's groups — including bot-protect
 | Swap unique `(url,userId)` → `(url,household_id)` | Dedup is per-cookbook; NULL household rows (personal) never collide | Planned (Phase 2, D-13) |
 | `recipe_permission_policy` shape unchanged; `household` reinterpreted per-cookbook | v1 uses one server-wide policy scoped to the recipe's own cookbook + requester membership; per-household override deferred to v2 (HOUSE-08) | Planned (Phase 2, D-09/D-10) |
 | Per-cookbook isolation in permissions.ts + dedicated tests | Security-critical (HOUSE-06): `canAccessResource` keyed on recipe household_id + requester member household ids; DB + tRPC isolation suites | Planned (Phase 2, D-11/D-12) |
+| Cooklang adoption is **contributable to upstream #470** (not a hard fork) | Coordinate design with the maintainer; ship as the PR that closes #470 to stay re-baseable | Pending (COOK-01) |
+| **Pantry dropped**; "what can I make" is **image-based** (AH GenAI seed) | Image + optional text → AI ingredient recognition beats maintaining an inventory; deep research deferred to build-time | Pending (MAKE-01) |
+| **Per-household permission policies = critical** near-term phase | Each cookbook owns its view/edit/delete; Phase 2 keeps single-policy-reinterpreted for v1, dedicated phase follows | Pending (POLICY-01) |
+| Recipe-in-multiple-households handled via **versions / lineage** | Phase 2 stays recipes-1:N-home; saving a shared recipe forks a version in a shared bucket (future lineage_id/parent_recipe_id) | Pending (VERSION-01) |
+| Sharing is **per-link only** for now (no public gallery) | Per-recipe private/household/public on `recipe_shares`; public = token no-auth view; gallery/discovery deferred | Pending (SHARE-01) |
 
 ---
 *Last updated: 2026-06-12 — Phase 2 (multi-household) planned; Phases 0 + 1 marked complete (Camoufox scraping shipped + bundled).*
