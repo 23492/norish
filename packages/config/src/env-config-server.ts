@@ -190,10 +190,13 @@ const ServerConfigSchema = z.object({
   CONTENT_INDICATORS: z.string().optional(),
   CONTENT_INGREDIENTS: z.string().optional(),
 
-  CHROME_WS_ENDPOINT: z
+  // Camoufox REST service used for browser-rendered scraping (deploy overrides via env)
+  CAMOFOX_URL: z
     .string()
-    .min(1, "CHROME_WS_ENDPOINT is required for web scraping")
-    .default("ws://chrome-headless:3000"),
+    .url("CAMOFOX_URL must be a valid URL for web scraping")
+    .default("http://camofox:9377"),
+  // Bearer token for Camoufox's gated endpoints (per-site cookie injection)
+  CAMOFOX_API_KEY: z.string().optional(),
 
   PARSER_API_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
   LEGACY_RECIPE_PARSER_ROLLBACK: z
