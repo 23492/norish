@@ -41,6 +41,14 @@ export const HouseholdWithUsersNamesSchema = HouseholdSelectBaseSchema.extend({
   users: z.array(HouseholdUserSchema).default([]),
 });
 
+// Lightweight household entry for the cookbook switcher (households.list)
+export const HouseholdSummarySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  isActive: z.boolean(),
+  memberCount: z.number().int().nonnegative(),
+});
+
 // Schema for household settings view - omits sensitive fields and unused timestamp fields
 // Users can determine admin from the isAdmin flag in the users array
 export const HouseholdSettingsSchema = HouseholdSelectBaseSchema.omit({

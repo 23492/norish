@@ -4,6 +4,7 @@ import type {
   HouseholdInsertBaseSchema,
   HouseholdSelectBaseSchema,
   HouseholdSettingsSchema,
+  HouseholdSummarySchema,
   HouseholdUpdateBaseSchema,
   HouseholdUserInsertBaseSchema,
   HouseholdUserSelectBaseSchema,
@@ -20,3 +21,4 @@ export type HouseholdUserInsertDto = z.input<typeof HouseholdUserInsertBaseSchem
 export type HouseholdWithUsersNamesDto = z.output<typeof HouseholdWithUsersNamesSchema>;
 export type HouseholdSettingsDto = z.output<typeof HouseholdSettingsSchema>;
 export type HouseholdAdminSettingsDto = z.output<typeof HouseholdAdminSettingsSchema>;
+export type HouseholdSummaryDto = z.output<typeof HouseholdSummarySchema>;

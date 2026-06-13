@@ -1,6 +1,7 @@
 import type {
   HouseholdAdminSettingsDto,
   HouseholdSettingsDto,
+  HouseholdSummaryDto,
 } from "@norish/shared/contracts/dto/household";
 import type { HouseholdUserInfo } from "./types";
 
@@ -11,13 +12,17 @@ import {
   addUserToHousehold,
   createHousehold,
   findHouseholdByJoinCode,
+  getActiveHouseholdForUser,
+  getActiveHouseholdId,
   getAllergiesForUsers,
   getHouseholdForUser,
+  getHouseholdsForUser,
   getUsersByHouseholdId,
   isUserHouseholdAdmin,
   kickUserFromHousehold,
   regenerateJoinCode,
   removeUserFromHousehold,
+  setActiveHousehold,
   transferHouseholdAdmin,
 } from "@norish/db";
 import {
@@ -98,7 +103,8 @@ function toHouseholdDto(
 const get = authedProcedure.query(async ({ ctx }) => {
   log.debug({ userId: ctx.user.id }, "Getting household settings");
 
-  const household = await getHouseholdForUser(ctx.user.id);
+  // Settings reflect the ACTIVE cookbook (null = personal view).
+  const household = await getActiveHouseholdForUser(ctx.user.id);
   const userIds = household?.users.map((u) => u.id) ?? [];
   const allergiesRows = await getAllergiesForUsers(userIds);
   const allergies = [...new Set(allergiesRows.map((a) => a.tagName))];
@@ -109,6 +115,65 @@ const get = authedProcedure.query(async ({ ctx }) => {
   return { household: dto, currentUserId: ctx.user.id };
 });
 
+/**
+ * List all households the user is a member of, for the cookbook switcher.
+ * Includes the user's active household id (null = personal cookbook).
+ */
+const list = authedProcedure.query(async ({ ctx }) => {
+  log.debug({ userId: ctx.user.id }, "Listing households");
+
+  const households = await getHouseholdsForUser(ctx.user.id);
+  const activeHouseholdId = await getActiveHouseholdId(ctx.user.id);
+
+  const householdSummaries: HouseholdSummaryDto[] = households.map((household) => ({
+    id: household.id,
+    name: household.name,
+    isActive: household.id === activeHouseholdId,
+    memberCount: household.users.length,
+  }));
+
+  return {
+    households: householdSummaries,
+    activeHouseholdId,
+    currentUserId: ctx.user.id,
+  };
+});
+
+/**
+ * Switch the user's active household (or null = personal cookbook).
+ * Validates membership (FORBIDDEN otherwise), invalidates the household cache,
+ * and terminates the connection so subscriptions rebind to the new active key.
+ */
+const switchActive = authedProcedure
+  .input(z.object({ householdId: z.string().nullable() }))
+  .mutation(async ({ ctx, input }) => {
+    log.info(
+      { userId: ctx.user.id, householdId: input.householdId },
+      "Switching active household"
+    );
+
+    try {
+      await setActiveHousehold(ctx.user.id, input.householdId);
+    } catch (err) {
+      if (err instanceof Error && err.message === "FORBIDDEN") {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You are not a member of this household",
+        });
+      }
+
+      throw err;
+    }
+
+    // Cache holds the ACTIVE household; drop it so the next read reflects the switch.
+    await invalidateHouseholdCache(ctx.user.id);
+
+    // Rebind subscriptions to the new active household key.
+    await emitConnectionInvalidation(ctx.user.id, "household-switched");
+
+    return { success: true, activeHouseholdId: input.householdId };
+  });
+
 const create = authedProcedure
   .input(z.object({ name: HouseholdNameSchema }))
   .mutation(async ({ ctx, input }) => {
@@ -117,16 +182,7 @@ const create = authedProcedure
 
     log.info({ userId: ctx.user.id, name }, "Creating household");
 
-    // Check if user is already in a household
-    const existingHousehold = await getHouseholdForUser(ctx.user.id);
-
-    if (existingHousehold) {
-      throw new TRPCError({
-        code: "CONFLICT",
-        message: "You are already in a household. Leave it first to create a new one.",
-      });
-    }
-
+    // Multi-membership: a user may create/belong to many households (no guard).
     // Create household async and emit events
     createHousehold({ name, adminUserId: ctx.user.id })
       .then(async (household) => {
@@ -135,10 +191,13 @@ const create = authedProcedure
         // Auto-generate join code for new household
         await regenerateJoinCode(household.id);
 
+        // The newly created household becomes the user's active cookbook.
+        await setActiveHousehold(ctx.user.id, household.id);
+
         log.info({ userId: ctx.user.id, householdId: household.id }, "Household created");
 
         // Get full household data with users (after join code generated)
-        const fullHousehold = await getHouseholdForUser(ctx.user.id);
+        const fullHousehold = await getActiveHouseholdForUser(ctx.user.id);
         const userIds = fullHousehold?.users.map((u) => u.id) ?? [];
         const allergiesRows = await getAllergiesForUsers(userIds);
         const allergies = [...new Set(allergiesRows.map((a) => a.tagName))];
@@ -174,16 +233,7 @@ const join = authedProcedure
     // Validate cleaned code format
     JoinCodeSchema.parse(cleaned);
 
-    // Check if user is already in a household
-    const existingHousehold = await getHouseholdForUser(ctx.user.id);
-
-    if (existingHousehold) {
-      throw new TRPCError({
-        code: "CONFLICT",
-        message: "You are already in a household. Leave it first to join another one.",
-      });
-    }
-
+    // Multi-membership: a user may join additional households (no guard).
     // Find household by code
     const household = await findHouseholdByJoinCode(cleaned);
 
@@ -214,8 +264,11 @@ const join = authedProcedure
         log.info({ userId: ctx.user.id, householdId }, "User joined household");
         const versionedMembership = membership as typeof membership & { version: number };
 
+        // The joined household becomes the user's active cookbook.
+        await setActiveHousehold(ctx.user.id, householdId);
+
         // Get full household for the joining user
-        const fullHousehold = await getHouseholdForUser(ctx.user.id);
+        const fullHousehold = await getActiveHouseholdForUser(ctx.user.id);
         const userIds = fullHousehold?.users.map((u) => u.id) ?? [];
         const allergiesRows = await getAllergiesForUsers(userIds);
         const allergies = [...new Set(allergiesRows.map((a) => a.tagName))];
@@ -253,9 +306,11 @@ const leave = authedProcedure.input(LeaveHouseholdInputSchema).mutation(async ({
 
   log.info({ userId: ctx.user.id, householdId }, "Leaving household");
 
-  const household = await getHouseholdForUser(ctx.user.id);
+  // Multi-membership: resolve the SPECIFIC household being left (not "first").
+  const memberships = await getHouseholdsForUser(ctx.user.id);
+  const household = memberships.find((h) => h.id === householdId);
 
-  if (!household || household.id !== householdId) {
+  if (!household) {
     throw new TRPCError({
       code: "FORBIDDEN",
       message: "You are not in this household",
@@ -287,6 +342,13 @@ const leave = authedProcedure.input(LeaveHouseholdInputSchema).mutation(async ({
       }
 
       log.info({ userId: ctx.user.id, householdId }, "User left household");
+
+      // If the left household was the user's active one, reset to personal.
+      const activeHouseholdId = await getActiveHouseholdId(ctx.user.id);
+
+      if (activeHouseholdId === householdId) {
+        await setActiveHousehold(ctx.user.id, null);
+      }
 
       // Invalidate cache for leaving user AND remaining members (their user list changed)
       await invalidateHouseholdCacheForUsers([ctx.user.id, ...remainingMemberIds]);
@@ -333,8 +395,9 @@ const kick = authedProcedure
       });
     }
 
-    // Verify the user is actually in the household
-    const household = await getHouseholdForUser(ctx.user.id);
+    // Verify the user is actually in the household (resolve the SPECIFIC one).
+    const memberships = await getHouseholdsForUser(ctx.user.id);
+    const household = memberships.find((h) => h.id === householdId);
     const kickedUser = household?.users.find((u) => u.id === userIdToKick);
 
     if (!kickedUser) {
@@ -361,6 +424,13 @@ const kick = authedProcedure
         }
 
         log.info({ userId: ctx.user.id, householdId, userIdToKick }, "User kicked from household");
+
+        // If the kicked household was the kicked user's active one, reset to personal.
+        const kickedActiveHouseholdId = await getActiveHouseholdId(userIdToKick);
+
+        if (kickedActiveHouseholdId === householdId) {
+          await setActiveHousehold(userIdToKick, null);
+        }
 
         // Emit to the kicked user FIRST (before their connection is terminated)
         householdEmitter.emitToUser(userIdToKick, "userKicked", {
@@ -500,10 +570,12 @@ const transferAdmin = authedProcedure
 
 export const householdsRouter = router({
   get,
+  list,
   create,
   join,
   leave,
   kick,
+  switchActive,
   regenerateCode,
   transferAdmin,
 });
