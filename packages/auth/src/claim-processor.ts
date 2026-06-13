@@ -5,8 +5,9 @@ import { invalidateHouseholdCacheForUsers } from "@norish/db/cached-household";
 import {
   addUserToHousehold,
   findOrCreateHouseholdByName,
-  getHouseholdForUser,
+  getHouseholdsForUser,
   getUsersByHouseholdId,
+  setActiveHousehold,
 } from "@norish/db/repositories/households";
 import { getUserById, setUserAdminStatus } from "@norish/db/repositories/users";
 import { getPublisherClient } from "@norish/queue/redis/client";
@@ -240,7 +241,8 @@ export function parseOIDCClaims(
  * Process OIDC claims for a user after login
  * - Only processes if claim mapping is enabled
  * - Updates admin status on every login
- * - Joins household only if user is not already in one
+ * - Joins the claimed household if the user is not already a member of THAT
+ *   household (multi-membership), and sets it as their active household
  */
 export async function processClaimsForUser(
   userId: string,
@@ -270,25 +272,33 @@ export async function processClaimsForUser(
     authLogger.info({ userId }, "User granted admin via OIDC claim");
   }
 
-  // Only process household if user has a claim and is not already in a household
+  // Only process household if the user has a claim
   if (claims.householdName) {
-    const existingHousehold = await getHouseholdForUser(userId);
+    // Find or create the claimed household
+    const household = await findOrCreateHouseholdByName(claims.householdName, userId);
 
-    if (existingHousehold) {
+    // Multi-membership: only join (and notify) if the user is not already a
+    // member of THIS specific claimed household. Membership of other households
+    // no longer short-circuits assignment.
+    const memberships = await getHouseholdsForUser(userId);
+    const alreadyMember = memberships.some((h) => h.id === household.id);
+
+    if (alreadyMember) {
       authLogger.debug(
         {
           userId,
-          existingHousehold: existingHousehold.name,
           claimedHousehold: claims.householdName,
         },
-        "User already in household, skipping claim-based assignment"
+        "User already a member of the claimed household, ensuring it is active"
       );
+
+      // Idempotent: ensure the claimed household is the active one.
+      await setActiveHousehold(userId, household.id);
+      await invalidateHouseholdCacheForUsers([userId]);
+      await emitConnectionInvalidation(userId, "household-joined-via-oidc");
 
       return;
     }
-
-    // Find or create the household
-    const household = await findOrCreateHouseholdByName(claims.householdName, userId);
 
     // Get existing members before adding the new user (for notifications)
     const existingMembers = await getUsersByHouseholdId(household.id);
@@ -299,6 +309,9 @@ export async function processClaimsForUser(
       householdId: household.id,
       userId,
     })) as Awaited<ReturnType<typeof addUserToHousehold>> & { version: number };
+
+    // Make the claimed household the user's active household
+    await setActiveHousehold(userId, household.id);
 
     authLogger.info(
       { userId, householdId: household.id, householdName: claims.householdName },

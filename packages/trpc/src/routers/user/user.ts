@@ -8,7 +8,7 @@ import {
   deleteUser,
   getAllergiesForUsers,
   getApiKeysForUser,
-  getHouseholdForUser,
+  getHouseholdsForUser,
   getUserAllergies,
   getUserById,
   getUserPreferences,
@@ -278,19 +278,18 @@ const deleteAvatar = authedProcedure
 const deleteAccount = authedProcedure.mutation(async ({ ctx }) => {
   log.debug({ userId: ctx.user.id }, "Deleting account");
 
-  // Check if user is admin of household with other members
-  const household = await getHouseholdForUser(ctx.user.id);
+  // Check if user is admin of ANY household with other members (multi-membership)
+  const households = await getHouseholdsForUser(ctx.user.id);
+  const adminOfPopulatedHousehold = households.some(
+    (household) => household.adminUserId === ctx.user.id && household.users.length > 1
+  );
 
-  if (household && household.adminUserId === ctx.user.id) {
-    const memberCount = household.users.length;
-
-    if (memberCount > 1) {
-      return {
-        success: false,
-        error:
-          "You cannot delete your account while you are the admin of a household with other members. Transfer admin privileges first or have all members leave.",
-      };
-    }
+  if (adminOfPopulatedHousehold) {
+    return {
+      success: false,
+      error:
+        "You cannot delete your account while you are the admin of a household with other members. Transfer admin privileges first or have all members leave.",
+    };
   }
 
   // Delete user avatars

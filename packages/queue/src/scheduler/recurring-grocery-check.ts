@@ -1,4 +1,4 @@
-import { getHouseholdForUser } from "@norish/db";
+import { getActiveHouseholdForUser } from "@norish/db";
 import {
   getDueRecurringGroceries,
   uncheckGrocery,
@@ -12,7 +12,7 @@ import { groceryEmitter } from "@norish/trpc/routers/groceries/emitter";
  * Get the household key for a user (household ID or user ID if no household)
  */
 async function getHouseholdKeyForUser(userId: string): Promise<string> {
-  const household = await getHouseholdForUser(userId);
+  const household = await getActiveHouseholdForUser(userId);
 
   return household?.id ?? userId;
 }

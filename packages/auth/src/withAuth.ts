@@ -3,7 +3,7 @@ import type { HouseholdWithUsersNamesDto, User } from "@norish/shared/contracts"
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { auth } from "@norish/auth/auth";
-import { getHouseholdForUser, getUserById, isUserServerAdmin } from "@norish/db";
+import { getActiveHouseholdForUser, getUserById, isUserServerAdmin } from "@norish/db";
 
 export async function requireUser(): Promise<User> {
   // Use BetterAuth's getSession API which handles both session cookies and API keys
@@ -46,7 +46,7 @@ export async function requireUserAndHousehold(): Promise<{
   household: HouseholdWithUsersNamesDto | null;
 }> {
   const user = await requireUser();
-  const household = await getHouseholdForUser(user.id);
+  const household = await getActiveHouseholdForUser(user.id);
 
   return { user, household };
 }

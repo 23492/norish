@@ -1,7 +1,10 @@
 import type { UserCaldavConfigDecryptedDto } from "@norish/shared/contracts/dto/caldav-config";
 
 import { getHouseholdCaldavConfigs } from "@norish/db/repositories/caldav-config";
-import { getHouseholdMemberIds } from "@norish/db/repositories/households";
+import {
+  getActiveHouseholdForUser,
+  getHouseholdMemberIds,
+} from "@norish/db/repositories/households";
 
 /**
  * Get unique CalDAV servers for all household members
@@ -10,8 +13,11 @@ import { getHouseholdMemberIds } from "@norish/db/repositories/households";
 export async function getUniqueCalDavServers(
   userId: string
 ): Promise<Map<string, UserCaldavConfigDecryptedDto>> {
-  // Get all household member IDs including the user
-  const householdUserIds = await getHouseholdMemberIds(userId);
+  // Get all member IDs of the user's active household (including the user)
+  const activeHousehold = await getActiveHouseholdForUser(userId);
+  const householdUserIds = activeHousehold
+    ? await getHouseholdMemberIds(activeHousehold.id)
+    : [userId];
 
   // Get enabled CalDAV configs for all household members
   const configMap = await getHouseholdCaldavConfigs(householdUserIds);

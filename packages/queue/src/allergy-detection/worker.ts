@@ -11,7 +11,12 @@ import type { AllergyDetectionJobData } from "@norish/queue/contracts/job-types"
 import type { PolicyEmitContext } from "@norish/trpc/helpers";
 
 import { getRecipePermissionPolicy } from "@norish/config/server-config-loader";
-import { getAllergiesForUsers, getHouseholdMemberIds, getRecipeFull } from "@norish/db";
+import {
+  getActiveHouseholdForUser,
+  getAllergiesForUsers,
+  getHouseholdMemberIds,
+  getRecipeFull,
+} from "@norish/db";
 import { db } from "@norish/db/drizzle";
 import { attachTagsToRecipeByInputTx, getRecipeTagNamesTx } from "@norish/db/repositories/tags";
 import { requireQueueApiHandler } from "@norish/queue/api-handlers";
@@ -65,8 +70,11 @@ async function processAllergyDetectionJob(job: Job<AllergyDetectionJobData>): Pr
     return;
   }
 
-  // Get household member IDs to fetch all allergies
-  const householdUserIds = await getHouseholdMemberIds(userId);
+  // Get the active household's member IDs to fetch all allergies
+  const activeHousehold = await getActiveHouseholdForUser(userId);
+  const householdUserIds = activeHousehold
+    ? await getHouseholdMemberIds(activeHousehold.id)
+    : [userId];
   const householdAllergies = await getAllergiesForUsers(householdUserIds);
 
   // Extract unique allergen names
