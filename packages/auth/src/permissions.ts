@@ -25,7 +25,8 @@ export async function canAccessResource(
   action: PermissionAction,
   userId: string,
   ownerId: string,
-  userHouseholdUserIds: string[] | null,
+  resourceHouseholdId: string | null,
+  requesterMemberHouseholdIds: string[],
   isServerAdmin: boolean
 ): Promise<boolean> {
   if (userId === ownerId || isServerAdmin) return true;
@@ -38,10 +39,12 @@ export async function canAccessResource(
       return true;
 
     case "household": {
-      if (!userHouseholdUserIds) return false;
+      // Per-cookbook isolation: the requester may access the resource only if it
+      // belongs to a cookbook (household) the requester is a member of. A null
+      // household (personal recipe) is owner-only and never shared via this branch.
+      if (resourceHouseholdId === null) return false;
 
-      // Check if owner is in user's household (households are symmetric)
-      return userHouseholdUserIds.includes(ownerId);
+      return requesterMemberHouseholdIds.includes(resourceHouseholdId);
     }
     default:
       return false;
