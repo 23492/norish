@@ -15,6 +15,8 @@ const mockRegenerateMutate = vi.fn();
 const mockTransferMutate = vi.fn();
 const mockRenameMutate = vi.fn();
 const mockSwitchActiveMutate = vi.fn();
+const mockGenerateInviteTokenMutate = vi.fn(async () => ({ inviteToken: "invite-token-xyz" }));
+const mockJoinByInviteTokenMutate = vi.fn(async () => ({ householdId: "joined-household-id" }));
 
 vi.mock("@tanstack/react-query", async () => {
   const actual = await vi.importActual("@tanstack/react-query");
@@ -23,6 +25,7 @@ vi.mock("@tanstack/react-query", async () => {
     ...actual,
     useMutation: vi.fn((options: { mutationFn?: (...args: unknown[]) => unknown } | undefined) => ({
       mutate: options?.mutationFn ?? vi.fn(),
+      mutateAsync: options?.mutationFn ?? vi.fn(),
       isPending: false,
     })),
   };
@@ -54,6 +57,12 @@ vi.mock("@/app/providers/trpc-provider", () => ({
       transferAdmin: { mutationOptions: vi.fn(() => ({ mutationFn: mockTransferMutate })) },
       rename: { mutationOptions: vi.fn(() => ({ mutationFn: mockRenameMutate })) },
       switchActive: { mutationOptions: vi.fn(() => ({ mutationFn: mockSwitchActiveMutate })) },
+      generateInviteToken: {
+        mutationOptions: vi.fn(() => ({ mutationFn: mockGenerateInviteTokenMutate })),
+      },
+      joinByInviteToken: {
+        mutationOptions: vi.fn(() => ({ mutationFn: mockJoinByInviteTokenMutate })),
+      },
     },
     recipes: {
       list: {
@@ -81,6 +90,10 @@ describe("useHouseholdMutations", () => {
     mockTransferMutate.mockReset();
     mockRenameMutate.mockReset();
     mockSwitchActiveMutate.mockReset();
+    mockGenerateInviteTokenMutate.mockReset();
+    mockGenerateInviteTokenMutate.mockResolvedValue({ inviteToken: "invite-token-xyz" });
+    mockJoinByInviteTokenMutate.mockReset();
+    mockJoinByInviteTokenMutate.mockResolvedValue({ householdId: "joined-household-id" });
     queryClient = createTestQueryClient();
   });
 
@@ -103,6 +116,8 @@ describe("useHouseholdMutations", () => {
       expect(result.current).toHaveProperty("transferAdmin");
       expect(result.current).toHaveProperty("rename");
       expect(result.current).toHaveProperty("switchActive");
+      expect(result.current).toHaveProperty("generateInviteToken");
+      expect(result.current).toHaveProperty("joinByInviteToken");
 
       expect(typeof result.current.createHousehold).toBe("function");
       expect(typeof result.current.joinHousehold).toBe("function");
@@ -112,6 +127,40 @@ describe("useHouseholdMutations", () => {
       expect(typeof result.current.transferAdmin).toBe("function");
       expect(typeof result.current.rename).toBe("function");
       expect(typeof result.current.switchActive).toBe("function");
+      expect(typeof result.current.generateInviteToken).toBe("function");
+      expect(typeof result.current.joinByInviteToken).toBe("function");
+    });
+  });
+
+  describe("invite token (INVITE-01)", () => {
+    it("generateInviteToken resolves to the generated token", async () => {
+      const initialData = createMockHouseholdData(null, "current-user");
+
+      queryClient.setQueryData(["households", "get"], initialData);
+
+      const { useHouseholdMutations } = await import("@/hooks/households/use-household-mutations");
+      const { result } = renderHook(() => useHouseholdMutations(), {
+        wrapper: createTestWrapper(queryClient),
+      });
+
+      await expect(result.current.generateInviteToken("h1")).resolves.toBe("invite-token-xyz");
+      expect(mockGenerateInviteTokenMutate).toHaveBeenCalledWith({ householdId: "h1" });
+    });
+
+    it("joinByInviteToken resolves to the joined household id", async () => {
+      const initialData = createMockHouseholdData(null, "current-user");
+
+      queryClient.setQueryData(["households", "get"], initialData);
+
+      const { useHouseholdMutations } = await import("@/hooks/households/use-household-mutations");
+      const { result } = renderHook(() => useHouseholdMutations(), {
+        wrapper: createTestWrapper(queryClient),
+      });
+
+      await expect(result.current.joinByInviteToken("invite-token-xyz")).resolves.toBe(
+        "joined-household-id"
+      );
+      expect(mockJoinByInviteTokenMutate).toHaveBeenCalledWith({ token: "invite-token-xyz" });
     });
   });
 

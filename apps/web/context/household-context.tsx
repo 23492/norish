@@ -19,6 +19,8 @@ const { HouseholdProvider, useHouseholdContext } = createHouseholdContext({
   useCreateHousehold: () => useHouseholdMutations().createHousehold,
   useJoinHousehold: () => useHouseholdMutations().joinHousehold,
   useRename: () => useHouseholdMutations().rename,
+  useGenerateInviteToken: () => useHouseholdMutations().generateInviteToken,
+  useJoinByInviteToken: () => useHouseholdMutations().joinByInviteToken,
   useHouseholdSubscription,
 });
 

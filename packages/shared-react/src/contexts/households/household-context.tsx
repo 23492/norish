@@ -22,6 +22,8 @@ export type HouseholdContextValue = {
   createHousehold: (name: string) => void;
   joinHousehold: (code: string) => void;
   rename: (householdId: string, name: string, version: number) => void;
+  generateInviteToken: (householdId: string) => Promise<string>;
+  joinByInviteToken: (token: string) => Promise<string>;
 };
 
 type CreateHouseholdContextOptions = {
@@ -34,6 +36,8 @@ type CreateHouseholdContextOptions = {
   useCreateHousehold: () => HouseholdMutationsResult["createHousehold"];
   useJoinHousehold: () => HouseholdMutationsResult["joinHousehold"];
   useRename: () => HouseholdMutationsResult["rename"];
+  useGenerateInviteToken: () => HouseholdMutationsResult["generateInviteToken"];
+  useJoinByInviteToken: () => HouseholdMutationsResult["joinByInviteToken"];
   useHouseholdSubscription: () => void;
 };
 
@@ -44,6 +48,8 @@ export function createHouseholdContext({
   useCreateHousehold,
   useJoinHousehold,
   useRename,
+  useGenerateInviteToken,
+  useJoinByInviteToken,
   useHouseholdSubscription,
 }: CreateHouseholdContextOptions) {
   const HouseholdContext = createContext<HouseholdContextValue | null>(null);
@@ -55,6 +61,8 @@ export function createHouseholdContext({
     const createHousehold = useCreateHousehold();
     const joinHousehold = useJoinHousehold();
     const rename = useRename();
+    const generateInviteToken = useGenerateInviteToken();
+    const joinByInviteToken = useJoinByInviteToken();
 
     // Subscribe to WebSocket events
     useHouseholdSubscription();
@@ -70,6 +78,8 @@ export function createHouseholdContext({
         createHousehold,
         joinHousehold,
         rename,
+        generateInviteToken,
+        joinByInviteToken,
       }),
       [
         household,
@@ -81,6 +91,8 @@ export function createHouseholdContext({
         createHousehold,
         joinHousehold,
         rename,
+        generateInviteToken,
+        joinByInviteToken,
       ]
     );
 

@@ -53,6 +53,10 @@ export type HouseholdMutationsResult = {
   transferAdmin: (householdId: string, newAdminId: string) => void;
   rename: (householdId: string, name: string, version: number) => void;
   switchActive: (householdId: string | null) => void;
+  /** Generate (or regenerate) the shareable invite link token; resolves to the new token. */
+  generateInviteToken: (householdId: string) => Promise<string>;
+  /** Join a cookbook via its invite token; resolves to the joined household id. */
+  joinByInviteToken: (token: string) => Promise<string>;
 };
 
 export interface CreateHouseholdHooksOptions {

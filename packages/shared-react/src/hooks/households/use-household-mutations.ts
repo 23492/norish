@@ -43,6 +43,12 @@ export function createUseHouseholdMutations({
     const transferAdminMutation = useMutation(trpc.households.transferAdmin.mutationOptions());
     const renameMutation = useMutation(trpc.households.rename.mutationOptions());
     const switchActiveMutation = useMutation(trpc.households.switchActive.mutationOptions());
+    const generateInviteTokenMutation = useMutation(
+      trpc.households.generateInviteToken.mutationOptions()
+    );
+    const joinByInviteTokenMutation = useMutation(
+      trpc.households.joinByInviteToken.mutationOptions()
+    );
 
     const createHousehold = (name: string): void => {
       if (!name.trim()) {
@@ -241,6 +247,31 @@ export function createUseHouseholdMutations({
       );
     };
 
+    // Generate (or regenerate) the shareable invite link token. Resolves to the
+    // new token; the router invalidates the admin's household cache, and we also
+    // invalidate the active-household query so the settings card refetches the
+    // new inviteToken into view.
+    const generateInviteToken = async (householdId: string): Promise<string> => {
+      const { inviteToken } = await generateInviteTokenMutation.mutateAsync({ householdId });
+
+      invalidate();
+
+      return inviteToken;
+    };
+
+    // Join a cookbook via its invite token. The backend adds the membership +
+    // makes it active; resolves to the joined household id. Refresh the switcher
+    // list, the active-household view, and the recipe list (new active cookbook).
+    const joinByInviteToken = async (token: string): Promise<string> => {
+      const { householdId } = await joinByInviteTokenMutation.mutateAsync({ token });
+
+      invalidateHouseholdsList();
+      invalidate();
+      queryClient.invalidateQueries({ queryKey: recipesListPath });
+
+      return householdId;
+    };
+
     return {
       createHousehold,
       joinHousehold,
@@ -250,6 +281,8 @@ export function createUseHouseholdMutations({
       transferAdmin,
       rename,
       switchActive,
+      generateInviteToken,
+      joinByInviteToken,
     };
   };
 }
