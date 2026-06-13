@@ -17,7 +17,7 @@
 ### Households / cookbooks — Phase 2
 
 - [x] **HOUSE-01**: A user can belong to multiple households simultaneously.
-- [x] **HOUSE-02**: A user can create, join (by code), and leave multiple households. _(backend complete; **UI gap** — the create-another / join-by-code forms are unreachable once you already have a cookbook; tracked as CKBK-UI-01)_
+- [x] **HOUSE-02**: A user can create, join (by code), and leave multiple households. _(backend complete; UI gap RESOLVED in 02-05 — create-another / join-by-code now reachable any time from the navbar switcher's "Create or join a cookbook" modal; CKBK-UI-01 done)_
 - [x] **HOUSE-03**: A user can switch their active household/cookbook.
 - [x] **HOUSE-04**: Recipes are scoped to a household/cookbook (`recipes.household_id`); `null` = personal.
 - [x] **HOUSE-05**: A personal cookbook coexists with shared cookbooks for the same user.
@@ -73,8 +73,8 @@ Locked from the product backlog + brainstorm (2026-06-12). All **Backlog/v2** un
 
 - **POLICY-01** (near-term, **critical**): Per-household permission policies — each cookbook sets its own view/edit/delete; a household admin can edit any recipe in their household, members edit their own. (Phase 2 ships single-policy-reinterpreted for v1; this is the dedicated follow-on phase.)
 - **INVITE-01** (fold into Phase 2 or a quick follow-on): Join a household via a longer-lived, regenerable **invite link** (`/join/<token>`), alongside the short join code.
-- **CKBK-UI-01** (Phase 2 fix, near-term): The create-another-cookbook + join-by-code UI is unreachable once a user already has a cookbook. `household-settings-content.tsx` renders the create/join forms (`NoHouseholdView`) only when `!household`, but Phase 2 auto-creates a cookbook at signup, so that view never shows. Fix: surface create/join from the switcher's "Create or join a cookbook" entry (modal) or always on the household page. **Blocks HOUSE-02 at the UI level.**
-- **RENAME-01** (near-term, user-requested 2026-06-13): Rename a household/cookbook — add a `households.rename` mutation (admin-only, optimistic-version) + an editable name field on the Household settings page. Useful because signup auto-names it "<name>'s Cookbook".
+- [x] **CKBK-UI-01** (Phase 2 fix) — DONE 2026-06-13 (02-05): create-another + join-by-code are reachable any time via the navbar switcher's "Create or join a cookbook" modal (the same forms NoHouseholdView used, now sourced from the global household context). No longer blocks HOUSE-02.
+- [x] **RENAME-01** (user-requested 2026-06-13) — DONE 2026-06-13 (02-05): `households.rename` mutation (admin-only, optimistic-version) + an admin inline-rename on the Household settings page (household-info-card), surfaced through the global household context.
 
 ### Sharing & ratings — Backlog
 

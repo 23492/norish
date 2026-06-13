@@ -50,7 +50,7 @@ Plans:
   1. A user creates/joins two households + a personal cookbook and switches between them.
   2. Recipes show only for the active cookbook; another household's recipes are not visible (isolation).
   3. Import assigns the recipe to the active cookbook.
-**Plans**: 4 plans (planned 2026-06-12) — 4/4 code-complete (02-01, 02-02, 02-03 shipped 2026-06-13; 02-04 code-complete 2026-06-13, human-verify PENDING with the lead)
+**Plans**: 5 plans (4 planned 2026-06-12; 02-05 added 2026-06-13) — 5/5 code-complete (02-01, 02-02, 02-03 shipped 2026-06-13; 02-04 + 02-05 code-complete 2026-06-13, human-verify PENDING with the lead)
 
 Canonical refs: `.planning/phases/02-multi-household/02-CONTEXT.md` (D-01..D-15)
 
@@ -59,6 +59,7 @@ Plans:
 - [x] 02-02: Backend core (active-household resolver/setter + multi-membership; tRPC context/middleware; households list+switchActive; recipe scoping rewrite by household_id; import queue carries householdId; secondary-repo callers; + auto-create own household on signup) — wave 2 ✅ 2026-06-13
 - [x] 02-03: Permissions + per-cookbook isolation tests (security-critical: canAccessResource by recipe household_id + member household ids; dedicated DB + tRPC isolation suites; HOUSE-06) — wave 3 ✅ 2026-06-13
 - [~] 02-04: Frontend + i18n (cookbook switcher navbar+mobile with Personal option; list/active/switch hooks+context; assign-to-active import; nl+en real + all 11 locales for i18n:check) — wave 4 ⏳ code-complete 2026-06-13 (static verify green: typecheck x2, i18n:check, lint all exit 0); HUMAN-VERIFY (docker build + visual smoke) PENDING with the lead
+- [~] 02-05: Multi-household UI completion (households.rename admin-only/optimistic mutation; create/join/rename on the global household context; reusable Create/Join cookbook modal opened from the navbar switcher; admin inline-rename in settings; createOrJoin+rename i18n in all 11 locales) — wave 5 ⏳ code-complete 2026-06-13 (static verify green: typecheck x5, i18n:check, web lint, household tests all exit 0); resolves CKBK-UI-01 + RENAME-01 + the HOUSE-02 UI gap; HUMAN-VERIFY (Chrome re-verify) PENDING with the lead
 
 ### Phase 3: AssemblyAI transcription
 **Goal**: AssemblyAI is a native transcription provider; video imports transcribe through it.
