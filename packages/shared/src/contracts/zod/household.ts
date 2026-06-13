@@ -9,6 +9,7 @@ export const HouseholdInsertBaseSchema = createInsertSchema(households).omit({
   updatedAt: true,
   joinCode: true,
   joinCodeExpiresAt: true,
+  inviteToken: true,
 });
 export const HouseholdUpdateBaseSchema = createUpdateSchema(households).omit({
   id: true,
@@ -16,6 +17,7 @@ export const HouseholdUpdateBaseSchema = createUpdateSchema(households).omit({
   updatedAt: true,
   joinCode: true,
   joinCodeExpiresAt: true,
+  inviteToken: true,
 });
 
 export const HouseholdUserSelectBaseSchema = createSelectSchema(householdUsers);
@@ -51,18 +53,20 @@ export const HouseholdSummarySchema = z.object({
 
 // Schema for household settings view - omits sensitive fields and unused timestamp fields
 // Users can determine admin from the isAdmin flag in the users array
+// inviteToken is admin-only (it grants join access), so it is omitted here.
 export const HouseholdSettingsSchema = HouseholdSelectBaseSchema.omit({
   adminUserId: true,
   createdAt: true,
   updatedAt: true,
   joinCode: true,
   joinCodeExpiresAt: true,
+  inviteToken: true,
 }).extend({
   users: z.array(HouseholdUserSchema).default([]),
   allergies: z.array(z.string()).default([]),
 });
 
-// Schema for admin household settings view - includes joinCode and expiration
+// Schema for admin household settings view - includes joinCode/expiration + inviteToken
 export const HouseholdAdminSettingsSchema = HouseholdSelectBaseSchema.omit({
   adminUserId: true,
   createdAt: true,
@@ -92,6 +96,34 @@ export const RenameHouseholdInputSchema = z.object({
   householdId: z.string().uuid(),
   name: z.string().trim().min(1, "Name is required").max(100, "Name too long"),
   version: z.number().int().positive(),
+});
+
+// Invite-token shape: a long, crypto-random, url-safe string (base64url of 32
+// bytes ~= 43 chars). Used both as the generate-mutation input guard and the
+// public lookup guard so an attacker cannot probe with short/garbage tokens.
+export const InviteTokenSchema = z
+  .string()
+  .trim()
+  .min(32, "Invalid invite token")
+  .max(128, "Invalid invite token")
+  .regex(/^[A-Za-z0-9_-]+$/, "Invalid invite token");
+
+export const GenerateHouseholdInviteTokenInputSchema = z.object({
+  householdId: z.string().uuid(),
+});
+
+export const JoinHouseholdByInviteTokenInputSchema = z.object({
+  token: InviteTokenSchema,
+});
+
+export const GetHouseholdByInviteTokenInputSchema = z.object({
+  token: InviteTokenSchema,
+});
+
+// PUBLIC (unauthenticated) lookup payload: ONLY the cookbook name is exposed for
+// a valid token — never members, recipes, ids, or any other household.
+export const HouseholdInviteInfoSchema = z.object({
+  name: z.string(),
 });
 
 export const TransferHouseholdAdminInputSchema = z.object({

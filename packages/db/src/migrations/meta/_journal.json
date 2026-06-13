@@ -253,6 +253,13 @@
       "when": 1781341690514,
       "tag": "0035_whole_drax",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1781361936323,
+      "tag": "0036_perpetual_karma",
+      "breakpoints": true
     }
   ]
 }

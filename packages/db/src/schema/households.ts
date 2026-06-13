@@ -13,6 +13,7 @@ export const households = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     joinCode: text("join_code"),
     joinCodeExpiresAt: timestamp("join_code_expires_at", { withTimezone: true }),
+    inviteToken: text("invite_token"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     ...versionColumn,
@@ -22,5 +23,6 @@ export const households = pgTable(
     index("idx_households_created_at").on(t.createdAt),
     index("idx_households_admin_user_id").on(t.adminUserId),
     unique("uq_households_join_code").on(t.joinCode),
+    unique("uq_households_invite_token").on(t.inviteToken),
   ]
 );

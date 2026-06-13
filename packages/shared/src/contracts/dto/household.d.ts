@@ -2,6 +2,7 @@ import type { z } from "zod";
 import type {
   HouseholdAdminSettingsSchema,
   HouseholdInsertBaseSchema,
+  HouseholdInviteInfoSchema,
   HouseholdSelectBaseSchema,
   HouseholdSettingsSchema,
   HouseholdSummarySchema,
@@ -22,3 +23,6 @@ export type HouseholdWithUsersNamesDto = z.output<typeof HouseholdWithUsersNames
 export type HouseholdSettingsDto = z.output<typeof HouseholdSettingsSchema>;
 export type HouseholdAdminSettingsDto = z.output<typeof HouseholdAdminSettingsSchema>;
 export type HouseholdSummaryDto = z.output<typeof HouseholdSummarySchema>;
+
+// PUBLIC invite lookup — name only (no members/recipes/ids).
+export type HouseholdInviteInfoDto = z.output<typeof HouseholdInviteInfoSchema>;
