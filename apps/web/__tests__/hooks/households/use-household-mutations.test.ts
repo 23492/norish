@@ -14,6 +14,7 @@ const mockKickMutate = vi.fn();
 const mockRegenerateMutate = vi.fn();
 const mockTransferMutate = vi.fn();
 const mockRenameMutate = vi.fn();
+const mockSetPolicyMutate = vi.fn();
 const mockSwitchActiveMutate = vi.fn();
 const mockGenerateInviteTokenMutate = vi.fn(async () => ({ inviteToken: "invite-token-xyz" }));
 const mockJoinByInviteTokenMutate = vi.fn(async () => ({ householdId: "joined-household-id" }));
@@ -56,6 +57,7 @@ vi.mock("@/app/providers/trpc-provider", () => ({
       regenerateCode: { mutationOptions: vi.fn(() => ({ mutationFn: mockRegenerateMutate })) },
       transferAdmin: { mutationOptions: vi.fn(() => ({ mutationFn: mockTransferMutate })) },
       rename: { mutationOptions: vi.fn(() => ({ mutationFn: mockRenameMutate })) },
+      setPolicy: { mutationOptions: vi.fn(() => ({ mutationFn: mockSetPolicyMutate })) },
       switchActive: { mutationOptions: vi.fn(() => ({ mutationFn: mockSwitchActiveMutate })) },
       generateInviteToken: {
         mutationOptions: vi.fn(() => ({ mutationFn: mockGenerateInviteTokenMutate })),
@@ -115,6 +117,7 @@ describe("useHouseholdMutations", () => {
       expect(result.current).toHaveProperty("regenerateJoinCode");
       expect(result.current).toHaveProperty("transferAdmin");
       expect(result.current).toHaveProperty("rename");
+      expect(result.current).toHaveProperty("setPolicy");
       expect(result.current).toHaveProperty("switchActive");
       expect(result.current).toHaveProperty("generateInviteToken");
       expect(result.current).toHaveProperty("joinByInviteToken");
@@ -126,6 +129,7 @@ describe("useHouseholdMutations", () => {
       expect(typeof result.current.regenerateJoinCode).toBe("function");
       expect(typeof result.current.transferAdmin).toBe("function");
       expect(typeof result.current.rename).toBe("function");
+      expect(typeof result.current.setPolicy).toBe("function");
       expect(typeof result.current.switchActive).toBe("function");
       expect(typeof result.current.generateInviteToken).toBe("function");
       expect(typeof result.current.joinByInviteToken).toBe("function");
@@ -314,6 +318,13 @@ describe("useHouseholdMutations", () => {
       const { result } = renderHook(() => useHouseholdMutations(), {
         wrapper: createTestWrapper(queryClient),
       });
+
+      result.current.setPolicy("h1", { view: "household", edit: "owner", delete: "owner" }, 7);
+
+      expect(mockSetPolicyMutate).toHaveBeenCalledWith(
+        { householdId: "h1", view: "household", edit: "owner", delete: "owner", version: 7 },
+        expect.any(Object)
+      );
 
       result.current.rename("h1", "  New Cookbook  ", 7);
 

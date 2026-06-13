@@ -123,6 +123,7 @@ export type HouseholdSettingsContextValue = HouseholdContextValue & {
   kickUser: (householdId: string, userId: string) => void;
   regenerateJoinCode: (householdId: string) => void;
   transferAdmin: (householdId: string, newAdminId: string) => void;
+  setPolicy: HouseholdMutationsResult["setPolicy"];
 };
 
 type CreateHouseholdSettingsContextOptions = {
@@ -139,7 +140,7 @@ export function createHouseholdSettingsContext({
   function HouseholdSettingsProvider({ children }: { children: React.ReactNode }) {
     const base = useHouseholdContext();
     // createHousehold / joinHousehold / rename come from base (the global context).
-    const { leaveHousehold, kickUser, regenerateJoinCode, transferAdmin } =
+    const { leaveHousehold, kickUser, regenerateJoinCode, transferAdmin, setPolicy } =
       useHouseholdMutations();
 
     const value = useMemo<HouseholdSettingsContextValue>(
@@ -149,8 +150,9 @@ export function createHouseholdSettingsContext({
         kickUser,
         regenerateJoinCode,
         transferAdmin,
+        setPolicy,
       }),
-      [base, leaveHousehold, kickUser, regenerateJoinCode, transferAdmin]
+      [base, leaveHousehold, kickUser, regenerateJoinCode, transferAdmin, setPolicy]
     );
 
     return (

@@ -69,6 +69,31 @@ export function createMockTrpcClient() {
           mutationFn: vi.fn(),
         })),
       },
+      rename: {
+        mutationOptions: vi.fn(() => ({
+          mutationFn: vi.fn(),
+        })),
+      },
+      setPolicy: {
+        mutationOptions: vi.fn(() => ({
+          mutationFn: vi.fn(),
+        })),
+      },
+      switchActive: {
+        mutationOptions: vi.fn(() => ({
+          mutationFn: vi.fn(),
+        })),
+      },
+      generateInviteToken: {
+        mutationOptions: vi.fn(() => ({
+          mutationFn: vi.fn(),
+        })),
+      },
+      joinByInviteToken: {
+        mutationOptions: vi.fn(() => ({
+          mutationFn: vi.fn(),
+        })),
+      },
       onCreated: {
         subscriptionOptions: vi.fn(),
       },

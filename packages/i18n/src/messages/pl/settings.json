@@ -244,6 +244,25 @@
       "copied": "Invite link copied",
       "copyFailed": "Failed to copy invite link",
       "failed": "Failed to generate invite link"
+    },
+    "permissions": {
+      "title": "Recipe Permissions",
+      "description": "Control who can view, edit, and delete recipes in THIS cookbook. The cookbook admin and server admins always have full access.",
+      "viewRecipes": "View Recipes",
+      "viewDescription": "Who can see this cookbook's recipes",
+      "editRecipes": "Edit Recipes",
+      "editDescription": "Who can modify recipes in this cookbook",
+      "deleteRecipes": "Delete Recipes",
+      "deleteDescription": "Who can remove recipes from this cookbook",
+      "levels": {
+        "everyone": "Everyone",
+        "everyoneDescription": "All authenticated users",
+        "household": "Household",
+        "householdDescription": "Members of this cookbook",
+        "owner": "Owner Only",
+        "ownerDescription": "Only the recipe owner"
+      },
+      "note": "Edit and delete set to Household means the cookbook admin can manage any recipe, while members can only manage their own. Viewing cannot be set to Everyone per cookbook."
     }
   },
   "caldav": {

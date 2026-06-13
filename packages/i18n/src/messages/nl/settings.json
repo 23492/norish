@@ -244,6 +244,25 @@
       "copied": "Uitnodigingslink gekopieerd",
       "copyFailed": "Kopiëren van uitnodigingslink mislukt",
       "failed": "Genereren van uitnodigingslink mislukt"
+    },
+    "permissions": {
+      "title": "Receptmachtigingen",
+      "description": "Beheer wie recepten in DIT kookboek kan bekijken, bewerken en verwijderen. De kookboekbeheerder en serverbeheerders hebben altijd volledige toegang.",
+      "viewRecipes": "Recepten bekijken",
+      "viewDescription": "Wie de recepten van dit kookboek kan zien",
+      "editRecipes": "Recepten bewerken",
+      "editDescription": "Wie recepten in dit kookboek kan wijzigen",
+      "deleteRecipes": "Recepten verwijderen",
+      "deleteDescription": "Wie recepten uit dit kookboek kan verwijderen",
+      "levels": {
+        "everyone": "Iedereen",
+        "everyoneDescription": "Alle geverifieerde gebruikers",
+        "household": "Huishouden",
+        "householdDescription": "Leden van dit kookboek",
+        "owner": "Alleen eigenaar",
+        "ownerDescription": "Alleen de eigenaar van het recept"
+      },
+      "note": "Bewerken en verwijderen op Huishouden betekent dat de kookboekbeheerder elk recept kan beheren, terwijl leden alleen hun eigen recepten beheren. Bekijken kan per kookboek niet op Iedereen worden gezet."
     }
   },
   "caldav": {

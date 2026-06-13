@@ -1,5 +1,6 @@
 
 import type { HouseholdSettingsDto } from "@norish/shared/contracts/dto/household";
+import type { PermissionLevel } from "@norish/config/zod/server-config";
 import type {
   CreateHouseholdHooksOptions,
   HouseholdMutationsResult,
@@ -42,6 +43,7 @@ export function createUseHouseholdMutations({
     const regenerateCodeMutation = useMutation(trpc.households.regenerateCode.mutationOptions());
     const transferAdminMutation = useMutation(trpc.households.transferAdmin.mutationOptions());
     const renameMutation = useMutation(trpc.households.rename.mutationOptions());
+    const setPolicyMutation = useMutation(trpc.households.setPolicy.mutationOptions());
     const switchActiveMutation = useMutation(trpc.households.switchActive.mutationOptions());
     const generateInviteTokenMutation = useMutation(
       trpc.households.generateInviteToken.mutationOptions()
@@ -227,6 +229,39 @@ export function createUseHouseholdMutations({
       );
     };
 
+    const setPolicy = (
+      householdId: string,
+      policy: { view: "household" | "owner"; edit: PermissionLevel; delete: PermissionLevel },
+      version: number
+    ): void => {
+      setPolicyMutation.mutate(
+        { householdId, view: policy.view, edit: policy.edit, delete: policy.delete, version },
+        {
+          onSuccess: () => {
+            // Optimistically reflect the new policy in the admin settings view
+            // (the admin DTO carries viewPolicy/editPolicy/deletePolicy; the
+            // member DTO does not, so only update when those fields are present).
+            setHouseholdData((prev) => {
+              if (!prev?.household || prev.household.id !== householdId) return prev;
+
+              if (!("viewPolicy" in prev.household)) return prev;
+
+              return {
+                ...prev,
+                household: {
+                  ...prev.household,
+                  viewPolicy: policy.view,
+                  editPolicy: policy.edit,
+                  deletePolicy: policy.delete,
+                },
+              };
+            });
+          },
+          onError: () => invalidate(),
+        }
+      );
+    };
+
     const switchActive = (householdId: string | null): void => {
       switchActiveMutation.mutate(
         { householdId },
@@ -280,6 +315,7 @@ export function createUseHouseholdMutations({
       regenerateJoinCode,
       transferAdmin,
       rename,
+      setPolicy,
       switchActive,
       generateInviteToken,
       joinByInviteToken,

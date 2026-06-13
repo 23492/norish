@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import HouseholdInfoCard from "./household-info-card";
 import JoinCodeCard from "./join-code-card";
 import MembersCard from "./members-card";
+import HouseholdPermissionPolicyCard from "./permission-policy-card";
 
 export default function HouseholdView() {
   const t = useTranslations("settings.household");
@@ -14,6 +15,8 @@ export default function HouseholdView() {
       <h1 className="text-2xl font-bold">{t("pageTitle")}</h1>
       <HouseholdInfoCard />
       <MembersCard />
+      {/* Admin-only; self-gates to null for non-admins. */}
+      <HouseholdPermissionPolicyCard />
       <JoinCodeCard />
     </div>
   );
