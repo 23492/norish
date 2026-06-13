@@ -19,7 +19,11 @@ import { ingredientStorePreferences, stores } from "./stores";
 import { tags } from "./tags";
 import { userAllergies } from "./user-allergies";
 
-export const recipesRelations = relations(recipes, ({ many }) => ({
+export const recipesRelations = relations(recipes, ({ one, many }) => ({
+  household: one(households, {
+    fields: [recipes.householdId],
+    references: [households.id],
+  }),
   ingredients: many(recipeIngredients),
   recipeTags: many(recipeTags),
   steps: many(steps),
@@ -119,6 +123,7 @@ export const recipeVideosRelations = relations(recipeVideos, ({ one }) => ({
 
 export const householdsRelations = relations(households, ({ many }) => ({
   users: many(householdUsers),
+  recipes: many(recipes),
 }));
 
 export const householdUsersRelations = relations(householdUsers, ({ one }) => ({

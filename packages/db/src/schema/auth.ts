@@ -2,6 +2,7 @@ import crypto from "crypto";
 
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   boolean,
   index,
   integer,
@@ -10,8 +11,10 @@ import {
   text,
   timestamp,
   uniqueIndex,
+  uuid,
 } from "drizzle-orm/pg-core";
 
+import { households } from "./households";
 import { versionColumn } from "./shared";
 
 // User table with encrypted PII fields
@@ -36,6 +39,11 @@ export const users = pgTable(
     // Norish-specific fields
     isServerOwner: boolean("isServerOwner").notNull().default(false),
     isServerAdmin: boolean("isServerAdmin").notNull().default(false),
+
+    // Active cookbook (household) the user is currently viewing; NULL = personal
+    activeHouseholdId: uuid("active_household_id").references((): AnyPgColumn => households.id, {
+      onDelete: "set null",
+    }),
 
     // Extensible user preferences (JSONB)
     preferences: jsonb("preferences").default(sql`'{}'::jsonb`),

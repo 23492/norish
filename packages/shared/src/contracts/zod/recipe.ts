@@ -16,12 +16,14 @@ export const recipeCategorySchema = z.enum(["Breakfast", "Lunch", "Dinner", "Sna
 
 export const RecipeSelectBaseSchema = createSelectSchema(recipes).extend({
   userId: z.string().nullable(),
+  householdId: z.string().nullable(),
 });
 export const RecipeInsertBaseSchema = createInsertSchema(recipes).omit({
   id: true,
   updatedAt: true,
   createdAt: true,
   userId: true, // set from session server-side
+  householdId: true, // set from active cookbook server-side
 });
 export const RecipeUpdateBaseSchema = createUpdateSchema(recipes);
 

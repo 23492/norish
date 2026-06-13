@@ -11,6 +11,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { users } from "./auth";
+import { households } from "./households";
 import { recipeCategoryEnum } from "./recipe-categories";
 import { versionColumn } from "./shared";
 
@@ -21,6 +22,9 @@ export const recipes = pgTable(
   {
     id: uuid("id").defaultRandom().primaryKey(),
     userId: text("user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    householdId: uuid("household_id").references(() => households.id, {
       onDelete: "set null",
     }),
     name: text("name").notNull(),
@@ -44,8 +48,9 @@ export const recipes = pgTable(
   },
   (t) => [
     index("idx_recipes_user_id").on(t.userId),
+    index("idx_recipes_household_id").on(t.householdId),
     index("idx_recipes_name").on(t.name),
-    unique("uq_recipes_url_user").on(t.url, t.userId),
+    unique("uq_recipes_url_household").on(t.url, t.householdId),
     index("idx_recipes_created_at_desc").on(t.createdAt.desc()),
     index("idx_recipes_total_minutes").on(t.totalMinutes),
     index("idx_recipes_prep_minutes").on(t.prepMinutes),
