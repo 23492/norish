@@ -16,6 +16,12 @@ import { ServerConfigKeys } from "@norish/config/zod/server-config";
 import { db } from "@norish/db/drizzle";
 import { setApiKeyAuthService } from "@norish/db/repositories/api-keys";
 import { setConfig } from "@norish/db/repositories/server-config";
+import {
+  addUserToHousehold,
+  createHousehold,
+  getHouseholdsForUser,
+  setActiveHousehold,
+} from "@norish/db/repositories/households";
 import { countUsers } from "@norish/db/repositories/users";
 import * as schema from "@norish/db/schema/auth";
 import { getPublisherClient } from "@norish/queue/redis/client";
@@ -342,6 +348,43 @@ function createBetterAuth() {
               );
               authLogger.info("Disabling registration after first user");
               await setConfig(ServerConfigKeys.REGISTRATION_ENABLED, false, user.id, false);
+            }
+
+            // Every new user gets their OWN household, set as active. A user can
+            // later join another household from an invite link. This fires for
+            // ALL signups including OIDC; the OIDC claim-processor (account hook)
+            // may then also add the user to a claimed org household and set THAT
+            // active — both coexist. Idempotent: skip if the user already belongs
+            // to a household.
+            try {
+              const existingHouseholds = await getHouseholdsForUser(user.id);
+
+              if (existingHouseholds.length === 0) {
+                // user.name is encrypted at this point (encrypted in the before hook).
+                const decryptedName = safeDecrypt(user.name);
+                const householdName =
+                  decryptedName && decryptedName.trim()
+                    ? `${decryptedName.trim()}'s Cookbook`
+                    : "My Cookbook";
+
+                const household = await createHousehold({
+                  name: householdName,
+                  adminUserId: user.id,
+                });
+
+                await addUserToHousehold({ householdId: household.id, userId: user.id });
+                await setActiveHousehold(user.id, household.id);
+
+                authLogger.info(
+                  { userId: user.id, householdId: household.id },
+                  "Created own household for new user and set it active"
+                );
+              }
+            } catch (error) {
+              authLogger.error(
+                { error, userId: user.id },
+                "Failed to auto-create own household for new user"
+              );
             }
           },
         },
