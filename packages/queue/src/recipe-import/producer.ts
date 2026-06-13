@@ -33,6 +33,7 @@ export async function addImportJob(
   const existingCheck = await recipeExistsByUrlForPolicy(
     data.url,
     data.userId,
+    data.householdId,
     data.householdUserIds,
     policy.view
   );

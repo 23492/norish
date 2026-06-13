@@ -92,7 +92,14 @@ const importArchive = authedProcedure
       );
 
       // Run import in background (fire-and-forget)
-      runArchiveImportAsync(ctx.user.id, ctx.userIds, ctx.householdKey, buffer, total).catch(
+      runArchiveImportAsync(
+        ctx.user.id,
+        ctx.userIds,
+        ctx.household?.id ?? null,
+        ctx.householdKey,
+        buffer,
+        total
+      ).catch(
         (err) => {
           log.error({ err, userId: ctx.user.id }, "Archive import failed");
           recipeEmitter.emitToUser(ctx.user.id, "archiveCompleted", {
@@ -121,6 +128,7 @@ const importArchive = authedProcedure
 async function runArchiveImportAsync(
   userId: string,
   userIds: string[],
+  householdId: string | null,
   householdKey: string,
   buffer: Buffer,
   total: number
@@ -200,7 +208,7 @@ async function runArchiveImportAsync(
 
   try {
     // Import archive (auto-detects format)
-    const result = await runArchiveImport(userId, userIds, buffer, onProgress);
+    const result = await runArchiveImport(userId, userIds, householdId, buffer, onProgress);
 
     log.info(
       {

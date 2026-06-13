@@ -34,7 +34,7 @@ const log = createLogger("worker:image-import");
  */
 export async function processImageImportJob(job: Job<ImageImportJobData>): Promise<void> {
   const extractRecipeFromImages = requireQueueApiHandler("extractRecipeFromImages");
-  const { recipeId, userId, householdKey, householdUserIds, files } = job.data;
+  const { recipeId, userId, householdKey, householdUserIds, householdId, files } = job.data;
 
   log.info({ jobId: job.id, recipeId, fileCount: files.length }, "Processing image import job");
 
@@ -75,7 +75,7 @@ export async function processImageImportJob(job: Job<ImageImportJobData>): Promi
   const parsedRecipe = result.data;
 
   // Save the recipe
-  const createdId = await createRecipeWithRefs(recipeId, userId, parsedRecipe);
+  const createdId = await createRecipeWithRefs(recipeId, userId, householdId, parsedRecipe);
 
   if (!createdId) {
     throw new Error("Failed to save imported recipe");

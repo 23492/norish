@@ -6,6 +6,8 @@ export interface RecipeImportJobData {
   userId: string;
   householdKey: string;
   householdUserIds: string[] | null;
+  /** Active cookbook the imported recipe is assigned to (null = personal). */
+  householdId: string | null;
   forceAI?: boolean;
 }
 
@@ -40,6 +42,8 @@ export interface ImageImportJobData {
   userId: string;
   householdKey: string;
   householdUserIds: string[] | null;
+  /** Active cookbook the imported recipe is assigned to (null = personal). */
+  householdId: string | null;
   files: ImageImportFile[];
 }
 
@@ -53,6 +57,8 @@ export interface PasteImportJobData {
   userId: string;
   householdKey: string;
   householdUserIds: string[] | null;
+  /** Active cookbook the imported recipe(s) are assigned to (null = personal). */
+  householdId: string | null;
   text: string;
   forceAI?: boolean;
   structuredRecipes?: StructuredPasteImportRecipe[];

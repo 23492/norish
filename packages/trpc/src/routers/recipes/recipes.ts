@@ -94,6 +94,8 @@ export const listProcedure = authedProcedure
     const listCtx: RecipeListContext = {
       userId: ctx.user.id,
       householdUserIds: ctx.householdUserIds,
+      activeHouseholdId: ctx.household?.id ?? null,
+      memberHouseholdIds: ctx.memberHouseholdIds,
       isServerAdmin: ctx.isServerAdmin,
     };
 
@@ -180,7 +182,7 @@ export const createRecipeProcedure = authedProcedure
       log.error({ inputId: input.id, generatedId: recipeId }, "Recipe ID mismatch detected!");
     }
 
-    createRecipeWithRefs(recipeId, ctx.user.id, input)
+    createRecipeWithRefs(recipeId, ctx.user.id, ctx.household?.id ?? null, input)
       .then(async (createdId) => {
         if (!createdId) {
           throw new TRPCError({
@@ -350,6 +352,7 @@ export const importFromUrlProcedure = authedProcedure
       userId: ctx.user.id,
       householdKey: ctx.householdKey,
       householdUserIds: ctx.householdUserIds,
+      householdId: ctx.household?.id ?? null,
       forceAI,
     });
 
@@ -520,6 +523,8 @@ const autocomplete = authedProcedure
     const listCtx: RecipeListContext = {
       userId: ctx.user.id,
       householdUserIds: ctx.householdUserIds,
+      activeHouseholdId: ctx.household?.id ?? null,
+      memberHouseholdIds: ctx.memberHouseholdIds,
       isServerAdmin: ctx.isServerAdmin,
     };
 
@@ -534,6 +539,8 @@ const getRandomRecipe = authedProcedure
     const listCtx: RecipeListContext = {
       userId: ctx.user.id,
       householdUserIds: ctx.householdUserIds,
+      activeHouseholdId: ctx.household?.id ?? null,
+      memberHouseholdIds: ctx.memberHouseholdIds,
       isServerAdmin: ctx.isServerAdmin,
     };
 
@@ -600,6 +607,7 @@ const importFromImagesProcedure = authedProcedure
       userId: ctx.user.id,
       householdKey: ctx.householdKey,
       householdUserIds: ctx.householdUserIds,
+      householdId: ctx.household?.id ?? null,
       files,
     });
 
@@ -643,6 +651,7 @@ export const importFromPasteProcedure = authedProcedure
       userId: ctx.user.id,
       householdKey: ctx.householdKey,
       householdUserIds: ctx.householdUserIds,
+      householdId: ctx.household?.id ?? null,
     });
 
     if (result.status === "duplicate") {

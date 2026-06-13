@@ -46,7 +46,7 @@ const log = createLogger("worker:recipe-import");
  */
 async function processImportJob(job: Job<RecipeImportJobData>): Promise<void> {
   const parseRecipeFromUrl = requireQueueApiHandler("parseRecipeFromUrl");
-  const { url, recipeId, userId, householdKey, householdUserIds } = job.data;
+  const { url, recipeId, userId, householdKey, householdUserIds, householdId } = job.data;
 
   log.info(
     { jobId: job.id, url, recipeId, attempt: job.attemptsMade + 1 },
@@ -61,7 +61,13 @@ async function processImportJob(job: Job<RecipeImportJobData>): Promise<void> {
   emitByPolicy(recipeEmitter, viewPolicy, ctx, "importStarted", { recipeId, url });
 
   // Check if recipe already exists (policy-aware)
-  const existingCheck = await recipeExistsByUrlForPolicy(url, userId, householdUserIds, viewPolicy);
+  const existingCheck = await recipeExistsByUrlForPolicy(
+    url,
+    userId,
+    householdId,
+    householdUserIds,
+    viewPolicy
+  );
 
   if (existingCheck.exists && existingCheck.existingRecipeId) {
     const dashboardDto = await dashboardRecipe(existingCheck.existingRecipeId);
@@ -120,7 +126,7 @@ async function processImportJob(job: Job<RecipeImportJobData>): Promise<void> {
     throw new Error("Failed to parse recipe from URL");
   }
 
-  const createdId = await createRecipeWithRefs(recipeId, userId, parseResult.recipe);
+  const createdId = await createRecipeWithRefs(recipeId, userId, householdId, parseResult.recipe);
 
   if (!createdId) {
     throw new Error("Failed to save imported recipe");

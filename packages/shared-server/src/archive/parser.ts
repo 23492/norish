@@ -288,6 +288,7 @@ async function importRecipeItems(
   items: AsyncGenerator<RecipeImportItemOrError, void, unknown>,
   userId: string | undefined,
   userIds: string[],
+  householdId: string | null,
   onProgress?: (
     current: number,
     recipe?: RecipeDashboardDTO,
@@ -317,7 +318,7 @@ async function importRecipeItems(
 
     try {
       // Check for duplicates
-      const existingId = await findExistingRecipe(userIds, dto.url, dto.name);
+      const existingId = await findExistingRecipe(householdId, userIds, dto.url, dto.name);
 
       if (existingId) {
         const overwriteUserId = userId ?? userIds[0];
@@ -355,7 +356,7 @@ async function importRecipeItems(
         throw new Error("Archive recipe missing preallocated recipe ID");
       }
 
-      const created = await createRecipeWithRefs(recipeId, userId, dto);
+      const created = await createRecipeWithRefs(recipeId, userId, householdId, dto);
 
       // Save imported rating if present and user is authenticated
       if (importedRating && userId && created) {
@@ -541,6 +542,7 @@ async function* generatePaprikaRecipes(
 export async function importArchive(
   userId: string | undefined,
   userIds: string[],
+  householdId: string | null,
   zipBytes: Buffer,
   onProgress?: (
     current: number,
@@ -587,5 +589,5 @@ export async function importArchive(
       break;
   }
 
-  return importRecipeItems(generator, userId, userIds, onProgress);
+  return importRecipeItems(generator, userId, userIds, householdId, onProgress);
 }

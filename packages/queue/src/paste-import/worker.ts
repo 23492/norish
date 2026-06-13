@@ -126,6 +126,7 @@ async function persistImportedRating(
 async function createStructuredRecipe(
   structuredRecipe: StructuredPasteImportRecipe,
   userId: string,
+  householdId: string | null,
   _householdKey: string
 ): Promise<string | null> {
   const parsed = FullRecipeInsertSchema.safeParse(structuredRecipe.recipe);
@@ -134,7 +135,12 @@ async function createStructuredRecipe(
     return null;
   }
 
-  const createdId = await createRecipeWithRefs(structuredRecipe.recipeId, userId, parsed.data);
+  const createdId = await createRecipeWithRefs(
+    structuredRecipe.recipeId,
+    userId,
+    householdId,
+    parsed.data
+  );
 
   if (!createdId) {
     return null;
@@ -148,8 +154,16 @@ async function createStructuredRecipe(
 export async function processPasteImportJob(
   job: Job<PasteImportJobData>
 ): Promise<PasteImportJobResult> {
-  const { recipeIds, structuredRecipes, userId, householdKey, householdUserIds, text, forceAI } =
-    job.data;
+  const {
+    recipeIds,
+    structuredRecipes,
+    userId,
+    householdKey,
+    householdUserIds,
+    householdId,
+    text,
+    forceAI,
+  } = job.data;
 
   log.info(
     { jobId: job.id, recipeIds, attempt: job.attemptsMade + 1 },
@@ -184,7 +198,12 @@ export async function processPasteImportJob(
 
   if (structuredRecipes && structuredRecipes.length > 0) {
     for (const structuredRecipe of structuredRecipes) {
-      const createdId = await createStructuredRecipe(structuredRecipe, userId, householdKey);
+      const createdId = await createStructuredRecipe(
+        structuredRecipe,
+        userId,
+        householdId,
+        householdKey
+      );
 
       if (!createdId) {
         continue;
@@ -204,7 +223,7 @@ export async function processPasteImportJob(
     }
 
     const parseResult = await parseFromPastedText(text, recipeId, allergyNames, forceAI);
-    const createdId = await createRecipeWithRefs(recipeId, userId, parseResult.recipe);
+    const createdId = await createRecipeWithRefs(recipeId, userId, householdId, parseResult.recipe);
 
     if (!createdId) {
       throw new Error("Failed to save imported recipe");
