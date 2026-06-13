@@ -8,6 +8,6 @@ ALTER TABLE "households" ADD COLUMN "delete_policy" "permission_level" DEFAULT '
 -- carries forward any admin-customized global policy to pre-existing cookbooks.
 -- A no-op when the config row is absent (no row -> the COALESCE keeps defaults).
 UPDATE "households" SET
-  "view_policy"   = COALESCE((SELECT "value"->>'view'   FROM "server_config" WHERE "key" = 'recipe_permission_policy'), "view_policy")::"permission_level",
-  "edit_policy"   = COALESCE((SELECT "value"->>'edit'   FROM "server_config" WHERE "key" = 'recipe_permission_policy'), "edit_policy")::"permission_level",
-  "delete_policy" = COALESCE((SELECT "value"->>'delete' FROM "server_config" WHERE "key" = 'recipe_permission_policy'), "delete_policy")::"permission_level";
+  "view_policy"   = COALESCE((SELECT "value"->>'view'   FROM "server_config" WHERE "key" = 'recipe_permission_policy')::"permission_level", "view_policy"),
+  "edit_policy"   = COALESCE((SELECT "value"->>'edit'   FROM "server_config" WHERE "key" = 'recipe_permission_policy')::"permission_level", "edit_policy"),
+  "delete_policy" = COALESCE((SELECT "value"->>'delete' FROM "server_config" WHERE "key" = 'recipe_permission_policy')::"permission_level", "delete_policy");

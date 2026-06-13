@@ -20,6 +20,12 @@ const householdDb = vi.hoisted(() => ({
   getAllergiesForUsers: vi.fn(() => Promise.resolve([])),
   getHouseholdByInviteToken: vi.fn(),
   getHouseholdForUser: vi.fn(),
+  getHouseholdPolicy: vi.fn(() =>
+    Promise.resolve({
+      policy: { view: "everyone", edit: "household", delete: "household" },
+      adminUserId: "admin-user",
+    })
+  ),
   getHouseholdsForUser: vi.fn(() => Promise.resolve([])),
   getInviteToken: vi.fn(() => Promise.resolve(null)),
   getUsersByHouseholdId: vi.fn(() => Promise.resolve([])),
@@ -30,6 +36,7 @@ const householdDb = vi.hoisted(() => ({
   removeUserFromHousehold: vi.fn(),
   renameHousehold: vi.fn(),
   setActiveHousehold: vi.fn(),
+  setHouseholdPolicy: vi.fn(),
   transferHouseholdAdmin: vi.fn(),
 }));
 
