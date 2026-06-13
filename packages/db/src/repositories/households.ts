@@ -468,6 +468,59 @@ export async function transferHouseholdAdmin(
 }
 
 /**
+ * Renames a household (admin only, optimistic-version).
+ *
+ * Asserts the requester is the household admin (throws "FORBIDDEN" otherwise),
+ * validates the name (non-empty, trimmed, max 100 chars to match the create
+ * flow), and bumps the version like the other household mutations. Returns a
+ * stale outcome when the supplied version no longer matches.
+ */
+export async function renameHousehold(
+  householdId: string,
+  requesterId: string,
+  name: string,
+  version?: number
+): Promise<MutationOutcome<HouseholdDto>> {
+  const household = await getHouseholdById(householdId);
+
+  if (!household || household.adminUserId !== requesterId) {
+    throw new Error("FORBIDDEN");
+  }
+
+  const trimmedName = name.trim();
+
+  if (trimmedName.length === 0 || trimmedName.length > 100) {
+    throw new Error("Invalid household name");
+  }
+
+  const whereConditions = [eq(households.id, householdId)];
+
+  if (version) {
+    whereConditions.push(eq(households.version, version));
+  }
+
+  const [row] = await db
+    .update(households)
+    .set({
+      name: trimmedName,
+      updatedAt: new Date(),
+      version: sql`${households.version} + 1`,
+    })
+    .where(and(...whereConditions))
+    .returning();
+
+  if (!row) {
+    return staleOutcome();
+  }
+
+  const validated = HouseholdSelectBaseSchema.safeParse(row);
+
+  if (!validated.success) throw new Error("Failed to rename household");
+
+  return appliedOutcome(validated.data);
+}
+
+/**
  * Find a household by name (case-insensitive)
  */
 export async function findHouseholdByName(name: string): Promise<HouseholdDto | null> {

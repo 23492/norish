@@ -88,6 +88,12 @@ export const RegenerateHouseholdJoinCodeInputSchema = z.object({
   version: z.number().int().positive(),
 });
 
+export const RenameHouseholdInputSchema = z.object({
+  householdId: z.string().uuid(),
+  name: z.string().trim().min(1, "Name is required").max(100, "Name too long"),
+  version: z.number().int().positive(),
+});
+
 export const TransferHouseholdAdminInputSchema = z.object({
   householdId: z.string().uuid(),
   newAdminId: z.string(),

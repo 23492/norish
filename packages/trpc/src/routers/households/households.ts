@@ -22,6 +22,7 @@ import {
   kickUserFromHousehold,
   regenerateJoinCode,
   removeUserFromHousehold,
+  renameHousehold,
   setActiveHousehold,
   transferHouseholdAdmin,
 } from "@norish/db";
@@ -34,6 +35,7 @@ import {
   KickHouseholdUserInputSchema,
   LeaveHouseholdInputSchema,
   RegenerateHouseholdJoinCodeInputSchema,
+  RenameHouseholdInputSchema,
   TransferHouseholdAdminInputSchema,
 } from "@norish/shared/contracts/zod";
 import { HouseholdNameSchema, JoinCodeSchema } from "@norish/shared/lib/validation/schemas";
@@ -511,6 +513,55 @@ const regenerateCode = authedProcedure
     return { success: true };
   });
 
+const rename = authedProcedure
+  .input(RenameHouseholdInputSchema)
+  .mutation(async ({ ctx, input }) => {
+    const { householdId, name, version } = input;
+
+    log.info({ userId: ctx.user.id, householdId }, "Renaming household");
+
+    // Verify admin status (rename is admin-only).
+    const isAdmin = await isUserHouseholdAdmin(householdId, ctx.user.id);
+
+    if (!isAdmin) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Only the household admin can rename the cookbook",
+      });
+    }
+
+    // Capture members up-front so we can invalidate their caches after rename.
+    const members = await getUsersByHouseholdId(householdId);
+    const memberIds = members.map((u) => u.userId);
+
+    // Rename async and refresh caches
+    renameHousehold(householdId, ctx.user.id, name, version)
+      .then(async (result) => {
+        if (result.stale || !result.value) {
+          log.info(
+            { userId: ctx.user.id, householdId, version },
+            "Ignoring stale household rename mutation"
+          );
+
+          return;
+        }
+
+        log.info({ userId: ctx.user.id, householdId }, "Household renamed");
+
+        // The cached household holds the old name; drop it for all members so
+        // the switcher + settings reflect the new name on their next read.
+        await invalidateHouseholdCacheForUsers(memberIds);
+      })
+      .catch((err) => {
+        log.error({ err, userId: ctx.user.id }, "Failed to rename household");
+        householdEmitter.emitToUser(ctx.user.id, "failed", {
+          reason: "Failed to rename household",
+        });
+      });
+
+    return { success: true };
+  });
+
 const transferAdmin = authedProcedure
   .input(TransferHouseholdAdminInputSchema)
   .mutation(async ({ ctx, input }) => {
@@ -577,5 +628,6 @@ export const householdsRouter = router({
   kick,
   switchActive,
   regenerateCode,
+  rename,
   transferAdmin,
 });
