@@ -20,7 +20,7 @@ import {
 
 
 import { appliedOutcome, staleOutcome } from "./mutation-outcomes";
-import { getUsersByIds } from "./users";
+import { getActiveHouseholdId, getUsersByIds, setActiveHouseholdId } from "./users";
 
 export async function getUsersByHouseholdId(householdId: string): Promise<HouseholdUserDto[]> {
   const rows = await db.query.householdUsers.findMany({
@@ -61,45 +61,30 @@ export async function getHouseholdById(id: string): Promise<HouseholdDto | null>
   return parsed.success ? parsed.data : null;
 }
 
+type HouseholdWithMembersRow = {
+  id: string;
+  name: string;
+  adminUserId: string;
+  version: number;
+  createdAt: Date;
+  updatedAt: Date;
+  joinCode: string | null;
+  joinCodeExpiresAt: Date | null;
+  users?: Array<{ userId: string; version: number }> | null;
+};
+
 /**
- * Get the single household for a user
- * Users are only allowed to be in one household at a time
+ * Hydrate a raw household row (with its membership rows) into the
+ * HouseholdWithUsersNamesDto shape, resolving member display names.
+ * Shared by getHouseholdForUser / getHouseholdsForUser / getActiveHouseholdForUser.
  */
-export async function getHouseholdForUser(
-  userId: string
-): Promise<HouseholdWithUsersNamesDto | null> {
-  const rows = (await db.query.householdUsers.findFirst({
-    where: eq(householdUsers.userId, userId),
-    columns: { householdId: true },
-    with: {
-      household: {
-        columns: {
-          id: true,
-          name: true,
-          adminUserId: true,
-          version: true,
-          createdAt: true,
-          updatedAt: true,
-          joinCode: true,
-          joinCodeExpiresAt: true,
-        },
-        with: {
-          users: {
-            columns: { userId: true, version: true },
-          },
-        },
-      },
-    },
-  })) as any;
-
-  if (!rows?.household) return null;
-
-  const h = rows.household;
+async function mapHouseholdRowToDto(
+  h: HouseholdWithMembersRow
+): Promise<HouseholdWithUsersNamesDto> {
   const members = (h.users ?? []) as Array<{ userId: string; version: number }>;
   const allUserIds = members.map((m) => m.userId);
 
   const usersRows = await getUsersByIds(allUserIds);
-
   const idToName = new Map(usersRows.map((u) => [u.id, u.name]));
 
   const mapped = {
@@ -126,15 +111,143 @@ export async function getHouseholdForUser(
   return parsed.data;
 }
 
-/**
- * Gets all member IDs in the user's household (including the user)
- * If user is not in a household, returns just the user's ID
- */
-export async function getHouseholdMemberIds(userId: string): Promise<string[]> {
-  const household = await getHouseholdForUser(userId);
-  const memberIds = Array.from(new Set([userId, ...(household?.users.map((u) => u.id) ?? [])]));
+const HOUSEHOLD_WITH_MEMBERS_QUERY = {
+  columns: {
+    id: true,
+    name: true,
+    adminUserId: true,
+    version: true,
+    createdAt: true,
+    updatedAt: true,
+    joinCode: true,
+    joinCodeExpiresAt: true,
+  },
+  with: {
+    users: {
+      columns: { userId: true, version: true },
+    },
+  },
+} as const;
 
-  return memberIds;
+/**
+ * Get the user's FIRST household (legacy single-household read).
+ *
+ * NOTE: This is no longer the scoping resolver. Active-household scoping uses
+ * getActiveHouseholdForUser. A user may now belong to multiple households;
+ * this returns whichever membership row findFirst yields and is retained only
+ * for a few admin/transfer/legacy paths.
+ */
+export async function getHouseholdForUser(
+  userId: string
+): Promise<HouseholdWithUsersNamesDto | null> {
+  const row = (await db.query.householdUsers.findFirst({
+    where: eq(householdUsers.userId, userId),
+    columns: { householdId: true },
+    with: {
+      household: HOUSEHOLD_WITH_MEMBERS_QUERY,
+    },
+  })) as { household: HouseholdWithMembersRow | null } | undefined;
+
+  if (!row?.household) return null;
+
+  return mapHouseholdRowToDto(row.household);
+}
+
+/**
+ * Get ALL households a user is a member of (for the cookbook switcher).
+ * Hydrates each to the same HouseholdWithUsersNamesDto shape getHouseholdForUser builds.
+ */
+export async function getHouseholdsForUser(
+  userId: string
+): Promise<HouseholdWithUsersNamesDto[]> {
+  const rows = (await db.query.householdUsers.findMany({
+    where: eq(householdUsers.userId, userId),
+    columns: { householdId: true },
+    with: {
+      household: HOUSEHOLD_WITH_MEMBERS_QUERY,
+    },
+  })) as Array<{ household: HouseholdWithMembersRow | null }>;
+
+  const householdsForUser = rows
+    .map((r) => r.household)
+    .filter((h): h is HouseholdWithMembersRow => h !== null);
+
+  return Promise.all(householdsForUser.map((h) => mapHouseholdRowToDto(h)));
+}
+
+/**
+ * Resolve the user's ACTIVE household (the single scoping resolver).
+ *
+ * Reads user.active_household_id; returns that household only if the user is
+ * still a member of it. If the pointer is null OR membership is gone, returns
+ * null (= personal cookbook view) and self-heals a stale non-null pointer.
+ */
+export async function getActiveHouseholdForUser(
+  userId: string
+): Promise<HouseholdWithUsersNamesDto | null> {
+  const activeHouseholdId = await getActiveHouseholdId(userId);
+
+  if (!activeHouseholdId) return null;
+
+  const membership = await db.query.householdUsers.findFirst({
+    where: and(
+      eq(householdUsers.userId, userId),
+      eq(householdUsers.householdId, activeHouseholdId)
+    ),
+    columns: { householdId: true },
+    with: {
+      household: HOUSEHOLD_WITH_MEMBERS_QUERY,
+    },
+  });
+
+  const row = membership as { household: HouseholdWithMembersRow | null } | undefined;
+
+  if (!row?.household) {
+    // Stale non-null pointer (household deleted or user no longer a member): self-heal.
+    await setActiveHouseholdId(userId, null);
+
+    return null;
+  }
+
+  return mapHouseholdRowToDto(row.household);
+}
+
+/**
+ * Set (or clear) the user's active household. When non-null, asserts the user
+ * has a membership row for it (throws "FORBIDDEN" otherwise). Pass null to
+ * switch back to the personal cookbook.
+ */
+export async function setActiveHousehold(
+  userId: string,
+  householdId: string | null
+): Promise<void> {
+  if (householdId !== null) {
+    const membership = await db.query.householdUsers.findFirst({
+      where: and(
+        eq(householdUsers.userId, userId),
+        eq(householdUsers.householdId, householdId)
+      ),
+      columns: { householdId: true },
+    });
+
+    if (!membership) throw new Error("FORBIDDEN");
+  }
+
+  await setActiveHouseholdId(userId, householdId);
+}
+
+/**
+ * Gets all member IDs of a household.
+ * Pass the household id (resolve the active household first if you want the
+ * active cookbook's members).
+ */
+export async function getHouseholdMemberIds(householdId: string): Promise<string[]> {
+  const rows = await db
+    .select({ userId: householdUsers.userId })
+    .from(householdUsers)
+    .where(eq(householdUsers.householdId, householdId));
+
+  return Array.from(new Set(rows.map((r) => r.userId)));
 }
 
 export async function addUserToHousehold(input: HouseholdUserInsertDto): Promise<HouseholdUserDto> {
@@ -142,13 +255,7 @@ export async function addUserToHousehold(input: HouseholdUserInsertDto): Promise
 
   if (!parsed.success) throw new Error("Invalid HouseholdUserInsertDto");
 
-  // Check if user is already in a household
-  const existingHousehold = await getHouseholdForUser(parsed.data.userId);
-
-  if (existingHousehold) {
-    throw new Error("User is already in a household. Leave the current household first.");
-  }
-
+  // Multi-membership: a user may belong to many households (no single-household guard).
   const [row] = await db
     .insert(householdUsers)
     .values(parsed.data as any)

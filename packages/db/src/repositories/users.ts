@@ -461,6 +461,34 @@ export async function countUsers(): Promise<number> {
 }
 
 /**
+ * Reads the user's active household pointer (user.active_household_id).
+ * Returns null when the user has no active cookbook selected (personal view).
+ */
+export async function getActiveHouseholdId(userId: string): Promise<string | null> {
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+    columns: { activeHouseholdId: true },
+  });
+
+  return user?.activeHouseholdId ?? null;
+}
+
+/**
+ * Sets the user's active household pointer (user.active_household_id).
+ * Pass null to switch back to the personal cookbook. Membership validation is
+ * the caller's responsibility (see households.setActiveHousehold).
+ */
+export async function setActiveHouseholdId(
+  userId: string,
+  householdId: string | null
+): Promise<void> {
+  await db
+    .update(users)
+    .set({ activeHouseholdId: householdId, version: sql`${users.version} + 1` })
+    .where(eq(users.id, userId));
+}
+
+/**
  * Get user preferences (JSONB). If missing (pre-migration), return {} and warn.
  */
 export async function getUserPreferences(userId: string): Promise<Record<string, unknown>> {
