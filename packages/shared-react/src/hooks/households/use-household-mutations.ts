@@ -41,6 +41,7 @@ export function createUseHouseholdMutations({
     const kickMutation = useMutation(trpc.households.kick.mutationOptions());
     const regenerateCodeMutation = useMutation(trpc.households.regenerateCode.mutationOptions());
     const transferAdminMutation = useMutation(trpc.households.transferAdmin.mutationOptions());
+    const renameMutation = useMutation(trpc.households.rename.mutationOptions());
     const switchActiveMutation = useMutation(trpc.households.switchActive.mutationOptions());
 
     const createHousehold = (name: string): void => {
@@ -192,6 +193,34 @@ export function createUseHouseholdMutations({
       );
     };
 
+    const rename = (householdId: string, name: string, version: number): void => {
+      const trimmedName = name.trim();
+
+      if (!trimmedName) {
+        throw new Error("Household name cannot be empty");
+      }
+
+      renameMutation.mutate(
+        { householdId, name: trimmedName, version },
+        {
+          onSuccess: () => {
+            // Optimistically reflect the new name in the active-household view...
+            setHouseholdData((prev) => {
+              if (!prev?.household || prev.household.id !== householdId) return prev;
+
+              return {
+                ...prev,
+                household: { ...prev.household, name: trimmedName },
+              };
+            });
+            // ...and refresh the switcher list so its label updates too.
+            invalidateHouseholdsList();
+          },
+          onError: () => invalidate(),
+        }
+      );
+    };
+
     const switchActive = (householdId: string | null): void => {
       switchActiveMutation.mutate(
         { householdId },
@@ -219,6 +248,7 @@ export function createUseHouseholdMutations({
       kickUser,
       regenerateJoinCode,
       transferAdmin,
+      rename,
       switchActive,
     };
   };

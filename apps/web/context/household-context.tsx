@@ -16,6 +16,9 @@ const { HouseholdProvider, useHouseholdContext } = createHouseholdContext({
   useHouseholdQuery,
   useHouseholdsListQuery,
   useSwitchActive: () => useHouseholdMutations().switchActive,
+  useCreateHousehold: () => useHouseholdMutations().createHousehold,
+  useJoinHousehold: () => useHouseholdMutations().joinHousehold,
+  useRename: () => useHouseholdMutations().rename,
   useHouseholdSubscription,
 });
 

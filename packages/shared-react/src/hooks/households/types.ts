@@ -51,6 +51,7 @@ export type HouseholdMutationsResult = {
   kickUser: (householdId: string, userId: string) => void;
   regenerateJoinCode: (householdId: string) => void;
   transferAdmin: (householdId: string, newAdminId: string) => void;
+  rename: (householdId: string, name: string, version: number) => void;
   switchActive: (householdId: string | null) => void;
 };
 

@@ -13,6 +13,8 @@ const mockLeaveMutate = vi.fn();
 const mockKickMutate = vi.fn();
 const mockRegenerateMutate = vi.fn();
 const mockTransferMutate = vi.fn();
+const mockRenameMutate = vi.fn();
+const mockSwitchActiveMutate = vi.fn();
 
 vi.mock("@tanstack/react-query", async () => {
   const actual = await vi.importActual("@tanstack/react-query");
@@ -37,12 +39,26 @@ vi.mock("@/app/providers/trpc-provider", () => ({
           queryFn: async () => createMockHouseholdData(),
         }),
       },
+      list: {
+        queryKey: () => ["households", "list"],
+        queryOptions: () => ({
+          queryKey: ["households", "list"],
+          queryFn: async () => ({ households: [], activeHouseholdId: null, currentUserId: "" }),
+        }),
+      },
       create: { mutationOptions: vi.fn() },
       join: { mutationOptions: vi.fn() },
       leave: { mutationOptions: vi.fn(() => ({ mutationFn: mockLeaveMutate })) },
       kick: { mutationOptions: vi.fn(() => ({ mutationFn: mockKickMutate })) },
       regenerateCode: { mutationOptions: vi.fn(() => ({ mutationFn: mockRegenerateMutate })) },
       transferAdmin: { mutationOptions: vi.fn(() => ({ mutationFn: mockTransferMutate })) },
+      rename: { mutationOptions: vi.fn(() => ({ mutationFn: mockRenameMutate })) },
+      switchActive: { mutationOptions: vi.fn(() => ({ mutationFn: mockSwitchActiveMutate })) },
+    },
+    recipes: {
+      list: {
+        queryKey: () => ["recipes", "list"],
+      },
     },
   }),
 }));
@@ -63,6 +79,8 @@ describe("useHouseholdMutations", () => {
     mockKickMutate.mockReset();
     mockRegenerateMutate.mockReset();
     mockTransferMutate.mockReset();
+    mockRenameMutate.mockReset();
+    mockSwitchActiveMutate.mockReset();
     queryClient = createTestQueryClient();
   });
 
@@ -83,6 +101,8 @@ describe("useHouseholdMutations", () => {
       expect(result.current).toHaveProperty("kickUser");
       expect(result.current).toHaveProperty("regenerateJoinCode");
       expect(result.current).toHaveProperty("transferAdmin");
+      expect(result.current).toHaveProperty("rename");
+      expect(result.current).toHaveProperty("switchActive");
 
       expect(typeof result.current.createHousehold).toBe("function");
       expect(typeof result.current.joinHousehold).toBe("function");
@@ -90,6 +110,8 @@ describe("useHouseholdMutations", () => {
       expect(typeof result.current.kickUser).toBe("function");
       expect(typeof result.current.regenerateJoinCode).toBe("function");
       expect(typeof result.current.transferAdmin).toBe("function");
+      expect(typeof result.current.rename).toBe("function");
+      expect(typeof result.current.switchActive).toBe("function");
     });
   });
 
@@ -227,6 +249,27 @@ describe("useHouseholdMutations", () => {
 
       expect(mockRegenerateMutate).toHaveBeenCalledWith(
         { householdId: "h1", version: 6 },
+        expect.any(Object)
+      );
+    });
+
+    it("passes the supplied version and trimmed name when renaming a household", async () => {
+      const initialData = createMockHouseholdData(
+        createMockHouseholdSettings({ id: "h1", version: 7 }),
+        "current-user"
+      );
+
+      queryClient.setQueryData(["households", "get"], initialData);
+
+      const { useHouseholdMutations } = await import("@/hooks/households/use-household-mutations");
+      const { result } = renderHook(() => useHouseholdMutations(), {
+        wrapper: createTestWrapper(queryClient),
+      });
+
+      result.current.rename("h1", "  New Cookbook  ", 7);
+
+      expect(mockRenameMutate).toHaveBeenCalledWith(
+        { householdId: "h1", name: "New Cookbook", version: 7 },
         expect.any(Object)
       );
     });
