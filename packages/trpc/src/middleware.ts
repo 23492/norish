@@ -5,7 +5,7 @@ import type { OperationId } from "@norish/shared/contracts/realtime-envelope";
 import type { Context } from "./context";
 
 import { TRPCError } from "@trpc/server";
-import { isUserServerAdmin } from "@norish/db";
+import { getHouseholdsForUser, isUserServerAdmin } from "@norish/db";
 import { getCachedHouseholdForUser } from "@norish/db/cached-household";
 import { getActiveRecipeShareByToken } from "@norish/db/repositories/recipe-shares";
 import { getRecipeFull } from "@norish/db/repositories/recipes";
@@ -38,6 +38,11 @@ const withAuth = middleware(async ({ ctx, next }) => {
   const householdKey = household?.id ?? user.id;
   const isServerAdmin = user.isServerAdmin ?? false;
 
+  // All household ids the user is a member of — the set permissions use for the
+  // per-cookbook isolation check (Plan 02-03).
+  const memberHouseholds = await getHouseholdsForUser(user.id);
+  const memberHouseholdIds = memberHouseholds.map((h) => h.id);
+
   // Get or create the subscription multiplexer for this WebSocket connection
   // The multiplexer consolidates all Redis subscriptions into a single connection
   let multiplexer: SubscriptionMultiplexer | null = ctx.multiplexer;
@@ -57,6 +62,7 @@ const withAuth = middleware(async ({ ctx, next }) => {
         householdKey,
         userIds: allUserIds,
         householdUserIds: householdUserIds.length > 0 ? householdUserIds : null,
+        memberHouseholdIds,
         isServerAdmin,
         multiplexer,
         operationId: ctx.operationId,
@@ -114,6 +120,7 @@ export type AuthedProcedureContext = Context & {
   householdKey: string;
   userIds: string[];
   householdUserIds: string[] | null;
+  memberHouseholdIds: string[];
   isServerAdmin: boolean;
   multiplexer: SubscriptionMultiplexer | null;
   operationId: OperationId | null;

@@ -1,13 +1,18 @@
 import superjson from "superjson";
 import { getPublisherClient } from "@norish/queue/redis/client";
 
-import { getHouseholdForUser as dbGetHouseholdForUser } from "./repositories/households";
+import { getActiveHouseholdForUser as dbGetActiveHouseholdForUser } from "./repositories/households";
 
 const CACHE_PREFIX = "norish:cache:household:user:";
 const CACHE_TTL_SECONDS = 30;
 
-type CachedHousehold = Awaited<ReturnType<typeof dbGetHouseholdForUser>>;
+type CachedHousehold = Awaited<ReturnType<typeof dbGetActiveHouseholdForUser>>;
 
+/**
+ * Returns the user's ACTIVE household (cached per-user). Because this caches the
+ * active household, switchActive (and join/leave/kick) MUST invalidate it via
+ * invalidateHouseholdCache / invalidateHouseholdCacheForUsers.
+ */
 export async function getCachedHouseholdForUser(userId: string): Promise<CachedHousehold> {
   const redis = await getPublisherClient();
   const cacheKey = `${CACHE_PREFIX}${userId}`;
@@ -19,8 +24,8 @@ export async function getCachedHouseholdForUser(userId: string): Promise<CachedH
     return superjson.parse<CachedHousehold>(cached);
   }
 
-  // Fetch from DB
-  const household = await dbGetHouseholdForUser(userId);
+  // Fetch from DB (active household)
+  const household = await dbGetActiveHouseholdForUser(userId);
 
   // Cache result (including null)
   await redis.setex(cacheKey, CACHE_TTL_SECONDS, superjson.stringify(household));

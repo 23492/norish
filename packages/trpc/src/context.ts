@@ -5,7 +5,7 @@ import type { User } from "@norish/shared/contracts";
 import type { OperationId } from "@norish/shared/contracts/realtime-envelope";
 
 import { auth } from "@norish/auth/auth";
-import { getHouseholdForUser } from "@norish/db";
+import { getActiveHouseholdForUser, getHouseholdsForUser } from "@norish/db";
 import { trpcLogger as log } from "@norish/shared-server/logger";
 import { isOperationId } from "@norish/shared/lib/operation-helpers";
 
@@ -49,7 +49,23 @@ export async function createHttpContextFromHeaders(
       isServerAdmin: sessionUser.isServerOwner || sessionUser.isServerAdmin || false,
     };
 
-    const dbHousehold = await getHouseholdForUser(user.id);
+    // Resolve the ACTIVE household (the scoping resolver). A null result means
+    // the personal cookbook view.
+    let dbHousehold = await getActiveHouseholdForUser(user.id);
+
+    // Optional per-request override: honor x-active-household ONLY if the user
+    // is actually a member of it (does not mutate the persisted pointer).
+    const requestedHouseholdId = headers.get("x-active-household");
+
+    if (requestedHouseholdId && requestedHouseholdId !== dbHousehold?.id) {
+      const memberships = await getHouseholdsForUser(user.id);
+      const requested = memberships.find((h) => h.id === requestedHouseholdId);
+
+      if (requested) {
+        dbHousehold = requested;
+      }
+    }
+
     const household: ContextHousehold | null = dbHousehold
       ? {
           id: dbHousehold.id,
