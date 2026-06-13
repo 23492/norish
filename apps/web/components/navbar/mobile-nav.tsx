@@ -11,6 +11,7 @@ import { siteConfig } from "@norish/web/config/site";
 
 import { useAutoHide } from "@/hooks/auto-hide";
 import { useUserContext } from "@/context/user-context";
+import { useHouseholdContext } from "@/context/household-context";
 import NavbarUserMenu from "@/components/navbar/navbar-user-menu";
 
 // Map hrefs to translation keys (same as navbar.tsx)
@@ -22,8 +23,17 @@ const navLabelKeys: Record<string, "home" | "calendar" | "groceries"> = {
 
 export const MobileNav = () => {
   const tNav = useTranslations("navbar.nav");
+  const tCookbook = useTranslations("navbar.cookbook");
   const pathname = usePathname();
   const { userMenuOpen, setUserMenuOpen } = useUserContext();
+  const { households, activeHouseholdId } = useHouseholdContext();
+
+  // The active-cookbook switcher itself lives in the shared NavbarUserMenu
+  // (opened from the avatar below); here we surface the active cookbook name
+  // so mobile users can see which cookbook they are viewing at a glance.
+  const activeCookbookName =
+    households.find((cookbook) => cookbook.id === activeHouseholdId)?.name ??
+    tCookbook("personal");
 
   const rootRef = useRef<HTMLDivElement | null>(null);
 
@@ -118,10 +128,16 @@ export const MobileNav = () => {
             </ul>
           </div>
 
-          {/* User menu */}
+          {/* User menu (contains the cookbook switcher) + active-cookbook label */}
           <div
-            className={`flex h-13 w-13 shrink-0 items-center justify-center rounded-full ${cssGlassBackdrop}`}
+            className={`flex h-13 shrink-0 items-center gap-2 rounded-full px-2 ${cssGlassBackdrop}`}
           >
+            <span
+              className="text-default-600 max-w-[5.5rem] truncate text-[11px] leading-none font-medium"
+              title={`${tCookbook("label")}: ${activeCookbookName}`}
+            >
+              {activeCookbookName}
+            </span>
             <NavbarUserMenu />
           </div>
         </div>

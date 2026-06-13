@@ -5,12 +5,21 @@ import { useRouter } from "next/navigation";
 import {
   ArrowDownTrayIcon,
   ArrowLeftStartOnRectangleIcon,
+  BookOpenIcon,
+  CheckIcon,
   Cog6ToothIcon,
   EllipsisVerticalIcon,
   PlusIcon,
+  UserGroupIcon,
 } from "@heroicons/react/16/solid";
 import { Avatar } from "@heroui/avatar";
-import { Dropdown, DropdownItem, DropdownMenu, DropdownTrigger } from "@heroui/dropdown";
+import {
+  Dropdown,
+  DropdownItem,
+  DropdownMenu,
+  DropdownSection,
+  DropdownTrigger,
+} from "@heroui/dropdown";
 import { Button } from "@heroui/react";
 import { useTranslations } from "next-intl";
 import { useUserAvatar } from "@norish/shared-react/hooks";
@@ -20,6 +29,7 @@ import { ThemeSwitch } from "./theme-switch";
 
 import { useVersionQuery } from "@/hooks/config";
 import { useUserContext } from "@/context/user-context";
+import { useHouseholdContext } from "@/context/household-context";
 import { LanguageSwitch } from "@/components/shared/language-switch";
 import ImportRecipeModal from "@/components/shared/import-recipe-modal";
 
@@ -31,7 +41,9 @@ interface NavbarUserMenuProps {
 
 export default function NavbarUserMenu({ trigger = "avatar" }: NavbarUserMenuProps) {
   const t = useTranslations("navbar.userMenu");
+  const tCookbook = useTranslations("navbar.cookbook");
   const { user, userMenuOpen: _userMenuOpen, setUserMenuOpen, signOut } = useUserContext();
+  const { households, activeHouseholdId, switchActive } = useHouseholdContext();
   const router = useRouter();
   const [showUrlModal, setShowUrlModal] = useState(false);
   const [imageError, setImageError] = useState(false);
@@ -98,6 +110,74 @@ export default function NavbarUserMenu({ trigger = "avatar" }: NavbarUserMenuPro
           <DropdownItem key="language" isReadOnly className={`py-3 ${cssButtonPill}`}>
             <LanguageSwitch />
           </DropdownItem>
+
+          <DropdownSection showDivider title={tCookbook("label")}>
+            {[
+              <DropdownItem
+                key="cookbook-personal"
+                className={`py-3 ${cssButtonPill}`}
+                endContent={
+                  activeHouseholdId === null ? (
+                    <CheckIcon aria-label={tCookbook("active")} className="size-5 text-primary" />
+                  ) : null
+                }
+                startContent={
+                  <span className="text-default-500">
+                    <BookOpenIcon className="size-5" />
+                  </span>
+                }
+                textValue={tCookbook("personal")}
+                onPress={() => switchActive(null)}
+              >
+                <div className="flex flex-col items-start">
+                  <span className="text-base leading-tight font-medium">
+                    {tCookbook("personal")}
+                  </span>
+                  <span className="text-default-500 text-xs leading-tight">
+                    {tCookbook("personalDescription")}
+                  </span>
+                </div>
+              </DropdownItem>,
+              ...households.map((cookbook) => (
+                <DropdownItem
+                  key={`cookbook-${cookbook.id}`}
+                  className={`py-3 ${cssButtonPill}`}
+                  endContent={
+                    cookbook.id === activeHouseholdId ? (
+                      <CheckIcon aria-label={tCookbook("active")} className="size-5 text-primary" />
+                    ) : null
+                  }
+                  startContent={
+                    <span className="text-default-500">
+                      <UserGroupIcon className="size-5" />
+                    </span>
+                  }
+                  textValue={cookbook.name}
+                  onPress={() => switchActive(cookbook.id)}
+                >
+                  <div className="flex flex-col items-start">
+                    <span className="text-base leading-tight font-medium">{cookbook.name}</span>
+                    <span className="text-default-500 text-xs leading-tight">
+                      {tCookbook("members", { count: cookbook.memberCount })}
+                    </span>
+                  </div>
+                </DropdownItem>
+              )),
+              <DropdownItem
+                key="cookbook-manage"
+                className={`py-3 ${cssButtonPill}`}
+                href="/settings?tab=household"
+                startContent={
+                  <span className="text-default-500">
+                    <PlusIcon className="size-5" />
+                  </span>
+                }
+                onPress={() => setUserMenuOpen(false)}
+              >
+                <span className="text-base leading-tight font-medium">{tCookbook("manage")}</span>
+              </DropdownItem>,
+            ]}
+          </DropdownSection>
 
           <DropdownItem
             key="create-recipe"

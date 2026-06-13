@@ -17,6 +17,14 @@
       "updateAvailable": "v{version} beschikbaar"
     }
   },
+  "cookbook": {
+    "label": "Kookboek",
+    "personal": "Persoonlijk",
+    "personalDescription": "Je eigen recepten",
+    "active": "Actief",
+    "members": "{count, plural, one {# lid} other {# leden}}",
+    "manage": "Kookboek aanmaken of lid worden"
+  },
   "theme": {
     "title": "Thema",
     "loading": "Laden…",
