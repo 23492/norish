@@ -32,6 +32,7 @@ import { useUserContext } from "@/context/user-context";
 import { useHouseholdContext } from "@/context/household-context";
 import { LanguageSwitch } from "@/components/shared/language-switch";
 import ImportRecipeModal from "@/components/shared/import-recipe-modal";
+import CreateOrJoinCookbookModal from "@/components/shared/create-or-join-cookbook-modal";
 
 type TriggerVariant = "avatar" | "ellipsis";
 
@@ -46,6 +47,7 @@ export default function NavbarUserMenu({ trigger = "avatar" }: NavbarUserMenuPro
   const { households, activeHouseholdId, switchActive } = useHouseholdContext();
   const router = useRouter();
   const [showUrlModal, setShowUrlModal] = useState(false);
+  const [showCookbookModal, setShowCookbookModal] = useState(false);
   const [imageError, setImageError] = useState(false);
   const { currentVersion, latestVersion, updateAvailable, releaseUrl } = useVersionQuery();
   const { avatarSrc, fallbackStyle } = useUserAvatar({
@@ -166,13 +168,15 @@ export default function NavbarUserMenu({ trigger = "avatar" }: NavbarUserMenuPro
               <DropdownItem
                 key="cookbook-manage"
                 className={`py-3 ${cssButtonPill}`}
-                href="/settings?tab=household"
                 startContent={
                   <span className="text-default-500">
                     <PlusIcon className="size-5" />
                   </span>
                 }
-                onPress={() => setUserMenuOpen(false)}
+                onPress={() => {
+                  setUserMenuOpen(false);
+                  setShowCookbookModal(true);
+                }}
               >
                 <span className="text-base leading-tight font-medium">{tCookbook("manage")}</span>
               </DropdownItem>,
@@ -286,6 +290,9 @@ export default function NavbarUserMenu({ trigger = "avatar" }: NavbarUserMenuPro
 
       {/* Import from URL Modal */}
       <ImportRecipeModal isOpen={showUrlModal} onOpenChange={setShowUrlModal} />
+
+      {/* Create or join a cookbook Modal */}
+      <CreateOrJoinCookbookModal isOpen={showCookbookModal} onOpenChange={setShowCookbookModal} />
     </>
   );
 }
