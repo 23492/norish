@@ -112,7 +112,8 @@
       "label": "레시피 URL",
       "placeholder": "https://example.com/your-recipe",
       "failed": "레시피를 가져오지 못했습니다.",
-      "failedWithAI": "AI를 사용하여 레시피를 가져오지 못했습니다."
+      "failedWithAI": "AI를 사용하여 레시피를 가져오지 못했습니다.",
+      "targetCookbook": "Adds to {cookbook}"
     },
     "paste": {
       "title": "붙여넣기로 가져오기",

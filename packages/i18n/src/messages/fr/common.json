@@ -112,7 +112,8 @@
       "label": "Recette URL",
       "placeholder": "https://example.com/votre-recette",
       "failed": "Échec de l'importation de la recette",
-      "failedWithAI": "Échec de l'importation de la recette avec l'IA"
+      "failedWithAI": "Échec de l'importation de la recette avec l'IA",
+      "targetCookbook": "Adds to {cookbook}"
     },
     "paste": {
       "title": "Importer depuis le presse papier",

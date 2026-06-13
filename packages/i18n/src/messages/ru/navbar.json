@@ -17,6 +17,14 @@
       "updateAvailable": "Доступна версия v{version}"
     }
   },
+  "cookbook": {
+    "label": "Cookbook",
+    "personal": "Personal",
+    "personalDescription": "Your private recipes",
+    "active": "Active",
+    "members": "{count, plural, one {# member} other {# members}}",
+    "manage": "Create or join a cookbook"
+  },
   "theme": {
     "title": "Тема",
     "loading": "Загрузка…",

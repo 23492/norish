@@ -107,7 +107,8 @@
       "label": "URL de la receta",
       "placeholder": "https://ejemplo.com/tu-receta",
       "failed": "No se ha podido importar la receta",
-      "failedWithAI": "No se ha podido importar la receta con IA"
+      "failedWithAI": "No se ha podido importar la receta con IA",
+      "targetCookbook": "Adds to {cookbook}"
     },
     "paste": {
       "title": "Importar pegando el texto",

@@ -112,7 +112,8 @@
       "label": "Opskrift-URL",
       "placeholder": "https://eksempel.dk/din-opskrift",
       "failed": "Kunne ikke importere opskrift",
-      "failedWithAI": "Kunne ikke importere opskrift med AI"
+      "failedWithAI": "Kunne ikke importere opskrift med AI",
+      "targetCookbook": "Adds to {cookbook}"
     },
     "paste": {
       "title": "Importer fra indsætning",

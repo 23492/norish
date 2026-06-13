@@ -17,6 +17,14 @@
       "updateAvailable": "v{version} 사용 가능"
     }
   },
+  "cookbook": {
+    "label": "Cookbook",
+    "personal": "Personal",
+    "personalDescription": "Your private recipes",
+    "active": "Active",
+    "members": "{count, plural, one {# member} other {# members}}",
+    "manage": "Create or join a cookbook"
+  },
   "theme": {
     "title": "테마",
     "loading": "불러오는 중…",

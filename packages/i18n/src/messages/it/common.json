@@ -112,7 +112,8 @@
       "label": "URL della ricetta",
       "placeholder": "https://esempio.com/la-tua-ricetta",
       "failed": "Importazione della ricetta non riuscita",
-      "failedWithAI": "Importazione della ricetta con IA non riuscita"
+      "failedWithAI": "Importazione della ricetta con IA non riuscita",
+      "targetCookbook": "Adds to {cookbook}"
     },
     "paste": {
       "title": "Importa da testo incollato",

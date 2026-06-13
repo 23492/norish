@@ -104,7 +104,8 @@
       "label": "URL przepisu",
       "placeholder": "https://przykład.pl/przepis",
       "failed": "Nie udało się zaimportować przepisu",
-      "failedWithAI": "Nie udało się zaimportować przepisu z AI"
+      "failedWithAI": "Nie udało się zaimportować przepisu z AI",
+      "targetCookbook": "Adds to {cookbook}"
     },
     "paste": {
       "title": "Importuj przez wklejenie",
