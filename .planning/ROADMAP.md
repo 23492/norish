@@ -50,7 +50,7 @@ Plans:
   1. A user creates/joins two households + a personal cookbook and switches between them.
   2. Recipes show only for the active cookbook; another household's recipes are not visible (isolation).
   3. Import assigns the recipe to the active cookbook.
-**Plans**: 4 plans (planned 2026-06-12) — 3/4 complete (02-01, 02-02, 02-03 shipped 2026-06-13)
+**Plans**: 4 plans (planned 2026-06-12) — 4/4 code-complete (02-01, 02-02, 02-03 shipped 2026-06-13; 02-04 code-complete 2026-06-13, human-verify PENDING with the lead)
 
 Canonical refs: `.planning/phases/02-multi-household/02-CONTEXT.md` (D-01..D-15)
 
@@ -58,7 +58,7 @@ Plans:
 - [x] 02-01: Schema + migration (recipes.household_id, user.active_household_id; swap uq_recipes_url_user→(url,household_id); relation + recipe zod; generate 0035 migration) — wave 1 ✅ 2026-06-13
 - [x] 02-02: Backend core (active-household resolver/setter + multi-membership; tRPC context/middleware; households list+switchActive; recipe scoping rewrite by household_id; import queue carries householdId; secondary-repo callers; + auto-create own household on signup) — wave 2 ✅ 2026-06-13
 - [x] 02-03: Permissions + per-cookbook isolation tests (security-critical: canAccessResource by recipe household_id + member household ids; dedicated DB + tRPC isolation suites; HOUSE-06) — wave 3 ✅ 2026-06-13
-- [ ] 02-04: Frontend + i18n (cookbook switcher navbar+mobile with Personal option; list/active/switch hooks+context; assign-to-active import; nl+en real + all 11 locales for i18n:check) — wave 4 (has human-verify checkpoint)
+- [~] 02-04: Frontend + i18n (cookbook switcher navbar+mobile with Personal option; list/active/switch hooks+context; assign-to-active import; nl+en real + all 11 locales for i18n:check) — wave 4 ⏳ code-complete 2026-06-13 (static verify green: typecheck x2, i18n:check, lint all exit 0); HUMAN-VERIFY (docker build + visual smoke) PENDING with the lead
 
 ### Phase 3: AssemblyAI transcription
 **Goal**: AssemblyAI is a native transcription provider; video imports transcribe through it.
