@@ -3,6 +3,7 @@ import type { CreateHouseholdHooksOptions } from "./types";
 import { createUseHouseholdCache } from "./use-household-cache";
 import { createUseHouseholdMutations } from "./use-household-mutations";
 import { createUseHouseholdQuery } from "./use-household-query";
+import { createUseHouseholdsListQuery } from "./use-households-list-query";
 import { createUseHouseholdSubscription } from "./use-household-subscription";
 
 export type {
@@ -11,9 +12,11 @@ export type {
   HouseholdData,
   HouseholdMutationsResult,
   HouseholdQueryResult,
+  HouseholdsListResult,
 } from "./types";
 
 export { createUseHouseholdQuery } from "./use-household-query";
+export { createUseHouseholdsListQuery } from "./use-households-list-query";
 export { createUseHouseholdMutations } from "./use-household-mutations";
 export { createUseHouseholdCache } from "./use-household-cache";
 export {
@@ -34,10 +37,12 @@ export function createHouseholdHooks({
   useToastAdapter,
 }: CreateHouseholdHooksFullOptions) {
   const useHouseholdQuery = createUseHouseholdQuery({ useTRPC });
+  const useHouseholdsListQuery = createUseHouseholdsListQuery({ useTRPC });
   const useHouseholdCacheHelpers = createUseHouseholdCache({ useTRPC });
   const useHouseholdMutations = createUseHouseholdMutations({
     useTRPC,
     useHouseholdQuery,
+    useHouseholdsListQuery,
     useCurrentUserName,
   });
   const useHouseholdSubscription = createUseHouseholdSubscription({
@@ -49,6 +54,7 @@ export function createHouseholdHooks({
 
   return {
     useHouseholdQuery,
+    useHouseholdsListQuery,
     useHouseholdMutations,
     useHouseholdCacheHelpers,
     useHouseholdSubscription,

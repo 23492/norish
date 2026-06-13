@@ -4,24 +4,33 @@ import type {
   CreateHouseholdHooksOptions,
   HouseholdMutationsResult,
   HouseholdQueryResult,
+  HouseholdsListResult,
 } from "./types";
 
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 type CreateUseHouseholdMutationsOptions = CreateHouseholdHooksOptions & {
   useHouseholdQuery: () => HouseholdQueryResult;
+  useHouseholdsListQuery: () => HouseholdsListResult;
   useCurrentUserName: () => string | null;
 };
 
 export function createUseHouseholdMutations({
   useTRPC,
   useHouseholdQuery,
+  useHouseholdsListQuery,
   useCurrentUserName,
 }: CreateUseHouseholdMutationsOptions) {
   return function useHouseholdMutations(): HouseholdMutationsResult {
     const trpc = useTRPC();
+    const queryClient = useQueryClient();
     const { household, setHouseholdData, invalidate, currentUserId } = useHouseholdQuery();
+    const { invalidate: invalidateHouseholdsList } = useHouseholdsListQuery();
     const userName = useCurrentUserName();
+
+    // Recipe-list cache lives under the tRPC recipes.list path; switching the
+    // active cookbook must refetch it so the dashboard shows the new cookbook.
+    const recipesListPath = [trpc.recipes.list.queryKey({})[0]];
 
     const getHouseholdVersion = (householdId: string): number =>
       household?.id === householdId ? household.version : 1;
@@ -32,6 +41,7 @@ export function createUseHouseholdMutations({
     const kickMutation = useMutation(trpc.households.kick.mutationOptions());
     const regenerateCodeMutation = useMutation(trpc.households.regenerateCode.mutationOptions());
     const transferAdminMutation = useMutation(trpc.households.transferAdmin.mutationOptions());
+    const switchActiveMutation = useMutation(trpc.households.switchActive.mutationOptions());
 
     const createHousehold = (name: string): void => {
       if (!name.trim()) {
@@ -182,6 +192,26 @@ export function createUseHouseholdMutations({
       );
     };
 
+    const switchActive = (householdId: string | null): void => {
+      switchActiveMutation.mutate(
+        { householdId },
+        {
+          onSuccess: () => {
+            // Reflect the new active cookbook in the switcher list...
+            invalidateHouseholdsList();
+            // ...the active-household settings view...
+            invalidate();
+            // ...and refetch the recipe list so the dashboard shows this cookbook.
+            queryClient.invalidateQueries({ queryKey: recipesListPath });
+          },
+          onError: () => {
+            invalidateHouseholdsList();
+            invalidate();
+          },
+        }
+      );
+    };
+
     return {
       createHousehold,
       joinHousehold,
@@ -189,6 +219,7 @@ export function createUseHouseholdMutations({
       kickUser,
       regenerateJoinCode,
       transferAdmin,
+      switchActive,
     };
   };
 }
