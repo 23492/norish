@@ -37,7 +37,7 @@ describe("Unit Normalization - Create/Edit Recipes", () => {
     it("should normalize Dutch 'handvol' to canonical 'handful' when creating recipe", async () => {
       const newRecipeId = crypto.randomUUID();
 
-      await createRecipeWithRefs(newRecipeId, testUserId, {
+      await createRecipeWithRefs(newRecipeId, testUserId, null, {
         name: "Test Recipe with Dutch Units",
         systemUsed: "metric",
         recipeIngredients: [
@@ -63,7 +63,7 @@ describe("Unit Normalization - Create/Edit Recipes", () => {
     it("should normalize Dutch 'scheut' to canonical 'splash'", async () => {
       const newRecipeId = crypto.randomUUID();
 
-      await createRecipeWithRefs(newRecipeId, testUserId, {
+      await createRecipeWithRefs(newRecipeId, testUserId, null, {
         name: "Test Recipe",
         systemUsed: "metric",
         recipeIngredients: [
@@ -88,7 +88,7 @@ describe("Unit Normalization - Create/Edit Recipes", () => {
     it("should normalize Dutch 'gram' to canonical 'gr'", async () => {
       const newRecipeId = crypto.randomUUID();
 
-      await createRecipeWithRefs(newRecipeId, testUserId, {
+      await createRecipeWithRefs(newRecipeId, testUserId, null, {
         name: "Test Recipe",
         systemUsed: "metric",
         recipeIngredients: [
@@ -113,7 +113,7 @@ describe("Unit Normalization - Create/Edit Recipes", () => {
     it("should normalize Dutch 'theelepel' to canonical 'teaspoon'", async () => {
       const newRecipeId = crypto.randomUUID();
 
-      await createRecipeWithRefs(newRecipeId, testUserId, {
+      await createRecipeWithRefs(newRecipeId, testUserId, null, {
         name: "Test Recipe",
         systemUsed: "metric",
         recipeIngredients: [
@@ -138,7 +138,7 @@ describe("Unit Normalization - Create/Edit Recipes", () => {
     it("should preserve canonical IDs when already canonical", async () => {
       const newRecipeId = crypto.randomUUID();
 
-      await createRecipeWithRefs(newRecipeId, testUserId, {
+      await createRecipeWithRefs(newRecipeId, testUserId, null, {
         name: "Test Recipe",
         systemUsed: "metric",
         recipeIngredients: [

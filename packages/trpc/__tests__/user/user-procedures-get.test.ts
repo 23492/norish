@@ -20,6 +20,7 @@ vi.mock("@norish/db", () => ({
   deleteUser: vi.fn(),
   clearUserAvatar: vi.fn(),
   getHouseholdForUser: vi.fn(),
+  getHouseholdsForUser: vi.fn(() => Promise.resolve([])),
   getUserAllergies: vi.fn(),
   updateUserAllergies: vi.fn(),
   getAllergiesForUsers: vi.fn(),

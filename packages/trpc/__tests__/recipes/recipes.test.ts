@@ -67,6 +67,8 @@ describe("recipes procedures", () => {
               {
                 userId: ctx.user.id,
                 householdUserIds: ctx.householdUserIds,
+                activeHouseholdId: ctx.activeHouseholdId,
+                memberHouseholdIds: ctx.memberHouseholdIds,
                 isServerAdmin: ctx.isServerAdmin,
               },
               input.limit,
@@ -104,6 +106,8 @@ describe("recipes procedures", () => {
         {
           userId: ctx.user.id,
           householdUserIds: ctx.householdUserIds,
+          activeHouseholdId: ctx.activeHouseholdId,
+          memberHouseholdIds: ctx.memberHouseholdIds,
           isServerAdmin: ctx.isServerAdmin,
         },
         50,
@@ -140,6 +144,8 @@ describe("recipes procedures", () => {
               {
                 userId: ctx.user.id,
                 householdUserIds: ctx.householdUserIds,
+                activeHouseholdId: ctx.activeHouseholdId,
+                memberHouseholdIds: ctx.memberHouseholdIds,
                 isServerAdmin: ctx.isServerAdmin,
               },
               input.limit,
@@ -170,6 +176,8 @@ describe("recipes procedures", () => {
         {
           userId: ctx.user.id,
           householdUserIds: ctx.householdUserIds,
+          activeHouseholdId: ctx.activeHouseholdId,
+          memberHouseholdIds: ctx.memberHouseholdIds,
           isServerAdmin: ctx.isServerAdmin,
         },
         50,
@@ -205,6 +213,8 @@ describe("recipes procedures", () => {
               {
                 userId: ctx.user.id,
                 householdUserIds: ctx.householdUserIds,
+                activeHouseholdId: ctx.activeHouseholdId,
+                memberHouseholdIds: ctx.memberHouseholdIds,
                 isServerAdmin: ctx.isServerAdmin,
               },
               input.limit,
@@ -234,6 +244,8 @@ describe("recipes procedures", () => {
         {
           userId: ctx.user.id,
           householdUserIds: ctx.householdUserIds,
+          activeHouseholdId: ctx.activeHouseholdId,
+          memberHouseholdIds: ctx.memberHouseholdIds,
           isServerAdmin: ctx.isServerAdmin,
         },
         50,
@@ -274,7 +286,8 @@ describe("recipes procedures", () => {
                 "view",
                 ctx.user.id,
                 recipe.userId,
-                ctx.householdUserIds,
+                recipe.householdId,
+                ctx.memberHouseholdIds,
                 ctx.isServerAdmin
               );
 
@@ -295,7 +308,8 @@ describe("recipes procedures", () => {
         "view",
         ctx.user.id,
         "other-user-id",
-        ctx.householdUserIds,
+        mockRecipe.householdId,
+        ctx.memberHouseholdIds,
         ctx.isServerAdmin
       );
       expect(result).toEqual(mockRecipe);
@@ -322,7 +336,8 @@ describe("recipes procedures", () => {
                 "view",
                 ctx.user.id,
                 recipe.userId,
-                ctx.householdUserIds,
+                recipe.householdId,
+                ctx.memberHouseholdIds,
                 ctx.isServerAdmin
               );
 
@@ -359,7 +374,8 @@ describe("recipes procedures", () => {
                 "view",
                 ctx.user.id,
                 recipe.userId,
-                ctx.householdUserIds,
+                recipe.householdId,
+                ctx.memberHouseholdIds,
                 ctx.isServerAdmin
               );
 
@@ -394,7 +410,12 @@ describe("recipes procedures", () => {
             const recipeId = "test-uuid";
 
             // Simulate async behavior
-            const createdId = await createRecipeWithRefs(recipeId, ctx.user.id, input);
+            const createdId = await createRecipeWithRefs(
+              recipeId,
+              ctx.user.id,
+              ctx.activeHouseholdId,
+              input
+            );
 
             if (createdId) {
               const dto = await dashboardRecipe(createdId);
@@ -442,7 +463,8 @@ describe("recipes procedures", () => {
                 "edit",
                 ctx.user.id,
                 ownerId,
-                ctx.householdUserIds,
+                ctx.activeHouseholdId,
+                ctx.memberHouseholdIds,
                 ctx.isServerAdmin
               );
 
@@ -515,7 +537,8 @@ describe("recipes procedures", () => {
                 "delete",
                 ctx.user.id,
                 ownerId,
-                ctx.householdUserIds,
+                ctx.activeHouseholdId,
+                ctx.memberHouseholdIds,
                 ctx.isServerAdmin
               );
 
@@ -539,7 +562,8 @@ describe("recipes procedures", () => {
         "delete",
         ctx.user.id,
         "test-user-id",
-        ctx.householdUserIds,
+        ctx.activeHouseholdId,
+        ctx.memberHouseholdIds,
         ctx.isServerAdmin
       );
       expect(deleteRecipeById).toHaveBeenCalledWith("r1");
@@ -564,7 +588,8 @@ describe("recipes procedures", () => {
                 "delete",
                 ctx.user.id,
                 ownerId,
-                ctx.householdUserIds,
+                ctx.activeHouseholdId,
+                ctx.memberHouseholdIds,
                 ctx.isServerAdmin
               );
 
@@ -600,7 +625,8 @@ describe("recipes procedures", () => {
                 "delete",
                 ctx.user.id,
                 ownerId,
-                ctx.householdUserIds,
+                ctx.activeHouseholdId,
+                ctx.memberHouseholdIds,
                 ctx.isServerAdmin
               );
 

@@ -16,6 +16,7 @@ const householdDb = vi.hoisted(() => ({
   findHouseholdByJoinCode: vi.fn(),
   getAllergiesForUsers: vi.fn(),
   getHouseholdForUser: vi.fn(),
+  getHouseholdsForUser: vi.fn(() => Promise.resolve([])),
   getUsersByHouseholdId: vi.fn(),
   isUserHouseholdAdmin: vi.fn(),
   kickUserFromHousehold: vi.fn(),
@@ -79,6 +80,8 @@ describe("household stale mutation handling", () => {
         { id: "household-member-id", name: "Household Member", version: 2 },
       ],
     });
+    // Multi-membership: leave/kick resolve the SPECIFIC household via getHouseholdsForUser.
+    householdDb.getHouseholdsForUser.mockResolvedValue([household]);
   });
 
   it("logs stale leave mutations as no-ops", async () => {

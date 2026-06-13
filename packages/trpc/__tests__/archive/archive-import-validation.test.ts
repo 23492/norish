@@ -30,6 +30,11 @@ vi.mock("@norish/shared-server/logger", async (importOriginal) => {
   };
 });
 
+// withAuth middleware resolves the requester's member households (Plan 02-02/02-03).
+vi.mock("@norish/db", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@norish/db")>()),
+  getHouseholdsForUser: vi.fn(() => Promise.resolve([])),
+}));
 vi.mock("@norish/db/cached-household", () => ({
   getCachedHouseholdForUser: vi.fn().mockResolvedValue(null),
 }));

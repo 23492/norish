@@ -36,6 +36,11 @@ const groceryEmitter = vi.hoisted(() => ({
 }));
 
 vi.mock("@norish/db/repositories/stores", () => storesRepository);
+// withAuth middleware resolves the requester's member households (Plan 02-02/02-03).
+vi.mock("@norish/db", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@norish/db")>()),
+  getHouseholdsForUser: vi.fn(() => Promise.resolve([])),
+}));
 vi.mock("@norish/auth/permissions", () => import("../mocks/permissions"));
 vi.mock("@norish/trpc/routers/stores/emitter", () => ({ storeEmitter }));
 vi.mock("@norish/trpc/routers/groceries/emitter", () => ({ groceryEmitter }));

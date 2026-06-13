@@ -18,6 +18,12 @@ vi.mock("@norish/queue/registry", () => ({
   getQueues: vi.fn(() => ({ pasteImport: {} })),
 }));
 
+// withAuth middleware resolves the requester's member households (Plan 02-02/02-03).
+vi.mock("@norish/db", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@norish/db")>()),
+  getHouseholdsForUser: vi.fn(() => Promise.resolve([])),
+}));
+
 vi.mock("@norish/shared-server/logger", () => ({
   createLogger: () => ({
     info: vi.fn(),

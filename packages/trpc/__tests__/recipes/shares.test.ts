@@ -27,6 +27,7 @@ const revokeRecipeShareMock = vi.hoisted(() => vi.fn());
 const updateRecipeShareMock = vi.hoisted(() => vi.fn());
 const getCachedHouseholdForUserMock = vi.hoisted(() => vi.fn());
 const isUserServerAdminMock = vi.hoisted(() => vi.fn());
+const getHouseholdsForUserMock = vi.hoisted(() => vi.fn(() => Promise.resolve([])));
 
 vi.mock("../../src/routers/recipes/helpers", () => ({
   assertRecipeAccess: assertRecipeAccessMock,
@@ -62,6 +63,7 @@ vi.mock("@norish/db/repositories/recipes", () => ({
 vi.mock("@norish/db", () => ({
   getCachedHouseholdForUser: getCachedHouseholdForUserMock,
   isUserServerAdmin: isUserServerAdminMock,
+  getHouseholdsForUser: getHouseholdsForUserMock,
 }));
 
 const { recipeSharesProcedures } = await import("../../src/routers/recipes/shares");
@@ -89,6 +91,8 @@ describe("recipe share procedures", () => {
     vi.clearAllMocks();
     isUserServerAdminMock.mockResolvedValue(false);
     getCachedHouseholdForUserMock.mockResolvedValue(household);
+    // Middleware re-derives memberHouseholdIds from this; match the authed ctx household.
+    getHouseholdsForUserMock.mockResolvedValue([household]);
     getRecipePermissionPolicyMock.mockResolvedValue({ view: "household" });
     getRecipeShareStatusMock.mockReturnValue("active");
     getUnitsMock.mockResolvedValue({});

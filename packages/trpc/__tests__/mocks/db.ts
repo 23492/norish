@@ -18,6 +18,11 @@ export const reorderGroceriesInStore = vi.fn();
 export const markAllDoneInStore = vi.fn();
 export const updateGrocery = vi.fn();
 
+// Active-household resolvers used by the tRPC middleware (Plan 02-02/02-03).
+export const getHouseholdsForUser = vi.fn(() => Promise.resolve([]));
+export const getActiveHouseholdForUser = vi.fn(() => Promise.resolve(null));
+export const isUserServerAdmin = vi.fn(() => Promise.resolve(false));
+
 export const GroceryCreateSchema = {
   parse: vi.fn((v) => v),
   safeParse: vi.fn((v) => ({ success: true, data: v })),
@@ -43,6 +48,12 @@ export const GroceryDeleteSchema = {
 export const GrocerySelectBaseSchema = z.object({}).passthrough();
 
 export function resetDbMocks() {
+  getHouseholdsForUser.mockReset();
+  getHouseholdsForUser.mockResolvedValue([]);
+  getActiveHouseholdForUser.mockReset();
+  getActiveHouseholdForUser.mockResolvedValue(null);
+  isUserServerAdmin.mockReset();
+  isUserServerAdmin.mockResolvedValue(false);
   listGroceriesByUsers.mockReset();
   createGroceries.mockReset();
   updateGroceries.mockReset();

@@ -10,6 +10,7 @@ export const updateUserAvatar = vi.fn();
 export const clearUserAvatar = vi.fn();
 export const deleteUser = vi.fn();
 export const getHouseholdForUser = vi.fn();
+export const getHouseholdsForUser = vi.fn(() => Promise.resolve([]));
 export const getUserPreferences = vi.fn();
 export const updateUserPreferences = vi.fn();
 
@@ -27,6 +28,8 @@ export function resetUserMocks() {
   clearUserAvatar.mockReset();
   deleteUser.mockReset();
   getHouseholdForUser.mockReset();
+  getHouseholdsForUser.mockReset();
+  getHouseholdsForUser.mockResolvedValue([]);
   getUserPreferences.mockReset();
   updateUserPreferences.mockReset();
   getApiKeysForUser.mockReset();

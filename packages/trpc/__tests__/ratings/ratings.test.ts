@@ -15,6 +15,11 @@ import {
 import { createMockAuthedContext, createMockHousehold, createMockUser } from "./test-utils";
 
 vi.mock("@norish/db/repositories/ratings", () => import("../mocks/ratings-repository"));
+// withAuth middleware resolves the requester's member households (Plan 02-02/02-03).
+vi.mock("@norish/db", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@norish/db")>()),
+  getHouseholdsForUser: vi.fn(() => Promise.resolve([])),
+}));
 vi.mock("@norish/trpc/routers/ratings/emitter", () => import("../mocks/ratings-emitter"));
 vi.mock("@norish/config/server-config-loader", () => ({
   getRecipePermissionPolicy: vi.fn().mockResolvedValue({ view: "household" }),
