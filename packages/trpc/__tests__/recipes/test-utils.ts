@@ -57,6 +57,8 @@ export function createMockAuthedContext(
     householdKey: household?.id ?? user.id,
     userIds: allUserIds,
     householdUserIds: householdUserIds.length > 0 ? householdUserIds : null,
+    activeHouseholdId: household?.id ?? null,
+    memberHouseholdIds: household ? [household.id] : [],
     isServerAdmin: user.isServerAdmin ?? false,
   };
 }
@@ -72,6 +74,7 @@ export function createMockRecipeDashboard(
   return {
     id: `recipe-${crypto.randomUUID()}`,
     userId: "test-user-id",
+    householdId: null,
     name: "Test Recipe",
     description: "A test recipe description",
     url: "https://example.com/recipe",
@@ -99,6 +102,7 @@ export function createMockFullRecipe(overrides: Partial<FullRecipeDTO> = {}): Fu
   return {
     id: `recipe-${crypto.randomUUID()}`,
     userId: "test-user-id",
+    householdId: null,
     name: "Test Recipe",
     description: "A test recipe description",
     url: "https://example.com/recipe",

@@ -66,6 +66,8 @@ export function createMockAuthedContext(
     householdKey: household?.id ?? user.id,
     userIds: allUserIds,
     householdUserIds: householdUserIds.length > 0 ? householdUserIds : null,
+    activeHouseholdId: household?.id ?? null,
+    memberHouseholdIds: household ? [household.id] : [],
     isServerAdmin: user.isServerAdmin ?? false,
   };
 }
