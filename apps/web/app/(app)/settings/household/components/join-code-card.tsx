@@ -7,8 +7,11 @@ import {
   ArrowPathIcon,
   ClipboardDocumentIcon as ClipboardDocumentIconSolid,
 } from "@heroicons/react/16/solid";
-import { ClipboardDocumentIcon as ClipboardDocumentIconOutline } from "@heroicons/react/24/outline";
-import { addToast, Button, Card, CardBody, CardHeader, Input } from "@heroui/react";
+import {
+  ClipboardDocumentIcon as ClipboardDocumentIconOutline,
+  LinkIcon,
+} from "@heroicons/react/24/outline";
+import { addToast, Button, Card, CardBody, CardHeader, Divider, Input } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
 
@@ -18,9 +21,12 @@ import { showSafeErrorToast } from "@/lib/ui/safe-error-toast";
 
 export default function JoinCodeCard() {
   const t = useTranslations("settings.household.joinCode");
+  const tInvite = useTranslations("settings.household.invite");
   const tErrors = useTranslations("common.errors");
-  const { household, currentUserId, regenerateJoinCode } = useHouseholdSettingsContext();
+  const { household, currentUserId, regenerateJoinCode, generateInviteToken } =
+    useHouseholdSettingsContext();
   const [timeRemaining, setTimeRemaining] = useState<string>("");
+  const [isGeneratingLink, setIsGeneratingLink] = useState(false);
 
   // Calculate time remaining for join code
   useEffect(() => {
@@ -107,6 +113,50 @@ export default function JoinCodeCard() {
     await regenerateJoinCode(household.id);
   };
 
+  const inviteToken = "inviteToken" in adminHousehold ? adminHousehold.inviteToken : null;
+  const inviteUrl =
+    inviteToken && typeof window !== "undefined"
+      ? `${window.location.origin}/join/${inviteToken}`
+      : "";
+
+  const handleGenerateInviteLink = async () => {
+    setIsGeneratingLink(true);
+    try {
+      await generateInviteToken(household.id);
+    } catch (error) {
+      showSafeErrorToast({
+        title: tInvite("failed"),
+        description: tErrors("technicalDetails"),
+        color: "danger",
+        error,
+        context: "household-invite-link:generate",
+      });
+    } finally {
+      setIsGeneratingLink(false);
+    }
+  };
+
+  const handleCopyInviteLink = async () => {
+    if (!inviteUrl) return;
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      addToast({
+        title: tInvite("copied"),
+        color: "success",
+        shouldShowTimeoutProgress: true,
+        radius: "full",
+      });
+    } catch (error) {
+      showSafeErrorToast({
+        title: tInvite("copyFailed"),
+        description: tErrors("technicalDetails"),
+        color: "danger",
+        error,
+        context: "household-invite-link:copy",
+      });
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -158,6 +208,54 @@ export default function JoinCodeCard() {
             </div>
           </>
         )}
+
+        <Divider />
+
+        {/* Shareable invite link (long-lived, regenerable). */}
+        <div className="flex flex-col gap-3">
+          <h3 className="flex items-center gap-2 text-base font-semibold">
+            <LinkIcon className="h-4 w-4" />
+            {tInvite("title")}
+          </h3>
+          <p className="text-default-600 text-base">{tInvite("description")}</p>
+          {inviteToken ? (
+            <>
+              <div className="flex gap-2">
+                <Input
+                  isReadOnly
+                  classNames={{ input: "font-mono text-sm" }}
+                  value={inviteUrl}
+                />
+                <Button isIconOnly aria-label={tInvite("copy")} onPress={handleCopyInviteLink}>
+                  <ClipboardDocumentIconSolid className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  color="primary"
+                  isLoading={isGeneratingLink}
+                  size="sm"
+                  startContent={<ArrowPathIcon className="h-4 w-4" />}
+                  variant="flat"
+                  onPress={handleGenerateInviteLink}
+                >
+                  {tInvite("regenerate")}
+                </Button>
+              </div>
+            </>
+          ) : (
+            <div className="flex justify-end">
+              <Button
+                color="primary"
+                isLoading={isGeneratingLink}
+                startContent={<LinkIcon className="h-4 w-4" />}
+                onPress={handleGenerateInviteLink}
+              >
+                {tInvite("generate")}
+              </Button>
+            </div>
+          )}
+        </div>
       </CardBody>
     </Card>
   );
