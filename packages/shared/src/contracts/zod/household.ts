@@ -39,7 +39,9 @@ export const HouseholdEventUserSchema = z.object({
   version: z.number().int().positive(),
 });
 
-export const HouseholdWithUsersNamesSchema = HouseholdSelectBaseSchema.extend({
+// inviteToken is admin-only + not provided by the shared member resolver (mapHouseholdRowToDto);
+// omit it here so the resolver DTO parses. The admin view uses HouseholdAdminSettingsSchema.
+export const HouseholdWithUsersNamesSchema = HouseholdSelectBaseSchema.omit({ inviteToken: true }).extend({
   users: z.array(HouseholdUserSchema).default([]),
 });
 

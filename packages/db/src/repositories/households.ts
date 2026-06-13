@@ -403,6 +403,23 @@ export async function getHouseholdByInviteToken(
 }
 
 /**
+ * Admin-gated read of a household's current invite token (or null if none).
+ *
+ * Columns-only fetch — does NOT go through the shared member resolver
+ * (mapHouseholdRowToDto / HouseholdWithUsersNamesSchema stays token-free). The
+ * caller MUST gate this on household-admin status; the token is admin-only (it
+ * grants join access) and must never reach a member-facing payload.
+ */
+export async function getInviteToken(householdId: string): Promise<string | null> {
+  const household = await db.query.households.findFirst({
+    where: eq(households.id, householdId),
+    columns: { inviteToken: true },
+  });
+
+  return household?.inviteToken ?? null;
+}
+
+/**
  * Join a household via its invite token. Reuses the SAME multi-membership path
  * as join-by-code (addUserToHousehold, which is idempotent via
  * onConflictDoNothing — already a member is a no-op success). Setting the joined

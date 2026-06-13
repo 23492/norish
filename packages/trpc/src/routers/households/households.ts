@@ -19,6 +19,7 @@ import {
   getHouseholdByInviteToken,
   getHouseholdForUser,
   getHouseholdsForUser,
+  getInviteToken,
   getUsersByHouseholdId,
   isUserHouseholdAdmin,
   joinHouseholdByInviteToken,
@@ -55,12 +56,18 @@ import { permissionsEmitter } from "../permissions/emitter";
 import { householdEmitter } from "./emitter";
 
 /**
- * Transforms household data to DTO based on admin status
+ * Transforms household data to DTO based on admin status.
+ *
+ * inviteToken is admin-only and is NOT carried by the member resolver
+ * (HouseholdWithUsersNamesDto is token-free). The admin branch therefore takes
+ * the current token explicitly (fetched admin-gated by resolveHouseholdDto);
+ * the member branch never receives it.
  */
 function toHouseholdDto(
   household: Awaited<ReturnType<typeof getHouseholdForUser>>,
   userId: string,
-  allergies: string[]
+  allergies: string[],
+  inviteToken: string | null = null
 ): HouseholdSettingsDto | HouseholdAdminSettingsDto | null {
   if (!household) return null;
 
@@ -94,6 +101,7 @@ function toHouseholdDto(
       version: typedHousehold.version,
       joinCode: isJoinCodeExpired ? null : typedHousehold.joinCode,
       joinCodeExpiresAt: isJoinCodeExpired ? null : typedHousehold.joinCodeExpiresAt,
+      inviteToken,
       users,
       allergies,
     } as HouseholdAdminSettingsDto;
@@ -108,6 +116,26 @@ function toHouseholdDto(
   } as HouseholdSettingsDto;
 }
 
+/**
+ * Resolve the settings DTO for the requesting user, augmenting the ADMIN branch
+ * with the current invite token (fetched admin-gated, so the token never leaks
+ * into a member-facing payload). The resolver itself stays token-free
+ * (HouseholdWithUsersNamesDto); the token is read separately only when the
+ * requester is the household admin.
+ */
+async function resolveHouseholdDto(
+  household: Awaited<ReturnType<typeof getActiveHouseholdForUser>>,
+  userId: string,
+  allergies: string[]
+): Promise<HouseholdSettingsDto | HouseholdAdminSettingsDto | null> {
+  if (!household) return null;
+
+  const isAdmin = household.adminUserId === userId;
+  const inviteToken = isAdmin ? await getInviteToken(household.id) : null;
+
+  return toHouseholdDto(household, userId, allergies, inviteToken);
+}
+
 const get = authedProcedure.query(async ({ ctx }) => {
   log.debug({ userId: ctx.user.id }, "Getting household settings");
 
@@ -116,7 +144,7 @@ const get = authedProcedure.query(async ({ ctx }) => {
   const userIds = household?.users.map((u) => u.id) ?? [];
   const allergiesRows = await getAllergiesForUsers(userIds);
   const allergies = [...new Set(allergiesRows.map((a) => a.tagName))];
-  const dto = toHouseholdDto(household, ctx.user.id, allergies);
+  const dto = await resolveHouseholdDto(household, ctx.user.id, allergies);
 
   log.debug({ userId: ctx.user.id, hasHousehold: !!dto }, "Household settings retrieved");
 
@@ -209,7 +237,7 @@ const create = authedProcedure
         const userIds = fullHousehold?.users.map((u) => u.id) ?? [];
         const allergiesRows = await getAllergiesForUsers(userIds);
         const allergies = [...new Set(allergiesRows.map((a) => a.tagName))];
-        const dto = toHouseholdDto(fullHousehold, ctx.user.id, allergies);
+        const dto = await resolveHouseholdDto(fullHousehold, ctx.user.id, allergies);
 
         // Emit to the user who created the household
         // This MUST happen before connection invalidation so client receives it
@@ -280,7 +308,7 @@ const join = authedProcedure
         const userIds = fullHousehold?.users.map((u) => u.id) ?? [];
         const allergiesRows = await getAllergiesForUsers(userIds);
         const allergies = [...new Set(allergiesRows.map((a) => a.tagName))];
-        const dto = toHouseholdDto(fullHousehold, ctx.user.id, allergies);
+        const dto = await resolveHouseholdDto(fullHousehold, ctx.user.id, allergies);
 
         // Emit to the joining user FIRST (before connection invalidation)
         householdEmitter.emitToUser(ctx.user.id, "created", { household: dto! });
@@ -415,7 +443,7 @@ const joinByInviteToken = authedProcedure
     const userIds = fullHousehold?.users.map((u) => u.id) ?? [];
     const allergiesRows = await getAllergiesForUsers(userIds);
     const allergies = [...new Set(allergiesRows.map((a) => a.tagName))];
-    const dto = toHouseholdDto(fullHousehold, ctx.user.id, allergies);
+    const dto = await resolveHouseholdDto(fullHousehold, ctx.user.id, allergies);
 
     // Emit to the joining user FIRST (before connection invalidation).
     householdEmitter.emitToUser(ctx.user.id, "created", { household: dto! });

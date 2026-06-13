@@ -179,6 +179,36 @@ Re-ran every task acceptance_criteria + the plan-level verification:
 
 key-files.created exist on disk; git log --grep shows 5 feat(02-06) commits. Live DB/containers untouched; nothing pushed; no pnpm build/docker:build/dev-server run. Migration 0036 applies at boot - verified by the lead's rebuild + norishp2 recreate.
 
+## Post-verify fix (2026-06-13, lead Chrome-verify regression)
+
+Chrome-verifying the 02-06 build surfaced a regression: the new `households.invite_token` column made `createSelectSchema(households)` (→ `HouseholdSelectBaseSchema`) require `inviteToken`, and `HouseholdWithUsersNamesSchema = HouseholdSelectBaseSchema.extend(...)` is the schema `mapHouseholdRowToDto` parses (`packages/db/src/repositories/households.ts`, `safeParse` ~line 111). The mapper + `HOUSEHOLD_WITH_MEMBERS_QUERY` never select `inviteToken`, so EVERY household resolve threw `"Failed to parse household for user" [INTERNAL_SERVER_ERROR]` → `ctx.household` broke → the app stuck on "Connecting…"/NoHouseholdView. The trpc tests mock `@norish/db` wholesale, so the real-row-vs-zod mismatch slipped through.
+
+### Root cause
+`inviteToken` was added to the table but routed through the shared **member** resolver DTO (`HouseholdWithUsersNamesDto`), whose schema is built from a column-subset query that omits it. The token is also admin-only (it grants join access) and must never ride a member-facing payload.
+
+### Fixes
+1. **Resolver schema kept token-free** (`packages/shared/src/contracts/zod/household.ts`): `HouseholdWithUsersNamesSchema = HouseholdSelectBaseSchema.omit({ inviteToken: true }).extend({ users })` — the resolver DTO no longer requires/carries the token, so the real-row parse succeeds. (This was the already-applied fix; kept.)
+2. **Admin DTO carries the EXISTING token, leak-safe** (`packages/trpc/src/routers/households/households.ts` + `packages/db/src/repositories/households.ts`): added a tiny admin-gated repo helper `getInviteToken(householdId)` (columns-only fetch, does NOT touch `mapHouseholdRowToDto`/`HouseholdWithUsersNamesSchema`), and a `resolveHouseholdDto(household, userId, allergies)` wrapper that fetches the token ONLY when `household.adminUserId === userId` and passes it into `toHouseholdDto`'s ADMIN branch (`inviteToken,`). The 4 `toHouseholdDto` call sites (`get`/`create`/`join`/`joinByInviteToken`) now go through `resolveHouseholdDto`. The MEMBER branch never receives the token. This restores the admin's view of the already-shared link on reload, so clicking "Generate" no longer silently mints a new token and invalidates a live link.
+
+### Leak-check (every member-facing household payload confirmed token-free)
+- Resolver DTO `HouseholdWithUsersNamesDto` (`getActiveHouseholdForUser`/`getHouseholdsForUser`/`getHouseholdForUser`) — omits `inviteToken` (schema + new db test).
+- MEMBER settings DTO `HouseholdSettingsDto` (`toHouseholdDto` member branch / `HouseholdSettingsSchema`) — omits it; never fetched for non-admins (admin-gated; trpc test).
+- Switcher `HouseholdSummaryDto` (`households.list` / `HouseholdSummarySchema`) — id/name/isActive/memberCount only.
+- All household realtime/subscription payloads (`emitToHousehold` broadcasts): `userJoined` `{ user: id/name/isAdmin/version }`, `memberRemoved` `{ userId }`, `joinCodeRegenerated` `{ joinCode, joinCodeExpiresAt, version }` (short-lived 6-digit code, not the invite token), `adminTransferred` `{ oldAdminId, newAdminId, version }` — none carry `inviteToken`. The `created` event is `emitToUser(ctx.user.id, …)` only and carries the admin DTO solely when that same user is the admin (creator); joiners get the member branch.
+- `inviteToken` appears ONLY in the admin settings DTO (`HouseholdAdminSettingsDto`) and the `generateInviteToken` mutation's own return.
+
+### Regression test (so this class can't recur)
+- **`packages/db/__tests__/server/db/repositories/households.invite-token-resolver.test.ts`** (REAL Postgres via testcontainers): sets a real `invite_token` on a household row, then exercises the REAL `getActiveHouseholdForUser` / `getHouseholdsForUser` (→ `mapHouseholdRowToDto` → `HouseholdWithUsersNamesSchema.safeParse`) and asserts (a) the resolve succeeds (would throw "Failed to parse household for user" before the fix) and (b) the resolver DTO has no `inviteToken`. Adversarially verified: reverting the schema `.omit` makes all 3 go RED with the exact "Failed to parse household for user" error; reverted.
+- **`packages/trpc/__tests__/households/households-stale.test.ts`** (+2): asserts the ADMIN settings DTO carries `inviteToken` (admin-gated fetch ran) and the MEMBER settings DTO does NOT (and `getInviteToken` is never called for a non-admin). Adversarially verified: dropping `inviteToken` from the admin branch makes only the admin test RED; reverted.
+
+### Verification (static + tests)
+- `pnpm --filter @norish/{db,shared,trpc,web} typecheck` — all EXIT 0 (trpc/web honored; a real `tsc --noEmit` on trpc has ZERO household errors — the handful of pre-existing `@norish/shared-server`+`@norish/auth` real-tsc errors are unrelated and present on clean HEAD).
+- `pnpm --filter @norish/trpc lint` — clean. (db/shared lint warnings are pre-existing, in untouched files.)
+- Tests: trpc households-stale **9/9**; db households **9/9** (households.isolation **6/6** — HOUSE-06 intact — + new resolver regression **3/3**).
+- Live untouched; nothing pushed; no `pnpm build`/`docker:build` run. (NB: repo working tree is not `prettier --check`-clean repo-wide — untouched files also fail — so `prettier --write` was deliberately NOT run to keep the diff minimal/re-baseable; eslint `lint` is the gate and is clean on the touched files.)
+
+Commits: `fix(02-06): carry invite token to admin DTO + keep resolver/member payloads token-free` and `test(02-06): real-parse household resolver + invite-token leak guard`.
+
 ---
 *Phase: 02-multi-household*
 *Completed: 2026-06-13*
