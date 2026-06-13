@@ -2,13 +2,20 @@
 
 import { createHouseholdContext } from "@norish/shared-react/contexts";
 
-import { useHouseholdQuery, useHouseholdSubscription } from "@/hooks/households";
+import {
+  useHouseholdMutations,
+  useHouseholdQuery,
+  useHouseholdsListQuery,
+  useHouseholdSubscription,
+} from "@/hooks/households";
 
 
 export type { HouseholdContextValue } from "@norish/shared-react/contexts";
 
 const { HouseholdProvider, useHouseholdContext } = createHouseholdContext({
   useHouseholdQuery,
+  useHouseholdsListQuery,
+  useSwitchActive: () => useHouseholdMutations().switchActive,
   useHouseholdSubscription,
 });
 

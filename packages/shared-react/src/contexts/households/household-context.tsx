@@ -2,8 +2,13 @@
 import type {
   HouseholdAdminSettingsDto,
   HouseholdSettingsDto,
+  HouseholdSummaryDto,
 } from "@norish/shared/contracts/dto/household";
-import type { HouseholdMutationsResult, HouseholdQueryResult } from "../../hooks/households/types";
+import type {
+  HouseholdQueryResult,
+  HouseholdsListResult,
+  HouseholdMutationsResult,
+} from "../../hooks/households/types";
 
 import { createContext, useContext, useMemo } from "react";
 
@@ -11,28 +16,47 @@ export type HouseholdContextValue = {
   household: HouseholdSettingsDto | HouseholdAdminSettingsDto | null;
   currentUserId: string | undefined;
   isLoading: boolean;
+  households: HouseholdSummaryDto[];
+  activeHouseholdId: string | null;
+  switchActive: (householdId: string | null) => void;
 };
 
 type CreateHouseholdContextOptions = {
   useHouseholdQuery: () => Pick<HouseholdQueryResult, "household" | "currentUserId" | "isLoading">;
+  useHouseholdsListQuery: () => Pick<
+    HouseholdsListResult,
+    "households" | "activeHouseholdId"
+  >;
+  useSwitchActive: () => HouseholdMutationsResult["switchActive"];
   useHouseholdSubscription: () => void;
 };
 
 export function createHouseholdContext({
   useHouseholdQuery,
+  useHouseholdsListQuery,
+  useSwitchActive,
   useHouseholdSubscription,
 }: CreateHouseholdContextOptions) {
   const HouseholdContext = createContext<HouseholdContextValue | null>(null);
 
   function HouseholdProvider({ children }: { children: React.ReactNode }) {
     const { household, currentUserId, isLoading } = useHouseholdQuery();
+    const { households, activeHouseholdId } = useHouseholdsListQuery();
+    const switchActive = useSwitchActive();
 
     // Subscribe to WebSocket events
     useHouseholdSubscription();
 
     const value = useMemo(
-      () => ({ household, currentUserId, isLoading }),
-      [household, currentUserId, isLoading]
+      () => ({
+        household,
+        currentUserId,
+        isLoading,
+        households,
+        activeHouseholdId,
+        switchActive,
+      }),
+      [household, currentUserId, isLoading, households, activeHouseholdId, switchActive]
     );
 
     return <HouseholdContext.Provider value={value}>{children}</HouseholdContext.Provider>;
@@ -77,7 +101,7 @@ export function createHouseholdSettingsContext({
   const HouseholdSettingsContext = createContext<HouseholdSettingsContextValue | null>(null);
 
   function HouseholdSettingsProvider({ children }: { children: React.ReactNode }) {
-    const { household, currentUserId, isLoading } = useHouseholdContext();
+    const base = useHouseholdContext();
     const {
       createHousehold,
       joinHousehold,
@@ -89,9 +113,7 @@ export function createHouseholdSettingsContext({
 
     const value = useMemo<HouseholdSettingsContextValue>(
       () => ({
-        household,
-        currentUserId,
-        isLoading,
+        ...base,
         createHousehold,
         joinHousehold,
         leaveHousehold,
@@ -100,9 +122,7 @@ export function createHouseholdSettingsContext({
         transferAdmin,
       }),
       [
-        household,
-        currentUserId,
-        isLoading,
+        base,
         createHousehold,
         joinHousehold,
         leaveHousehold,
