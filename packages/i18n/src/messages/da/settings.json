@@ -224,6 +224,16 @@
       "codeLabel": "Tilmeldingskode",
       "codePlaceholder": "8-tegn kode",
       "submitButton": "Tilmeld husstand"
+    },
+    "createOrJoin": {
+      "title": "Create or join a cookbook"
+    },
+    "rename": {
+      "button": "Rename cookbook",
+      "label": "Cookbook name",
+      "placeholder": "Cookbook name",
+      "success": "Cookbook renamed",
+      "failed": "Failed to rename cookbook"
     }
   },
   "caldav": {

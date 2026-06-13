@@ -224,6 +224,16 @@
       "codeLabel": "Kod dołączenia",
       "codePlaceholder": "8-znakowy kod",
       "submitButton": "Dołącz do gospodarstwa domowego"
+    },
+    "createOrJoin": {
+      "title": "Create or join a cookbook"
+    },
+    "rename": {
+      "button": "Rename cookbook",
+      "label": "Cookbook name",
+      "placeholder": "Cookbook name",
+      "success": "Cookbook renamed",
+      "failed": "Failed to rename cookbook"
     }
   },
   "caldav": {

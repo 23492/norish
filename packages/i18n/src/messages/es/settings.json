@@ -224,6 +224,16 @@
       "codeLabel": "Código de unión",
       "codePlaceholder": "Código de 8 caracteres",
       "submitButton": "Unirse al hogar"
+    },
+    "createOrJoin": {
+      "title": "Create or join a cookbook"
+    },
+    "rename": {
+      "button": "Rename cookbook",
+      "label": "Cookbook name",
+      "placeholder": "Cookbook name",
+      "success": "Cookbook renamed",
+      "failed": "Failed to rename cookbook"
     }
   },
   "caldav": {

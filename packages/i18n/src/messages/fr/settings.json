@@ -224,6 +224,16 @@
       "codeLabel": "Code d’invitation",
       "codePlaceholder": "Code à 8 caractères",
       "submitButton": "Rejoindre le foyer"
+    },
+    "createOrJoin": {
+      "title": "Create or join a cookbook"
+    },
+    "rename": {
+      "button": "Rename cookbook",
+      "label": "Cookbook name",
+      "placeholder": "Cookbook name",
+      "success": "Cookbook renamed",
+      "failed": "Failed to rename cookbook"
     }
   },
   "caldav": {

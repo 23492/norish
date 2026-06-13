@@ -224,6 +224,16 @@
       "codeLabel": "참여 코드",
       "codePlaceholder": "8자리 코드",
       "submitButton": "가구 참여"
+    },
+    "createOrJoin": {
+      "title": "Create or join a cookbook"
+    },
+    "rename": {
+      "button": "Rename cookbook",
+      "label": "Cookbook name",
+      "placeholder": "Cookbook name",
+      "success": "Cookbook renamed",
+      "failed": "Failed to rename cookbook"
     }
   },
   "caldav": {

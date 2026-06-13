@@ -224,6 +224,16 @@
       "codeLabel": "Join code",
       "codePlaceholder": "8-cijferige code",
       "submitButton": "Join huishouden"
+    },
+    "createOrJoin": {
+      "title": "Kookboek aanmaken of lid worden"
+    },
+    "rename": {
+      "button": "Kookboek hernoemen",
+      "label": "Naam kookboek",
+      "placeholder": "Naam kookboek",
+      "success": "Kookboek hernoemd",
+      "failed": "Hernoemen mislukt"
     }
   },
   "caldav": {

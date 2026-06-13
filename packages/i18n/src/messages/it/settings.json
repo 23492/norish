@@ -224,6 +224,16 @@
       "codeLabel": "Codice di accesso",
       "codePlaceholder": "Codice di 8 caratteri",
       "submitButton": "Unisciti al nucleo familiare"
+    },
+    "createOrJoin": {
+      "title": "Create or join a cookbook"
+    },
+    "rename": {
+      "button": "Rename cookbook",
+      "label": "Cookbook name",
+      "placeholder": "Cookbook name",
+      "success": "Cookbook renamed",
+      "failed": "Failed to rename cookbook"
     }
   },
   "caldav": {
