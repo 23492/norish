@@ -21,7 +21,7 @@
 - [x] **HOUSE-03**: A user can switch their active household/cookbook.
 - [x] **HOUSE-04**: Recipes are scoped to a household/cookbook (`recipes.household_id`); `null` = personal.
 - [x] **HOUSE-05**: A personal cookbook coexists with shared cookbooks for the same user.
-- [ ] **HOUSE-06**: Per-cookbook isolation — members of one household cannot see another household's recipes (security-critical).
+- [x] **HOUSE-06**: Per-cookbook isolation — members of one household cannot see another household's recipes (security-critical).
 - [x] **HOUSE-07**: Import/create assigns the recipe to the active cookbook (selectable). _(backend; frontend selector in 02-04)_
 
 ### Video transcription (AssemblyAI) — Phase 3
@@ -57,7 +57,7 @@
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | SCRAPE-01..06 | Phase 1 | Pending |
-| HOUSE-01..07 | Phase 2 | In progress (HOUSE-01,02,03,04,05,07 done; HOUSE-06 isolation in 02-03) |
+| HOUSE-01..07 | Phase 2 | HOUSE-01,02,03,04,05,06,07 done (frontend switcher/selector in 02-04) |
 | VIDEO-01..04 | Phase 3 | Pending |
 | SETUP-01..03 | Phase 0 | In progress |
 | SETUP-04 | Phase 1 | Done |
