@@ -21,6 +21,7 @@ const householdDb = vi.hoisted(() => ({
   getHouseholdByInviteToken: vi.fn(),
   getHouseholdForUser: vi.fn(),
   getHouseholdsForUser: vi.fn(() => Promise.resolve([])),
+  getInviteToken: vi.fn(() => Promise.resolve(null)),
   getUsersByHouseholdId: vi.fn(() => Promise.resolve([])),
   isUserHouseholdAdmin: vi.fn(),
   joinHouseholdByInviteToken: vi.fn(),
@@ -221,6 +222,46 @@ describe("household invite token (INVITE-01)", () => {
         caller.generateInviteToken({ householdId: inviteHousehold.id })
       ).rejects.toThrow("Only the household admin can generate an invite link");
       expect(householdDb.generateInviteToken).not.toHaveBeenCalled();
+    });
+  });
+
+  // The settings DTO must carry the EXISTING invite token for the admin (so the
+  // admin sees the already-shared link instead of minting a new one and silently
+  // revoking it), and MUST NOT carry it for a non-admin member (leak guard).
+  describe("get (settings DTO invite-token visibility)", () => {
+    it("includes the existing inviteToken in the ADMIN settings DTO", async () => {
+      householdDb.getActiveHouseholdForUser.mockResolvedValue({
+        ...inviteHousehold,
+        version: 1,
+        adminUserId: user.id, // requester IS the admin
+        users: [{ id: user.id, name: user.name, version: 1 }],
+      });
+      householdDb.getInviteToken.mockResolvedValue(VALID_TOKEN);
+
+      const caller = householdsRouter.createCaller({ ...ctx, multiplexer: null } as any);
+      const result = await caller.get();
+
+      // Admin-gated fetch ran for the requesting admin's active household...
+      expect(householdDb.getInviteToken).toHaveBeenCalledWith(inviteHousehold.id);
+      // ...and the current token is on the admin DTO so the UI shows the live link.
+      expect(result.household).toHaveProperty("inviteToken", VALID_TOKEN);
+    });
+
+    it("does NOT include inviteToken in the MEMBER settings DTO (and never fetches it)", async () => {
+      householdDb.getActiveHouseholdForUser.mockResolvedValue({
+        ...inviteHousehold,
+        version: 1,
+        adminUserId: "someone-else", // requester is a plain member
+        users: [{ id: user.id, name: user.name, version: 1 }],
+      });
+
+      const caller = householdsRouter.createCaller({ ...ctx, multiplexer: null } as any);
+      const result = await caller.get();
+
+      // Leak guard: the member-facing DTO must not carry the admin-only token...
+      expect(result.household).not.toHaveProperty("inviteToken");
+      // ...and the token is never even read for a non-admin (admin-gated).
+      expect(householdDb.getInviteToken).not.toHaveBeenCalled();
     });
   });
 });
