@@ -23,7 +23,7 @@ import {
 import { dbLogger } from "@norish/db/logger";
 import { stripHtmlTags } from "@norish/shared/lib/helpers";
 import z from "zod";
-import { and, asc, desc, eq, ilike, inArray, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, isNull, lte, or, sql } from "drizzle-orm";
 
 import { db } from "../drizzle";
 import {
@@ -119,13 +119,16 @@ export async function getRecipeByUrl(url: string): Promise<FullRecipeDTO | null>
  * Check if recipe URL exists based on view policy.
  * Used for queue deduplication before creating new recipes.
  *
- * - "everyone": Any recipe with this URL
- * - "household": Any recipe with this URL owned by household members
+ * Dedup is per-cookbook (recipes.household_id):
+ * - "everyone": Any recipe with this URL (server-wide)
+ * - "household": Any recipe with this URL in the TARGET cookbook (household_id),
+ *   or, when personal (householdId null), the user's own personal recipe
  * - "owner": Any recipe with this URL owned by the user
  */
 export async function recipeExistsByUrlForPolicy(
   url: string,
   userId: string,
+  householdId: string | null,
   householdUserIds: string[] | null,
   viewPolicy: "everyone" | "household" | "owner"
 ): Promise<{ exists: boolean; existingRecipeId?: string }> {
@@ -138,15 +141,16 @@ export async function recipeExistsByUrlForPolicy(
       break;
 
     case "household":
-      // Check if URL exists for any household member
-      if (householdUserIds && householdUserIds.length > 0) {
-        const userIds = householdUserIds.includes(userId)
-          ? householdUserIds
-          : [...householdUserIds, userId];
-
-        whereCondition = and(eq(recipes.url, url), inArray(recipes.userId, userIds));
+      // Check if the URL already exists in the target cookbook.
+      if (householdId) {
+        whereCondition = and(eq(recipes.url, url), eq(recipes.householdId, householdId));
       } else {
-        whereCondition = and(eq(recipes.url, url), eq(recipes.userId, userId));
+        // Personal cookbook: the user's own household-less recipe.
+        whereCondition = and(
+          eq(recipes.url, url),
+          isNull(recipes.householdId),
+          eq(recipes.userId, userId)
+        );
       }
       break;
 
@@ -175,19 +179,26 @@ export async function recipeExistsByUrlForPolicy(
 }
 
 /**
- * Check if a recipe already exists within a household context.
+ * Check if a recipe already exists within the TARGET cookbook.
  * First checks by URL (if provided), then falls back to exact title match.
+ * Dedup scope is the cookbook (recipes.household_id): the target household when
+ * householdId is non-null, otherwise the importing user's personal recipes.
  * Returns the existing recipe ID if found, null otherwise.
  */
 export async function findExistingRecipe(
+  householdId: string | null,
   userIds: string[],
   url: string | null | undefined,
   title: string
 ): Promise<string | null> {
+  const cookbookScope = householdId
+    ? eq(recipes.householdId, householdId)
+    : and(isNull(recipes.householdId), inArray(recipes.userId, userIds));
+
   // First try to find by URL if provided (most reliable)
   if (url && url.trim()) {
     const byUrl = await db.query.recipes.findFirst({
-      where: and(inArray(recipes.userId, userIds), eq(recipes.url, url.trim())),
+      where: and(cookbookScope, eq(recipes.url, url.trim())),
       columns: { id: true },
     });
 
@@ -203,7 +214,7 @@ export async function findExistingRecipe(
 
   if (trimmedTitle) {
     const byTitle = await db.query.recipes.findFirst({
-      where: and(inArray(recipes.userId, userIds), ilike(recipes.name, trimmedTitle)),
+      where: and(cookbookScope, ilike(recipes.name, trimmedTitle)),
       columns: { id: true },
     });
 
@@ -223,13 +234,18 @@ export async function findExistingRecipe(
 export interface RecipeListContext {
   userId: string;
   householdUserIds: string[] | null;
+  activeHouseholdId: string | null;
+  memberHouseholdIds: string[];
   isServerAdmin: boolean;
 }
 
 /**
- * Build SQL condition for view policy filtering
+ * Build SQL condition for view policy filtering.
  *
- * Recipes with null userId (orphaned recipes) are always visible to everyone.
+ * Recipe visibility is scoped per-cookbook (recipes.household_id):
+ * - "household" + active cookbook  -> recipes in that cookbook
+ * - "household" + personal (null)  -> the viewer's own household-less recipes
+ * Orphaned recipes (null userId) are always visible (retained behavior).
  */
 async function buildViewPolicyCondition(ctx: RecipeListContext) {
   const viewLevel = await getRecipeViewPolicy();
@@ -245,26 +261,24 @@ async function buildViewPolicyCondition(ctx: RecipeListContext) {
       return undefined;
 
     case "household":
-      // User sees own recipes + household members' recipes + orphaned recipes (null userId)
-      if (ctx.householdUserIds && ctx.householdUserIds.length > 0) {
-        // Ensure user's own ID is included (should always be, but safety check)
-        const userIds = ctx.householdUserIds.includes(ctx.userId)
-          ? ctx.householdUserIds
-          : [...ctx.householdUserIds, ctx.userId];
-
-        // Include recipes where userId is in household OR userId is null (orphaned)
-        return or(inArray(recipes.userId, userIds), sql`${recipes.userId} IS NULL`);
+      // Scope to the ACTIVE cookbook (household_id), plus orphans (null userId).
+      if (ctx.activeHouseholdId) {
+        return or(eq(recipes.householdId, ctx.activeHouseholdId), isNull(recipes.userId));
       }
 
-      // No household = only own recipes + orphaned recipes
-      return or(eq(recipes.userId, ctx.userId), sql`${recipes.userId} IS NULL`);
+      // Personal cookbook (no active household): the viewer's own household-less
+      // recipes, plus orphans.
+      return or(
+        and(isNull(recipes.householdId), eq(recipes.userId, ctx.userId)),
+        isNull(recipes.userId)
+      );
 
     case "owner":
       // Only own recipes + orphaned recipes (null userId)
-      return or(eq(recipes.userId, ctx.userId), sql`${recipes.userId} IS NULL`);
+      return or(eq(recipes.userId, ctx.userId), isNull(recipes.userId));
 
     default:
-      return or(eq(recipes.userId, ctx.userId), sql`${recipes.userId} IS NULL`);
+      return or(eq(recipes.userId, ctx.userId), isNull(recipes.userId));
   }
 }
 
@@ -620,6 +634,7 @@ export async function dashboardRecipe(id: string): Promise<RecipeDashboardDTO | 
 export async function createRecipeWithRefs(
   recipeId: string,
   userId: string | null | undefined,
+  householdId: string | null,
   input: FullRecipeInsertDTO
 ): Promise<string | null> {
   const parsed = FullRecipeInsertSchema.safeParse(input);
@@ -635,6 +650,7 @@ export async function createRecipeWithRefs(
     id: recipeId,
     name: stripHtmlTags(payload.name),
     userId,
+    householdId,
     description: payload.description ? stripHtmlTags(payload.description) : null,
     notes: payload.notes ?? null,
     url: payload.url ?? null,
@@ -655,12 +671,15 @@ export async function createRecipeWithRefs(
     const [inserted] = await tx
       .insert(recipes)
       .values(toInsert)
-      .onConflictDoNothing({ target: [recipes.url, recipes.userId] })
+      .onConflictDoNothing({ target: [recipes.url, recipes.householdId] })
       .returning({ id: recipes.id });
 
     if (!inserted) {
       const existing = await tx.query.recipes.findFirst({
-        where: and(eq(recipes.url, toInsert.url!), eq(recipes.userId, userId ?? "")),
+        where: and(
+          eq(recipes.url, toInsert.url!),
+          householdId ? eq(recipes.householdId, householdId) : isNull(recipes.householdId)
+        ),
         columns: { id: true },
       });
 
