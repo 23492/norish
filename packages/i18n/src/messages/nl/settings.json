@@ -234,6 +234,16 @@
       "placeholder": "Naam kookboek",
       "success": "Kookboek hernoemd",
       "failed": "Hernoemen mislukt"
+    },
+    "invite": {
+      "title": "Uitnodigingslink",
+      "description": "Deel deze link om mensen uit te nodigen voor je kookboek. Iedereen met de link kan lid worden.",
+      "generate": "Uitnodigingslink genereren",
+      "regenerate": "Link opnieuw genereren",
+      "copy": "Link kopiëren",
+      "copied": "Uitnodigingslink gekopieerd",
+      "copyFailed": "Kopiëren van uitnodigingslink mislukt",
+      "failed": "Genereren van uitnodigingslink mislukt"
     }
   },
   "caldav": {
@@ -635,5 +645,16 @@
       "failedToSave": "Opslaan mislukt",
       "failedToRestore": "Resetten herstellen mislukt"
     }
+  },
+  "join": {
+    "title": "Lid worden van kookboek",
+    "subtitle": "Je bent uitgenodigd voor een kookboek",
+    "description": "Je bent uitgenodigd om lid te worden van {name}.",
+    "joinButton": "Word lid van dit kookboek",
+    "loading": "Uitnodiging laden…",
+    "loginPrompt": "Log in om lid te worden van dit kookboek",
+    "invalidTitle": "Ongeldige uitnodigingslink",
+    "invalidDescription": "Deze uitnodigingslink is niet meer geldig. Vraag de beheerder van het kookboek om een nieuwe.",
+    "goHome": "Naar startpagina"
   }
 }

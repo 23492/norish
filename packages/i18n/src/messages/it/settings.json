@@ -234,6 +234,16 @@
       "placeholder": "Cookbook name",
       "success": "Cookbook renamed",
       "failed": "Failed to rename cookbook"
+    },
+    "invite": {
+      "title": "Invite link",
+      "description": "Share this link to invite people to your cookbook. Anyone with the link can join.",
+      "generate": "Generate invite link",
+      "regenerate": "Regenerate link",
+      "copy": "Copy link",
+      "copied": "Invite link copied",
+      "copyFailed": "Failed to copy invite link",
+      "failed": "Failed to generate invite link"
     }
   },
   "caldav": {
@@ -635,5 +645,16 @@
       "failedToSave": "Salvataggio non riuscito",
       "failedToRestore": "Ripristino dei valori predefiniti non riuscito"
     }
+  },
+  "join": {
+    "title": "Join cookbook",
+    "subtitle": "You've been invited to a cookbook",
+    "description": "You've been invited to join {name}.",
+    "joinButton": "Join this cookbook",
+    "loading": "Loading invite…",
+    "loginPrompt": "Log in to join this cookbook",
+    "invalidTitle": "Invalid invite link",
+    "invalidDescription": "This invite link is no longer valid. Ask the cookbook admin for a new one.",
+    "goHome": "Go home"
   }
 }
