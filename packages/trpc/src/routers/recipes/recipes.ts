@@ -413,7 +413,8 @@ const convertMeasurements = authedProcedure
               "edit",
               ctx.user.id,
               recipe.userId,
-              ctx.householdUserIds,
+              recipe.householdId,
+              ctx.memberHouseholdIds,
               ctx.isServerAdmin
             )
           : Promise.resolve(true);

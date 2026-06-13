@@ -103,6 +103,24 @@ export async function getRecipeOwnerId(recipeId: string): Promise<string | null>
   return row?.userId ?? null;
 }
 
+/**
+ * Get the owner userId AND the household_id (cookbook) of a recipe, for the
+ * per-cookbook permission boundary. Returns null when the recipe does not exist.
+ */
+export async function getRecipeOwnerAndHousehold(
+  recipeId: string
+): Promise<{ userId: string | null; householdId: string | null } | null> {
+  const [row] = await db
+    .select({ userId: recipes.userId, householdId: recipes.householdId })
+    .from(recipes)
+    .where(eq(recipes.id, recipeId))
+    .limit(1);
+
+  if (!row) return null;
+
+  return { userId: row.userId ?? null, householdId: row.householdId ?? null };
+}
+
 export async function getRecipeByUrl(url: string): Promise<FullRecipeDTO | null> {
   const rows = await db.query.recipes.findFirst({
     where: eq(recipes.url, url),
@@ -465,6 +483,7 @@ export async function listRecipes(
       columns: {
         id: true,
         userId: true,
+        householdId: true,
         name: true,
         description: true,
         notes: true,
@@ -510,6 +529,7 @@ export async function listRecipes(
     return {
       id: r.id,
       userId: r.userId,
+      householdId: r.householdId,
       name: r.name,
       description: r.description ?? null,
       notes: r.notes ?? null,
@@ -560,6 +580,7 @@ export async function dashboardRecipe(id: string): Promise<RecipeDashboardDTO | 
     columns: {
       id: true,
       userId: true,
+      householdId: true,
       name: true,
       description: true,
       notes: true,
@@ -604,6 +625,7 @@ export async function dashboardRecipe(id: string): Promise<RecipeDashboardDTO | 
   const dto = {
     id: r.id,
     userId: r.userId,
+    householdId: r.householdId,
     name: r.name,
     description: r.description ?? null,
     notes: r.notes ?? null,
@@ -813,6 +835,7 @@ export async function getRecipeFull(id: string): Promise<FullRecipeDTO | null> {
     columns: {
       id: true,
       userId: true,
+      householdId: true,
       name: true,
       description: true,
       notes: true,
@@ -898,6 +921,7 @@ export async function getRecipeFull(id: string): Promise<FullRecipeDTO | null> {
   const dto = {
     id: full.id,
     userId: full.userId,
+    householdId: full.householdId,
     name: full.name,
     description: full.description ?? null,
     notes: full.notes ?? null,

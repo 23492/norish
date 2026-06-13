@@ -5,7 +5,7 @@ import type { FullRecipeDTO } from "@norish/shared/contracts";
 import { TRPCError } from "@trpc/server";
 import { canAccessResource } from "@norish/auth/permissions";
 import { getRecipePermissionPolicy } from "@norish/config/server-config-loader";
-import { getRecipeFull, getRecipeOwnerId } from "@norish/db";
+import { getRecipeFull, getRecipeOwnerAndHousehold } from "@norish/db";
 import { trpcLogger as log } from "@norish/shared-server/logger";
 
 import { emitByPolicy } from "../../helpers";
@@ -15,6 +15,7 @@ import { recipeEmitter } from "./emitter";
 export type RecipeUserContext = {
   user: { id: string };
   householdUserIds: string[] | null;
+  memberHouseholdIds: string[];
   householdKey: string;
   isServerAdmin: boolean;
 };
@@ -48,13 +49,13 @@ export function handleRecipeError(
 }
 
 export async function assertRecipeAccess(
-  ctx: Pick<RecipeUserContext, "user" | "householdUserIds" | "isServerAdmin">,
+  ctx: Pick<RecipeUserContext, "user" | "memberHouseholdIds" | "isServerAdmin">,
   recipeId: string,
   action: PermissionAction
 ): Promise<void> {
-  const ownerId = await getRecipeOwnerId(recipeId);
+  const owner = await getRecipeOwnerAndHousehold(recipeId);
 
-  if (ownerId === null) {
+  if (owner === null || owner.userId === null) {
     log.debug({ recipeId }, `${action} orphaned recipe`);
 
     return;
@@ -63,8 +64,9 @@ export async function assertRecipeAccess(
   const canAccess = await canAccessResource(
     action,
     ctx.user.id,
-    ownerId,
-    ctx.householdUserIds,
+    owner.userId,
+    owner.householdId,
+    ctx.memberHouseholdIds,
     ctx.isServerAdmin
   );
 
@@ -77,7 +79,7 @@ export async function assertRecipeAccess(
 }
 
 export async function findRecipeForViewer(
-  ctx: Pick<RecipeUserContext, "user" | "householdUserIds" | "isServerAdmin">,
+  ctx: Pick<RecipeUserContext, "user" | "memberHouseholdIds" | "isServerAdmin">,
   recipeId: string
 ): Promise<FullRecipeDTO | null> {
   const recipe = await getRecipeFull(recipeId);
@@ -91,7 +93,8 @@ export async function findRecipeForViewer(
       "view",
       ctx.user.id,
       recipe.userId,
-      ctx.householdUserIds,
+      recipe.householdId,
+      ctx.memberHouseholdIds,
       ctx.isServerAdmin
     );
 
