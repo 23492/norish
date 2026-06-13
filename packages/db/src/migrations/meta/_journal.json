@@ -260,6 +260,13 @@
       "when": 1781361936323,
       "tag": "0036_perpetual_karma",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1781391739967,
+      "tag": "0037_curious_bloodscream",
+      "breakpoints": true
     }
   ]
 }
