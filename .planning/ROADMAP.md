@@ -2,14 +2,15 @@
 
 ## Overview
 
-Fork upstream norish and evolve it in three feature phases — native Camoufox scraping, multi-household cookbooks, and AssemblyAI transcription — each shipped as a maintainable, re-baseable increment built on LXC 110 and deployed to the existing stack. Phase 0 (fork + gsd-core + build pipeline) is the foundation.
+Fork upstream norish and evolve it in feature phases — native Camoufox scraping, multi-household cookbooks, per-cookbook permission policies, and AssemblyAI transcription — each shipped as a maintainable, re-baseable increment built on LXC 110 and deployed to the existing stack. Phase 0 (fork + gsd-core + build pipeline) is the foundation.
 
 ## Phases
 
 - [x] **Phase 0: Fork & tooling setup** - Fork, gsd-core, dev env on LXC 110, stock self-build de-risk
 - [x] **Phase 1: Native Camoufox scraping** - Replace headless Chrome with the Camoufox REST client in source
 - [ ] **Phase 2: Multi-household cookbooks** - Multiple households per user + per-cookbook recipe scoping
-- [ ] **Phase 3: AssemblyAI transcription** - Native AssemblyAI provider for video imports
+- [ ] **Phase 3: Per-cookbook permission policies** - Each cookbook sets its own view/edit/delete; admin-edits-any/members-edit-own (POLICY-01) — code-complete 2026-06-14, human-verify pending
+- [ ] **Phase 4: AssemblyAI transcription** - Native AssemblyAI provider for video imports
 
 ## Phase Details
 
@@ -62,7 +63,22 @@ Plans:
 - [~] 02-05: Multi-household UI completion (households.rename admin-only/optimistic mutation; create/join/rename on the global household context; reusable Create/Join cookbook modal opened from the navbar switcher; admin inline-rename in settings; createOrJoin+rename i18n in all 11 locales) — wave 5 ⏳ code-complete 2026-06-13 (static verify green: typecheck x5, i18n:check, web lint, household tests all exit 0); resolves CKBK-UI-01 + RENAME-01 + the HOUSE-02 UI gap; HUMAN-VERIFY (Chrome re-verify) PENDING with the lead
 - [~] 02-06: Shareable invite link (INVITE-01) — households.invite_token + migration 0036; admin generate/regenerate; a PUBLIC name-only getByInviteToken; a joinByInviteToken mutation reusing the multi-membership path; an admin invite-link UI in settings + the public /join/[token] page (logged-out → login → return); i18n in all 11 locales. Same security model as the join code; registration-bypass DEFERRED to INVITE-02 — wave 6 ⏳ code-complete 2026-06-13 (static verify green: typecheck x5, i18n:check, web lint, household tests 7/7 + 26/26 + 6/6; PUBLIC endpoint name-only, adversarially verified); HUMAN-VERIFY (Chrome re-verify incl. migration-0036-at-boot) PENDING with the lead
 
-### Phase 3: AssemblyAI transcription
+### Phase 3: Per-cookbook permission policies
+**Goal**: Each cookbook (household) carries its own view/edit/delete recipe policy; a cookbook admin can edit/delete any recipe in their cookbook while members manage their own — per-cookbook isolation (HOUSE-06) preserved.
+**Depends on**: Phase 2 (the per-cookbook isolation boundary + canAccessResource signature)
+**Requirements**: POLICY-01
+**Success Criteria** (what must be TRUE):
+  1. A cookbook admin sets that cookbook's view/edit/delete policy from Household settings; members do not see the card.
+  2. edit/delete=household => the cookbook admin can edit/delete any recipe; a member can edit/delete only their own.
+  3. A non-member never sees/edits/deletes another cookbook's recipes regardless of that cookbook's policy (HOUSE-06).
+**Plans**: 1 plan (03-01) — code-complete 2026-06-14, human-verify (Chrome) pending with the lead
+
+Canonical refs: `.planning/phases/03-per-cookbook-policies/03-CONTEXT.md`
+
+Plans:
+- [x] 03-01: Per-cookbook view/edit/delete policy (permission_level enum columns + migration 0037; canAccessResource per-cookbook + admin-or-owner; buildViewPolicyCondition source-swap; getHouseholdPolicy/setHouseholdPolicy + admin setPolicy mutation; admin-only Recipe Permissions card; i18n 11 locales; adversarial isolation + real-parse tests) — code-complete 2026-06-14 (static verify GREEN: typecheck x6, i18n:check, lint, auth 99 + trpc 88 + db households 18 + web hooks 26); HUMAN-VERIFY (Chrome + migration-0037-at-boot) PENDING with the lead
+
+### Phase 4: AssemblyAI transcription
 **Goal**: AssemblyAI is a native transcription provider; video imports transcribe through it.
 **Depends on**: Phase 1 (build/deploy pipeline); independent of Phase 2
 **Requirements**: VIDEO-01, VIDEO-02, VIDEO-03, VIDEO-04
@@ -72,5 +88,5 @@ Plans:
 **Plans**: TBD (~2)
 
 Plans:
-- [ ] 03-01: AssemblyAI provider in the transcription enum + native transcribeWithAssemblyAI
-- [ ] 03-02: Config/key wiring + TikTok/Instagram verification
+- [ ] 04-01: AssemblyAI provider in the transcription enum + native transcribeWithAssemblyAI
+- [ ] 04-02: Config/key wiring + TikTok/Instagram verification
