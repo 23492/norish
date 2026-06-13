@@ -112,7 +112,8 @@
       "label": "Recipe URL",
       "placeholder": "https://example.com/your-recipe",
       "failed": "Failed to import recipe",
-      "failedWithAI": "Failed to import recipe with AI"
+      "failedWithAI": "Failed to import recipe with AI",
+      "targetCookbook": "Adds to {cookbook}"
     },
     "paste": {
       "title": "Import from paste",

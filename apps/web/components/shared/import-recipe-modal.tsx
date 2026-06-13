@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowDownTrayIcon, SparklesIcon } from "@heroicons/react/16/solid";
+import { ArrowDownTrayIcon, BookOpenIcon, SparklesIcon } from "@heroicons/react/16/solid";
 import {
   Button,
   Input,
@@ -13,6 +13,7 @@ import {
 } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
+import { useHouseholdContext } from "@/context/household-context";
 import { usePermissionsContext } from "@/context/permissions-context";
 import { useRecipesContext } from "@/context/recipes-context";
 import { showSafeErrorToast } from "@/lib/ui/safe-error-toast";
@@ -26,9 +27,17 @@ export default function ImportRecipeModal({ isOpen, onOpenChange }: ImportRecipe
   const t = useTranslations("common.import.url");
   const tErrors = useTranslations("common.errors");
   const tActions = useTranslations("common.actions");
+  const tCookbook = useTranslations("navbar.cookbook");
   const { importRecipe, importRecipeWithAI } = useRecipesContext();
+  const { households, activeHouseholdId } = useHouseholdContext();
   const { isAIEnabled } = usePermissionsContext();
   const [importUrl, setImportUrl] = useState("");
+
+  // The backend assigns the import to the user's ACTIVE cookbook (02-02); show
+  // which cookbook that is so the destination is never a surprise.
+  const activeCookbookName =
+    households.find((cookbook) => cookbook.id === activeHouseholdId)?.name ??
+    tCookbook("personal");
 
   useEffect(() => {
     if (!isOpen || typeof navigator === "undefined" || !navigator.clipboard?.readText) {
@@ -123,23 +132,29 @@ export default function ImportRecipeModal({ isOpen, onOpenChange }: ImportRecipe
                 onChange={(e) => setImportUrl(e.target.value)}
               />
             </ModalBody>
-            <ModalFooter>
-              {isAIEnabled && (
+            <ModalFooter className="flex-col items-stretch gap-3">
+              <p className="text-default-500 flex items-center gap-1.5 text-xs">
+                <BookOpenIcon className="size-4 shrink-0" />
+                <span>{t("targetCookbook", { cookbook: activeCookbookName })}</span>
+              </p>
+              <div className="flex justify-end gap-2">
+                {isAIEnabled && (
+                  <Button
+                    className="bg-gradient-to-r from-rose-400 via-fuchsia-500 to-indigo-500 text-white hover:brightness-110"
+                    startContent={<SparklesIcon className="h-4 w-4" />}
+                    onPress={handleAIImport}
+                  >
+                    {tActions("aiImport")}
+                  </Button>
+                )}
                 <Button
-                  className="bg-gradient-to-r from-rose-400 via-fuchsia-500 to-indigo-500 text-white hover:brightness-110"
-                  startContent={<SparklesIcon className="h-4 w-4" />}
-                  onPress={handleAIImport}
+                  color="primary"
+                  startContent={<ArrowDownTrayIcon className="h-4 w-4" />}
+                  onPress={handleImportFromUrl}
                 >
-                  {tActions("aiImport")}
+                  {tActions("import")}
                 </Button>
-              )}
-              <Button
-                color="primary"
-                startContent={<ArrowDownTrayIcon className="h-4 w-4" />}
-                onPress={handleImportFromUrl}
-              >
-                {tActions("import")}
-              </Button>
+              </div>
             </ModalFooter>
           </>
         )}

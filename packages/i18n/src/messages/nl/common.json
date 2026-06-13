@@ -112,7 +112,8 @@
       "label": "Recept URL",
       "placeholder": "https://example.com/your-recipe",
       "failed": "Importeren van recept mislukt",
-      "failedWithAI": "Importeren van recept met AI mislukt"
+      "failedWithAI": "Importeren van recept met AI mislukt",
+      "targetCookbook": "Wordt toegevoegd aan {cookbook}"
     },
     "paste": {
       "title": "Importeren vanuit klembord",
