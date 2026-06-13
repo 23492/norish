@@ -5,10 +5,15 @@ import type {
   HouseholdUserInsertDto,
   HouseholdWithUsersNamesDto,
 } from "@norish/shared/contracts/dto/household";
+import type { RecipePermissionPolicy } from "@norish/config/zod/server-config";
 import type { MutationOutcome } from "./mutation-outcomes";
 
 import crypto from "node:crypto";
 
+import {
+  DEFAULT_RECIPE_PERMISSION_POLICY,
+  ServerConfigKeys,
+} from "@norish/config/zod/server-config";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@norish/db/drizzle";
 import { households, householdUsers } from "@norish/db/schema";
@@ -22,7 +27,19 @@ import {
 
 
 import { appliedOutcome, staleOutcome } from "./mutation-outcomes";
+import { getConfig } from "./server-config";
 import { getActiveHouseholdId, getUsersByIds, setActiveHouseholdId } from "./users";
+
+/**
+ * The server-wide recipe_permission_policy, demoted to "default for new
+ * cookbooks" (decision #4). Read at household-create time + written into the new
+ * household's policy columns. Falls back to DEFAULT_RECIPE_PERMISSION_POLICY.
+ */
+async function getDefaultCookbookPolicy(): Promise<RecipePermissionPolicy> {
+  const value = await getConfig<RecipePermissionPolicy>(ServerConfigKeys.RECIPE_PERMISSION_POLICY);
+
+  return value ?? DEFAULT_RECIPE_PERMISSION_POLICY;
+}
 
 export async function getUsersByHouseholdId(householdId: string): Promise<HouseholdUserDto[]> {
   const rows = await db.query.householdUsers.findMany({
@@ -41,9 +58,19 @@ export async function createHousehold(input: HouseholdInsertDto): Promise<Househ
   const code = await generateUniqueJoinCode();
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
+  // New cookbooks inherit the server-wide policy as their default (decision #4).
+  const defaultPolicy = await getDefaultCookbookPolicy();
+
   const [row] = await db
     .insert(households)
-    .values({ ...parsed.data, joinCode: code, joinCodeExpiresAt: expiresAt })
+    .values({
+      ...parsed.data,
+      joinCode: code,
+      joinCodeExpiresAt: expiresAt,
+      viewPolicy: defaultPolicy.view,
+      editPolicy: defaultPolicy.edit,
+      deletePolicy: defaultPolicy.delete,
+    })
     .returning();
   const validated = HouseholdSelectBaseSchema.safeParse(row);
 
@@ -613,6 +640,97 @@ export async function renameHousehold(
 }
 
 /**
+ * Read a cookbook's per-cookbook recipe permission policy + its admin, for the
+ * per-recipe access gate (resolveRecipeCookbookPolicy in @norish/auth). Returns
+ * null when the household no longer exists (caller falls back to the global
+ * default). Columns-only fetch — never the membership rows.
+ */
+export async function getHouseholdPolicy(
+  householdId: string
+): Promise<{ policy: RecipePermissionPolicy; adminUserId: string } | null> {
+  const row = await db.query.households.findFirst({
+    where: eq(households.id, householdId),
+    columns: {
+      adminUserId: true,
+      viewPolicy: true,
+      editPolicy: true,
+      deletePolicy: true,
+    },
+  });
+
+  if (!row) return null;
+
+  return {
+    adminUserId: row.adminUserId,
+    policy: {
+      view: row.viewPolicy,
+      edit: row.editPolicy,
+      delete: row.deletePolicy,
+    },
+  };
+}
+
+/**
+ * Set a cookbook's per-cookbook recipe permission policy (admin only,
+ * optimistic-version). Asserts the requester is the household admin (throws
+ * "FORBIDDEN" otherwise) and bumps the version like the other household
+ * mutations. Returns a stale outcome when the supplied version no longer
+ * matches.
+ *
+ * SECURITY (decision #5): the per-cookbook `view` policy may only be
+ * `household` or `owner` — a per-cookbook `view = everyone` is disallowed in v1
+ * (only the global default may be `everyone`). The router input schema
+ * (SetHouseholdPolicyInputSchema) enforces this; this repo re-asserts it so the
+ * boundary holds even if a future caller skips the schema.
+ */
+export async function setHouseholdPolicy(
+  householdId: string,
+  requesterId: string,
+  policy: RecipePermissionPolicy,
+  version?: number
+): Promise<MutationOutcome<HouseholdDto>> {
+  const household = await getHouseholdById(householdId);
+
+  if (!household || household.adminUserId !== requesterId) {
+    throw new Error("FORBIDDEN");
+  }
+
+  if (policy.view === "everyone") {
+    // A per-cookbook public view is not allowed in v1 (keeps the list scoping
+    // reading only the active cookbook; HOUSE-06 trivially intact).
+    throw new Error("Invalid household policy");
+  }
+
+  const whereConditions = [eq(households.id, householdId)];
+
+  if (version) {
+    whereConditions.push(eq(households.version, version));
+  }
+
+  const [row] = await db
+    .update(households)
+    .set({
+      viewPolicy: policy.view,
+      editPolicy: policy.edit,
+      deletePolicy: policy.delete,
+      updatedAt: new Date(),
+      version: sql`${households.version} + 1`,
+    })
+    .where(and(...whereConditions))
+    .returning();
+
+  if (!row) {
+    return staleOutcome();
+  }
+
+  const validated = HouseholdSelectBaseSchema.safeParse(row);
+
+  if (!validated.success) throw new Error("Failed to set household policy");
+
+  return appliedOutcome(validated.data);
+}
+
+/**
  * Find a household by name (case-insensitive)
  */
 export async function findHouseholdByName(name: string): Promise<HouseholdDto | null> {
@@ -648,6 +766,9 @@ export async function findOrCreateHouseholdByName(
   const code = await generateUniqueJoinCode();
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
+  // New cookbooks inherit the server-wide policy as their default (decision #4).
+  const defaultPolicy = await getDefaultCookbookPolicy();
+
   const [row] = await db
     .insert(households)
     .values({
@@ -655,6 +776,9 @@ export async function findOrCreateHouseholdByName(
       adminUserId: creatorUserId,
       joinCode: code,
       joinCodeExpiresAt: expiresAt,
+      viewPolicy: defaultPolicy.view,
+      editPolicy: defaultPolicy.edit,
+      deletePolicy: defaultPolicy.delete,
     })
     .returning();
 

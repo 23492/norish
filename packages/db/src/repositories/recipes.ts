@@ -27,6 +27,7 @@ import { and, asc, desc, eq, ilike, inArray, isNull, lte, or, sql } from "drizzl
 
 import { db } from "../drizzle";
 import {
+  households,
   ingredients,
   recipeImages,
   recipeIngredients,
@@ -52,10 +53,43 @@ import { attachTagsToRecipeByInputTx } from "./tags";
 
 type RecipeViewPolicy = RecipePermissionPolicy["view"];
 
-async function getRecipeViewPolicy(): Promise<RecipeViewPolicy> {
-  const policy = await getConfig<RecipePermissionPolicy>(ServerConfigKeys.RECIPE_PERMISSION_POLICY);
+/**
+ * Resolve the VIEW policy that scopes a recipe list, from the ACTIVE cookbook.
+ *
+ * POLICY-01: the list is always isolated to the active cookbook (HOUSE-06), so
+ * the view policy is read from THAT cookbook's `view_policy` column — not the
+ * global server-wide row. Decision #5 disallows a per-cookbook `view = everyone`,
+ * so the active cookbook's policy can only be `household` or `owner`; the list
+ * therefore never widens across cookbooks (no cross-cookbook read needed).
+ *
+ * The personal view (no active household) falls back to the retained server-wide
+ * default policy (decision #4) — unchanged behavior for single-user instances.
+ */
+async function getRecipeViewPolicy(activeHouseholdId: string | null): Promise<RecipeViewPolicy> {
+  if (activeHouseholdId === null) {
+    const policy = await getConfig<RecipePermissionPolicy>(
+      ServerConfigKeys.RECIPE_PERMISSION_POLICY
+    );
 
-  return policy?.view ?? DEFAULT_RECIPE_PERMISSION_POLICY.view;
+    return policy?.view ?? DEFAULT_RECIPE_PERMISSION_POLICY.view;
+  }
+
+  const cookbook = await db.query.households.findFirst({
+    where: eq(households.id, activeHouseholdId),
+    columns: { viewPolicy: true },
+  });
+
+  // A missing cookbook falls back to the global default (fail-safe; the list is
+  // still isolated to activeHouseholdId via the SQL term below).
+  if (!cookbook) {
+    const policy = await getConfig<RecipePermissionPolicy>(
+      ServerConfigKeys.RECIPE_PERMISSION_POLICY
+    );
+
+    return policy?.view ?? DEFAULT_RECIPE_PERMISSION_POLICY.view;
+  }
+
+  return cookbook.viewPolicy;
 }
 
 function nonEmpty(s: string | null | undefined): s is string {
@@ -258,44 +292,61 @@ export interface RecipeListContext {
 }
 
 /**
- * Build SQL condition for view policy filtering.
+ * Build SQL condition for view-policy filtering, scoped per-cookbook
+ * (recipes.household_id). POLICY-01 reads the view level from the ACTIVE
+ * cookbook (getRecipeViewPolicy(ctx.activeHouseholdId)).
  *
- * Recipe visibility is scoped per-cookbook (recipes.household_id):
- * - "household" + active cookbook  -> recipes in that cookbook
- * - "household" + personal (null)  -> the viewer's own household-less recipes
- * Orphaned recipes (null userId) are always visible (retained behavior).
+ * HOUSE-06 INVARIANT (security-critical): when an active cookbook is selected,
+ * the list is ALWAYS scoped to that one cookbook — it can NEVER widen across
+ * cookbooks, regardless of that cookbook's view policy. Decision #5 disallows a
+ * per-cookbook `view = everyone`, but a freshly-created cookbook may still carry
+ * a seeded `everyone` (inherited from a default-`everyone` global). So in the
+ * active-cookbook branch BOTH `everyone` and `household` collapse to
+ * active-cookbook scoping; only `owner` narrows further (to the viewer's own
+ * recipes within that cookbook). The unfiltered (cross-cookbook) `everyone`
+ * widening is reachable ONLY from the personal view (no active household), where
+ * it reflects the retained global default on a single-user instance.
  */
 async function buildViewPolicyCondition(ctx: RecipeListContext) {
-  const viewLevel = await getRecipeViewPolicy();
+  const viewLevel = await getRecipeViewPolicy(ctx.activeHouseholdId);
 
   // Server admin sees all
   if (ctx.isServerAdmin) {
     return undefined;
   }
 
+  // Active cookbook selected: the list is hard-scoped to THAT cookbook. This is
+  // the HOUSE-06 boundary — never widen beyond ctx.activeHouseholdId here.
+  if (ctx.activeHouseholdId) {
+    if (viewLevel === "owner") {
+      // Only the viewer's own recipes within the active cookbook, plus orphans.
+      return or(
+        and(eq(recipes.householdId, ctx.activeHouseholdId), eq(recipes.userId, ctx.userId)),
+        isNull(recipes.userId)
+      );
+    }
+
+    // "household" (and a seeded "everyone", clamped) -> all of the active
+    // cookbook's recipes, plus orphans (null userId).
+    return or(eq(recipes.householdId, ctx.activeHouseholdId), isNull(recipes.userId));
+  }
+
+  // Personal view (no active household).
   switch (viewLevel) {
     case "everyone":
-      // No filtering needed
+      // Retained global default on a single-user instance: no filtering.
       return undefined;
 
     case "household":
-      // Scope to the ACTIVE cookbook (household_id), plus orphans (null userId).
-      if (ctx.activeHouseholdId) {
-        return or(eq(recipes.householdId, ctx.activeHouseholdId), isNull(recipes.userId));
-      }
-
-      // Personal cookbook (no active household): the viewer's own household-less
-      // recipes, plus orphans.
+      // The viewer's own household-less recipes, plus orphans.
       return or(
         and(isNull(recipes.householdId), eq(recipes.userId, ctx.userId)),
         isNull(recipes.userId)
       );
 
     case "owner":
-      // Only own recipes + orphaned recipes (null userId)
-      return or(eq(recipes.userId, ctx.userId), isNull(recipes.userId));
-
     default:
+      // Only own recipes + orphaned recipes (null userId).
       return or(eq(recipes.userId, ctx.userId), isNull(recipes.userId));
   }
 }

@@ -3,11 +3,13 @@ import type {
   HouseholdSettingsDto,
   HouseholdSummaryDto,
 } from "@norish/shared/contracts/dto/household";
+import type { RecipePermissionPolicy } from "@norish/config/zod/server-config";
 import type { HouseholdUserInfo } from "./types";
 
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getRecipePermissionPolicy } from "@norish/config/server-config-loader";
+import { DEFAULT_RECIPE_PERMISSION_POLICY } from "@norish/config/zod/server-config";
 import {
   addUserToHousehold,
   createHousehold,
@@ -18,6 +20,7 @@ import {
   getAllergiesForUsers,
   getHouseholdByInviteToken,
   getHouseholdForUser,
+  getHouseholdPolicy,
   getHouseholdsForUser,
   getInviteToken,
   getUsersByHouseholdId,
@@ -28,6 +31,7 @@ import {
   removeUserFromHousehold,
   renameHousehold,
   setActiveHousehold,
+  setHouseholdPolicy,
   transferHouseholdAdmin,
 } from "@norish/db";
 import {
@@ -43,6 +47,7 @@ import {
   LeaveHouseholdInputSchema,
   RegenerateHouseholdJoinCodeInputSchema,
   RenameHouseholdInputSchema,
+  SetHouseholdPolicyInputSchema,
   TransferHouseholdAdminInputSchema,
 } from "@norish/shared/contracts/zod";
 import { HouseholdNameSchema, JoinCodeSchema } from "@norish/shared/lib/validation/schemas";
@@ -58,16 +63,17 @@ import { householdEmitter } from "./emitter";
 /**
  * Transforms household data to DTO based on admin status.
  *
- * inviteToken is admin-only and is NOT carried by the member resolver
- * (HouseholdWithUsersNamesDto is token-free). The admin branch therefore takes
- * the current token explicitly (fetched admin-gated by resolveHouseholdDto);
- * the member branch never receives it.
+ * inviteToken AND the per-cookbook recipe permission policy are admin-only and
+ * are NOT carried by the member resolver (HouseholdWithUsersNamesDto is
+ * token-/policy-free). The admin branch therefore takes both explicitly (fetched
+ * admin-gated by resolveHouseholdDto); the member branch never receives them.
  */
 function toHouseholdDto(
   household: Awaited<ReturnType<typeof getHouseholdForUser>>,
   userId: string,
   allergies: string[],
-  inviteToken: string | null = null
+  inviteToken: string | null = null,
+  policy: RecipePermissionPolicy | null = null
 ): HouseholdSettingsDto | HouseholdAdminSettingsDto | null {
   if (!household) return null;
 
@@ -102,6 +108,9 @@ function toHouseholdDto(
       joinCode: isJoinCodeExpired ? null : typedHousehold.joinCode,
       joinCodeExpiresAt: isJoinCodeExpired ? null : typedHousehold.joinCodeExpiresAt,
       inviteToken,
+      viewPolicy: policy?.view ?? DEFAULT_RECIPE_PERMISSION_POLICY.view,
+      editPolicy: policy?.edit ?? DEFAULT_RECIPE_PERMISSION_POLICY.edit,
+      deletePolicy: policy?.delete ?? DEFAULT_RECIPE_PERMISSION_POLICY.delete,
       users,
       allergies,
     } as HouseholdAdminSettingsDto;
@@ -118,10 +127,10 @@ function toHouseholdDto(
 
 /**
  * Resolve the settings DTO for the requesting user, augmenting the ADMIN branch
- * with the current invite token (fetched admin-gated, so the token never leaks
- * into a member-facing payload). The resolver itself stays token-free
- * (HouseholdWithUsersNamesDto); the token is read separately only when the
- * requester is the household admin.
+ * with the current invite token AND the per-cookbook recipe permission policy
+ * (both fetched admin-gated, so neither leaks into a member-facing payload). The
+ * resolver itself stays token-/policy-free (HouseholdWithUsersNamesDto); they are
+ * read separately only when the requester is the household admin.
  */
 async function resolveHouseholdDto(
   household: Awaited<ReturnType<typeof getActiveHouseholdForUser>>,
@@ -132,8 +141,9 @@ async function resolveHouseholdDto(
 
   const isAdmin = household.adminUserId === userId;
   const inviteToken = isAdmin ? await getInviteToken(household.id) : null;
+  const cookbookPolicy = isAdmin ? await getHouseholdPolicy(household.id) : null;
 
-  return toHouseholdDto(household, userId, allergies, inviteToken);
+  return toHouseholdDto(household, userId, allergies, inviteToken, cookbookPolicy?.policy ?? null);
 }
 
 const get = authedProcedure.query(async ({ ctx }) => {
@@ -724,6 +734,67 @@ const rename = authedProcedure
     return { success: true };
   });
 
+const setPolicy = authedProcedure
+  .input(SetHouseholdPolicyInputSchema)
+  .mutation(async ({ ctx, input }) => {
+    const { householdId, view, edit, delete: del, version } = input;
+
+    log.info({ userId: ctx.user.id, householdId }, "Setting household recipe policy");
+
+    // Verify admin status (setting the cookbook policy is admin-only).
+    const isAdmin = await isUserHouseholdAdmin(householdId, ctx.user.id);
+
+    if (!isAdmin) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Only the household admin can change the recipe permissions",
+      });
+    }
+
+    const policy: RecipePermissionPolicy = { view, edit, delete: del };
+
+    // Capture members up-front so we can invalidate their caches after the change.
+    const members = await getUsersByHouseholdId(householdId);
+    const memberIds = members.map((u) => u.userId);
+
+    // Update async + refresh caches / nudge members' recipe views to refetch.
+    setHouseholdPolicy(householdId, ctx.user.id, policy, version)
+      .then(async (result) => {
+        if (result.stale || !result.value) {
+          log.info(
+            { userId: ctx.user.id, householdId, version },
+            "Ignoring stale household policy mutation"
+          );
+
+          return;
+        }
+
+        log.info({ userId: ctx.user.id, householdId }, "Household recipe policy updated");
+
+        // The cached household holds the old policy; drop it for all members so
+        // the settings card reflects the new policy on their next read.
+        await invalidateHouseholdCacheForUsers(memberIds);
+
+        // Nudge every member's recipe view to refetch under the new policy (reuse
+        // the same permissionsEmitter path the kick handler uses). The payload
+        // carries the GLOBAL default policy shape only as a generic refresh
+        // trigger — the actual per-recipe access is re-resolved server-side.
+        const recipePolicy = await getRecipePermissionPolicy();
+
+        for (const memberId of memberIds) {
+          permissionsEmitter.emitToUser(memberId, "policyUpdated", { recipePolicy });
+        }
+      })
+      .catch((err) => {
+        log.error({ err, userId: ctx.user.id }, "Failed to set household policy");
+        householdEmitter.emitToUser(ctx.user.id, "failed", {
+          reason: "Failed to set household recipe permissions",
+        });
+      });
+
+    return { success: true };
+  });
+
 const transferAdmin = authedProcedure
   .input(TransferHouseholdAdminInputSchema)
   .mutation(async ({ ctx, input }) => {
@@ -794,5 +865,6 @@ export const householdsRouter = router({
   switchActive,
   regenerateCode,
   rename,
+  setPolicy,
   transferAdmin,
 });

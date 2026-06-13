@@ -1,5 +1,6 @@
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-zod";
 import { z } from "zod";
+import { PermissionLevelSchema } from "@norish/config/zod/server-config";
 import { households, householdUsers } from "@norish/db/schema";
 
 export const HouseholdSelectBaseSchema = createSelectSchema(households);
@@ -39,9 +40,16 @@ export const HouseholdEventUserSchema = z.object({
   version: z.number().int().positive(),
 });
 
-// inviteToken is admin-only + not provided by the shared member resolver (mapHouseholdRowToDto);
-// omit it here so the resolver DTO parses. The admin view uses HouseholdAdminSettingsSchema.
-export const HouseholdWithUsersNamesSchema = HouseholdSelectBaseSchema.omit({ inviteToken: true }).extend({
+// inviteToken + the per-cookbook policy columns are admin-only and NOT provided
+// by the shared member resolver (mapHouseholdRowToDto); omit them here so the
+// resolver DTO parses. The policy surfaces only on the admin settings DTO
+// (HouseholdAdminSettingsSchema), fetched admin-gated by resolveHouseholdDto.
+export const HouseholdWithUsersNamesSchema = HouseholdSelectBaseSchema.omit({
+  inviteToken: true,
+  viewPolicy: true,
+  editPolicy: true,
+  deletePolicy: true,
+}).extend({
   users: z.array(HouseholdUserSchema).default([]),
 });
 
@@ -55,7 +63,8 @@ export const HouseholdSummarySchema = z.object({
 
 // Schema for household settings view - omits sensitive fields and unused timestamp fields
 // Users can determine admin from the isAdmin flag in the users array
-// inviteToken is admin-only (it grants join access), so it is omitted here.
+// inviteToken + the per-cookbook policy columns are admin-only, so they are
+// omitted from the member-facing settings DTO (the admin DTO carries policy).
 export const HouseholdSettingsSchema = HouseholdSelectBaseSchema.omit({
   adminUserId: true,
   createdAt: true,
@@ -63,12 +72,18 @@ export const HouseholdSettingsSchema = HouseholdSelectBaseSchema.omit({
   joinCode: true,
   joinCodeExpiresAt: true,
   inviteToken: true,
+  viewPolicy: true,
+  editPolicy: true,
+  deletePolicy: true,
 }).extend({
   users: z.array(HouseholdUserSchema).default([]),
   allergies: z.array(z.string()).default([]),
 });
 
-// Schema for admin household settings view - includes joinCode/expiration + inviteToken
+// Schema for admin household settings view - includes joinCode/expiration +
+// inviteToken + the per-cookbook recipe permission policy (viewPolicy /
+// editPolicy / deletePolicy come through from HouseholdSelectBaseSchema; the
+// admin Recipe-Permissions card reads + edits them).
 export const HouseholdAdminSettingsSchema = HouseholdSelectBaseSchema.omit({
   adminUserId: true,
   createdAt: true,
@@ -126,6 +141,21 @@ export const GetHouseholdByInviteTokenInputSchema = z.object({
 // a valid token — never members, recipes, ids, or any other household.
 export const HouseholdInviteInfoSchema = z.object({
   name: z.string(),
+});
+
+// Per-cookbook recipe permission policy input (admin-only mutation, optimistic
+// version). DECISION #5: the per-cookbook `view` policy may only be `household`
+// or `owner` — a per-cookbook `view = everyone` is DISALLOWED in v1 (only the
+// global default may be `everyone`). This keeps the list scoping reading only
+// the active cookbook (no cross-cookbook widening) and HOUSE-06 trivially intact.
+export const HouseholdViewPolicySchema = z.enum(["household", "owner"]);
+
+export const SetHouseholdPolicyInputSchema = z.object({
+  householdId: z.string().uuid(),
+  view: HouseholdViewPolicySchema,
+  edit: PermissionLevelSchema,
+  delete: PermissionLevelSchema,
+  version: z.number().int().positive(),
 });
 
 export const TransferHouseholdAdminInputSchema = z.object({

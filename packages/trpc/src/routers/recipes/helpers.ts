@@ -3,7 +3,7 @@ import type { PermissionAction } from "@norish/auth/permissions";
 import type { FullRecipeDTO } from "@norish/shared/contracts";
 
 import { TRPCError } from "@trpc/server";
-import { canAccessResource } from "@norish/auth/permissions";
+import { canAccessResource, resolveRecipeCookbookPolicy } from "@norish/auth/permissions";
 import { getRecipePermissionPolicy } from "@norish/config/server-config-loader";
 import { getRecipeFull, getRecipeOwnerAndHousehold } from "@norish/db";
 import { trpcLogger as log } from "@norish/shared-server/logger";
@@ -61,13 +61,19 @@ export async function assertRecipeAccess(
     return;
   }
 
-  const canAccess = await canAccessResource(
+  // Resolve the policy + admin from the RECIPE'S OWN cookbook (never the active
+  // one) so the per-cookbook boundary stays keyed to the recipe's household.
+  const { policy, adminUserId } = await resolveRecipeCookbookPolicy(owner.householdId);
+
+  const canAccess = canAccessResource(
     action,
     ctx.user.id,
     owner.userId,
     owner.householdId,
     ctx.memberHouseholdIds,
-    ctx.isServerAdmin
+    ctx.isServerAdmin,
+    policy,
+    adminUserId
   );
 
   if (!canAccess) {
@@ -89,13 +95,18 @@ export async function findRecipeForViewer(
   }
 
   if (recipe.userId) {
-    const canView = await canAccessResource(
+    // Resolve the policy + admin from the recipe's OWN cookbook (HOUSE-06).
+    const { policy, adminUserId } = await resolveRecipeCookbookPolicy(recipe.householdId);
+
+    const canView = canAccessResource(
       "view",
       ctx.user.id,
       recipe.userId,
       recipe.householdId,
       ctx.memberHouseholdIds,
-      ctx.isServerAdmin
+      ctx.isServerAdmin,
+      policy,
+      adminUserId
     );
 
     if (!canView) {

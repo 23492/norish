@@ -4,7 +4,11 @@ import { randomUUID } from "node:crypto";
 
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { canAccessResource, isAIEnabled as checkAIEnabled } from "@norish/auth/permissions";
+import {
+  canAccessResource,
+  isAIEnabled as checkAIEnabled,
+  resolveRecipeCookbookPolicy,
+} from "@norish/auth/permissions";
 import { getRecipePermissionPolicy } from "@norish/config/server-config-loader";
 import {
   addStepsAndIngredientsToRecipeByInput,
@@ -407,15 +411,21 @@ const convertMeasurements = authedProcedure
           });
         }
 
-        // Check edit permission (uses recipe.userId directly since we have the full recipe)
+        // Check edit permission (uses recipe.userId directly since we have the
+        // full recipe). Resolve the policy + admin from the recipe's OWN cookbook
+        // (HOUSE-06), then apply the sync gate (admin-or-owner for edit=household).
         const permissionCheck = recipe.userId
-          ? canAccessResource(
-              "edit",
-              ctx.user.id,
-              recipe.userId,
-              recipe.householdId,
-              ctx.memberHouseholdIds,
-              ctx.isServerAdmin
+          ? resolveRecipeCookbookPolicy(recipe.householdId).then(({ policy, adminUserId }) =>
+              canAccessResource(
+                "edit",
+                ctx.user.id,
+                recipe.userId!,
+                recipe.householdId,
+                ctx.memberHouseholdIds,
+                ctx.isServerAdmin,
+                policy,
+                adminUserId
+              )
             )
           : Promise.resolve(true);
 
