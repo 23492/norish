@@ -193,7 +193,7 @@ export async function recipeExistsByUrlForPolicy(
     );
   }
 
-  return { exists: existing !== null, existingRecipeId: existing?.id };
+  return { exists: existing != null, existingRecipeId: existing?.id };
 }
 
 /**
