@@ -7,6 +7,8 @@ import type {
 } from "@norish/shared/contracts/dto/household";
 import type { MutationOutcome } from "./mutation-outcomes";
 
+import crypto from "node:crypto";
+
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@norish/db/drizzle";
 import { households, householdUsers } from "@norish/db/schema";
@@ -346,6 +348,79 @@ export async function joinHouseholdByCode(
 }
 
 /**
+ * Generate (or regenerate) the shareable invite token for a household.
+ *
+ * Admin-only: throws "FORBIDDEN" if the requester is not the household admin.
+ * The token is long + crypto-random + url-safe (32 bytes base64url ~= 43 chars),
+ * so it is unguessable and not enumerable. Replaces any existing token (so an
+ * admin can revoke an old link by regenerating). Returns the new token.
+ */
+export async function generateInviteToken(
+  householdId: string,
+  requesterId: string
+): Promise<string> {
+  const household = await getHouseholdById(householdId);
+
+  if (!household || household.adminUserId !== requesterId) {
+    throw new Error("FORBIDDEN");
+  }
+
+  const token = await generateUniqueInviteToken();
+
+  const [row] = await db
+    .update(households)
+    .set({
+      inviteToken: token,
+      updatedAt: new Date(),
+      version: sql`${households.version} + 1`,
+    })
+    .where(eq(households.id, householdId))
+    .returning({ inviteToken: households.inviteToken });
+
+  if (!row?.inviteToken) throw new Error("Failed to generate invite token");
+
+  return row.inviteToken;
+}
+
+/**
+ * PUBLIC lookup by invite token — returns ONLY the household id + name for a
+ * valid token, or null. The id is for the server-side join path; the public
+ * tRPC query exposes the name only. Never returns members, recipes, or any
+ * other household data (per-cookbook isolation HOUSE-06 stays intact).
+ */
+export async function getHouseholdByInviteToken(
+  token: string
+): Promise<{ id: string; name: string } | null> {
+  if (!token) return null;
+
+  const rows = await db
+    .select({ id: households.id, name: households.name })
+    .from(households)
+    .where(eq(households.inviteToken, token))
+    .limit(1);
+
+  return rows[0] ?? null;
+}
+
+/**
+ * Join a household via its invite token. Reuses the SAME multi-membership path
+ * as join-by-code (addUserToHousehold, which is idempotent via
+ * onConflictDoNothing — already a member is a no-op success). Setting the joined
+ * household active + cache invalidation is the caller's responsibility (the
+ * router mirrors the join-by-code flow). Throws "NOT_FOUND" for an invalid token.
+ */
+export async function joinHouseholdByInviteToken(
+  token: string,
+  userId: string
+): Promise<HouseholdUserDto> {
+  const household = await getHouseholdByInviteToken(token);
+
+  if (!household) throw new Error("NOT_FOUND");
+
+  return addUserToHousehold({ householdId: household.id, userId });
+}
+
+/**
  * Regenerates the join code for a household with a new 10-minute expiration
  */
 export async function regenerateJoinCode(
@@ -571,6 +646,20 @@ export async function findOrCreateHouseholdByName(
   if (!validated.success) throw new Error("Failed to create household");
 
   return validated.data;
+}
+
+async function generateUniqueInviteToken(): Promise<string> {
+  while (true) {
+    const token = crypto.randomBytes(32).toString("base64url");
+
+    const existing = await db
+      .select({ id: households.id })
+      .from(households)
+      .where(eq(households.inviteToken, token))
+      .limit(1);
+
+    if (existing.length === 0) return token;
+  }
 }
 
 async function generateUniqueJoinCode(): Promise<string> {

@@ -12,13 +12,16 @@ import {
   addUserToHousehold,
   createHousehold,
   findHouseholdByJoinCode,
+  generateInviteToken as generateInviteTokenRepo,
   getActiveHouseholdForUser,
   getActiveHouseholdId,
   getAllergiesForUsers,
+  getHouseholdByInviteToken,
   getHouseholdForUser,
   getHouseholdsForUser,
   getUsersByHouseholdId,
   isUserHouseholdAdmin,
+  joinHouseholdByInviteToken,
   kickUserFromHousehold,
   regenerateJoinCode,
   removeUserFromHousehold,
@@ -32,6 +35,9 @@ import {
 } from "@norish/db/cached-household";
 import { trpcLogger as log } from "@norish/shared-server/logger";
 import {
+  GenerateHouseholdInviteTokenInputSchema,
+  GetHouseholdByInviteTokenInputSchema,
+  JoinHouseholdByInviteTokenInputSchema,
   KickHouseholdUserInputSchema,
   LeaveHouseholdInputSchema,
   RegenerateHouseholdJoinCodeInputSchema,
@@ -43,7 +49,7 @@ import { HouseholdNameSchema, JoinCodeSchema } from "@norish/shared/lib/validati
 
 import { emitConnectionInvalidation } from "../../connection-manager";
 import { authedProcedure } from "../../middleware";
-import { router } from "../../trpc";
+import { publicProcedure, router } from "../../trpc";
 import { permissionsEmitter } from "../permissions/emitter";
 
 import { householdEmitter } from "./emitter";
@@ -299,6 +305,134 @@ const join = authedProcedure
           reason: "Failed to join household",
         });
       });
+
+    return { householdId };
+  });
+
+/**
+ * Generate (or regenerate) the shareable invite link token for a household.
+ * Admin-only. Returns the new token synchronously so the settings UI can build
+ * the `${origin}/join/<token>` link immediately. Regenerating revokes any old
+ * link. SAME security model as the join code (a logged-out visitor still goes
+ * through the existing signup flow; no registration bypass).
+ */
+const generateInviteToken = authedProcedure
+  .input(GenerateHouseholdInviteTokenInputSchema)
+  .mutation(async ({ ctx, input }) => {
+    const { householdId } = input;
+
+    log.info({ userId: ctx.user.id, householdId }, "Generating household invite token");
+
+    // Verify admin status (generating an invite link is admin-only).
+    const isAdmin = await isUserHouseholdAdmin(householdId, ctx.user.id);
+
+    if (!isAdmin) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Only the household admin can generate an invite link",
+      });
+    }
+
+    let inviteToken: string;
+
+    try {
+      inviteToken = await generateInviteTokenRepo(householdId, ctx.user.id);
+    } catch (err) {
+      if (err instanceof Error && err.message === "FORBIDDEN") {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only the household admin can generate an invite link",
+        });
+      }
+
+      throw err;
+    }
+
+    // The cached household holds the old token (version bumped); drop it for all
+    // members so the admin settings view reflects the new link on next read.
+    const members = await getUsersByHouseholdId(householdId);
+
+    await invalidateHouseholdCacheForUsers(members.map((u) => u.userId));
+
+    return { inviteToken };
+  });
+
+/**
+ * PUBLIC (unauthenticated) lookup: resolve a valid invite token to the cookbook
+ * NAME only. Returns null for an invalid/revoked token. NEVER exposes members,
+ * recipes, ids, or any other household (per-cookbook isolation HOUSE-06 intact).
+ * The token shape is validated by the input schema and is long+random, so it is
+ * not enumerable. Deliberately on the public router surface.
+ */
+const getByInviteToken = publicProcedure
+  .input(GetHouseholdByInviteTokenInputSchema)
+  .query(async ({ input }) => {
+    const household = await getHouseholdByInviteToken(input.token);
+
+    if (!household) return null;
+
+    // Name only — do NOT spread the household row.
+    return { name: household.name };
+  });
+
+/**
+ * Join a household via its shareable invite token (authenticated). Reuses the
+ * SAME multi-membership path as join-by-code: addUserToHousehold (idempotent —
+ * already a member is a no-op success) + setActiveHousehold + cache/connection
+ * invalidation. Throws NOT_FOUND for an invalid/revoked token. Returns the
+ * joined household id so the join page can redirect.
+ */
+const joinByInviteToken = authedProcedure
+  .input(JoinHouseholdByInviteTokenInputSchema)
+  .mutation(async ({ ctx, input }) => {
+    log.info({ userId: ctx.user.id }, "Joining household by invite token");
+
+    const household = await getHouseholdByInviteToken(input.token);
+
+    if (!household) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "This invite link is no longer valid",
+      });
+    }
+
+    const householdId = household.id;
+
+    // Fetch existing member IDs for cache invalidation (before the join).
+    const existingMembers = await getUsersByHouseholdId(householdId);
+    const existingMemberIds = existingMembers.map((u) => u.userId);
+
+    const membership = await joinHouseholdByInviteToken(input.token, ctx.user.id);
+    const versionedMembership = membership as typeof membership & { version: number };
+
+    log.info({ userId: ctx.user.id, householdId }, "User joined household via invite token");
+
+    // The joined household becomes the user's active cookbook (same as join-by-code).
+    await setActiveHousehold(ctx.user.id, householdId);
+
+    // Get full household for the joining user.
+    const fullHousehold = await getActiveHouseholdForUser(ctx.user.id);
+    const userIds = fullHousehold?.users.map((u) => u.id) ?? [];
+    const allergiesRows = await getAllergiesForUsers(userIds);
+    const allergies = [...new Set(allergiesRows.map((a) => a.tagName))];
+    const dto = toHouseholdDto(fullHousehold, ctx.user.id, allergies);
+
+    // Emit to the joining user FIRST (before connection invalidation).
+    householdEmitter.emitToUser(ctx.user.id, "created", { household: dto! });
+
+    // Emit to existing household members.
+    const userInfo = {
+      id: ctx.user.id,
+      name: ctx.user.name ?? null,
+      isAdmin: false,
+      version: versionedMembership.version,
+    } as HouseholdUserInfo;
+
+    householdEmitter.emitToHousehold(householdId, "userJoined", { user: userInfo });
+
+    // Invalidate cache + terminate connection AFTER events are sent.
+    await invalidateHouseholdCacheForUsers([ctx.user.id, ...existingMemberIds]);
+    await emitConnectionInvalidation(ctx.user.id, "household-joined");
 
     return { householdId };
   });
@@ -624,6 +758,9 @@ export const householdsRouter = router({
   list,
   create,
   join,
+  generateInviteToken,
+  getByInviteToken,
+  joinByInviteToken,
   leave,
   kick,
   switchActive,
