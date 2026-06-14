@@ -21,6 +21,13 @@ vi.mock("@/context/permissions-context", () => ({
   }),
 }));
 
+vi.mock("@/context/household-context", () => ({
+  useHouseholdContext: () => ({
+    households: [],
+    activeHouseholdId: null,
+  }),
+}));
+
 vi.mock("@heroui/react", () => ({
   Modal: (props: any) => {
     modalMock(props);
