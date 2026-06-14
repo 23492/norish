@@ -105,7 +105,19 @@ interface ProviderConfig {
   dataPath?: "data" | "models";
   filter?: ModelFilter;
   mapper: ModelMapper;
+  /** Static fallback/suggestion models merged into (and de-duped against) the live listing. */
+  defaultModels?: AvailableModel[];
 }
+
+/**
+ * DeepSeek V4 models (released 2026-04-24). Surfaced as selectable suggestions so they
+ * are always offered in the admin model picker, merged with any live `/models` results.
+ * Legacy deepseek-chat/deepseek-reasoner deprecate 2026-07-24, so the defaults are V4 only.
+ */
+const DEEPSEEK_DEFAULT_MODELS: AvailableModel[] = [
+  { id: "deepseek-v4-pro", name: "deepseek-v4-pro", supportsVision: false },
+  { id: "deepseek-v4-flash", name: "deepseek-v4-flash", supportsVision: false },
+];
 
 const providerConfigs: Record<string, ProviderConfig> = {
   openai: {
@@ -194,6 +206,7 @@ const providerConfigs: Record<string, ProviderConfig> = {
       name: m.id,
       supportsVision: false, // DeepSeek models don't support vision yet
     }),
+    defaultModels: DEEPSEEK_DEFAULT_MODELS,
   },
 };
 
@@ -221,9 +234,17 @@ async function listModelsWithConfig(provider: string, apiKey: string): Promise<A
 
   const mapped = result.map(config.mapper).sort((a, b) => a.id.localeCompare(b.id));
 
-  aiLogger.debug({ count: mapped.length, provider }, `${provider} models listed`);
+  // Merge in any static default/suggestion models not already returned by the live API.
+  const merged = config.defaultModels
+    ? [
+        ...mapped,
+        ...config.defaultModels.filter((d) => !mapped.some((m) => m.id === d.id)),
+      ].sort((a, b) => a.id.localeCompare(b.id))
+    : mapped;
 
-  return mapped;
+  aiLogger.debug({ count: merged.length, provider }, `${provider} models listed`);
+
+  return merged;
 }
 
 // ============================================================================
