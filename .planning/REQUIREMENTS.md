@@ -32,7 +32,7 @@
 
 _(renumbered from Phase 3/4 to make room for the Sharing phase.)_
 
-- [ ] **VIDEO-01**: AssemblyAI is a selectable native transcription provider (config-driven key).
+- [x] **VIDEO-01**: AssemblyAI is a selectable native transcription provider (config-driven key). _(code-complete 2026-06-14, 04-01; key set in the admin UI -> video_config.transcriptionApiKey; native upload->poll dispatch; human-verify with the lead pending)_
 - [ ] **VIDEO-02**: TikTok & Instagram video imports work (caption + transcription).
 - [ ] **VIDEO-03**: Video description/caption is used in extraction (already upstream — verify retained).
 - [ ] **VIDEO-04**: No boot-time patch for transcription — ships in the built image.
@@ -65,7 +65,7 @@ _(renumbered from Phase 3/4 to make room for the Sharing phase.)_
 | SCRAPE-01..06 | Phase 1 | Pending |
 | HOUSE-01..07 | Phase 2 | HOUSE-01..07 done; frontend (switcher, active-cookbook import indication, refetch-on-switch, 11-locale i18n) landed in 02-04 — code-complete, human-verify pending with the lead |
 | SHARE-01 | Phase 4 | Code-complete 2026-06-14, human-verify pending |
-| VIDEO-01..04 | Phase 5 | Pending |
+| VIDEO-01..04 | Phase 5 | VIDEO-01 code-complete 2026-06-14 (04-01); VIDEO-02..04 folded into the human-verify / retained |
 | SETUP-01..03 | Phase 0 | In progress |
 | SETUP-04 | Phase 1 | Done |
 | SETUP-05 | Phases 1/3 + cross-cutting | In progress |
