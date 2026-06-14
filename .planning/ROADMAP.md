@@ -15,6 +15,7 @@ Fork upstream norish and evolve it in feature phases — native Camoufox scrapin
 - [ ] **Phase 6: DeepSeek V4 AI/LLM provider** - DeepSeek selectable for recipe-extraction with `deepseek-v4-pro` + `deepseek-v4-flash` (AI-01); provider already upstream, V4 model ids surfaced in the admin picker + unit-tested; 06-01 code-complete 2026-06-14, human-verify pending
 - [ ] **Phase 7: Locale-aware extraction** - AI recipe-extraction preserves the source content's language instead of defaulting to English (LOCALE-01); a language-preservation directive + the source/default locale threaded through all three extraction prompt builders; 07-01 code-complete 2026-06-14, human-verify pending
 - [ ] **Phase 8: WorkOS AuthKit login provider** - WorkOS AuthKit added as an ADDITIONAL better-auth login provider via the genericOAuth plugin (explicit authorize URL + custom getToken/getUserInfo against the WorkOS authenticate endpoint), admin-configured Client ID + API Key at runtime; additive + reversible (existing email/password, Google, GitHub, OIDC untouched) (WORKOS-01); 08-01 code-complete 2026-06-14, human-verify (lead docker:build + Kiran WorkOS dashboard/keys) pending
+- [ ] **Phase 9: WorkOS env config (config-as-code)** - WorkOS Client ID + API Key read from env (WORKOS_CLIENT_ID + WORKOS_API_KEY, seeding the DB at boot like OIDC/Google/GitHub; env takes precedence over a non-overridden row) instead of the admin UI, and the WorkOS card removed from the admin Auth Providers UI (WORKOS-ENV-01); 09-01 code-complete 2026-06-14, human-verify (lead docker:build + set WORKOS_CLIENT_ID in the live compose + redeploy; owner sets WORKOS_API_KEY) pending
 
 ## Phase Details
 
@@ -140,3 +141,18 @@ Canonical refs: `.planning/phases/08-workos-auth/08-01-PLAN.md` + `08-01-SUMMARY
 
 Plans:
 - [x] 08-01: WorkOS AuthKit via better-auth genericOAuth (explicit authorize URL + custom getToken POST /user_management/authenticate + getUserInfo mapping the WorkOS user; auth_provider_workos server-config key on both zod twins; provider-cache + seed-config; admin tRPC updateWorkOS + the WorkOS accordion reusing the generic form; logos:workos-icon login button gated on clientId; i18n 11 locales; hermetic fetch-mocked unit test) — code-complete 2026-06-14 (static verify GREEN: typecheck config/shared/db/web/auth/trpc/shared-react/api EXIT 0, i18n:check EXIT 0, lint clean; @norish/auth 106/106 incl. 7 new, trpc 255, shared-react 27, web 379, config 726, shared 222; the two zod twins byte-identical; callback URI to register = ${AUTH_URL}/api/auth/oauth2/callback/workos); HUMAN-VERIFY (lead docker:build + recreate norishp2 + Chrome; Kiran WorkOS dashboard + paste Client ID/API Key + restart) PENDING
+
+### Phase 9: WorkOS env config (config-as-code)
+**Goal**: WorkOS is configured purely via env vars (WORKOS_CLIENT_ID + WORKOS_API_KEY) set in the backend/compose at deploy time, never via the admin UI; the WorkOS card is removed from the admin Auth Providers UI. Only the config SOURCE changes — the phase-08 genericOAuth WorkOS provider is unchanged.
+**Depends on**: Phase 8 (the WorkOS genericOAuth provider + the auth_provider_workos server-config key/cache).
+**Requirements**: WORKOS-ENV-01
+**Success Criteria** (what must be TRUE):
+  1. Setting WORKOS_CLIENT_ID + WORKOS_API_KEY fully configures the WorkOS provider with zero admin-UI interaction (env seeds/updates the auth_provider_workos DB row at boot, like OIDC/Google/GitHub; env takes precedence over a non-overridden row).
+  2. The WorkOS card no longer appears in the admin Auth Providers UI; the google/github/oidc cards still work.
+  3. The genericOAuth WorkOS provider logic (providerId workos, the user_management authenticate flow, authorizationUrlParams provider=authkit, custom getToken/getUserInfo) is unchanged.
+**Plans**: 1 plan (09-01) — code-complete 2026-06-14, human-verify (lead docker:build + set WORKOS_CLIENT_ID + redeploy; owner sets WORKOS_API_KEY) pending
+
+Canonical refs: `.planning/phases/09-workos-env-config/09-01-PLAN.md` + `09-01-SUMMARY.md`
+
+Plans:
+- [x] 09-01: WorkOS via env (config-as-code) — WORKOS_CLIENT_ID + WORKOS_API_KEY in ServerConfigSchema (env-config-server.ts) + a syncWorkOSProvider() in seed-config.ts mirroring syncGoogleProvider (env seeds the auth_provider_workos DB row at boot; env-over-DB precedence; WORKOS_API_KEY encrypted; also in hasOAuthEnvConfigured); the WorkOS admin-UI card removed from auth-providers-card.tsx; Option-5 env docs in .env.example + the example compose; env-sync unit tests (auth-provider-sync.test.ts WorkOS describe, +6) — code-complete 2026-06-14 (static verify GREEN: typecheck config/shared/db/auth/trpc/api/web EXIT 0, i18n:check EXIT 0, lint clean; @norish/api 348/348 incl. auth-provider-sync 22/22 with 6 new, @norish/auth 106/106 workos-provider UNCHANGED, @norish/web 379/379, @norish/trpc 255/255; the phase-08 genericOAuth provider/schema/cache/tRPC plumbing unchanged); 4 commits (bf6d57a7, e3d425a6, 2b10e323, 6693f7e1) on feat/workos-env-config, PUSHED; NO docker:build, NO merge to main, live untouched; HUMAN-VERIFY (lead docker:build + set WORKOS_CLIENT_ID in the live compose + redeploy + confirm the card is gone & the login button shows; owner sets WORKOS_API_KEY) PENDING
