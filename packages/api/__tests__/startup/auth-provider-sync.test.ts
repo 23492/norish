@@ -490,6 +490,7 @@ describe("Auth Provider Sync Logic", () => {
     const workosEnvConfig = {
       WORKOS_CLIENT_ID: "client_workos_env",
       WORKOS_API_KEY: "sk_test_workos_env",
+      WORKOS_AUTHKIT_DOMAIN: "example.authkit.app",
     };
 
     it("should insert WorkOS config from env when DB row does not exist", async () => {
@@ -511,6 +512,7 @@ describe("Auth Provider Sync Logic", () => {
       expect(workosCall![1]).toMatchObject({
         clientId: "client_workos_env",
         apiKey: "sk_test_workos_env",
+        authkitDomain: "example.authkit.app",
         isOverridden: false,
       });
       // Sensitive flag must be true so the API Key is encrypted at rest.
@@ -525,6 +527,7 @@ describe("Auth Provider Sync Logic", () => {
           return Promise.resolve({
             clientId: "client_workos_OLD",
             apiKey: "sk_test_workos_OLD",
+            authkitDomain: "old.authkit.app",
             isOverridden: false,
           });
         }
@@ -546,6 +549,7 @@ describe("Auth Provider Sync Logic", () => {
       expect(workosCall![1]).toMatchObject({
         clientId: "client_workos_env",
         apiKey: "sk_test_workos_env",
+        authkitDomain: "example.authkit.app",
         isOverridden: false,
       });
     });
@@ -558,6 +562,7 @@ describe("Auth Provider Sync Logic", () => {
           return Promise.resolve({
             clientId: "client_workos_env",
             apiKey: "sk_test_workos_env",
+            authkitDomain: "example.authkit.app",
             isOverridden: false,
           });
         }
@@ -586,6 +591,7 @@ describe("Auth Provider Sync Logic", () => {
           return Promise.resolve({
             clientId: "client_workos_admin",
             apiKey: "sk_test_workos_admin",
+            authkitDomain: "admin.authkit.app",
             isOverridden: true,
           });
         }
@@ -632,6 +638,7 @@ describe("Auth Provider Sync Logic", () => {
           return Promise.resolve({
             clientId: "client_workos_env",
             apiKey: "sk_test_workos_env",
+            authkitDomain: "example.authkit.app",
             isOverridden: false,
           });
         }
@@ -646,6 +653,28 @@ describe("Auth Provider Sync Logic", () => {
 
       // Assert
       expect(mockDeleteConfig).toHaveBeenCalledWith(ServerConfigKeys.AUTH_PROVIDER_WORKOS);
+    });
+
+    it("should NOT seed WorkOS when WORKOS_AUTHKIT_DOMAIN is missing (incomplete env)", async () => {
+      // Arrange - clientId + apiKey but no AuthKit domain => no OIDC discovery URL can be
+      // built, so the provider must NOT be seeded (it would 400 at sign-in otherwise).
+      mockServerConfig = {
+        WORKOS_CLIENT_ID: "client_workos_env",
+        WORKOS_API_KEY: "sk_test_workos_env",
+      };
+      mockGetConfig.mockResolvedValue(null);
+      mockConfigExists.mockResolvedValue(true);
+      const { seedServerConfig } = await import("@norish/api/startup/seed-config");
+
+      // Act
+      await seedServerConfig();
+
+      // Assert
+      const workosCall = mockSetConfig.mock.calls.find(
+        (call) => call[0] === ServerConfigKeys.AUTH_PROVIDER_WORKOS
+      );
+
+      expect(workosCall).toBeUndefined();
     });
   });
 

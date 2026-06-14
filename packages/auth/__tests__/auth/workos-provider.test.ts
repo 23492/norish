@@ -1,18 +1,23 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// WorkOS provider wiring — hermetic. NO real WorkOS network: global.fetch is mocked.
-// We mock the provider cache (the only input to buildWorkOSProviders) plus auth.ts's
-// heavy module-load dependencies (db/redis/queue/repos/logger) so importing the auth
-// barrel is side-effect-free and fast. buildWorkOSProviders is exported from auth.ts.
+import { genericOAuth } from "better-auth/plugins";
 
-const mockWorkOS: {
-  clientId?: string;
-  apiKey?: string;
-  isOverridden?: boolean;
-} | null = { clientId: undefined, apiKey: undefined };
+// WorkOS provider wiring — hermetic. NO real WorkOS network. We mock the provider cache
+// (the only input to buildWorkOSProviders) plus auth.ts's heavy module-load dependencies
+// (db/redis/queue/repos/logger) so importing the auth barrel is side-effect-free and fast.
+// buildWorkOSProviders is exported from auth.ts.
+//
+// WorkOS AuthKit is wired as a STANDARD OIDC genericOAuth provider via discoveryUrl. The
+// previous (broken) config used a custom getToken + authorizationUrl with NO tokenUrl/
+// discoveryUrl, which better-auth's /sign-in/oauth2 endpoint rejects with
+// INVALID_OAUTH_CONFIGURATION (it requires BOTH an auth URL and a token URL up front,
+// before any custom getToken would run). These tests lock in the discovery-based shape
+// and assert it satisfies better-auth's sign-in validity predicate.
 
-let workosCacheValue: typeof mockWorkOS = null;
+let workosCacheValue:
+  | { clientId?: string; apiKey?: string; authkitDomain?: string; isOverridden?: boolean }
+  | null = null;
 
 vi.mock("@norish/auth/provider-cache", () => ({
   getCachedGitHubProvider: () => null,
@@ -48,6 +53,11 @@ vi.mock("@norish/shared-server/logger", () => ({
   authLogger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
+const CLIENT_ID = "client_123";
+const API_KEY = "sk_test_abc";
+const AUTHKIT_DOMAIN = "manageable-invention-37-staging.authkit.app";
+const DISCOVERY_URL = `https://${AUTHKIT_DOMAIN}/.well-known/openid-configuration`;
+
 describe("buildWorkOSProviders", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -65,15 +75,22 @@ describe("buildWorkOSProviders", () => {
     expect(buildWorkOSProviders()).toEqual([]);
   });
 
-  it("returns no provider when only the clientId is set (no apiKey)", async () => {
-    workosCacheValue = { clientId: "client_123", apiKey: undefined };
+  it("returns no provider when the apiKey is missing", async () => {
+    workosCacheValue = { clientId: CLIENT_ID, apiKey: undefined, authkitDomain: AUTHKIT_DOMAIN };
     const { buildWorkOSProviders } = await import("@norish/auth");
 
     expect(buildWorkOSProviders()).toEqual([]);
   });
 
-  it("builds a genericOAuth provider mapping the WorkOS API Key to the OAuth client_secret", async () => {
-    workosCacheValue = { clientId: "client_123", apiKey: "sk_test_abc" };
+  it("returns no provider when the authkitDomain is missing", async () => {
+    workosCacheValue = { clientId: CLIENT_ID, apiKey: API_KEY, authkitDomain: undefined };
+    const { buildWorkOSProviders } = await import("@norish/auth");
+
+    expect(buildWorkOSProviders()).toEqual([]);
+  });
+
+  it("builds a standard-OIDC genericOAuth provider from the AuthKit discovery URL", async () => {
+    workosCacheValue = { clientId: CLIENT_ID, apiKey: API_KEY, authkitDomain: AUTHKIT_DOMAIN };
     const { buildWorkOSProviders } = await import("@norish/auth");
 
     const providers = buildWorkOSProviders();
@@ -81,126 +98,78 @@ describe("buildWorkOSProviders", () => {
     expect(providers).toHaveLength(1);
     const p = providers[0];
 
+    // Callback stays /api/auth/oauth2/callback/workos (registered in WorkOS) because
+    // providerId is unchanged.
     expect(p.providerId).toBe("workos");
-    expect(p.clientId).toBe("client_123");
-    // The WorkOS API Key doubles as the OAuth client_secret.
-    expect(p.clientSecret).toBe("sk_test_abc");
-    expect(p.authorizationUrl).toBe("https://api.workos.com/user_management/authorize");
-    expect(p.authorizationUrlParams).toEqual({ provider: "authkit" });
-    expect(typeof p.getToken).toBe("function");
-    expect(typeof p.getUserInfo).toBe("function");
+    // OIDC discovery supplies authorize/token/userinfo/jwks — fixes INVALID_OAUTH_CONFIGURATION.
+    expect(p.discoveryUrl).toBe(DISCOVERY_URL);
+    expect(p.clientId).toBe(CLIENT_ID);
+    // The WorkOS API Key doubles as the OAuth client_secret (client_secret_post).
+    expect(p.clientSecret).toBe(API_KEY);
+    expect(p.scopes).toEqual(["openid", "email", "profile"]);
+    expect(p.pkce).toBe(true);
+    // The non-standard api.workos.com hooks are gone; OIDC handles token + userinfo.
+    expect(p.getToken).toBeUndefined();
+    expect(p.getUserInfo).toBeUndefined();
+    expect(p.authorizationUrl).toBeUndefined();
+    expect(p.authorizationUrlParams).toBeUndefined();
   });
 
-  it("getToken exchanges the code at the WorkOS authenticate endpoint and preserves the raw response", async () => {
-    workosCacheValue = { clientId: "client_123", apiKey: "sk_test_abc" };
+  it("derives the discovery URL safely regardless of a stray scheme or trailing slash", async () => {
+    // The value is a host, not a URL; the builder tolerates a stray https:// prefix and/or
+    // trailing slash so the .well-known path is always exactly right.
     const { buildWorkOSProviders } = await import("@norish/auth");
 
-    const workosResponse = {
-      access_token: "at_xyz",
-      refresh_token: "rt_xyz",
-      user: { id: "user_01", email: "jane@example.com", email_verified: true },
+    workosCacheValue = { clientId: CLIENT_ID, apiKey: API_KEY, authkitDomain: `${AUTHKIT_DOMAIN}/` };
+    expect(buildWorkOSProviders()[0].discoveryUrl).toBe(DISCOVERY_URL);
+
+    workosCacheValue = {
+      clientId: CLIENT_ID,
+      apiKey: API_KEY,
+      authkitDomain: `https://${AUTHKIT_DOMAIN}`,
     };
-    const fetchMock = vi.fn(async () => ({
-      ok: true,
-      json: async () => workosResponse,
-    }));
-
-    vi.stubGlobal("fetch", fetchMock);
-
-    const tokens = await buildWorkOSProviders()[0].getToken({
-      code: "auth_code_123",
-      redirectURI: "https://norish.example.com/api/auth/oauth2/callback/workos",
-    });
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, opts] = fetchMock.mock.calls[0] as [string, RequestInit];
-
-    expect(url).toBe("https://api.workos.com/user_management/authenticate");
-    expect(opts.method).toBe("POST");
-    const body = JSON.parse(opts.body as string);
-
-    expect(body.client_id).toBe("client_123");
-    expect(body.client_secret).toBe("sk_test_abc");
-    expect(body.grant_type).toBe("authorization_code");
-    expect(body.code).toBe("auth_code_123");
-
-    expect(tokens.accessToken).toBe("at_xyz");
-    expect(tokens.refreshToken).toBe("rt_xyz");
-    // The full WorkOS response (incl. the user) is preserved for getUserInfo.
-    expect(tokens.raw).toEqual(workosResponse);
-
-    vi.unstubAllGlobals();
+    expect(buildWorkOSProviders()[0].discoveryUrl).toBe(DISCOVERY_URL);
   });
 
-  it("getToken throws when the WorkOS authenticate call fails", async () => {
-    workosCacheValue = { clientId: "client_123", apiKey: "sk_test_abc" };
+  it("produces a config that better-auth's genericOAuth accepts at /sign-in/oauth2 (no INVALID_OAUTH_CONFIGURATION)", async () => {
+    workosCacheValue = { clientId: CLIENT_ID, apiKey: API_KEY, authkitDomain: AUTHKIT_DOMAIN };
     const { buildWorkOSProviders } = await import("@norish/auth");
 
-    const fetchMock = vi.fn(async () => ({
-      ok: false,
-      status: 401,
-      text: async () => "unauthorized",
-    }));
+    const config = buildWorkOSProviders();
+    const plugin = genericOAuth({ config });
 
-    vi.stubGlobal("fetch", fetchMock);
+    // The sign-in endpoint validity check (better-auth 1.6.x): it destructures
+    // discoveryUrl/authorizationUrl/tokenUrl from the matched provider config, resolves
+    // finalAuthUrl + finalTokenUrl (from discovery when discoveryUrl is set), and throws
+    // INVALID_OAUTH_CONFIGURATION when EITHER is missing. We mirror that resolution here
+    // against our actual config, with the discovery fetch mocked to the real AuthKit shape.
+    const stored = plugin.options.config.find((c: any) => c.providerId === "workos");
 
-    await expect(
-      buildWorkOSProviders()[0].getToken({
-        code: "bad",
-        redirectURI: "https://norish.example.com/api/auth/oauth2/callback/workos",
-      })
-    ).rejects.toThrow(/WorkOS token exchange failed: 401/);
+    expect(stored).toBeDefined();
+    expect(stored!.providerId).toBe("workos");
 
-    vi.unstubAllGlobals();
-  });
+    const discoveryDoc = {
+      authorization_endpoint: `https://${AUTHKIT_DOMAIN}/oauth2/authorize`,
+      token_endpoint: `https://${AUTHKIT_DOMAIN}/oauth2/token`,
+      userinfo_endpoint: `https://${AUTHKIT_DOMAIN}/oauth2/userinfo`,
+      jwks_uri: `https://${AUTHKIT_DOMAIN}/oauth2/jwks`,
+    };
 
-  it("getUserInfo maps the WorkOS user profile to norish user fields", async () => {
-    workosCacheValue = { clientId: "client_123", apiKey: "sk_test_abc" };
-    const { buildWorkOSProviders } = await import("@norish/auth");
+    // Replicate better-auth's signInWithOAuth2 finalAuthUrl/finalTokenUrl resolution.
+    let finalAuthUrl = stored!.authorizationUrl;
+    let finalTokenUrl = (stored as any).tokenUrl;
 
-    const user = await buildWorkOSProviders()[0].getUserInfo({
-      raw: {
-        user: {
-          id: "user_01",
-          email: "jane@example.com",
-          email_verified: true,
-          first_name: "Jane",
-          last_name: "Doe",
-          profile_picture_url: "https://img.example.com/jane.png",
-        },
-      },
-    });
+    if (stored!.discoveryUrl) {
+      // (would be fetched from stored.discoveryUrl in production)
+      finalAuthUrl = discoveryDoc.authorization_endpoint;
+      finalTokenUrl = discoveryDoc.token_endpoint;
+    }
 
-    expect(user).toEqual({
-      id: "user_01",
-      email: "jane@example.com",
-      emailVerified: true,
-      name: "Jane Doe",
-      image: "https://img.example.com/jane.png",
-    });
-  });
+    // The exact predicate that throws INVALID_OAUTH_CONFIGURATION at sign-in:
+    const wouldThrowInvalidOAuthConfiguration = !finalAuthUrl || !finalTokenUrl;
 
-  it("getUserInfo falls back to the email for the name and returns null when no user is present", async () => {
-    workosCacheValue = { clientId: "client_123", apiKey: "sk_test_abc" };
-    const { buildWorkOSProviders } = await import("@norish/auth");
-
-    const provider = buildWorkOSProviders()[0];
-
-    // No names -> name falls back to email; unverified email -> emailVerified false; no picture -> undefined image.
-    const user = await provider.getUserInfo({
-      raw: { user: { id: "user_02", email: "no-name@example.com" } },
-    });
-
-    expect(user).toEqual({
-      id: "user_02",
-      email: "no-name@example.com",
-      emailVerified: false,
-      name: "no-name@example.com",
-      image: undefined,
-    });
-
-    // Missing user object -> null (so better-auth surfaces "unable to get user info").
-    expect(await provider.getUserInfo({ raw: {} })).toBeNull();
-    expect(await provider.getUserInfo({})).toBeNull();
+    expect(wouldThrowInvalidOAuthConfiguration).toBe(false);
+    expect(finalAuthUrl).toBe(discoveryDoc.authorization_endpoint);
+    expect(finalTokenUrl).toBe(discoveryDoc.token_endpoint);
   });
 });
