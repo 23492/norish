@@ -108,6 +108,14 @@
       "title": "Link verwijderen",
       "message": "Deze deellink voor {recipeName} verwijderen? Dit kan niet ongedaan worden gemaakt.",
       "confirm": "Link verwijderen"
+    },
+    "visibility": {
+      "label": "Zichtbaarheid",
+      "helper": "Openbare recepten kunnen door iedereen met de deellink worden geopend. Privé- en huishoudrecepten zijn nooit via een deellink bereikbaar.",
+      "private": "Privé",
+      "household": "Huishouden",
+      "public": "Openbaar",
+      "updateSuccess": "Zichtbaarheid bijgewerkt"
     }
   },
   "convert": {

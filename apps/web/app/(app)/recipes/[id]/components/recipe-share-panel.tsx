@@ -1,6 +1,6 @@
 "use client";
 
-import type { CreateRecipeShareInputDto } from "@norish/shared/contracts";
+import type { CreateRecipeShareInputDto, RecipeVisibility } from "@norish/shared/contracts";
 
 import { useMemo, useState } from "react";
 import {
@@ -21,7 +21,7 @@ import {
   SelectItem,
   Spinner,
 } from "@heroui/react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 
 import { useRecipeContextRequired } from "../context";
@@ -47,6 +47,8 @@ const expiryOptions: Array<CreateRecipeShareInputDto["expiresIn"]> = [
   "forever",
 ];
 
+const visibilityOptions: RecipeVisibility[] = ["private", "household", "public"];
+
 function formatDate(date: Date | null) {
   if (!date) {
     return null;
@@ -57,8 +59,10 @@ function formatDate(date: Date | null) {
 
 export default function RecipeSharePanel({ open, onOpenChange }: Props) {
   const t = useTranslations("recipes.sharePanel");
+  const tVisibility = useTranslations("recipes.sharePanel.visibility");
   const tErrors = useTranslations("common.errors");
   const trpc = useTRPC();
+  const queryClient = useQueryClient();
   const {
     recipe,
     shares,
@@ -105,6 +109,30 @@ export default function RecipeSharePanel({ open, onOpenChange }: Props) {
     })
   );
 
+  const setVisibilityMutation = useMutation(
+    trpc.recipes.shareSetVisibility.mutationOptions({
+      onSuccess: async () => {
+        await queryClient.invalidateQueries({
+          queryKey: trpc.recipes.recipeGet.queryKey({ id: recipe.id }),
+        });
+        addToast({
+          title: tVisibility("updateSuccess"),
+          color: "success",
+          shouldShowTimeoutProgress: true,
+        });
+      },
+      onError: (error) => {
+        showSafeErrorToast({
+          title: tErrors("operationFailed"),
+          description: tErrors("technicalDetails"),
+          color: "danger",
+          context: "recipe-share-panel:set-visibility",
+          error,
+        });
+      },
+    })
+  );
+
   const shareRows = useMemo(
     () => shares.slice().sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()),
     [shares]
@@ -126,6 +154,30 @@ export default function RecipeSharePanel({ open, onOpenChange }: Props) {
 
         <Card className="bg-content2/40 border-default-100 border">
           <CardBody className="gap-3">
+            <div className="flex flex-col gap-1">
+              <Select
+                label={tVisibility("label")}
+                selectedKeys={[recipe.visibility]}
+                size="sm"
+                onSelectionChange={(keys) => {
+                  const selected = Array.from(keys)[0] as RecipeVisibility | undefined;
+
+                  if (selected && selected !== recipe.visibility) {
+                    setVisibilityMutation.mutate({
+                      recipeId: recipe.id,
+                      visibility: selected,
+                      version: recipe.version,
+                    });
+                  }
+                }}
+              >
+                {visibilityOptions.map((option) => (
+                  <SelectItem key={option}>{tVisibility(option)}</SelectItem>
+                ))}
+              </Select>
+              <p className="text-default-500 text-xs">{tVisibility("helper")}</p>
+            </div>
+
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
               <Select
                 className="flex-1"

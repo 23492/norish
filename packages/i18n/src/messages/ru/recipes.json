@@ -108,6 +108,14 @@
       "title": "Удалить ссылку",
       "message": "Удалить эту ссылку для совместного доступа к {recipeName}? Это действие нельзя отменить.",
       "confirm": "Удалить ссылку"
+    },
+    "visibility": {
+      "label": "Visibility",
+      "helper": "Public recipes can be opened by anyone with the share link. Private and household recipes are never reachable through a share link.",
+      "private": "Private",
+      "household": "Household",
+      "public": "Public",
+      "updateSuccess": "Visibility updated"
     }
   },
   "convert": {

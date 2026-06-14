@@ -108,6 +108,14 @@
       "title": "Delete link",
       "message": "Delete this share link for {recipeName}? This cannot be undone.",
       "confirm": "Delete link"
+    },
+    "visibility": {
+      "label": "Visibility",
+      "helper": "Public recipes can be opened by anyone with the share link. Private and household recipes are never reachable through a share link.",
+      "private": "Private",
+      "household": "Household",
+      "public": "Public",
+      "updateSuccess": "Visibility updated"
     }
   },
   "convert": {

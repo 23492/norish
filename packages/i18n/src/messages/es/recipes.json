@@ -108,6 +108,14 @@
       "title": "Eliminar enlace",
       "message": "¿Eliminar este enlace para compartir {recipeName}? Esta acción no se puede deshacer.",
       "confirm": "Eliminar enlace"
+    },
+    "visibility": {
+      "label": "Visibility",
+      "helper": "Public recipes can be opened by anyone with the share link. Private and household recipes are never reachable through a share link.",
+      "private": "Private",
+      "household": "Household",
+      "public": "Public",
+      "updateSuccess": "Visibility updated"
     }
   },
   "convert": {

@@ -108,6 +108,14 @@
       "title": "Usuń link",
       "message": "Usunąć ten link do {recipeName}? Tej operacji nie można cofnąć.",
       "confirm": "Usuń link"
+    },
+    "visibility": {
+      "label": "Visibility",
+      "helper": "Public recipes can be opened by anyone with the share link. Private and household recipes are never reachable through a share link.",
+      "private": "Private",
+      "household": "Household",
+      "public": "Public",
+      "updateSuccess": "Visibility updated"
     }
   },
   "convert": {

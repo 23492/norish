@@ -108,6 +108,14 @@
       "title": "Elimina link",
       "message": "Eliminare questo link di condivisione per {recipeName}? Questa azione non può essere annullata.",
       "confirm": "Elimina link"
+    },
+    "visibility": {
+      "label": "Visibility",
+      "helper": "Public recipes can be opened by anyone with the share link. Private and household recipes are never reachable through a share link.",
+      "private": "Private",
+      "household": "Household",
+      "public": "Public",
+      "updateSuccess": "Visibility updated"
     }
   },
   "convert": {
