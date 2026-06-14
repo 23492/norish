@@ -7,6 +7,7 @@ import type {
   MeasurementSystem,
   RecipeCategory,
   RecipeDashboardDTO,
+  RecipeVisibility,
 } from "@norish/shared/contracts/dto/recipe";
 import type {
   RecipeIngredientInsertDto,
@@ -23,7 +24,7 @@ import {
 import { dbLogger } from "@norish/db/logger";
 import { stripHtmlTags } from "@norish/shared/lib/helpers";
 import z from "zod";
-import { and, asc, desc, eq, ilike, inArray, isNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, ilike, inArray, isNull, lte, or, sql } from "drizzle-orm";
 
 import { db } from "../drizzle";
 import {
@@ -32,6 +33,7 @@ import {
   recipeImages,
   recipeIngredients,
   recipes,
+  recipeShares,
   recipeTags,
   recipeVideos,
   stepImages,
@@ -153,6 +155,72 @@ export async function getRecipeOwnerAndHousehold(
   if (!row) return null;
 
   return { userId: row.userId ?? null, householdId: row.householdId ?? null };
+}
+
+/**
+ * Read a recipe's visibility level (private | household | public) without going
+ * through getRecipeFull. Returns null when the recipe does not exist.
+ */
+export async function getRecipeVisibility(
+  recipeId: string
+): Promise<{ visibility: RecipeVisibility; version: number } | null> {
+  const [row] = await db
+    .select({ visibility: recipes.visibility, version: recipes.version })
+    .from(recipes)
+    .where(eq(recipes.id, recipeId))
+    .limit(1);
+
+  if (!row) return null;
+
+  return { visibility: row.visibility, version: row.version };
+}
+
+/**
+ * Set a recipe's visibility with an optimistic version check. The visibility
+ * boundary sits ON TOP of the per-cookbook policy (POLICY-01): the caller must
+ * already have edit access (the tRPC layer enforces assertRecipeAccess edit).
+ */
+export async function setRecipeVisibility(
+  recipeId: string,
+  visibility: RecipeVisibility,
+  version: number
+): Promise<MutationOutcome<{ visibility: RecipeVisibility; version: number }>> {
+  const [row] = await db
+    .update(recipes)
+    .set({
+      visibility,
+      updatedAt: new Date(),
+      version: sql`${recipes.version} + 1`,
+    })
+    .where(and(eq(recipes.id, recipeId), eq(recipes.version, version)))
+    .returning({ visibility: recipes.visibility, version: recipes.version });
+
+  if (!row) {
+    return staleOutcome();
+  }
+
+  return appliedOutcome({ visibility: row.visibility, version: row.version });
+}
+
+/**
+ * Count the ACTIVE share links for a recipe (not revoked, not expired). Used to
+ * decide whether a recipe should revert to `private` after its last live public
+ * link is revoked/deleted.
+ */
+export async function countActiveRecipeShares(recipeId: string): Promise<number> {
+  const now = new Date();
+  const [row] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(recipeShares)
+    .where(
+      and(
+        eq(recipeShares.recipeId, recipeId),
+        isNull(recipeShares.revokedAt),
+        or(isNull(recipeShares.expiresAt), gt(recipeShares.expiresAt, now))
+      )
+    );
+
+  return Number(row?.count ?? 0);
 }
 
 export async function getRecipeByUrl(url: string): Promise<FullRecipeDTO | null> {

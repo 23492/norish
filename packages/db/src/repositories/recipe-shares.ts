@@ -66,7 +66,7 @@ export async function createRecipeShare(
   input: CreateRecipeShareInputDto
 ): Promise<RecipeShareCreatedDto> {
   const validated = CreateRecipeShareInputSchema.parse(input);
-  const token = crypto.randomBytes(24).toString("base64url");
+  const token = crypto.randomBytes(32).toString("base64url");
 
   const [row] = await db
     .insert(recipeShares)
@@ -283,6 +283,14 @@ export async function getPublicRecipeView(
   const recipe = await getRecipeFull(recipeId);
 
   if (!recipe) {
+    return null;
+  }
+
+  // The public surface is gated on the recipe's explicit visibility: a private
+  // or household recipe is NEVER served publicly, even if a (stale) active share
+  // token exists. The primary gate lives in sharedRecipeProcedure; this is the
+  // repo-level belt-and-suspenders so the helper is safe on its own.
+  if (recipe.visibility !== "public") {
     return null;
   }
 

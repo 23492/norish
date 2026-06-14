@@ -6,9 +6,11 @@ import type {
   FullRecipeUpdateSchema,
   measurementSystems,
   RecipeDashboardSchema,
+  recipeVisibilities,
 } from "@norish/shared/contracts/zod";
 
 export type MeasurementSystem = (typeof measurementSystems)[number];
+export type RecipeVisibility = (typeof recipeVisibilities)[number];
 export type RecipeCategory = "Breakfast" | "Lunch" | "Dinner" | "Snack";
 export type RecipeDashboardDTO = z.output<typeof RecipeDashboardSchema>;
 export type FullRecipeDTO = z.output<typeof FullRecipeSchema>;
