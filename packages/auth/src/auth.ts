@@ -225,6 +225,7 @@ export function buildWorkOSProviders() {
 
         if (!response.ok) {
           const detail = await response.text().catch(() => "");
+
           authLogger.error(
             { status: response.status, detail },
             "WorkOS token exchange failed"
