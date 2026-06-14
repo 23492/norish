@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 interface SignupPageProps {
-  searchParams: Promise<{ callbackUrl?: string }>;
+  searchParams: Promise<{ callbackUrl?: string; sso?: string }>;
 }
 
 export default async function SignupPage({ searchParams }: SignupPageProps) {
@@ -17,12 +17,15 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
     isRegistrationEnabled(),
   ]);
 
-  // Redirect to login if password auth or registration is disabled
-  if (!passwordEnabled || !registrationEnabled) {
-    redirect("/login");
-  }
+  const { callbackUrl = "/", sso } = await searchParams;
 
-  const { callbackUrl = "/" } = await searchParams;
+  // Redirect to login if password auth or registration is disabled. When
+  // password auth is off there is no norish-only sign-up; the login page is the
+  // single entry point and will auto-redirect to SSO when it is the sole
+  // provider. Forward `?sso=0` so the recovery hatch survives the redirect.
+  if (!passwordEnabled || !registrationEnabled) {
+    redirect(sso === "0" ? "/login?sso=0" : "/login");
+  }
 
   return <SignupClient callbackUrl={callbackUrl} />;
 }

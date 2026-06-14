@@ -78,6 +78,36 @@ export async function getAvailableProviders(): Promise<ProviderInfo[]> {
   return providers;
 }
 
+/**
+ * Decide whether the login (or signup) entry point should immediately redirect
+ * the unauthenticated visitor straight to the hosted OAuth/SSO flow, bypassing
+ * the norish login UI.
+ *
+ * This is intentionally CONSERVATIVE and SELF-RECOVERING: it only fires when a
+ * SINGLE OAuth provider is configured AND no credential (email/password)
+ * provider is enabled. If password auth is re-enabled, or a second provider is
+ * added, or every provider is removed, this returns false and the normal login
+ * page renders again — so a config change can always restore manual access
+ * without a code deploy.
+ *
+ * `escapeRequested` is the user-facing recovery hatch (e.g. `?sso=0` in the URL
+ * or a just-completed logout): when true we never auto-redirect, guaranteeing a
+ * way to reach the real login page even while SSO-only is active.
+ */
+export function shouldAutoRedirectToSso(
+  providers: ProviderInfo[],
+  escapeRequested = false,
+): boolean {
+  if (escapeRequested) {
+    return false;
+  }
+
+  const oauthProviders = providers.filter((p) => p.type === "oauth");
+  const hasCredential = providers.some((p) => p.type === "credential");
+
+  return oauthProviders.length === 1 && !hasCredential;
+}
+
 export async function isPasswordAuthEnabled(): Promise<boolean> {
   const passwordEnabled = await getConfig<boolean>(ServerConfigKeys.PASSWORD_AUTH_ENABLED);
 
