@@ -63,6 +63,30 @@ services:
       # WORKOS_CLIENT_ID: <workos-client-id>
       # WORKOS_API_KEY: <workos-api-key>
 
+      # ─────────────────────────────────────────────────────────────────────────
+      # AI & TRANSCRIPTION (operator config — env is the SOURCE OF TRUTH)
+      # ─────────────────────────────────────────────────────────────────────────
+      # These are re-seeded from env on EVERY boot and OVERWRITE the database row
+      # (config-as-code: survives a clean DB / relaunch, zero admin clicks). Leave
+      # unset to keep the admin-UI/DB values authoritative (existing installs unaffected).
+      # AI_PROVIDER one of: openai, deepseek, anthropic, google, mistral, groq, perplexity,
+      #   azure, ollama, lm-studio, generic-openai. Single AI_API_KEY for ALL cloud providers;
+      #   local providers (ollama/lm-studio/generic-openai) use AI_ENDPOINT instead of a key.
+      # AI_ENABLED: "true"
+      # AI_PROVIDER: deepseek
+      # AI_MODEL: deepseek-chat
+      # AI_API_KEY: <your-ai-api-key>          # required for cloud providers
+      # AI_ENDPOINT: http://ollama:11434       # required INSTEAD of AI_API_KEY for local providers
+      # AI_TEMPERATURE: "1.0"
+      # AI_MAX_TOKENS: "10000"
+      # AI_TIMEOUT_MS: "300000"
+      # Video transcription (separate from AI; re-seeded on boot the same way).
+      # TRANSCRIPTION_PROVIDER one of: openai, groq, azure, assemblyai, generic-openai, ollama, disabled.
+      # VIDEO_PARSING_ENABLED: "true"
+      # TRANSCRIPTION_PROVIDER: assemblyai
+      # TRANSCRIPTION_API_KEY: <your-transcription-api-key>
+      # TRANSCRIPTION_MODEL: best
+
       # Redis for real-time events (required)
       REDIS_URL: redis://redis:6379
     healthcheck:
