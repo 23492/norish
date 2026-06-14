@@ -102,6 +102,16 @@ export const sharedRecipeProcedure = publicProcedure
       throw new TRPCError({ code: "NOT_FOUND", message: "Shared recipe not found" });
     }
 
+    // SHARE-01: the public surface is gated on the recipe's explicit visibility.
+    // A private/household recipe is NOT reachable via /share/<token>, even with a
+    // valid active token. The error is the SAME opaque NOT_FOUND as a missing
+    // token, so a probe cannot distinguish "no such token" from "not public"
+    // (no enumeration). This is the primary public-surface choke point covering
+    // every sharedRecipeProcedure (getShared, sharePublicConfig, future ones).
+    if (recipe.visibility !== "public") {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Shared recipe not found" });
+    }
+
     return next({
       ctx: {
         ...ctx,

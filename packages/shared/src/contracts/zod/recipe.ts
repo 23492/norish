@@ -157,6 +157,19 @@ export const RecipeUpdateInputSchema = z.object({
   data: FullRecipeUpdateSchema,
 });
 
+export const SetRecipeVisibilityInputSchema = z.object({
+  recipeId: z.uuid(),
+  visibility: RecipeVisibilitySchema,
+  version: z.number().int().positive(),
+});
+
+export const RecipeVisibilityResultSchema = z.object({
+  recipeId: z.uuid(),
+  visibility: RecipeVisibilitySchema,
+  version: z.number().int().positive(),
+  stale: z.boolean(),
+});
+
 // Image import schemas
 export const OcrImportFileSchema = z.object({
   data: z.string(), // base64 encoded
