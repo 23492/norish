@@ -10,6 +10,7 @@
  * - azure: Native Whisper API via @ai-sdk/azure
  * - generic-openai: OpenAI-compatible endpoints (faster-whisper-server, LocalAI, whisper.cpp)
  * - ollama: Native Ollama API with input_audio for audio-capable models
+ * - assemblyai: AssemblyAI upload+poll REST API (cloud, requires API key)
  */
 
 import type { Experimental_TranscriptionResult as TranscriptionResult } from "ai";
@@ -103,6 +104,125 @@ function getAudioFormat(audioPath: string): string {
 // ============================================================================
 // Provider-specific transcription implementations
 // ============================================================================
+
+/**
+ * AssemblyAI API response shapes (subset we use).
+ */
+interface AssemblyAIUploadResponse {
+  upload_url: string;
+}
+
+interface AssemblyAICreateResponse {
+  id: string;
+}
+
+interface AssemblyAIPollResponse {
+  status: string;
+  text?: string;
+  error?: string;
+}
+
+/**
+ * Transcribe using AssemblyAI: upload the local audio, request a transcript,
+ * then poll until completion. AssemblyAI is not Whisper/AI-SDK-compatible, so
+ * this uses its native REST flow rather than experimental_transcribe.
+ *
+ * `model` maps to AssemblyAI's speech_model (only "best" | "nano" are sent;
+ * any other value falls back to the AssemblyAI default).
+ */
+async function transcribeWithAssemblyAI(
+  audioPath: string,
+  apiKey: string,
+  model: string
+): Promise<AIResult<string>> {
+  logStart("AssemblyAI", audioPath, model || "best");
+
+  const base = "https://api.assemblyai.com/v2";
+
+  // 1. Upload the local audio file (streamed; requires duplex:"half" in Node fetch).
+  const uploadRes = await fetch(`${base}/upload`, {
+    method: "POST",
+    headers: {
+      authorization: apiKey,
+      "content-type": "application/octet-stream",
+    },
+    body: createReadStream(audioPath),
+    duplex: "half",
+    signal: AbortSignal.timeout(300000),
+  } as RequestInit & { duplex: "half" });
+
+  if (!uploadRes.ok) {
+    const errorText = await uploadRes.text().catch(() => "Unknown error");
+
+    aiLogger.error(
+      { status: uploadRes.status, error: errorText },
+      "AssemblyAI upload failed"
+    );
+
+    return aiError(`AssemblyAI upload error: ${uploadRes.status} - ${errorText}`, "PROVIDER_ERROR");
+  }
+
+  const { upload_url } = (await uploadRes.json()) as AssemblyAIUploadResponse;
+
+  // 2. Request a transcript for the uploaded audio.
+  const useSpeechModel = model === "best" || model === "nano";
+  const createRes = await fetch(`${base}/transcript`, {
+    method: "POST",
+    headers: {
+      authorization: apiKey,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      audio_url: upload_url,
+      language_detection: true,
+      ...(useSpeechModel ? { speech_model: model } : {}),
+    }),
+    signal: AbortSignal.timeout(30000),
+  });
+
+  if (!createRes.ok) {
+    const errorText = await createRes.text().catch(() => "Unknown error");
+
+    return aiError(
+      `AssemblyAI transcript error: ${createRes.status} - ${errorText}`,
+      "PROVIDER_ERROR"
+    );
+  }
+
+  const { id } = (await createRes.json()) as AssemblyAICreateResponse;
+
+  // 3. Poll until the transcript completes (or the deadline elapses).
+  const deadline = Date.now() + 600000;
+
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
+    const pollRes = await fetch(`${base}/transcript/${id}`, {
+      headers: { authorization: apiKey },
+      signal: AbortSignal.timeout(30000),
+    });
+
+    if (!pollRes.ok) {
+      const errorText = await pollRes.text().catch(() => "Unknown error");
+
+      return aiError(`AssemblyAI poll error: ${pollRes.status} - ${errorText}`, "PROVIDER_ERROR");
+    }
+
+    const data = (await pollRes.json()) as AssemblyAIPollResponse;
+
+    if (data.status === "completed") {
+      aiLogger.debug({ provider: "AssemblyAI", id }, "AssemblyAI transcription completed");
+
+      return validateTranscript(data.text);
+    }
+
+    if (data.status === "error") {
+      return aiError(`AssemblyAI transcription failed: ${data.error}`, "PROVIDER_ERROR");
+    }
+  }
+
+  return aiError("AssemblyAI transcription timed out", "TIMEOUT");
+}
 
 /**
  * Transcribe using OpenAI's native Whisper API via AI SDK.
@@ -347,6 +467,9 @@ export async function transcribeAudio(audioPath: string): Promise<AIResult<strin
       case "ollama":
         // Ollama uses native API with input_audio, no API key needed
         return await transcribeWithOllama(audioPath, model, endpoint);
+
+      case "assemblyai":
+        return await transcribeWithAssemblyAI(audioPath, apiKey, model);
 
       default:
         return aiError(`Unknown transcription provider: ${provider}`, "PROVIDER_ERROR");

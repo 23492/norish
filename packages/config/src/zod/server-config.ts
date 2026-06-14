@@ -267,6 +267,7 @@ export const TranscriptionProviderSchema = z.enum([
   "azure",
   "generic-openai",
   "ollama",
+  "assemblyai",
   "disabled",
 ]);
 
@@ -279,6 +280,7 @@ export const TRANSCRIPTION_PROVIDERS_ENABLED = [
   "azure",
   "generic-openai",
   "ollama",
+  "assemblyai",
 ] as const satisfies readonly TranscriptionProvider[];
 
 /** Cloud providers that require an API key. */
@@ -286,6 +288,7 @@ export const TRANSCRIPTION_PROVIDERS_CLOUD = [
   "openai",
   "groq",
   "azure",
+  "assemblyai",
 ] as const satisfies readonly TranscriptionProvider[];
 
 /** Providers that require an endpoint URL. */
