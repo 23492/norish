@@ -486,6 +486,169 @@ describe("Auth Provider Sync Logic", () => {
     });
   });
 
+  describe("WorkOS Provider Sync (env-based config)", () => {
+    const workosEnvConfig = {
+      WORKOS_CLIENT_ID: "client_workos_env",
+      WORKOS_API_KEY: "sk_test_workos_env",
+    };
+
+    it("should insert WorkOS config from env when DB row does not exist", async () => {
+      // Arrange
+      mockServerConfig = workosEnvConfig;
+      mockGetConfig.mockResolvedValue(null);
+      mockConfigExists.mockResolvedValue(true);
+      const { seedServerConfig } = await import("@norish/api/startup/seed-config");
+
+      // Act
+      await seedServerConfig();
+
+      // Assert
+      const workosCall = mockSetConfig.mock.calls.find(
+        (call) => call[0] === ServerConfigKeys.AUTH_PROVIDER_WORKOS
+      );
+
+      expect(workosCall).toBeDefined();
+      expect(workosCall![1]).toMatchObject({
+        clientId: "client_workos_env",
+        apiKey: "sk_test_workos_env",
+        isOverridden: false,
+      });
+      // Sensitive flag must be true so the API Key is encrypted at rest.
+      expect(workosCall![3]).toBe(true);
+    });
+
+    it("should UPDATE WorkOS config from env when isOverridden=false and env differs (env takes precedence over DB)", async () => {
+      // Arrange - DB has a STALE env-managed row; env now carries new credentials.
+      mockServerConfig = workosEnvConfig;
+      mockGetConfig.mockImplementation((key: string) => {
+        if (key === ServerConfigKeys.AUTH_PROVIDER_WORKOS) {
+          return Promise.resolve({
+            clientId: "client_workos_OLD",
+            apiKey: "sk_test_workos_OLD",
+            isOverridden: false,
+          });
+        }
+
+        return Promise.resolve(null);
+      });
+      mockConfigExists.mockResolvedValue(true);
+      const { seedServerConfig } = await import("@norish/api/startup/seed-config");
+
+      // Act
+      await seedServerConfig();
+
+      // Assert - env wins: the DB row is overwritten with the env values.
+      const workosCall = mockSetConfig.mock.calls.find(
+        (call) => call[0] === ServerConfigKeys.AUTH_PROVIDER_WORKOS
+      );
+
+      expect(workosCall).toBeDefined();
+      expect(workosCall![1]).toMatchObject({
+        clientId: "client_workos_env",
+        apiKey: "sk_test_workos_env",
+        isOverridden: false,
+      });
+    });
+
+    it("should NOT rewrite WorkOS config when env matches DB (no unnecessary writes)", async () => {
+      // Arrange
+      mockServerConfig = workosEnvConfig;
+      mockGetConfig.mockImplementation((key: string) => {
+        if (key === ServerConfigKeys.AUTH_PROVIDER_WORKOS) {
+          return Promise.resolve({
+            clientId: "client_workos_env",
+            apiKey: "sk_test_workos_env",
+            isOverridden: false,
+          });
+        }
+
+        return Promise.resolve(null);
+      });
+      mockConfigExists.mockResolvedValue(true);
+      const { seedServerConfig } = await import("@norish/api/startup/seed-config");
+
+      // Act
+      await seedServerConfig();
+
+      // Assert
+      const workosCall = mockSetConfig.mock.calls.find(
+        (call) => call[0] === ServerConfigKeys.AUTH_PROVIDER_WORKOS
+      );
+
+      expect(workosCall).toBeUndefined();
+    });
+
+    it("should NOT update WorkOS config when isOverridden=true (defensive; UI is removed)", async () => {
+      // Arrange - a legacy admin-set row should still be respected by the sync.
+      mockServerConfig = workosEnvConfig;
+      mockGetConfig.mockImplementation((key: string) => {
+        if (key === ServerConfigKeys.AUTH_PROVIDER_WORKOS) {
+          return Promise.resolve({
+            clientId: "client_workos_admin",
+            apiKey: "sk_test_workos_admin",
+            isOverridden: true,
+          });
+        }
+
+        return Promise.resolve(null);
+      });
+      mockConfigExists.mockResolvedValue(true);
+      const { seedServerConfig } = await import("@norish/api/startup/seed-config");
+
+      // Act
+      await seedServerConfig();
+
+      // Assert
+      const workosCall = mockSetConfig.mock.calls.find(
+        (call) => call[0] === ServerConfigKeys.AUTH_PROVIDER_WORKOS
+      );
+
+      expect(workosCall).toBeUndefined();
+    });
+
+    it("should NOT seed WorkOS when only WORKOS_CLIENT_ID is set (API Key missing)", async () => {
+      // Arrange - incomplete env config must not produce a half-configured provider.
+      mockServerConfig = { WORKOS_CLIENT_ID: "client_workos_env" };
+      mockGetConfig.mockResolvedValue(null);
+      mockConfigExists.mockResolvedValue(true);
+      const { seedServerConfig } = await import("@norish/api/startup/seed-config");
+
+      // Act
+      await seedServerConfig();
+
+      // Assert
+      const workosCall = mockSetConfig.mock.calls.find(
+        (call) => call[0] === ServerConfigKeys.AUTH_PROVIDER_WORKOS
+      );
+
+      expect(workosCall).toBeUndefined();
+    });
+
+    it("should DELETE WorkOS config when env credentials are removed and config is not overridden", async () => {
+      // Arrange - No env config, but DB has a non-overridden (env-managed) row.
+      mockServerConfig = {};
+      mockGetConfig.mockImplementation((key: string) => {
+        if (key === ServerConfigKeys.AUTH_PROVIDER_WORKOS) {
+          return Promise.resolve({
+            clientId: "client_workos_env",
+            apiKey: "sk_test_workos_env",
+            isOverridden: false,
+          });
+        }
+
+        return Promise.resolve(null);
+      });
+      mockConfigExists.mockResolvedValue(true);
+      const { seedServerConfig } = await import("@norish/api/startup/seed-config");
+
+      // Act
+      await seedServerConfig();
+
+      // Assert
+      expect(mockDeleteConfig).toHaveBeenCalledWith(ServerConfigKeys.AUTH_PROVIDER_WORKOS);
+    });
+  });
+
   describe("Admin Override Behavior", () => {
     it("should respect isOverridden flag across multiple restarts", async () => {
       // Arrange - First startup: env config seeded
