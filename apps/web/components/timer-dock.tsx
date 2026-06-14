@@ -179,7 +179,7 @@ export function TimerDock() {
               layout
               className={`overflow-hidden shadow-xl ring-1 ring-black/5 backdrop-blur-sm ${
                 isExpanded
-                  ? "bg-content1 w-80 rounded-2xl dark:ring-white/10"
+                  ? "bg-content1 flex max-h-[80dvh] w-80 flex-col rounded-2xl dark:ring-white/10"
                   : "bg-content1/90 rounded-full dark:ring-white/10"
               }`}
               transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
@@ -187,14 +187,15 @@ export function TimerDock() {
               {isExpanded ? (
                 <motion.div
                   animate={{ opacity: 1 }}
+                  className="flex min-h-0 flex-col"
                   exit={{ opacity: 0 }}
                   initial={{ opacity: 0 }}
                   transition={{ duration: 0.15 }}
                 >
-                  {/* Header */}
+                  {/* Header — kept pinned so the close control is always reachable */}
                   <button
                     aria-label="Close timer summary"
-                    className="border-default-100 flex w-full cursor-pointer items-center justify-between border-b p-4"
+                    className="border-default-100 flex w-full shrink-0 cursor-pointer items-center justify-between border-b p-4"
                     type="button"
                     onClick={() => setIsExpanded(false)}
                   >
@@ -207,7 +208,7 @@ export function TimerDock() {
                   </button>
 
                   {/* Timer List */}
-                  <div className="max-h-96 overflow-y-auto">
+                  <div className="min-h-0 flex-1 overflow-y-auto">
                     {sortedTimers.map((timer, index) => (
                       <TimerRow
                         key={timer.id}
@@ -221,7 +222,7 @@ export function TimerDock() {
 
                   {/* Notifications disabled hint */}
                   {notificationsSupported && notificationsDenied && (
-                    <div className="border-default-200 text-default-500 border-t px-4 py-2 text-xs">
+                    <div className="border-default-200 text-default-500 shrink-0 border-t px-4 py-2 text-xs">
                       {t("timer.notifications_disabled_hint")}
                     </div>
                   )}
