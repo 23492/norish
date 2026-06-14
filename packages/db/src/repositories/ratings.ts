@@ -1,11 +1,19 @@
-import { and, avg, count, eq, sql } from "drizzle-orm";
+import { and, avg, count, desc, eq, sql } from "drizzle-orm";
+import { decrypt } from "@norish/auth/crypto";
 
 import { db } from "../drizzle";
-import { recipeRatings } from "../schema";
+import { recipeRatings, users } from "../schema";
 
 export interface RatingStats {
   averageRating: number | null;
   ratingCount: number;
+}
+
+export interface RecipeRater {
+  userId: string;
+  name: string | null;
+  rating: number;
+  updatedAt: Date;
 }
 
 export async function rateRecipe(
@@ -89,4 +97,33 @@ export async function getAverageRating(recipeId: string): Promise<RatingStats> {
     averageRating: row?.averageRating ? parseFloat(row.averageRating) : null,
     ratingCount: Number(row?.ratingCount ?? 0),
   };
+}
+
+/**
+ * RATE-01: every user who rated this recipe, with their display name and stars,
+ * most-recent rating first. The user's `name` is encrypted at rest (mirrors
+ * getUsersByIds), so it is decrypted here; a missing/undecryptable name yields
+ * null so the UI can fall back gracefully. Access control is the CALLER'S job —
+ * the ratings router gates this on assertRecipeAccess(view) before exposing any
+ * name, so a user who cannot view the recipe cannot read its raters.
+ */
+export async function getRecipeRaters(recipeId: string): Promise<RecipeRater[]> {
+  const rows = await db
+    .select({
+      userId: recipeRatings.userId,
+      name: users.name,
+      rating: recipeRatings.rating,
+      updatedAt: recipeRatings.updatedAt,
+    })
+    .from(recipeRatings)
+    .innerJoin(users, eq(recipeRatings.userId, users.id))
+    .where(eq(recipeRatings.recipeId, recipeId))
+    .orderBy(desc(recipeRatings.updatedAt));
+
+  return rows.map((row) => ({
+    userId: row.userId,
+    name: row.name ? decrypt(row.name) : null,
+    rating: row.rating,
+    updatedAt: row.updatedAt,
+  }));
 }
