@@ -180,18 +180,32 @@ function buildOIDCProviders() {
 
 // Build the WorkOS AuthKit provider as a better-auth genericOAuth provider.
 //
-// WorkOS AuthKit exposes a STANDARD OIDC discovery document at
-// https://<authkit-domain>/.well-known/openid-configuration, advertising the
-// authorize/token/userinfo/jwks endpoints on the AuthKit domain. We therefore wire WorkOS
-// as a plain OIDC genericOAuth provider via `discoveryUrl`: better-auth auto-discovers all
-// endpoints, drives the authorization-code + PKCE flow, hits the token endpoint with
-// client_secret_post (the WorkOS API Key is the OAuth client_secret, per the WorkOS
-// authenticate reference), and maps the OIDC claims (sub->id, email, name, picture->image)
-// natively in its default getUserInfo. No custom getToken/getUserInfo is needed.
+// FIRST-PARTY AuthKit flow (api.workos.com), NOT the *.authkit.app OIDC surface.
+// WorkOS User Management is a non-standard OAuth2 API: the authorize endpoint is
+// GET https://api.workos.com/user_management/authorize (with provider=authkit for the
+// hosted UI + the Environment Client ID), and the code->session exchange is
+// POST https://api.workos.com/user_management/authenticate, which returns the user object
+// DIRECTLY in its body (there is NO standard /userinfo endpoint). So we run the exchange in
+// a custom getToken (stashing the full response in `raw`) and map the WorkOS user in
+// getUserInfo. The WorkOS API Key (sk_...) is the OAuth client_secret.
 //
-// This is required: better-auth's /sign-in/oauth2 endpoint demands BOTH an authorization
-// URL AND a token URL up front (a missing token URL throws INVALID_OAUTH_CONFIGURATION at
-// sign-in, before any custom getToken would ever run). discoveryUrl supplies both.
+// WHY tokenUrl is set but never fetched: better-auth's /sign-in/oauth2 endpoint validates
+// the config by requiring BOTH a final authorization URL AND a final token URL up front
+// (node_modules/better-auth/dist/plugins/generic-oauth/routes.mjs, signInWithOAuth2:
+// `if (!finalAuthUrl || !finalTokenUrl) throw ... INVALID_OAUTH_CONFIGURATION`). It never
+// FETCHES tokenUrl at sign-in. In the CALLBACK (oAuth2Callback) the precedence is
+// `if (providerConfig.getToken) tokens = await getToken(...) else { ...validateAuthorizationCode(tokenUrl)... }`
+// then `getUserInfo ? getUserInfo(tokens) : defaultGetUserInfo(...)` — so when getToken is
+// set the standard POST to tokenUrl is in the `else` branch and is SKIPPED, and getUserInfo
+// receives the getToken result. We therefore set tokenUrl PURELY to pass the sign-in
+// config-validation; the real exchange runs through getToken.
+//
+// History: phase 11 wired this as `discoveryUrl: https://<domain>/.well-known/openid-configuration`
+// (the *.authkit.app OIDC doc). That is the WRONG surface — those /oauth2/* endpoints are
+// WorkOS Connect / OAuth Applications (third-party apps) and need a SEPARATELY-registered
+// OAuth-Application client_id, so the Environment Client ID produced
+// "Authorization Error - The application you are trying to authorize was not found".
+// First-party AuthKit uses api.workos.com/user_management + the Environment Client ID.
 //
 // Exported for unit testing.
 export function buildWorkOSProviders() {
@@ -199,25 +213,81 @@ export function buildWorkOSProviders() {
 
   const workosProvider = getCachedWorkOSProvider();
 
-  if (workosProvider?.clientId && workosProvider?.apiKey && workosProvider?.authkitDomain) {
+  if (workosProvider?.clientId && workosProvider?.apiKey) {
     const clientId = workosProvider.clientId;
     const apiKey = workosProvider.apiKey;
-    // Normalize: the value is a host (e.g. your-app.authkit.app), tolerate a stray
-    // scheme/trailing slash so the .well-known path is always correct.
-    const authkitDomain = workosProvider.authkitDomain
-      .replace(/^https?:\/\//, "")
-      .replace(/\/+$/, "");
 
     providers.push({
       providerId: "workos",
-      // AuthKit OIDC discovery: auto-discovers authorize/token/userinfo/jwks endpoints.
-      discoveryUrl: `https://${authkitDomain}/.well-known/openid-configuration`,
       clientId,
-      // The WorkOS API Key doubles as the OAuth client_secret at the token endpoint
-      // (sent via client_secret_post, which the AuthKit discovery doc advertises).
+      // WorkOS API Key doubles as the OAuth client_secret for the authenticate call.
       clientSecret: apiKey,
-      scopes: ["openid", "email", "profile"],
-      pkce: true,
+      scopes: [],
+      pkce: false,
+      responseType: "code",
+      authorizationUrl: "https://api.workos.com/user_management/authorize",
+      // Present ONLY to satisfy better-auth's /sign-in/oauth2 config validation (it requires
+      // a token URL up front). It is NEVER fetched: the custom getToken below takes
+      // precedence in the callback, so the actual exchange is the authenticate POST.
+      tokenUrl: "https://api.workos.com/user_management/authenticate",
+      // Use the hosted AuthKit UI (first-party AuthKit, not Connect).
+      authorizationUrlParams: { provider: "authkit" },
+      // Custom token exchange: WorkOS returns the user object directly in this response.
+      getToken: async ({ code, redirectURI }: { code: string; redirectURI: string }) => {
+        const response = await fetch("https://api.workos.com/user_management/authenticate", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            client_id: clientId,
+            client_secret: apiKey,
+            grant_type: "authorization_code",
+            code,
+            // WorkOS does not require redirect_uri on the token call, but pass it for
+            // parity with providers that validate it.
+            redirect_uri: redirectURI,
+          }),
+        });
+
+        if (!response.ok) {
+          const detail = await response.text().catch(() => "");
+          authLogger.error({ status: response.status, detail }, "WorkOS token exchange failed");
+          throw new Error(`WorkOS token exchange failed: ${response.status}`);
+        }
+
+        const data = (await response.json()) as {
+          access_token?: string;
+          refresh_token?: string;
+          [key: string]: unknown;
+        };
+
+        return {
+          accessToken: data.access_token as string,
+          refreshToken: data.refresh_token || undefined,
+          // Preserve the full WorkOS response (incl. the user object) for getUserInfo.
+          raw: data,
+        };
+      },
+      // WorkOS has no standard userinfo endpoint; the profile is in the token response.
+      getUserInfo: async (tokens: { raw?: Record<string, any> }) => {
+        const user = tokens.raw?.user;
+
+        if (!user || !user.id) {
+          return null;
+        }
+
+        const fullName = [user.first_name, user.last_name].filter(Boolean).join(" ");
+
+        return {
+          id: user.id as string,
+          email: (user.email as string) || undefined,
+          emailVerified: Boolean(user.email_verified),
+          name: fullName || (user.email as string) || undefined,
+          image: (user.profile_picture_url as string) || undefined,
+        };
+      },
     });
   }
 

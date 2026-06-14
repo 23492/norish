@@ -152,14 +152,11 @@ const ServerConfigSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   // WorkOS AuthKit — configured purely via env (config-as-code), never the admin UI.
-  // WORKOS_CLIENT_ID is the WorkOS Client ID (client_.../project_...);
-  // WORKOS_API_KEY is the WorkOS API Key (sk_...) used as the OAuth client_secret;
-  // WORKOS_AUTHKIT_DOMAIN is the per-environment AuthKit domain (e.g.
-  // your-app.authkit.app), used to build the OIDC discovery URL
-  // https://<domain>/.well-known/openid-configuration. Non-secret.
+  // First-party AuthKit flow (api.workos.com/user_management): two vars only.
+  // WORKOS_CLIENT_ID is the WorkOS Environment Client ID (client_.../project_...);
+  // WORKOS_API_KEY is the WorkOS API Key (sk_...) used as the OAuth client_secret.
   WORKOS_CLIENT_ID: z.string().optional(),
   WORKOS_API_KEY: z.string().optional(),
-  WORKOS_AUTHKIT_DOMAIN: z.string().optional(),
 
   // During build (SKIP_ENV_VALIDATION=1), use a placeholder key for Next.js compilation
   // At runtime, require a real 32+ char key - the placeholder is never persisted in the image

@@ -89,17 +89,15 @@ export type AuthProviderGoogle = z.infer<typeof AuthProviderGoogleSchema>;
 export const AuthProviderGoogleInputSchema = AuthProviderGoogleSchema.omit({ isOverridden: true });
 export type AuthProviderGoogleInput = z.infer<typeof AuthProviderGoogleInputSchema>;
 
-// WorkOS AuthKit provider. Uses a Client ID + an API Key + the AuthKit domain.
-// The provider is wired as a STANDARD OIDC genericOAuth provider: the AuthKit domain
-// yields the OIDC discovery document (https://<domain>/.well-known/openid-configuration)
-// from which better-auth auto-discovers the authorize/token/userinfo/jwks endpoints. The
-// API Key (sk_...) is sent as the OAuth client_secret at the token endpoint. Mirrors the
-// google/github provider shape (apiKey optional on update so the server preserves the
-// stored value).
+// WorkOS AuthKit provider. Uses a Client ID + an API Key (two env vars only).
+// Wired as a FIRST-PARTY AuthKit genericOAuth provider against api.workos.com
+// (GET /user_management/authorize?provider=authkit + a custom getToken doing
+// POST /user_management/authenticate, which returns the user directly). The API Key
+// (sk_...) is the OAuth client_secret. Mirrors the google/github provider shape (apiKey
+// optional on update so the server preserves the stored value).
 export const AuthProviderWorkOSSchema = z.object({
   clientId: z.string().min(1, "Client ID is required"),
   apiKey: z.string().optional(), // Optional on update, server preserves existing
-  authkitDomain: z.string().min(1, "AuthKit domain is required"), // e.g. your-app.authkit.app
   isOverridden: z.boolean().default(false), // True if admin edited, false means env-managed
 });
 
