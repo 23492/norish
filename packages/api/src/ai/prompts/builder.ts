@@ -9,6 +9,7 @@ import { listAllTagNames } from "@norish/db/repositories/tags";
 import { fillPrompt, loadPrompt } from "@norish/shared-server/ai/prompts/loader";
 
 import { buildAllergyInstruction } from "./fragments/allergies";
+import { buildLanguageInstruction } from "./fragments/language";
 
 export interface RecipeExtractionPromptOptions {
   /**
@@ -31,6 +32,13 @@ export interface RecipeExtractionPromptOptions {
    * Additional context to append to the prompt.
    */
   additionalContext?: string;
+
+  /**
+   * Target language for the extracted recipe (a locale code, BCP-47 tag, or
+   * language name). Used to instruct the model to keep all free-text fields in
+   * the source content's language instead of defaulting to English.
+   */
+  targetLanguage?: string;
 }
 
 export interface AutoTaggingPromptOptions {
@@ -170,13 +178,15 @@ export async function buildRecipeExtractionPrompt(
   content: string,
   options: RecipeExtractionPromptOptions = {}
 ): Promise<string> {
-  const { url, allergies, strictAllergyDetection = true, additionalContext } = options;
+  const { url, allergies, strictAllergyDetection = true, additionalContext, targetLanguage } =
+    options;
 
   const basePrompt = await loadPrompt("recipe-extraction");
   const allergyInstruction = buildAllergyInstruction(allergies, { strict: strictAllergyDetection });
   const autoTaggingInstruction = await buildAutoTaggingPrompt({ embedded: true });
+  const languageInstruction = buildLanguageInstruction(targetLanguage);
 
-  const parts = [basePrompt, allergyInstruction, autoTaggingInstruction];
+  const parts = [basePrompt, allergyInstruction, autoTaggingInstruction, languageInstruction];
 
   if (url) {
     parts.push(`URL: ${url}`);
@@ -195,9 +205,14 @@ export async function buildRecipeExtractionPrompt(
  * Build a recipe extraction prompt for image-based extraction.
  *
  * @param allergies - List of allergens to detect.
+ * @param targetLanguage - Target language for the extracted recipe (locale code,
+ *   BCP-47 tag, or language name) so output stays in the source language.
  * @returns The prompt string to use with image content.
  */
-export async function buildImageExtractionPrompt(allergies?: string[]): Promise<string> {
+export async function buildImageExtractionPrompt(
+  allergies?: string[],
+  targetLanguage?: string
+): Promise<string> {
   const basePrompt = await loadPrompt("recipe-extraction");
 
   // Modify prompt for image context
@@ -210,8 +225,9 @@ export async function buildImageExtractionPrompt(allergies?: string[]): Promise<
 
   const allergyInstruction = buildAllergyInstruction(allergies, { strict: false });
   const autoTaggingInstruction = await buildAutoTaggingPrompt({ embedded: true });
+  const languageInstruction = buildLanguageInstruction(targetLanguage);
 
-  return `${imagePrompt}${allergyInstruction}${autoTaggingInstruction}
+  return `${imagePrompt}${allergyInstruction}${autoTaggingInstruction}${languageInstruction}
 
 Categorize the recipe as one or more of: Breakfast, Lunch, Dinner, Snack.
 
@@ -229,11 +245,12 @@ export async function buildVideoExtractionPrompt(
   transcript: string,
   options: VideoExtractionPromptOptions
 ): Promise<string> {
-  const { url, title, description, duration, uploader, allergies } = options;
+  const { url, title, description, duration, uploader, allergies, targetLanguage } = options;
 
   const basePrompt = await loadPrompt("recipe-extraction");
   const allergyInstruction = buildAllergyInstruction(allergies, { strict: false });
   const autoTaggingInstruction = await buildAutoTaggingPrompt({ embedded: true });
+  const languageInstruction = buildLanguageInstruction(targetLanguage);
 
   const durationMinutes = Math.floor(duration / 60);
   const durationSeconds = (duration % 60).toString().padStart(2, "0");
@@ -242,6 +259,7 @@ export async function buildVideoExtractionPrompt(
     basePrompt,
     allergyInstruction,
     autoTaggingInstruction,
+    languageInstruction,
     "",
     `SOURCE: Video transcript (${title})`,
     `URL: ${url}`,

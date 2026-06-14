@@ -22,3 +22,4 @@ export {
 
 // Reusable prompt fragments
 export { buildAllergyInstruction, type AllergyInstructionOptions } from "./fragments/allergies";
+export { buildLanguageInstruction, localeToLanguageName } from "./fragments/language";
