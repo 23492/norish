@@ -4,6 +4,7 @@ import type {
   AuthProviderGitHubInput,
   AuthProviderGoogleInput,
   AuthProviderOIDCInput,
+  AuthProviderWorkOSInput,
   PromptsConfigInput,
   RecipePermissionPolicy,
   ServerConfigKey,
@@ -30,11 +31,14 @@ export type AdminMutationsResult = {
   updateAuthProviderGoogle: (
     config: AuthProviderGoogleInput
   ) => Promise<{ success: boolean; error?: string }>;
+  updateAuthProviderWorkOS: (
+    config: AuthProviderWorkOSInput
+  ) => Promise<{ success: boolean; error?: string }>;
   deleteAuthProvider: (
-    type: "oidc" | "github" | "google"
+    type: "oidc" | "github" | "google" | "workos"
   ) => Promise<{ success: boolean; error?: string }>;
   testAuthProvider: (
-    type: "oidc" | "github" | "google",
+    type: "oidc" | "github" | "google" | "workos",
     config: Record<string, unknown>
   ) => Promise<{ success: boolean; error?: string }>;
   updateContentIndicators: (json: string) => Promise<{ success: boolean; error?: string }>;
@@ -77,6 +81,7 @@ export function createUseAdminMutations({
     const updateOIDCMutation = useMutation(trpc.admin.auth.updateOIDC.mutationOptions());
     const updateGitHubMutation = useMutation(trpc.admin.auth.updateGitHub.mutationOptions());
     const updateGoogleMutation = useMutation(trpc.admin.auth.updateGoogle.mutationOptions());
+    const updateWorkOSMutation = useMutation(trpc.admin.auth.updateWorkOS.mutationOptions());
     const deleteProviderMutation = useMutation(trpc.admin.auth.deleteProvider.mutationOptions());
     const testProviderMutation = useMutation(trpc.admin.auth.testProvider.mutationOptions());
     const updateContentIndicatorsMutation = useMutation(
@@ -132,6 +137,9 @@ export function createUseAdminMutations({
       },
       updateAuthProviderGoogle: async (config) => {
         return withInvalidate(updateGoogleMutation.mutateAsync(config));
+      },
+      updateAuthProviderWorkOS: async (config) => {
+        return withInvalidate(updateWorkOSMutation.mutateAsync(config));
       },
       deleteAuthProvider: async (type) => {
         return withInvalidate(deleteProviderMutation.mutateAsync(type));

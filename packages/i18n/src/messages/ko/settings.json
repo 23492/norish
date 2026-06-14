@@ -486,6 +486,15 @@
           "clientSecret": "클라이언트 시크릿"
         }
       },
+      "workos": {
+        "title": "WorkOS",
+        "subtitle": "WorkOS AuthKit",
+        "fields": {
+          "clientId": "Client ID",
+          "clientIdPlaceholder": "client_...",
+          "apiKey": "API Key"
+        }
+      },
       "form": {
         "testSuccess": "연결 성공",
         "removeTitle": "{provider} 제거",

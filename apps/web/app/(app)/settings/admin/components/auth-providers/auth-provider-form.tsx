@@ -21,6 +21,7 @@ const CONFIG_KEYS: Record<ProviderKey, ServerConfigKey> = {
   oidc: ServerConfigKeys.AUTH_PROVIDER_OIDC,
   github: ServerConfigKeys.AUTH_PROVIDER_GITHUB,
   google: ServerConfigKeys.AUTH_PROVIDER_GOOGLE,
+  workos: ServerConfigKeys.AUTH_PROVIDER_WORKOS,
 };
 
 interface AuthProviderFormProps {
@@ -42,6 +43,7 @@ export function AuthProviderForm({
   const {
     updateAuthProviderGitHub,
     updateAuthProviderGoogle,
+    updateAuthProviderWorkOS,
     deleteAuthProvider,
     testAuthProvider,
     fetchConfigSecret,
@@ -111,6 +113,10 @@ export function AuthProviderForm({
       } else if (providerKey === "google") {
         await updateAuthProviderGoogle(
           saveValues as Parameters<typeof updateAuthProviderGoogle>[0]
+        );
+      } else if (providerKey === "workos") {
+        await updateAuthProviderWorkOS(
+          saveValues as Parameters<typeof updateAuthProviderWorkOS>[0]
         );
       }
     } finally {

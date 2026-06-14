@@ -9,6 +9,8 @@ import type {
   AuthProviderGoogleInput,
   AuthProviderOIDC,
   AuthProviderOIDCInput,
+  AuthProviderWorkOS,
+  AuthProviderWorkOSInput,
   ContentIndicatorsConfig,
   I18nLocaleConfig,
   PromptsConfig,
@@ -36,6 +38,7 @@ interface AdminSettingsContextValue {
   authProviderOIDC: AuthProviderOIDC | undefined;
   authProviderGitHub: AuthProviderGitHub | undefined;
   authProviderGoogle: AuthProviderGoogle | undefined;
+  authProviderWorkOS: AuthProviderWorkOS | undefined;
   contentIndicators: ContentIndicatorsConfig | undefined;
   units: UnitsMap | undefined;
   recurrenceConfig: RecurrenceConfig | undefined;
@@ -65,8 +68,11 @@ interface AdminSettingsContextValue {
   updateAuthProviderGoogle: (
     config: AuthProviderGoogleInput
   ) => Promise<{ success: boolean; error?: string }>;
+  updateAuthProviderWorkOS: (
+    config: AuthProviderWorkOSInput
+  ) => Promise<{ success: boolean; error?: string }>;
   deleteAuthProvider: (
-    type: "oidc" | "github" | "google"
+    type: "oidc" | "github" | "google" | "workos"
   ) => Promise<{ success: boolean; error?: string }>;
   updateContentIndicators: (json: string) => Promise<{ success: boolean; error?: string }>;
   updateUnits: (json: string) => Promise<{ success: boolean; error?: string }>;
@@ -83,7 +89,7 @@ interface AdminSettingsContextValue {
   ) => Promise<{ success: boolean; error?: string }>;
   restoreDefaultConfig: (key: string) => Promise<{ success: boolean; error?: string }>;
   testAuthProvider: (
-    type: "oidc" | "github" | "google",
+    type: "oidc" | "github" | "google" | "workos",
     config: Record<string, unknown>
   ) => Promise<{ success: boolean; error?: string }>;
   testAIEndpoint: (
@@ -119,6 +125,9 @@ export function AdminSettingsProvider({ children }: { children: ReactNode }) {
     | undefined;
   const authProviderGoogle = configs[ServerConfigKeys.AUTH_PROVIDER_GOOGLE] as
     | AuthProviderGoogle
+    | undefined;
+  const authProviderWorkOS = configs[ServerConfigKeys.AUTH_PROVIDER_WORKOS] as
+    | AuthProviderWorkOS
     | undefined;
   const contentIndicators = configs[ServerConfigKeys.CONTENT_INDICATORS] as
     | ContentIndicatorsConfig
@@ -184,8 +193,15 @@ export function AdminSettingsProvider({ children }: { children: ReactNode }) {
     [mutations]
   );
 
+  const updateAuthWorkOS = useCallback(
+    async (config: AuthProviderWorkOSInput) => {
+      return mutations.updateAuthProviderWorkOS(config);
+    },
+    [mutations]
+  );
+
   const deleteProvider = useCallback(
-    async (type: "oidc" | "github" | "google") => {
+    async (type: "oidc" | "github" | "google" | "workos") => {
       return mutations.deleteAuthProvider(type);
     },
     [mutations]
@@ -262,7 +278,7 @@ export function AdminSettingsProvider({ children }: { children: ReactNode }) {
   );
 
   const testAuth = useCallback(
-    async (type: "oidc" | "github" | "google", config: Record<string, unknown>) => {
+    async (type: "oidc" | "github" | "google" | "workos", config: Record<string, unknown>) => {
       return mutations.testAuthProvider(type, config);
     },
     [mutations]
@@ -297,6 +313,7 @@ export function AdminSettingsProvider({ children }: { children: ReactNode }) {
     authProviderOIDC,
     authProviderGitHub,
     authProviderGoogle,
+    authProviderWorkOS,
     contentIndicators,
     units,
     recurrenceConfig,
@@ -313,6 +330,7 @@ export function AdminSettingsProvider({ children }: { children: ReactNode }) {
     updateAuthProviderOIDC: updateAuthOIDC,
     updateAuthProviderGitHub: updateAuthGitHub,
     updateAuthProviderGoogle: updateAuthGoogle,
+    updateAuthProviderWorkOS: updateAuthWorkOS,
     deleteAuthProvider: deleteProvider,
     updateContentIndicators: updateContent,
     updateUnits: updateUnitsConfig,

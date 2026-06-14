@@ -1,6 +1,6 @@
 import type { ServerConfigKey } from "@norish/config/zod/server-config";
 
-export type ProviderKey = "oidc" | "github" | "google";
+export type ProviderKey = "oidc" | "github" | "google" | "workos";
 
 export interface FieldDef {
   key: string;

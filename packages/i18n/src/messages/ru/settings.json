@@ -486,6 +486,15 @@
           "clientSecret": "Client Secret"
         }
       },
+      "workos": {
+        "title": "WorkOS",
+        "subtitle": "WorkOS AuthKit",
+        "fields": {
+          "clientId": "Client ID",
+          "clientIdPlaceholder": "client_...",
+          "apiKey": "API Key"
+        }
+      },
       "form": {
         "testSuccess": "Подключение успешно",
         "removeTitle": "Удалить {provider}",

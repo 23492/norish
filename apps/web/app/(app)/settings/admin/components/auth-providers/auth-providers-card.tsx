@@ -25,15 +25,22 @@ export function AuthProvidersCard() {
   const t = useTranslations("settings.admin.authProviders");
   const tGithub = useTranslations("settings.admin.authProviders.github.fields");
   const tGoogle = useTranslations("settings.admin.authProviders.google.fields");
+  const tWorkos = useTranslations("settings.admin.authProviders.workos.fields");
   const {
     authProviderOIDC,
     authProviderGitHub,
     authProviderGoogle,
+    authProviderWorkOS,
     passwordAuthEnabled,
     updatePasswordAuth,
     isLoading,
   } = useAdminSettingsContext();
-  const [dirtySections, setDirtySections] = useState({ oidc: false, github: false, google: false });
+  const [dirtySections, setDirtySections] = useState({
+    oidc: false,
+    github: false,
+    google: false,
+    workos: false,
+  });
 
   const updateDirtySection = useCallback(
     (section: keyof typeof dirtySections) => (isDirty: boolean) => {
@@ -143,6 +150,33 @@ export function AuthProvidersCard() {
               providerKey="google"
               providerName={t("google.title")}
               onDirtyChange={updateDirtySection("google")}
+            />
+          </AccordionItem>
+
+          <AccordionItem
+            key="workos"
+            subtitle={t("workos.subtitle")}
+            title={
+              <span className="flex items-center gap-2">
+                {t("workos.title")}{" "}
+                <EnvManagedBadge isOverridden={authProviderWorkOS?.isOverridden} />
+                {dirtySections.workos && <UnsavedChangesChip />}
+              </span>
+            }
+          >
+            <AuthProviderForm
+              config={authProviderWorkOS as Record<string, unknown> | undefined}
+              fields={[
+                {
+                  key: "clientId",
+                  label: tWorkos("clientId"),
+                  placeholder: tWorkos("clientIdPlaceholder"),
+                },
+                { key: "apiKey", label: tWorkos("apiKey"), secret: true },
+              ]}
+              providerKey="workos"
+              providerName={t("workos.title")}
+              onDirtyChange={updateDirtySection("workos")}
             />
           </AccordionItem>
         </Accordion>
