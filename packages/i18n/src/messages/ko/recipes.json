@@ -36,6 +36,10 @@
     "notes": "메모",
     "addToGroceries": "장보기에 추가",
     "ratingPrompt": "이 레시피에 대해 어떻게 생각하시나요?",
+    "ratingsCount": "{count, plural, one {# rating} other {# ratings}}",
+    "ratedBy": "Rated by {name}",
+    "you": "You",
+    "anonymousRater": "A member",
     "notFound": "레시피를 찾을 수 없음",
     "notFoundMessage": "이 레시피는 존재하지 않거나 볼 수 있는 권한이 없습니다.",
     "prep": "준비",
@@ -263,7 +267,6 @@
       "duplicateTag": "이 태그는 이미 존재합니다."
     }
   },
-
   "cookMode": {
     "steps": "단계",
     "ingredients": "재료",

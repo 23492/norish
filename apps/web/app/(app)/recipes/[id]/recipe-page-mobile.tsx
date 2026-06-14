@@ -20,6 +20,7 @@ import SystemConvertMenu from "@/app/(app)/recipes/[id]/components/system-conver
 import WakeLockToggle from "@/app/(app)/recipes/[id]/components/wake-lock-toggle";
 import { MOBILE_RECIPE_MEDIA_HEIGHT_STYLE } from "@/app/(app)/recipes/[id]/recipe-layout-constants";
 import { NutritionSection } from "@/components/recipes/nutrition-card";
+import RecipeRaters from "@/components/recipes/recipe-raters";
 import {
   ReadonlyRecipeMedia,
   ReadonlyRecipeNotes,
@@ -184,6 +185,7 @@ export default function RecipePageMobile() {
                   value={userRating ?? averageRating}
                   onChange={handleRateRecipe}
                 />
+                <RecipeRaters recipeId={recipe.id} />
               </div>
             )}
           </div>

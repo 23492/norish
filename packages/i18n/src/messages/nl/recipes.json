@@ -36,6 +36,10 @@
     "notes": "Notities",
     "addToGroceries": "Toevoegen aan boodschappen",
     "ratingPrompt": "Wat vond je van dit recept?",
+    "ratingsCount": "{count, plural, one {# beoordeling} other {# beoordelingen}}",
+    "ratedBy": "Beoordeeld door {name}",
+    "you": "Jij",
+    "anonymousRater": "Een lid",
     "notFound": "Recept niet gevonden",
     "notFoundMessage": "Dit recept bestaat niet of je hebt geen toestemming om het te bekijken.",
     "prep": "voorb.",
@@ -263,7 +267,6 @@
       "duplicateTag": "Deze tag bestaat al"
     }
   },
-
   "cookMode": {
     "steps": "Stappen",
     "ingredients": "Ingrediënten",

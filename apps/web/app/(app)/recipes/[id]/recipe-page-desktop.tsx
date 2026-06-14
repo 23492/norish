@@ -22,6 +22,7 @@ import StepsList from "@/app/(app)/recipes/[id]/components/steps-list";
 import SystemConvertMenu from "@/app/(app)/recipes/[id]/components/system-convert-menu";
 import WakeLockToggle from "@/app/(app)/recipes/[id]/components/wake-lock-toggle";
 import NutritionCard from "@/components/recipes/nutrition-card";
+import RecipeRaters from "@/components/recipes/recipe-raters";
 import {
   ReadonlyRecipeMedia,
   ReadonlyRecipeNotes,
@@ -169,6 +170,7 @@ export default function RecipePageDesktop() {
                   value={userRating ?? averageRating}
                   onChange={handleRateRecipe}
                 />
+                <RecipeRaters recipeId={recipe.id} />
               </div>
             )}
           </Card>

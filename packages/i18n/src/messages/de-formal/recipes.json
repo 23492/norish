@@ -36,6 +36,10 @@
     "notes": "Notizen",
     "addToGroceries": "Zur Einkaufsliste hinzufügen",
     "ratingPrompt": "Was halten Sie von diesem Rezept?",
+    "ratingsCount": "{count, plural, one {# rating} other {# ratings}}",
+    "ratedBy": "Rated by {name}",
+    "you": "You",
+    "anonymousRater": "A member",
     "notFound": "Rezept nicht gefunden",
     "notFoundMessage": "Dieses Rezept existiert nicht oder Sie haben keine Berechtigung, es anzuzeigen.",
     "prep": "Vorbereitung",
@@ -263,7 +267,6 @@
       "duplicateTag": "Dieser Tag existiert bereits"
     }
   },
-
   "cookMode": {
     "steps": "Schritte",
     "ingredients": "Zutaten",

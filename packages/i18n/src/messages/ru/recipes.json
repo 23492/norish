@@ -36,6 +36,10 @@
     "notes": "Заметки",
     "addToGroceries": "Добавить в список покупок",
     "ratingPrompt": "Что вы думаете об этом рецепте?",
+    "ratingsCount": "{count, plural, one {# rating} other {# ratings}}",
+    "ratedBy": "Rated by {name}",
+    "you": "You",
+    "anonymousRater": "A member",
     "notFound": "Рецепт не найден",
     "notFoundMessage": "Такого рецепта не существует или у вас нет прав на просмотр.",
     "prep": "подготовка",
@@ -263,7 +267,6 @@
       "duplicateTag": "Такой тег уже существует"
     }
   },
-
   "cookMode": {
     "steps": "Шаги",
     "ingredients": "Ингредиенты",
