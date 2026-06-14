@@ -165,7 +165,24 @@ const ServerConfigSchema = z.object({
     : z.string().min(32),
 
   // AI Provider Configuration
-  AI_PROVIDER: z.enum(["openai", "ollama", "lm-studio", "generic-openai"]).default("openai"),
+  // Full provider set must match AIProviderSchema in @norish/config/zod/server-config
+  // (the AI factory in @norish/shared-server already handles all of these). Operator
+  // config is env-driven (config-as-code): see syncAIConfigFromEnv in seed-config.ts.
+  AI_PROVIDER: z
+    .enum([
+      "openai",
+      "ollama",
+      "lm-studio",
+      "generic-openai",
+      "perplexity",
+      "azure",
+      "mistral",
+      "anthropic",
+      "deepseek",
+      "google",
+      "groq",
+    ])
+    .default("openai"),
   AI_ENDPOINT: z.string().optional(),
   AI_MODEL: z.string().default("gpt-5-mini"),
   AI_API_KEY: z.string().optional(),
@@ -185,8 +202,10 @@ const ServerConfigSchema = z.object({
   YT_DLP_BIN_DIR: z.string().default(defaultYtDlpBinDir),
 
   // Transcription Configuration (separate from AI_PROVIDER)
+  // Must match TranscriptionProviderSchema in @norish/config/zod/server-config
+  // (assemblyai shipped in phase 05). Env-driven: see syncVideoConfigFromEnv in seed-config.ts.
   TRANSCRIPTION_PROVIDER: z
-    .enum(["openai", "ollama", "lm-studio", "generic-openai", "disabled"])
+    .enum(["openai", "groq", "azure", "generic-openai", "ollama", "assemblyai", "disabled"])
     .default("disabled"),
   TRANSCRIPTION_ENDPOINT: z.string().optional(), // Required for local providers
   TRANSCRIPTION_API_KEY: z.string().optional(), // Can use AI_API_KEY if not set
