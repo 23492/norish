@@ -166,7 +166,7 @@ export function TimerDock() {
                   }
                 : { opacity: 1, y: 0, scale: 1 }
             }
-            className="fixed right-4 z-50 flex flex-col items-end space-y-2"
+            className="pointer-events-none fixed right-4 z-50 flex flex-col items-end space-y-2"
             exit={{ opacity: 0, y: 8, scale: 0.94 }}
             initial={{ opacity: 0, y: 16 }}
             style={{
@@ -174,10 +174,13 @@ export function TimerDock() {
             }}
             transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
           >
-            {/* Morphing Container */}
+            {/* Morphing Container — the only part that should capture pointer
+                events; the positioning wrapper above is pointer-events-none so the
+                dock never blocks controls beneath its empty area (e.g. the mobile
+                add-grocery FAB). */}
             <motion.div
               layout
-              className={`overflow-hidden shadow-xl ring-1 ring-black/5 backdrop-blur-sm ${
+              className={`pointer-events-auto overflow-hidden shadow-xl ring-1 ring-black/5 backdrop-blur-sm ${
                 isExpanded
                   ? "bg-content1 flex max-h-[80dvh] w-80 flex-col rounded-2xl dark:ring-white/10"
                   : "bg-content1/90 rounded-full dark:ring-white/10"
