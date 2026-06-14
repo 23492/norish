@@ -56,6 +56,12 @@ vi.mock("@/hooks/favorites", () => ({
 vi.mock("@/hooks/ratings", () => ({
   useRatingQuery: () => ({ userRating: null, averageRating: null, isLoading: false }),
   useRatingsMutation: () => ({ rateRecipe: vi.fn(), isRating: false }),
+  useRecipeRatersQuery: () => ({
+    averageRating: null,
+    ratingCount: 0,
+    raters: [],
+    isLoading: false,
+  }),
 }));
 
 vi.mock("@/components/shared/double-tap-container", () => ({
