@@ -1,5 +1,6 @@
 import type { I18nLocaleConfig } from "@norish/config/zod/server-config";
 import type {
+  AIConfig,
   AuthProviderGitHub,
   AuthProviderGoogle,
   AuthProviderOIDC,
@@ -7,6 +8,7 @@ import type {
   PromptsConfig,
   ServerConfigKey,
   TimerKeywordsConfig,
+  VideoConfig,
 } from "@norish/db/zodSchemas/server-config";
 
 import { setAuthProviderCache } from "@norish/auth/provider-cache";
@@ -175,6 +177,7 @@ export async function seedServerConfig(): Promise<void> {
 
   await normalizeExistingConfigs();
   await importEnvAuthProvidersIfMissing();
+  await importEnvOperatorConfig();
   await syncUnits();
   await syncPrompts();
   await syncLocales();
@@ -528,6 +531,156 @@ async function syncWorkOSProvider(): Promise<void> {
   if (configsDiffer(storedComparable, envComparable)) {
     await setConfig(ServerConfigKeys.AUTH_PROVIDER_WORKOS, envConfig, null, true);
     serverLogger.info("Updated WorkOS provider from env (config changed)");
+  }
+}
+
+/**
+ * Deep, key-order-insensitive equality for operator config objects.
+ *
+ * Used by the AI/video env sync so a re-seed on every boot does NOT bump the row
+ * version when nothing changed. The DB row is JSON.parse'd (arbitrary key order) while
+ * the env-built object uses literal key order, so a plain JSON.stringify compare would
+ * spuriously differ. Treats undefined/missing keys as equivalent.
+ */
+function operatorConfigEqual(a: unknown, b: unknown): boolean {
+  const canonical = (value: unknown): unknown => {
+    if (value === undefined || value === null) {
+      return null;
+    }
+
+    if (Array.isArray(value)) {
+      return value.map(canonical);
+    }
+
+    if (typeof value === "object") {
+      const obj = value as Record<string, unknown>;
+
+      return Object.keys(obj)
+        .sort()
+        .reduce<Record<string, unknown>>((acc, key) => {
+          const normalized = canonical(obj[key]);
+
+          // Drop null/undefined so {x:undefined} === {} (missing key parity).
+          if (normalized !== null) {
+            acc[key] = normalized;
+          }
+
+          return acc;
+        }, {});
+    }
+
+    return value;
+  };
+
+  return JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
+}
+
+/**
+ * Sync operator-level AI + transcription config from environment variables.
+ *
+ * Mirrors importEnvAuthProvidersIfMissing(): runs on EVERY boot so env is the
+ * source of truth and survives a clean DB / relaunch (commercial SaaS direction).
+ * Unlike the auth providers, ai_config/video_config have no isOverridden field, so
+ * when the relevant env vars are set env is UNCONDITIONALLY authoritative (a stale
+ * DB row never wins). When env is unset these are no-ops and the DB/admin row (seeded
+ * by seedMissingConfigs as a disabled default on a clean DB) remains authoritative.
+ */
+async function importEnvOperatorConfig(): Promise<void> {
+  await syncAIConfigFromEnv();
+  await syncVideoConfigFromEnv();
+}
+
+/**
+ * Seed/UPDATE ai_config from env on every boot (env wins).
+ *
+ * Gate: AI_API_KEY (cloud providers) OR AI_ENDPOINT (local providers: ollama/lm-studio
+ * /generic-openai). When set, the env operator subset {enabled, provider, endpoint,
+ * model, apiKey, temperature, maxTokens, timeoutMs} overwrites the DB row; admin-behavior
+ * fields {visionModel, autoTagAllergies, alwaysUseAI, autoTaggingMode} on the existing row
+ * are PRESERVED. Written sensitive=true so apiKey is encrypted at rest (like the WorkOS key).
+ * Only writes when the result differs from the stored row (no needless version bumps).
+ *
+ * This fixes the env<->DB drift: previously ai_config was only seeded via seedMissingConfigs()
+ * (first-boot-only, gated on !configExists), so a clean DB with no AI_API_KEY seeded an empty
+ * key and AI extraction threw PROVIDER_ERROR "API Key is required".
+ */
+async function syncAIConfigFromEnv(): Promise<void> {
+  const hasEnvConfig = !!(SERVER_CONFIG.AI_API_KEY || SERVER_CONFIG.AI_ENDPOINT);
+
+  // No env => leave the DB/admin row untouched (no regression for self-host installs).
+  if (!hasEnvConfig) {
+    return;
+  }
+
+  const existing = await getConfig<AIConfig>(ServerConfigKeys.AI_CONFIG, true);
+
+  // Operator subset comes from env; admin-behavior fields are preserved from the DB row.
+  const envConfig: AIConfig = {
+    enabled: SERVER_CONFIG.AI_ENABLED,
+    provider: SERVER_CONFIG.AI_PROVIDER,
+    endpoint: SERVER_CONFIG.AI_ENDPOINT || undefined,
+    model: SERVER_CONFIG.AI_MODEL,
+    apiKey: SERVER_CONFIG.AI_API_KEY || undefined,
+    temperature: SERVER_CONFIG.AI_TEMPERATURE,
+    maxTokens: SERVER_CONFIG.AI_MAX_TOKENS,
+    timeoutMs: SERVER_CONFIG.AI_TIMEOUT_MS,
+    // Admin-controlled behavior toggles: keep whatever the admin set (fall back to schema defaults).
+    visionModel: existing?.visionModel,
+    autoTagAllergies: existing?.autoTagAllergies ?? true,
+    alwaysUseAI: existing?.alwaysUseAI ?? false,
+    autoTaggingMode: existing?.autoTaggingMode ?? "disabled",
+  };
+
+  if (!operatorConfigEqual(existing, envConfig)) {
+    await setConfig(ServerConfigKeys.AI_CONFIG, envConfig, null, true);
+    serverLogger.info(
+      { provider: envConfig.provider, model: envConfig.model, enabled: envConfig.enabled },
+      "Synced AI config from env (env is source of truth)"
+    );
+  }
+}
+
+/**
+ * Seed/UPDATE video_config (transcription) from env on every boot (env wins).
+ *
+ * Gate: TRANSCRIPTION_PROVIDER !== "disabled" AND (TRANSCRIPTION_API_KEY OR
+ * TRANSCRIPTION_ENDPOINT). When set, the env subset overwrites the DB row; written
+ * sensitive=true so transcriptionApiKey is encrypted at rest. Only writes on change.
+ * When env is unset/disabled this is a no-op.
+ */
+async function syncVideoConfigFromEnv(): Promise<void> {
+  const hasEnvConfig =
+    SERVER_CONFIG.TRANSCRIPTION_PROVIDER !== "disabled" &&
+    !!(SERVER_CONFIG.TRANSCRIPTION_API_KEY || SERVER_CONFIG.TRANSCRIPTION_ENDPOINT);
+
+  if (!hasEnvConfig) {
+    return;
+  }
+
+  const existing = await getConfig<VideoConfig>(ServerConfigKeys.VIDEO_CONFIG, true);
+
+  const envConfig: VideoConfig = {
+    enabled: SERVER_CONFIG.VIDEO_PARSING_ENABLED,
+    maxLengthSeconds: SERVER_CONFIG.VIDEO_MAX_LENGTH_SECONDS,
+    maxVideoFileSize: SERVER_CONFIG.MAX_VIDEO_FILE_SIZE,
+    ytDlpVersion: SERVER_CONFIG.YT_DLP_VERSION,
+    ytDlpProxy: SERVER_CONFIG.YT_DLP_PROXY || undefined,
+    transcriptionProvider: SERVER_CONFIG.TRANSCRIPTION_PROVIDER,
+    transcriptionEndpoint: SERVER_CONFIG.TRANSCRIPTION_ENDPOINT || undefined,
+    transcriptionApiKey: SERVER_CONFIG.TRANSCRIPTION_API_KEY || undefined,
+    transcriptionModel: SERVER_CONFIG.TRANSCRIPTION_MODEL,
+  };
+
+  if (!operatorConfigEqual(existing, envConfig)) {
+    await setConfig(ServerConfigKeys.VIDEO_CONFIG, envConfig, null, true);
+    serverLogger.info(
+      {
+        transcriptionProvider: envConfig.transcriptionProvider,
+        transcriptionModel: envConfig.transcriptionModel,
+        enabled: envConfig.enabled,
+      },
+      "Synced video/transcription config from env (env is source of truth)"
+    );
   }
 }
 
