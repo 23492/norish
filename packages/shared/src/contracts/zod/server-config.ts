@@ -10,6 +10,7 @@ export const ServerConfigKeys = {
   AUTH_PROVIDER_OIDC: "auth_provider_oidc",
   AUTH_PROVIDER_GITHUB: "auth_provider_github",
   AUTH_PROVIDER_GOOGLE: "auth_provider_google",
+  AUTH_PROVIDER_WORKOS: "auth_provider_workos",
   UNITS: "units",
   CONTENT_INDICATORS: "content_indicators",
   RECURRENCE_CONFIG: "recurrence_config",
@@ -87,6 +88,20 @@ export type AuthProviderGoogle = z.infer<typeof AuthProviderGoogleSchema>;
 
 export const AuthProviderGoogleInputSchema = AuthProviderGoogleSchema.omit({ isOverridden: true });
 export type AuthProviderGoogleInput = z.infer<typeof AuthProviderGoogleInputSchema>;
+
+// WorkOS AuthKit provider. Uses a Client ID + an API Key; the API Key is sent as the
+// OAuth client_secret to the WorkOS authenticate endpoint. Mirrors the google/github
+// provider shape (apiKey optional on update so the server preserves the stored value).
+export const AuthProviderWorkOSSchema = z.object({
+  clientId: z.string().min(1, "Client ID is required"),
+  apiKey: z.string().optional(), // Optional on update, server preserves existing
+  isOverridden: z.boolean().default(false), // True if admin edited, false means env-managed
+});
+
+export type AuthProviderWorkOS = z.infer<typeof AuthProviderWorkOSSchema>;
+
+export const AuthProviderWorkOSInputSchema = AuthProviderWorkOSSchema.omit({ isOverridden: true });
+export type AuthProviderWorkOSInput = z.infer<typeof AuthProviderWorkOSInputSchema>;
 
 // ============================================================================
 // Content Indicators Schema
@@ -456,6 +471,8 @@ export function getSchemaForConfigKey(key: ServerConfigKey): z.ZodType {
       return AuthProviderGitHubSchema;
     case ServerConfigKeys.AUTH_PROVIDER_GOOGLE:
       return AuthProviderGoogleSchema;
+    case ServerConfigKeys.AUTH_PROVIDER_WORKOS:
+      return AuthProviderWorkOSSchema;
     case ServerConfigKeys.UNITS:
       return UnitsConfigSchema;
     case ServerConfigKeys.CONTENT_INDICATORS:
@@ -510,6 +527,7 @@ export const SENSITIVE_CONFIG_KEYS: ServerConfigKey[] = [
   ServerConfigKeys.AUTH_PROVIDER_OIDC,
   ServerConfigKeys.AUTH_PROVIDER_GITHUB,
   ServerConfigKeys.AUTH_PROVIDER_GOOGLE,
+  ServerConfigKeys.AUTH_PROVIDER_WORKOS,
   ServerConfigKeys.AI_CONFIG,
   ServerConfigKeys.VIDEO_CONFIG,
 ];
@@ -521,4 +539,5 @@ export const RESTART_REQUIRED_KEYS: ServerConfigKey[] = [
   ServerConfigKeys.AUTH_PROVIDER_OIDC,
   ServerConfigKeys.AUTH_PROVIDER_GITHUB,
   ServerConfigKeys.AUTH_PROVIDER_GOOGLE,
+  ServerConfigKeys.AUTH_PROVIDER_WORKOS,
 ];

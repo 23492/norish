@@ -3,6 +3,7 @@ import type {
   AuthProviderGitHub,
   AuthProviderGoogle,
   AuthProviderOIDC,
+  AuthProviderWorkOS,
   PromptsConfig,
   ServerConfigKey,
   TimerKeywordsConfig,
@@ -198,14 +199,25 @@ async function loadAuthProvidersIntoCache(): Promise<void> {
   const github = await getConfig<AuthProviderGitHub>(ServerConfigKeys.AUTH_PROVIDER_GITHUB, true);
   const google = await getConfig<AuthProviderGoogle>(ServerConfigKeys.AUTH_PROVIDER_GOOGLE, true);
   const oidc = await getConfig<AuthProviderOIDC>(ServerConfigKeys.AUTH_PROVIDER_OIDC, true);
+  const workos = await getConfig<AuthProviderWorkOS>(
+    ServerConfigKeys.AUTH_PROVIDER_WORKOS,
+    true
+  );
   const passwordEnabled = await getConfig<boolean>(ServerConfigKeys.PASSWORD_AUTH_ENABLED);
 
-  setAuthProviderCache({ github, google, oidc, passwordEnabled: passwordEnabled ?? false });
+  setAuthProviderCache({
+    github,
+    google,
+    oidc,
+    workos,
+    passwordEnabled: passwordEnabled ?? false,
+  });
 
   const configured = [
     github && "GitHub",
     google && "Google",
     oidc && `OIDC (${oidc.name})`,
+    workos && "WorkOS",
     passwordEnabled && "Password",
   ].filter(Boolean);
 

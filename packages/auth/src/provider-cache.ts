@@ -2,6 +2,7 @@ import type {
   AuthProviderGitHub,
   AuthProviderGoogle,
   AuthProviderOIDC,
+  AuthProviderWorkOS,
   OIDCClaimConfig,
 } from "@norish/config/zod/server-config";
 
@@ -9,6 +10,7 @@ interface AuthProviderCache {
   github: AuthProviderGitHub | null;
   google: AuthProviderGoogle | null;
   oidc: AuthProviderOIDC | null;
+  workos: AuthProviderWorkOS | null;
   passwordEnabled: boolean;
 }
 
@@ -22,6 +24,7 @@ function ensureCache(): AuthProviderCache {
       github: null,
       google: null,
       oidc: null,
+      workos: null,
       passwordEnabled: false,
     };
   }
@@ -41,6 +44,7 @@ const getProvider =
 export const getCachedGitHubProvider = getProvider("github");
 export const getCachedGoogleProvider = getProvider("google");
 export const getCachedOIDCProvider = getProvider("oidc");
+export const getCachedWorkOSProvider = getProvider("workos");
 export const getCachedPasswordAuthEnabled = (): boolean => ensureCache().passwordEnabled;
 
 /**
