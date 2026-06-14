@@ -891,6 +891,103 @@ export async function createRecipeWithRefs(
   return finalRecipeId;
 }
 
+/**
+ * Rewrite a `/recipes/<from>/...` media URL onto a new recipe id. Returns the
+ * URL unchanged when it does not belong to the source recipe (e.g. an external
+ * URL). Pure string transform — the matching media files are copied separately
+ * by the caller (shared-server owns the filesystem). Mirrors the archive
+ * importer's `rewriteRecipeMediaUrl`.
+ */
+function rewriteSavedRecipeMediaUrl(
+  url: string | null | undefined,
+  fromRecipeId: string,
+  toRecipeId: string
+): string | null {
+  if (!url || !url.startsWith(`/recipes/${fromRecipeId}/`)) {
+    return url ?? null;
+  }
+
+  return `/recipes/${toRecipeId}${url.slice(`/recipes/${fromRecipeId}`.length)}`;
+}
+
+/**
+ * Deep-copy a (public, share-resolved) recipe into a target user's ACTIVE
+ * cookbook as a brand-new recipe they OWN (SHARE-02 "save to my cookbook").
+ *
+ * - `userId` = the saver; `householdId` = the saver's active cookbook
+ *   (`ctx.household?.id ?? null`) — never the source recipe's cookbook, so a
+ *   saved recipe always lands in the saver's own cookbook and never widens
+ *   cross-cookbook visibility.
+ * - Copies name, description, notes, image(s), ingredients, steps (+ step
+ *   images), times, nutrition, categories and tags. Media URLs are rewritten
+ *   from the source recipe id onto `newRecipeId`; the matching files are copied
+ *   by the caller before this runs.
+ * - `url` is cleared: the source URL points at the original external source and
+ *   the `uq_recipes_url_household` unique constraint would otherwise dedup the
+ *   copy against the saver's own imports. A saved copy is a fresh owned recipe.
+ * - Visibility is intentionally NOT carried over: `createRecipeWithRefs` never
+ *   writes the column, so the copy lands at the DB default `private`. The saver
+ *   opts in to sharing their own copy separately (it never inherits the
+ *   source's `public`).
+ *
+ * Returns the new recipe id, or `null` if the insert could not be persisted.
+ */
+export async function copyRecipeForSave(
+  source: FullRecipeDTO,
+  userId: string,
+  householdId: string | null,
+  newRecipeId: string
+): Promise<string | null> {
+  const insert: FullRecipeInsertDTO = {
+    name: source.name,
+    description: source.description ?? null,
+    notes: source.notes ?? null,
+    // Cleared on a saved copy — see the doc comment (avoids URL-dedup collision).
+    url: null,
+    image: rewriteSavedRecipeMediaUrl(source.image, source.id, newRecipeId),
+    servings: source.servings,
+    systemUsed: source.systemUsed,
+    prepMinutes: source.prepMinutes ?? null,
+    cookMinutes: source.cookMinutes ?? null,
+    totalMinutes: source.totalMinutes ?? null,
+    calories: source.calories ?? null,
+    fat: source.fat ?? null,
+    carbs: source.carbs ?? null,
+    protein: source.protein ?? null,
+    categories: source.categories ?? [],
+    tags: (source.tags ?? []).map((tag) => ({ name: tag.name })),
+    recipeIngredients: (source.recipeIngredients ?? []).map((ingredient) => ({
+      ingredientName: ingredient.ingredientName,
+      ingredientId: null,
+      amount: ingredient.amount,
+      unit: ingredient.unit ?? null,
+      systemUsed: ingredient.systemUsed,
+      order: ingredient.order,
+    })),
+    steps: (source.steps ?? []).map((step) => ({
+      step: step.step,
+      systemUsed: step.systemUsed,
+      order: step.order,
+      images: (step.images ?? []).map((image) => ({
+        image: rewriteSavedRecipeMediaUrl(image.image, source.id, newRecipeId) ?? image.image,
+        order: image.order,
+      })),
+    })),
+    images: (source.images ?? []).map((image) => ({
+      image: rewriteSavedRecipeMediaUrl(image.image, source.id, newRecipeId) ?? image.image,
+      order: image.order,
+    })),
+    videos: (source.videos ?? []).map((video) => ({
+      video: rewriteSavedRecipeMediaUrl(video.video, source.id, newRecipeId) ?? video.video,
+      thumbnail: rewriteSavedRecipeMediaUrl(video.thumbnail, source.id, newRecipeId),
+      duration: video.duration ?? null,
+      order: video.order,
+    })),
+  };
+
+  return createRecipeWithRefs(newRecipeId, userId, householdId, insert);
+}
+
 export async function setActiveSystemForRecipe(
   recipeId: string,
   system: MeasurementSystem,

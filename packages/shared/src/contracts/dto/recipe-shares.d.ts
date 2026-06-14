@@ -12,6 +12,7 @@ import type {
   RecipeShareSelectSchema,
   RecipeShareSummarySchema,
   ResolveSharedRecipeInputSchema,
+  SaveSharedRecipeResultSchema,
   UpdateRecipeShareInputSchema,
 } from "@norish/shared/contracts/zod/recipe-shares";
 
@@ -29,3 +30,4 @@ export type UpdateRecipeShareInputDto = z.input<typeof UpdateRecipeShareInputSch
 export type ReactivateRecipeShareInputDto = z.input<typeof ReactivateRecipeShareInputSchema>;
 export type ResolveSharedRecipeInputDto = z.input<typeof ResolveSharedRecipeInputSchema>;
 export type PublicRecipeViewDTO = z.output<typeof PublicRecipeViewSchema>;
+export type SaveSharedRecipeResultDto = z.output<typeof SaveSharedRecipeResultSchema>;

@@ -165,3 +165,10 @@ export const PublicRecipeViewSchema = z.object({
   images: z.array(PublicRecipeImageSchema).default([]),
   videos: z.array(PublicRecipeVideoSchema).default([]),
 });
+
+// SHARE-02: result of saving a shared recipe into the caller's active cookbook.
+// Carries only the NEW recipe id (the saver's own copy) so the client can
+// navigate to it. Never exposes the source recipe id or owner.
+export const SaveSharedRecipeResultSchema = z.object({
+  recipeId: z.uuid(),
+});

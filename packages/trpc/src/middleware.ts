@@ -87,41 +87,71 @@ export type SharedRecipeProcedureContext = Context & {
   };
 };
 
+/**
+ * Resolve a `/share/<token>` token to its recipe and enforce the SHARE-01
+ * public-visibility gate, attaching the result as `ctx.sharedRecipe`.
+ *
+ * SHARE-01: the public surface is gated on the recipe's explicit visibility.
+ * A private/household recipe is NOT reachable via /share/<token>, even with a
+ * valid active token. Every failure (missing/expired/revoked token OR a
+ * non-public recipe) is the SAME opaque NOT_FOUND, so a probe cannot
+ * distinguish "no such token" from "not public" (no enumeration).
+ *
+ * This is the SINGLE token->recipe choke point. It backs both the anonymous
+ * public procedures (getShared, sharePublicConfig) and the authenticated
+ * save-to-cookbook procedure (SHARE-02 saveShared): a user can only save a
+ * recipe reachable via a valid PUBLIC share token — never an arbitrary or
+ * private recipe id. Weakening this gate is adversarially tested.
+ */
+async function resolveSharedRecipe(
+  input: unknown
+): Promise<SharedRecipeProcedureContext["sharedRecipe"]> {
+  const { token } = ResolveSharedRecipeInputSchema.parse(input);
+
+  const share = await getActiveRecipeShareByToken(token, { touchLastAccessedAt: true });
+
+  if (!share) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Shared recipe not found" });
+  }
+
+  const recipe = await getRecipeFull(share.recipeId);
+
+  if (!recipe) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Shared recipe not found" });
+  }
+
+  if (recipe.visibility !== "public") {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Shared recipe not found" });
+  }
+
+  return { share, token, recipe };
+}
+
+/**
+ * Anonymous (no-auth) procedure for the public /share/<token> view. Resolves
+ * the token to a PUBLIC recipe via the shared gate above.
+ */
 export const sharedRecipeProcedure = publicProcedure
   .input(ResolveSharedRecipeInputSchema)
   .use(async ({ ctx, input, next }) => {
-    const share = await getActiveRecipeShareByToken(input.token, { touchLastAccessedAt: true });
+    const sharedRecipe = await resolveSharedRecipe(input);
 
-    if (!share) {
-      throw new TRPCError({ code: "NOT_FOUND", message: "Shared recipe not found" });
-    }
+    return next({ ctx: { ...ctx, sharedRecipe } as SharedRecipeProcedureContext });
+  });
 
-    const recipe = await getRecipeFull(share.recipeId);
+/**
+ * Authenticated counterpart of `sharedRecipeProcedure` (SHARE-02): the caller
+ * must be logged in (authedProcedure) AND the token must resolve to a PUBLIC
+ * recipe through the SAME `resolveSharedRecipe` gate. The inline middleware
+ * keeps the authed context (ctx.user, ctx.household, ...) so the save resolver
+ * can copy the recipe into the saver's active cookbook.
+ */
+export const authedSharedRecipeProcedure = authedProcedure
+  .input(ResolveSharedRecipeInputSchema)
+  .use(async ({ ctx, input, next }) => {
+    const sharedRecipe = await resolveSharedRecipe(input);
 
-    if (!recipe) {
-      throw new TRPCError({ code: "NOT_FOUND", message: "Shared recipe not found" });
-    }
-
-    // SHARE-01: the public surface is gated on the recipe's explicit visibility.
-    // A private/household recipe is NOT reachable via /share/<token>, even with a
-    // valid active token. The error is the SAME opaque NOT_FOUND as a missing
-    // token, so a probe cannot distinguish "no such token" from "not public"
-    // (no enumeration). This is the primary public-surface choke point covering
-    // every sharedRecipeProcedure (getShared, sharePublicConfig, future ones).
-    if (recipe.visibility !== "public") {
-      throw new TRPCError({ code: "NOT_FOUND", message: "Shared recipe not found" });
-    }
-
-    return next({
-      ctx: {
-        ...ctx,
-        sharedRecipe: {
-          share,
-          token: input.token,
-          recipe,
-        },
-      } as SharedRecipeProcedureContext,
-    });
+    return next({ ctx: { ...ctx, sharedRecipe } });
   });
 
 export type AuthedProcedureContext = Context & {

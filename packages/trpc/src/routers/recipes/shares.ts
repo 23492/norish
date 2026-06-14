@@ -3,6 +3,8 @@ import type {
   RecipeShareLifecycleEventDto,
 } from "@norish/shared/contracts/dto/recipe-shares";
 
+import { randomUUID } from "node:crypto";
+
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import {
@@ -26,11 +28,14 @@ import {
   updateRecipeShare,
 } from "@norish/db/repositories/recipe-shares";
 import {
+  copyRecipeForSave,
   countActiveRecipeShares,
+  dashboardRecipe,
   getRecipeFull,
   getRecipeVisibility,
   setRecipeVisibility,
 } from "@norish/db/repositories/recipes";
+import { copyRecipeImagesDir } from "@norish/shared-server/media/storage";
 import { trpcLogger as log } from "@norish/shared-server/logger";
 import { TimerKeywordsSchema } from "@norish/shared/contracts/zod";
 import {
@@ -48,6 +53,7 @@ import {
   RecipeShareMutationResultSchema,
   RecipeShareSummarySchema,
   RevokeRecipeShareInputSchema,
+  SaveSharedRecipeResultSchema,
   UpdateRecipeShareInputSchema,
 } from "@norish/shared/contracts/zod/recipe-shares";
 import {
@@ -56,7 +62,12 @@ import {
 } from "@norish/shared/contracts/zod/recipe";
 
 import { emitByPolicy } from "../../helpers";
-import { adminProcedure, authedProcedure, sharedRecipeProcedure } from "../../middleware";
+import {
+  adminProcedure,
+  authedProcedure,
+  authedSharedRecipeProcedure,
+  sharedRecipeProcedure,
+} from "../../middleware";
 import { router } from "../../trpc";
 
 import { recipeEmitter } from "./emitter";
@@ -365,6 +376,60 @@ const setVisibility = authedProcedure
     };
   });
 
+const saveShared = authedSharedRecipeProcedure
+  .output(SaveSharedRecipeResultSchema)
+  .mutation(async ({ ctx }) => {
+    // Authorization (SHARE-02): the recipe is resolved by
+    // authedSharedRecipeProcedure, which runs the SAME token->recipe gate as the
+    // public route — the token must resolve to a PUBLIC recipe via a valid,
+    // non-expired, non-revoked share. A user can only save a recipe reachable
+    // through a valid /share/<token> (public); they CANNOT save an arbitrary or
+    // private recipe id. No recipe id is accepted from the client.
+    const source = ctx.sharedRecipe.recipe;
+    const targetHouseholdId = ctx.household?.id ?? null;
+    const newRecipeId = randomUUID();
+
+    log.info(
+      { userId: ctx.user.id, sourceRecipeId: source.id, newRecipeId, householdId: targetHouseholdId },
+      "Saving shared recipe into the saver's active cookbook"
+    );
+
+    // Give the saved copy its OWN media files (best-effort) so it survives the
+    // original being deleted; copyRecipeForSave rewrites the URLs onto the new id.
+    await copyRecipeImagesDir(source.id, newRecipeId);
+
+    // Deep copy into the SAVER's active cookbook (household_id = ctx.household?.id
+    // ?? null), owned by the saver. NOT a reference to the original, and NOT in
+    // the source's cookbook — per-cookbook scoping is preserved.
+    const createdId = await copyRecipeForSave(
+      source,
+      ctx.user.id,
+      targetHouseholdId,
+      newRecipeId
+    );
+
+    if (!createdId) {
+      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to save recipe" });
+    }
+
+    // Surface the new recipe live in the saver's cookbook (same as a create).
+    const dashboardDto = await dashboardRecipe(createdId);
+
+    if (dashboardDto) {
+      const policy = await getRecipePermissionPolicy();
+
+      emitByPolicy(
+        recipeEmitter,
+        policy.view,
+        { userId: ctx.user.id, householdKey: ctx.householdKey },
+        "created",
+        { recipe: dashboardDto }
+      );
+    }
+
+    return { recipeId: createdId };
+  });
+
 const getShared = sharedRecipeProcedure.output(PublicRecipeViewSchema).query(async ({ ctx }) => {
   const publicRecipe = await getPublicRecipeView(
     ctx.sharedRecipe.share.recipeId,
@@ -411,6 +476,7 @@ export const recipeSharesProcedures = router({
   shareReactivate: reactivate,
   shareDelete: remove,
   shareSetVisibility: setVisibility,
+  saveShared,
   getShared,
   sharePublicConfig,
 });

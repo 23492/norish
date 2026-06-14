@@ -594,6 +594,52 @@ export async function deleteRecipeImagesDir(recipeId: string): Promise<void> {
 }
 
 /**
+ * Copy a recipe's media directory (cover, gallery, step images, videos) to a
+ * new recipe id, leaving the source untouched. Used by SHARE-02 "save to my
+ * cookbook": the saved copy gets its OWN media files so it survives the
+ * original being deleted. Unlike the archive importer's move, the source is
+ * preserved. No-op when the source has no media directory. Best-effort: a copy
+ * failure is logged but does not fail the save (the recipe data still copies;
+ * media URLs simply 404 until re-uploaded).
+ */
+export async function copyRecipeImagesDir(
+  fromRecipeId: string,
+  toRecipeId: string
+): Promise<void> {
+  if (fromRecipeId === toRecipeId) {
+    return;
+  }
+
+  const sourceDir = path.join(RECIPES_BASE_DIR, fromRecipeId);
+  const targetDir = path.join(RECIPES_BASE_DIR, toRecipeId);
+
+  try {
+    const exists = await fs
+      .access(sourceDir)
+      .then(() => true)
+      .catch(() => false);
+
+    if (!exists) {
+      log.debug(
+        { fromRecipeId, toRecipeId, sourceDir },
+        "Source recipe media directory does not exist, skipping copy"
+      );
+
+      return;
+    }
+
+    await fs.mkdir(targetDir, { recursive: true });
+    await fs.cp(sourceDir, targetDir, { recursive: true, force: true });
+    log.info({ fromRecipeId, toRecipeId }, "Copied recipe media directory for saved recipe");
+  } catch (err) {
+    log.warn(
+      { err, fromRecipeId, toRecipeId },
+      "Could not copy recipe media directory for saved recipe"
+    );
+  }
+}
+
+/**
  * Delete step images directory only.
  */
 export async function deleteRecipeStepImagesDir(recipeId: string): Promise<void> {
