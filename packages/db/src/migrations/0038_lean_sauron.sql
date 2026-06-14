@@ -1,0 +1,2 @@
+CREATE TYPE "public"."recipe_visibility" AS ENUM('private', 'household', 'public');--> statement-breakpoint
+ALTER TABLE "recipes" ADD COLUMN "visibility" "recipe_visibility" DEFAULT 'private' NOT NULL;

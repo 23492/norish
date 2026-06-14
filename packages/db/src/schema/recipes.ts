@@ -16,6 +16,11 @@ import { recipeCategoryEnum } from "./recipe-categories";
 import { versionColumn } from "./shared";
 
 export const measurementSystemEnum = pgEnum("measurement_system", ["metric", "us"]);
+export const recipeVisibilityEnum = pgEnum("recipe_visibility", [
+  "private",
+  "household",
+  "public",
+]);
 
 export const recipes = pgTable(
   "recipes",
@@ -37,6 +42,7 @@ export const recipes = pgTable(
     totalMinutes: integer("total_minutes"),
     notes: text("notes"),
     systemUsed: measurementSystemEnum("system_used").notNull().default("metric"),
+    visibility: recipeVisibilityEnum("visibility").notNull().default("private"),
     calories: integer("calories"),
     fat: numeric("fat", { precision: 6, scale: 2 }),
     carbs: numeric("carbs", { precision: 6, scale: 2 }),

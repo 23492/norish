@@ -1,6 +1,6 @@
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-zod";
 import { z } from "zod";
-import { measurementSystemEnum, recipes } from "@norish/db/schema";
+import { measurementSystemEnum, recipeVisibilityEnum, recipes } from "@norish/db/schema";
 
 import { RecipeImagesArraySchema, RecipeImageSchema } from "./recipe-images";
 import {
@@ -14,9 +14,13 @@ import { TagNameSchema, TagSummarySchema } from "./tag";
 
 export const recipeCategorySchema = z.enum(["Breakfast", "Lunch", "Dinner", "Snack"]);
 
+export const recipeVisibilities = recipeVisibilityEnum.enumValues;
+export const RecipeVisibilitySchema = z.enum(recipeVisibilities);
+
 export const RecipeSelectBaseSchema = createSelectSchema(recipes).extend({
   userId: z.string().nullable(),
   householdId: z.string().nullable(),
+  visibility: RecipeVisibilitySchema,
 });
 export const RecipeInsertBaseSchema = createInsertSchema(recipes).omit({
   id: true,
@@ -41,6 +45,7 @@ export const RecipeDashboardSchema = RecipeSelectBaseSchema.omit({
   fat: true,
   carbs: true,
   protein: true,
+  visibility: true,
 }).extend({
   tags: z.array(TagSummarySchema).default([]),
   categories: z.array(recipeCategorySchema).default([]),
