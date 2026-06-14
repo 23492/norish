@@ -1,6 +1,7 @@
 import { getRecipePermissionPolicy } from "@norish/config/server-config-loader";
 import {
   getAverageRating,
+  getRecipeRaters,
   getUserRatingWithVersion,
   rateRecipe,
 } from "@norish/db/repositories/ratings";
@@ -9,6 +10,7 @@ import { RatingGetInputSchema, RatingInputSchema } from "@norish/shared/contract
 
 import { emitByPolicy } from "../../helpers";
 import { authedProcedure } from "../../middleware";
+import { assertRecipeAccess } from "../recipes/helpers";
 import { router } from "../../trpc";
 
 import { ratingsEmitter } from "./emitter";
@@ -80,8 +82,26 @@ const getAverage = authedProcedure.input(RatingGetInputSchema).query(async ({ in
   return { recipeId: input.recipeId, ...stats };
 });
 
+// RATE-01: the per-user "rated by <name> ★★★★" list + the aggregate, for an
+// AUTHENTICATED viewer. assertRecipeAccess(view) runs FIRST and throws FORBIDDEN
+// when the caller cannot view the recipe (per POLICY-01 / the recipe's OWN
+// cookbook), so a user outside the cookbook can never read its raters' names —
+// no cross-cookbook leak. The public /share/<token> route does NOT use this
+// (showing member names publicly is a privacy decision deferred as RATE-02).
+const getRaters = authedProcedure.input(RatingGetInputSchema).query(async ({ ctx, input }) => {
+  await assertRecipeAccess(ctx, input.recipeId, "view");
+
+  const [stats, raters] = await Promise.all([
+    getAverageRating(input.recipeId),
+    getRecipeRaters(input.recipeId),
+  ]);
+
+  return { recipeId: input.recipeId, ...stats, raters };
+});
+
 export const ratingsProcedures = router({
   rate,
   getUserRating: getUserRatingProcedure,
   getAverage,
+  getRaters,
 });

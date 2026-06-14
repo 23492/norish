@@ -4,10 +4,12 @@ export const rateRecipe = vi.fn();
 export const getUserRating = vi.fn();
 export const getUserRatingWithVersion = vi.fn();
 export const getAverageRating = vi.fn();
+export const getRecipeRaters = vi.fn();
 
 export function resetRatingsMocks() {
   rateRecipe.mockReset();
   getUserRating.mockReset();
   getUserRatingWithVersion.mockReset();
   getAverageRating.mockReset();
+  getRecipeRaters.mockReset();
 }
