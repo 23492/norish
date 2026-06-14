@@ -37,6 +37,10 @@ _(renumbered from Phase 3/4 to make room for the Sharing phase.)_
 - [ ] **VIDEO-03**: Video description/caption is used in extraction (already upstream — verify retained).
 - [ ] **VIDEO-04**: No boot-time patch for transcription — ships in the built image.
 
+### AI / LLM provider (DeepSeek) — Phase 6
+
+- [x] **AI-01**: DeepSeek is a selectable AI/LLM (recipe-extraction) provider with the V4 models `deepseek-v4-pro` + `deepseek-v4-flash` selectable in the admin AI-config; the API key is read from the admin AI-config secret at runtime (SETUP-05; no env, no boot-patch). _(code-complete 2026-06-14, 06-01; the provider was already wired from upstream — this surfaced the two V4 model ids in the model picker + added unit coverage; human-verify with the lead pending)_
+
 ### Setup / maintainability — Phase 0 / cross-cutting
 
 - [ ] **SETUP-01**: Fork builds via `pnpm docker:build` on LXC 110 and deploys to the existing stack.
@@ -66,6 +70,7 @@ _(renumbered from Phase 3/4 to make room for the Sharing phase.)_
 | HOUSE-01..07 | Phase 2 | HOUSE-01..07 done; frontend (switcher, active-cookbook import indication, refetch-on-switch, 11-locale i18n) landed in 02-04 — code-complete, human-verify pending with the lead |
 | SHARE-01 | Phase 4 | Code-complete 2026-06-14, human-verify pending |
 | VIDEO-01..04 | Phase 5 | VIDEO-01 code-complete 2026-06-14 (04-01); VIDEO-02..04 folded into the human-verify / retained |
+| AI-01 | Phase 6 | Code-complete 2026-06-14 (06-01); DeepSeek provider already upstream, V4 model ids surfaced + tested; human-verify pending |
 | SETUP-01..03 | Phase 0 | In progress |
 | SETUP-04 | Phase 1 | Done |
 | SETUP-05 | Phases 1/3 + cross-cutting | In progress |
