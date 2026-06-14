@@ -55,7 +55,8 @@ function hasOAuthEnvConfigured(): boolean {
       SERVER_CONFIG.OIDC_CLIENT_SECRET &&
       SERVER_CONFIG.OIDC_ISSUER) ||
     (SERVER_CONFIG.GITHUB_CLIENT_ID && SERVER_CONFIG.GITHUB_CLIENT_SECRET) ||
-    (SERVER_CONFIG.GOOGLE_CLIENT_ID && SERVER_CONFIG.GOOGLE_CLIENT_SECRET)
+    (SERVER_CONFIG.GOOGLE_CLIENT_ID && SERVER_CONFIG.GOOGLE_CLIENT_SECRET) ||
+    (SERVER_CONFIG.WORKOS_CLIENT_ID && SERVER_CONFIG.WORKOS_API_KEY)
   );
 }
 
@@ -269,6 +270,7 @@ async function importEnvAuthProvidersIfMissing(): Promise<void> {
   await syncOIDCProvider();
   await syncGitHubProvider();
   await syncGoogleProvider();
+  await syncWorkOSProvider();
 }
 
 /**
@@ -471,6 +473,59 @@ async function syncGoogleProvider(): Promise<void> {
   if (configsDiffer(storedComparable, envComparable)) {
     await setConfig(ServerConfigKeys.AUTH_PROVIDER_GOOGLE, envConfig, null, true);
     serverLogger.info("Updated Google provider from env (config changed)");
+  }
+}
+
+/**
+ * Sync WorkOS provider from env to DB
+ * - If env has config and DB doesn't: insert
+ * - If env has config and DB has non-overridden config: update if different
+ * - If env is empty and DB has non-overridden config: delete (fallback to other auth)
+ * - If DB config is overridden: never touch
+ *
+ * WorkOS is configured purely via env (config-as-code, WORKOS_CLIENT_ID + WORKOS_API_KEY);
+ * there is no admin UI for it, so a row is never set isOverridden=true and env always wins.
+ */
+async function syncWorkOSProvider(): Promise<void> {
+  const hasEnvConfig = SERVER_CONFIG.WORKOS_CLIENT_ID && SERVER_CONFIG.WORKOS_API_KEY;
+
+  const existing = await getConfig<AuthProviderWorkOS>(ServerConfigKeys.AUTH_PROVIDER_WORKOS, true);
+
+  // If no env config, check if we need to remove env-managed DB config
+  if (!hasEnvConfig) {
+    if (existing && !existing.isOverridden) {
+      await deleteConfig(ServerConfigKeys.AUTH_PROVIDER_WORKOS);
+      serverLogger.info("Removed WorkOS provider (env credentials removed)");
+    }
+
+    return;
+  }
+
+  const envConfig: AuthProviderWorkOS = {
+    clientId: SERVER_CONFIG.WORKOS_CLIENT_ID!,
+    apiKey: SERVER_CONFIG.WORKOS_API_KEY!,
+    isOverridden: false,
+  };
+
+  if (!existing) {
+    await setConfig(ServerConfigKeys.AUTH_PROVIDER_WORKOS, envConfig, null, true);
+    serverLogger.info("Imported WorkOS provider from env");
+
+    return;
+  }
+
+  if (existing.isOverridden) {
+    serverLogger.debug("WorkOS provider is overridden by admin, skipping env sync");
+
+    return;
+  }
+
+  const storedComparable = { ...existing, isOverridden: undefined };
+  const envComparable = { ...envConfig, isOverridden: undefined };
+
+  if (configsDiffer(storedComparable, envComparable)) {
+    await setConfig(ServerConfigKeys.AUTH_PROVIDER_WORKOS, envConfig, null, true);
+    serverLogger.info("Updated WorkOS provider from env (config changed)");
   }
 }
 

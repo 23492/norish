@@ -151,6 +151,11 @@ const ServerConfigSchema = z.object({
   GITHUB_CLIENT_SECRET: z.string().optional(),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
+  // WorkOS AuthKit — configured purely via env (config-as-code), never the admin UI.
+  // WORKOS_CLIENT_ID is the WorkOS Client ID (client_.../project_...);
+  // WORKOS_API_KEY is the WorkOS API Key (sk_...) used as the OAuth client_secret.
+  WORKOS_CLIENT_ID: z.string().optional(),
+  WORKOS_API_KEY: z.string().optional(),
 
   // During build (SKIP_ENV_VALIDATION=1), use a placeholder key for Next.js compilation
   // At runtime, require a real 32+ char key - the placeholder is never persisted in the image
