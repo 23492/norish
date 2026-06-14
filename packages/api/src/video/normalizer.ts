@@ -10,7 +10,7 @@ import {
 } from "@norish/api/ai/features/recipe-extraction/normalizer";
 import { buildVideoExtractionPrompt } from "@norish/api/ai/prompts/builder";
 import { recipeExtractionSchema } from "@norish/api/ai/schemas/recipe.schema";
-import { isAIEnabled } from "@norish/config/server-config-loader";
+import { getDefaultLocale, isAIEnabled } from "@norish/config/server-config-loader";
 import { getGenerationSettings, getModels } from "@norish/shared-server/ai/providers";
 import {
   aiError,
@@ -53,6 +53,10 @@ export async function extractRecipeFromVideo(
     const { model, providerName } = await getModels();
     const settings = await getGenerationSettings();
 
+    // Prefer the video's own audio language; fall back to the configured
+    // default locale so the extracted recipe stays in the source language.
+    const targetLanguage = metadata.language || (await getDefaultLocale());
+
     // Build prompt using shared builder
     const prompt = await buildVideoExtractionPrompt(transcript, {
       url,
@@ -61,6 +65,7 @@ export async function extractRecipeFromVideo(
       duration: metadata.duration,
       uploader: metadata.uploader,
       allergies,
+      targetLanguage,
     });
 
     videoLogger.debug(

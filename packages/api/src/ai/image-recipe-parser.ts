@@ -4,7 +4,7 @@ import type { FullRecipeInsertDTO } from "@norish/shared/contracts/dto/recipe";
 import type { RecipeExtractionOutput } from "./schemas/recipe.schema";
 
 import { generateText, Output } from "ai";
-import { isAIEnabled } from "@norish/config/server-config-loader";
+import { getDefaultLocale, isAIEnabled } from "@norish/config/server-config-loader";
 import { getGenerationSettings, getModels } from "@norish/shared-server/ai/providers";
 import {
   aiError,
@@ -80,8 +80,12 @@ export async function extractRecipeFromImages(
     const { visionModel, providerName } = await getModels();
     const settings = await getGenerationSettings();
 
+    // Keep the extracted recipe in the source language (fall back to the
+    // configured default locale; the prompt also matches the source content).
+    const targetLanguage = await getDefaultLocale();
+
     // Build prompt using shared builder
-    const prompt = await buildImageExtractionPrompt(allergies);
+    const prompt = await buildImageExtractionPrompt(allergies, targetLanguage);
 
     aiLogger.debug(
       { fileCount: files.length, filenames: files.map((f) => f.filename), provider: providerName },

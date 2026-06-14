@@ -3,7 +3,7 @@ import type { FullRecipeInsertDTO } from "@norish/shared/contracts/dto/recipe";
 import type { RecipeExtractionOutput } from "./schemas/recipe.schema";
 
 import { generateText, Output } from "ai";
-import { isAIEnabled } from "@norish/config/server-config-loader";
+import { getDefaultLocale, isAIEnabled } from "@norish/config/server-config-loader";
 import { extractSanitizedBody } from "@norish/shared-server/ai/helpers";
 import { getGenerationSettings, getModels } from "@norish/shared-server/ai/providers";
 import {
@@ -62,11 +62,16 @@ export async function extractRecipeWithAI(
     const sanitized = extractSanitizedBody(html);
     const truncated = sanitized.slice(0, 50000);
 
+    // Keep the extracted recipe in the source language (fall back to the
+    // configured default locale; the prompt also matches the source content).
+    const targetLanguage = await getDefaultLocale();
+
     // Build prompt using shared builder
     const prompt = await buildRecipeExtractionPrompt(truncated, {
       url,
       allergies,
       strictAllergyDetection: true, // Use strict mode for HTML extraction
+      targetLanguage,
     });
 
     aiLogger.debug(
