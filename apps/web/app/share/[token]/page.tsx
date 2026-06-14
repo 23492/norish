@@ -18,6 +18,8 @@ import {
 import { TRPCClientError } from "@trpc/client";
 import { useTranslations } from "next-intl";
 
+import { ShareSaveButton } from "./components/share-save-button";
+
 import AmountDisplayToggle from "@/app/(app)/recipes/[id]/components/amount-display-toggle";
 import AuthorChip from "@/app/(app)/recipes/[id]/components/author-chip";
 import { ReadonlyIngredientsList } from "@/app/(app)/recipes/[id]/components/ingredient-list";
@@ -39,6 +41,7 @@ import RecipeSkeleton from "@/components/skeleton/recipe-skeleton";
 import { TimerTicker } from "@/components/timer-dock";
 import { sharedRecipeShareHooks } from "@/hooks/recipes/shared-recipe-hooks";
 import { useSharePublicConfigQuery } from "@/hooks/recipes/use-share-public-config-query";
+
 
 
 type Props = {
@@ -315,7 +318,8 @@ function SharedRecipePageMobile({ token }: { token: string }) {
             ) : null
           }
           topRightContent={
-            <div className="mt-2">
+            <div className="mt-2 flex items-center gap-2">
+              <ShareSaveButton recipeName={recipe.name} token={token} />
               <AuthLanguageSelector />
             </div>
           }
@@ -417,7 +421,8 @@ function SharedRecipePageContent({ token }: { token: string }) {
   return (
     <>
       <TimerTicker />
-      <div className="hidden justify-end pt-4 md:flex md:px-6">
+      <div className="hidden items-center justify-end gap-2 pt-4 md:flex md:px-6">
+        <ShareSaveButton recipeName={recipe.name} token={token} />
         <AuthLanguageSelector />
       </div>
       <SharedRecipePageDesktop token={token} />

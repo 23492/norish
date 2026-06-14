@@ -122,6 +122,15 @@
       "updateSuccess": "Zichtbaarheid bijgewerkt"
     }
   },
+  "sharePage": {
+    "save": {
+      "button": "Opslaan in mijn kookboek",
+      "success": "Opgeslagen in je kookboek",
+      "successDescription": "“{recipeName}” staat nu in je kookboek.",
+      "error": "Recept kon niet worden opgeslagen",
+      "errorDescription": "Er ging iets mis bij het opslaan van dit recept. Probeer het opnieuw."
+    }
+  },
   "convert": {
     "ariaLabel": "Converteer meetsysteem",
     "toMetric": "Converteer naar metrisch",

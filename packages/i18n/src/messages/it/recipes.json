@@ -122,6 +122,15 @@
       "updateSuccess": "Visibility updated"
     }
   },
+  "sharePage": {
+    "save": {
+      "button": "Save to my cookbook",
+      "success": "Saved to your cookbook",
+      "successDescription": "“{recipeName}” is now in your cookbook.",
+      "error": "Could not save recipe",
+      "errorDescription": "Something went wrong while saving this recipe. Please try again."
+    }
+  },
   "convert": {
     "ariaLabel": "Converti sistema di misura",
     "toMetric": "Converti in metrico",
