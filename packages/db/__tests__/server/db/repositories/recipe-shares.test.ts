@@ -1,5 +1,7 @@
 // @vitest-environment node
 
+import { randomUUID } from "node:crypto";
+
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
@@ -16,6 +18,7 @@ import {
   updateRecipeShare,
 } from "@norish/db/repositories/recipe-shares";
 import {
+  copyRecipeForSave,
   countActiveRecipeShares,
   getRecipeFull,
   getRecipeVisibility,
@@ -24,10 +27,12 @@ import {
 import * as schema from "@norish/db/schema";
 
 import {
+  createTestHousehold,
   createTestIngredient,
   createTestRecipeIngredients,
   createTestRecipeShare,
   createTestRecipeStep,
+  createTestUser,
   getTestDb,
 } from "../../../helpers/db-test-helpers";
 import { RepositoryTestBase } from "../../../helpers/repository-test-base";
@@ -274,5 +279,119 @@ describe("recipe share repository", () => {
     });
 
     expect(await countActiveRecipeShares(testRecipeId)).toBe(1);
+  });
+
+  // ── SHARE-02: copyRecipeForSave (deep copy into the saver's active cookbook) ─
+
+  /**
+   * Build a fully-populated, PUBLIC source recipe in its OWN cookbook: an
+   * ingredient (by name), a step (+ step image), a tag, a cover + gallery image,
+   * with media URLs under the source recipe id. Returns the resolved
+   * FullRecipeDTO (what saveShared hands to copyRecipeForSave).
+   */
+  async function buildPublicSourceRecipe() {
+    const db = getTestDb();
+
+    await db
+      .update(schema.recipes)
+      .set({ visibility: "public", image: `/recipes/${testRecipeId}/cover.jpg`, url: null })
+      .where(eq(schema.recipes.id, testRecipeId));
+
+    const ingredient = await createTestIngredient({ name: "Flour" });
+
+    await createTestRecipeIngredients(testRecipeId, ingredient.id, "metric", {
+      amount: "200",
+      unit: "g",
+      order: "0",
+    });
+
+    const step = await createTestRecipeStep(testRecipeId, "metric", {
+      step: "Mix everything",
+      order: "0",
+    });
+
+    await db.insert(schema.stepImages).values({
+      stepId: step.id,
+      image: `/recipes/${testRecipeId}/steps/step.jpg`,
+      order: "0",
+    });
+
+    await db.insert(schema.recipeImages).values({
+      recipeId: testRecipeId,
+      image: `/recipes/${testRecipeId}/gallery.jpg`,
+      order: "0",
+    });
+
+    const [tag] = await db
+      .insert(schema.tags)
+      .values({ name: "weeknight" })
+      .returning();
+
+    await db.insert(schema.recipeTags).values({ recipeId: testRecipeId, tagId: tag.id, order: 0 });
+
+    return (await getRecipeFull(testRecipeId))!;
+  }
+
+  it("copies a public recipe into the saver's ACTIVE cookbook as a NEW recipe they own", async () => {
+    const source = await buildPublicSourceRecipe();
+
+    // A DIFFERENT user with their OWN cookbook = the saver.
+    const saver = await createTestUser({ name: "Saver" });
+    const saverCookbook = await createTestHousehold(saver.id, {
+      id: randomUUID(),
+      name: "Saver Cookbook",
+    });
+    const newRecipeId = randomUUID();
+
+    const createdId = await copyRecipeForSave(source, saver.id, saverCookbook.id, newRecipeId);
+
+    expect(createdId).toBe(newRecipeId);
+    expect(createdId).not.toBe(testRecipeId);
+
+    const copy = (await getRecipeFull(newRecipeId))!;
+
+    // Owned by the SAVER, in the SAVER's active cookbook — NOT the source owner
+    // or the source's cookbook (per-cookbook scoping).
+    expect(copy.userId).toBe(saver.id);
+    expect(copy.householdId).toBe(saverCookbook.id);
+    expect(copy.userId).not.toBe(source.userId);
+    expect(copy.householdId).not.toBe(source.householdId);
+
+    // Deep-copied content.
+    expect(copy.name).toBe(source.name);
+    expect(copy.servings).toBe(source.servings);
+    expect(copy.recipeIngredients.map((i) => i.ingredientName)).toContain("Flour");
+    expect(copy.steps.map((s) => s.step)).toContain("Mix everything");
+    expect(copy.tags.map((t) => t.name)).toContain("weeknight");
+
+    // The saved copy is PRIVATE by default (never inherits the source's public)
+    // and its url is cleared (a fresh owned recipe, no dedup against imports).
+    expect(copy.visibility).toBe("private");
+    expect(copy.url).toBeNull();
+
+    // Media URLs are rehomed onto the new recipe id.
+    expect(copy.image).toBe(`/recipes/${newRecipeId}/cover.jpg`);
+    expect(copy.images[0]?.image).toBe(`/recipes/${newRecipeId}/gallery.jpg`);
+    expect(copy.steps[0]?.images[0]?.image).toBe(`/recipes/${newRecipeId}/steps/step.jpg`);
+
+    // The ORIGINAL is untouched (still public, still owned by its owner).
+    const original = (await getRecipeFull(testRecipeId))!;
+
+    expect(original.visibility).toBe("public");
+    expect(original.userId).toBe(testUserId);
+  });
+
+  it("copies into a NULL cookbook when the saver has no active household", async () => {
+    const source = await buildPublicSourceRecipe();
+    const saver = await createTestUser({ name: "Solo Saver" });
+    const newRecipeId = randomUUID();
+
+    const createdId = await copyRecipeForSave(source, saver.id, null, newRecipeId);
+
+    const copy = (await getRecipeFull(createdId!))!;
+
+    expect(copy.userId).toBe(saver.id);
+    expect(copy.householdId).toBeNull();
+    expect(copy.visibility).toBe("private");
   });
 });

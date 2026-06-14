@@ -7,6 +7,7 @@ import {
   createMockAuthedContext,
   createMockFullRecipe,
   createMockHousehold,
+  createMockRecipeDashboard,
   createMockUser,
 } from "./test-utils";
 
@@ -22,6 +23,9 @@ const getRecipeFullMock = vi.hoisted(() => vi.fn());
 const getRecipeVisibilityMock = vi.hoisted(() => vi.fn());
 const setRecipeVisibilityMock = vi.hoisted(() => vi.fn());
 const countActiveRecipeSharesMock = vi.hoisted(() => vi.fn());
+const copyRecipeForSaveMock = vi.hoisted(() => vi.fn());
+const dashboardRecipeMock = vi.hoisted(() => vi.fn());
+const copyRecipeImagesDirMock = vi.hoisted(() => vi.fn());
 const getRecipeShareByIdMock = vi.hoisted(() => vi.fn());
 const getRecipeSharesByUserIdMock = vi.hoisted(() => vi.fn());
 const getRecipeShareStatusMock = vi.hoisted(() => vi.fn());
@@ -65,6 +69,12 @@ vi.mock("@norish/db/repositories/recipes", () => ({
   getRecipeVisibility: getRecipeVisibilityMock,
   setRecipeVisibility: setRecipeVisibilityMock,
   countActiveRecipeShares: countActiveRecipeSharesMock,
+  copyRecipeForSave: copyRecipeForSaveMock,
+  dashboardRecipe: dashboardRecipeMock,
+}));
+
+vi.mock("@norish/shared-server/media/storage", () => ({
+  copyRecipeImagesDir: copyRecipeImagesDirMock,
 }));
 
 vi.mock("@norish/db", () => ({
@@ -681,5 +691,122 @@ describe("recipe share procedures", () => {
       caller.shareSetVisibility({ recipeId, visibility: "public", version: 4 })
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
     expect(setRecipeVisibilityMock).not.toHaveBeenCalled();
+  });
+
+  // ── SHARE-02: save a shared (public) recipe into the saver's active cookbook ─
+
+  const savedRecipeId = "123e4567-e89b-12d3-a456-426614174099";
+
+  function mockActivePublicShare(recipe = createMockFullRecipe({ id: recipeId, visibility: "public" })) {
+    getActiveRecipeShareByTokenMock.mockResolvedValue({
+      id: shareId,
+      userId: "some-other-owner",
+      recipeId,
+      tokenHash: "hashed",
+      expiresAt: null,
+      revokedAt: null,
+      lastAccessedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      version: 1,
+    });
+    getRecipeFullMock.mockResolvedValue(recipe);
+
+    return recipe;
+  }
+
+  it("saves a valid PUBLIC-token recipe as a NEW recipe owned by the saver in their ACTIVE cookbook", async () => {
+    const caller = recipeSharesProcedures.createCaller(authedCtx as never);
+    const source = mockActivePublicShare();
+
+    copyRecipeForSaveMock.mockResolvedValue(savedRecipeId);
+    dashboardRecipeMock.mockResolvedValue(createMockRecipeDashboard({ id: savedRecipeId }));
+
+    const result = await caller.saveShared({ token: "valid-token" });
+
+    // The save is gated on the SAME token->recipe path as the public view.
+    expect(getActiveRecipeShareByTokenMock).toHaveBeenCalledWith("valid-token", {
+      touchLastAccessedAt: true,
+    });
+    expect(getRecipeFullMock).toHaveBeenCalledWith(recipeId);
+
+    // The copy is owned by the SAVER (user.id) and lands in their ACTIVE cookbook
+    // (household.id) — NOT the source owner / source cookbook. A fresh new id is
+    // generated server-side (never accepted from the client).
+    expect(copyRecipeForSaveMock).toHaveBeenCalledTimes(1);
+    const [copiedSource, copiedUserId, copiedHouseholdId, newId] =
+      copyRecipeForSaveMock.mock.calls[0]!;
+
+    expect(copiedSource).toBe(source);
+    expect(copiedUserId).toBe(user.id);
+    expect(copiedHouseholdId).toBe(household.id);
+    expect(newId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(newId).not.toBe(recipeId);
+
+    // The saved copy gets its OWN media files (source id -> the new id).
+    expect(copyRecipeImagesDirMock).toHaveBeenCalledWith(source.id, newId);
+
+    // The result carries ONLY the new recipe id (the saver's copy).
+    expect(result).toEqual({ recipeId: savedRecipeId });
+
+    // It surfaces live in the saver's cookbook like a create.
+    expect(emitByPolicyMock).toHaveBeenCalledWith(
+      expect.anything(),
+      "household",
+      { userId: user.id, householdKey: household.id },
+      "created",
+      expect.objectContaining({ recipe: expect.objectContaining({ id: savedRecipeId }) })
+    );
+  });
+
+  it("does NOT save a PRIVATE recipe reached via a valid token (mirrors the SHARE-01 gate)", async () => {
+    const caller = recipeSharesProcedures.createCaller(authedCtx as never);
+
+    // A valid, active share token — but the recipe is private. The shared gate
+    // rejects with the SAME opaque NOT_FOUND, so a user cannot save a recipe
+    // that is not publicly shared.
+    mockActivePublicShare(createMockFullRecipe({ id: recipeId, visibility: "private" }));
+
+    await expect(caller.saveShared({ token: "valid-token" })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    // No copy of an unshared recipe.
+    expect(copyRecipeForSaveMock).not.toHaveBeenCalled();
+    expect(copyRecipeImagesDirMock).not.toHaveBeenCalled();
+  });
+
+  it("does NOT save a HOUSEHOLD recipe reached via a valid token", async () => {
+    const caller = recipeSharesProcedures.createCaller(authedCtx as never);
+
+    mockActivePublicShare(createMockFullRecipe({ id: recipeId, visibility: "household" }));
+
+    await expect(caller.saveShared({ token: "valid-token" })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    expect(copyRecipeForSaveMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects save with an invalid / revoked / expired token (same opaque not-found, no copy)", async () => {
+    const caller = recipeSharesProcedures.createCaller(authedCtx as never);
+
+    // getActiveRecipeShareByToken already filters expired/revoked -> null.
+    getActiveRecipeShareByTokenMock.mockResolvedValue(null);
+
+    await expect(caller.saveShared({ token: "invalid-token" })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    expect(getRecipeFullMock).not.toHaveBeenCalled();
+    expect(copyRecipeForSaveMock).not.toHaveBeenCalled();
+  });
+
+  it("requires authentication to save (logged-out caller is rejected, no copy)", async () => {
+    const caller = recipeSharesProcedures.createCaller(publicCtx as never);
+
+    mockActivePublicShare();
+
+    await expect(caller.saveShared({ token: "valid-token" })).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+    });
+    expect(copyRecipeForSaveMock).not.toHaveBeenCalled();
   });
 });
