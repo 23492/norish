@@ -24,7 +24,13 @@
 - [x] **HOUSE-06**: Per-cookbook isolation — members of one household cannot see another household's recipes (security-critical).
 - [x] **HOUSE-07**: Import/create assigns the recipe to the active cookbook. _(backend 02-02; frontend 02-04 indicates the active-cookbook target + refetches the list on switch — v1 shows the active target, no manual picker; code-complete, human-verify pending)_
 
-### Video transcription (AssemblyAI) — Phase 3
+### Recipe sharing — Phase 4
+
+- [x] **SHARE-01**: Per-link recipe sharing with per-recipe visibility private/household/public (built ON the existing `recipe_shares`); public = no-auth read-only view of ONE recipe by long share token at `/share/<token>`; gated on `visibility = public` (private/household unreachable publicly); owner/cookbook-admin creates/revokes the link + sets visibility from the recipe page. No public gallery (deferred). _(code-complete 2026-06-14; human-verify pending)_
+
+### Video transcription (AssemblyAI) — Phase 5
+
+_(renumbered from Phase 3/4 to make room for the Sharing phase.)_
 
 - [ ] **VIDEO-01**: AssemblyAI is a selectable native transcription provider (config-driven key).
 - [ ] **VIDEO-02**: TikTok & Instagram video imports work (caption + transcription).
@@ -58,7 +64,8 @@
 |-------------|-------|--------|
 | SCRAPE-01..06 | Phase 1 | Pending |
 | HOUSE-01..07 | Phase 2 | HOUSE-01..07 done; frontend (switcher, active-cookbook import indication, refetch-on-switch, 11-locale i18n) landed in 02-04 — code-complete, human-verify pending with the lead |
-| VIDEO-01..04 | Phase 3 | Pending |
+| SHARE-01 | Phase 4 | Code-complete 2026-06-14, human-verify pending |
+| VIDEO-01..04 | Phase 5 | Pending |
 | SETUP-01..03 | Phase 0 | In progress |
 | SETUP-04 | Phase 1 | Done |
 | SETUP-05 | Phases 1/3 + cross-cutting | In progress |
@@ -79,7 +86,7 @@ Locked from the product backlog + brainstorm (2026-06-12). All **Backlog/v2** un
 
 ### Sharing & ratings — Backlog
 
-- **SHARE-01**: Per-link sharing with per-recipe visibility private/household/public (built on `recipe_shares`); public = no-auth view by share token. No public gallery (deferred).
+- [x] **SHARE-01** (Phase 4, SHARE-01) — DONE 2026-06-14 (code-complete; human-verify pending): Per-link sharing with per-recipe visibility private/household/public, built ON the existing `recipe_shares` feature. Added `recipes.visibility` enum + migration 0038; the no-auth `/share/<token>` route serves a recipe ONLY when `visibility = public` (private/household unreachable even with a valid token — adversarially verified); creating a link promotes to public, revoking the last one reverts to private; an editor (owner/cookbook admin per POLICY-01) sets visibility from the recipe Share panel; token standardized to crypto.randomBytes(32). Public payload is single-recipe display data only (no ids/owner/cookbook listing). No public gallery (deferred); SHARE-02 deferred.
 - **SHARE-02**: "Save to account" button on a shared/public recipe → prompt login if needed → copy the recipe into the user's active cookbook.
 - **RATE-01**: Ratings show **average + count** plus per-user ratings **with names** (including on public views).
 - **VERSION-01** (major): Shared-recipe **versions / lineage** — saving a shared recipe creates a version in a shared bucket; users can explore others' versions; reviews aggregate across versions but stay **attributed to the version**; rater names visible. (Phase 2's recipe-1:N-cookbook model stays forward-compatible via a future `lineage_id` / `parent_recipe_id`.)
