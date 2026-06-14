@@ -15,6 +15,12 @@ import {
   revokeRecipeShare,
   updateRecipeShare,
 } from "@norish/db/repositories/recipe-shares";
+import {
+  countActiveRecipeShares,
+  getRecipeFull,
+  getRecipeVisibility,
+  setRecipeVisibility,
+} from "@norish/db/repositories/recipes";
 import * as schema from "@norish/db/schema";
 
 import {
@@ -136,6 +142,12 @@ describe("recipe share repository", () => {
     const { token } = await createTestRecipeShare(testUserId, testRecipeId, {
       token: "public-token",
     });
+
+    // SHARE-01: the public view is gated on visibility === "public".
+    await db
+      .update(schema.recipes)
+      .set({ visibility: "public" })
+      .where(eq(schema.recipes.id, testRecipeId));
     const ingredient = await createTestIngredient({ name: "Flour" });
     const step = await createTestRecipeStep(testRecipeId, "metric", {
       step: "Add toppings",
@@ -183,5 +195,84 @@ describe("recipe share repository", () => {
     expect(publicRecipe?.steps[0]?.images[0]?.image).toBe(`/share/${token}/steps/step.jpg`);
     expect(publicRecipe?.recipeIngredients[0]).not.toHaveProperty("ingredientId");
     expect(publicRecipe?.steps[0]).not.toHaveProperty("version");
+  });
+
+  // ── SHARE-01: per-recipe visibility ───────────────────────────────────
+
+  it("defaults a new recipe to private and round-trips visibility through getRecipeFull (real-parse)", async () => {
+    // The default recipe created by the test base is private. getRecipeFull must
+    // NOT throw "Failed to parse FullRecipeDTO" now that recipes carries a NOT
+    // NULL visibility column (the 02-06 createSelectSchema regression class).
+    const full = await getRecipeFull(testRecipeId);
+
+    expect(full).not.toBeNull();
+    expect(full?.visibility).toBe("private");
+
+    const db = getTestDb();
+
+    await db
+      .update(schema.recipes)
+      .set({ visibility: "public" })
+      .where(eq(schema.recipes.id, testRecipeId));
+
+    const updated = await getRecipeFull(testRecipeId);
+
+    expect(updated?.visibility).toBe("public");
+  });
+
+  it("does NOT build a public view for a private or household recipe", async () => {
+    const { token } = await createTestRecipeShare(testUserId, testRecipeId, {
+      token: "gated-token",
+    });
+    const db = getTestDb();
+
+    // private (default) -> null
+    expect(await getPublicRecipeView(testRecipeId, token)).toBeNull();
+
+    // household -> null
+    await db
+      .update(schema.recipes)
+      .set({ visibility: "household" })
+      .where(eq(schema.recipes.id, testRecipeId));
+    expect(await getPublicRecipeView(testRecipeId, token)).toBeNull();
+
+    // public -> served
+    await db
+      .update(schema.recipes)
+      .set({ visibility: "public" })
+      .where(eq(schema.recipes.id, testRecipeId));
+    expect(await getPublicRecipeView(testRecipeId, token)).not.toBeNull();
+  });
+
+  it("sets visibility with an optimistic version bump and reports stale on a mismatch", async () => {
+    const before = await getRecipeVisibility(testRecipeId);
+
+    expect(before?.visibility).toBe("private");
+
+    const applied = await setRecipeVisibility(testRecipeId, "public", before!.version);
+
+    expect(applied.stale).toBe(false);
+    expect(applied.value?.visibility).toBe("public");
+    expect(applied.value?.version).toBe(before!.version + 1);
+
+    // A stale version is rejected (no write).
+    const stale = await setRecipeVisibility(testRecipeId, "private", before!.version);
+
+    expect(stale.stale).toBe(true);
+    expect((await getRecipeVisibility(testRecipeId))?.visibility).toBe("public");
+  });
+
+  it("counts only ACTIVE share links (excludes revoked + expired)", async () => {
+    await createTestRecipeShare(testUserId, testRecipeId, { token: "active-1" });
+    await createTestRecipeShare(testUserId, testRecipeId, {
+      token: "revoked-1",
+      revokedAt: new Date(),
+    });
+    await createTestRecipeShare(testUserId, testRecipeId, {
+      token: "expired-1",
+      expiresAt: new Date(Date.now() - 60_000),
+    });
+
+    expect(await countActiveRecipeShares(testRecipeId)).toBe(1);
   });
 });

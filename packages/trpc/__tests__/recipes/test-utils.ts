@@ -116,6 +116,7 @@ export function createMockFullRecipe(overrides: Partial<FullRecipeDTO> = {}): Fu
     carbs: null,
     protein: null,
     systemUsed: "metric",
+    visibility: "public",
     createdAt: now,
     updatedAt: now,
     tags: [{ name: "dinner" }],

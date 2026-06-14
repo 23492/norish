@@ -1,5 +1,6 @@
 // @vitest-environment node
 
+import { TRPCError } from "@trpc/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -18,6 +19,9 @@ const getTimerKeywordsMock = vi.hoisted(() => vi.fn());
 const getRecipePermissionPolicyMock = vi.hoisted(() => vi.fn());
 const getPublicRecipeViewMock = vi.hoisted(() => vi.fn());
 const getRecipeFullMock = vi.hoisted(() => vi.fn());
+const getRecipeVisibilityMock = vi.hoisted(() => vi.fn());
+const setRecipeVisibilityMock = vi.hoisted(() => vi.fn());
+const countActiveRecipeSharesMock = vi.hoisted(() => vi.fn());
 const getRecipeShareByIdMock = vi.hoisted(() => vi.fn());
 const getRecipeSharesByUserIdMock = vi.hoisted(() => vi.fn());
 const getRecipeShareStatusMock = vi.hoisted(() => vi.fn());
@@ -58,6 +62,9 @@ vi.mock("@norish/db/repositories/recipe-shares", () => ({
 
 vi.mock("@norish/db/repositories/recipes", () => ({
   getRecipeFull: getRecipeFullMock,
+  getRecipeVisibility: getRecipeVisibilityMock,
+  setRecipeVisibility: setRecipeVisibilityMock,
+  countActiveRecipeShares: countActiveRecipeSharesMock,
 }));
 
 vi.mock("@norish/db", () => ({
@@ -95,6 +102,15 @@ describe("recipe share procedures", () => {
     getHouseholdsForUserMock.mockResolvedValue([household]);
     getRecipePermissionPolicyMock.mockResolvedValue({ view: "household" });
     getRecipeShareStatusMock.mockReturnValue("active");
+    // Visibility-transition repo defaults (SHARE-01): create -> public,
+    // revoke/delete -> private when no active shares remain.
+    getRecipeVisibilityMock.mockResolvedValue({ visibility: "private", version: 1 });
+    setRecipeVisibilityMock.mockResolvedValue({
+      applied: true,
+      stale: false,
+      value: { visibility: "public", version: 2 },
+    });
+    countActiveRecipeSharesMock.mockResolvedValue(0);
     getUnitsMock.mockResolvedValue({});
     isTimersEnabledMock.mockResolvedValue(true);
     getTimerKeywordsMock.mockResolvedValue({
@@ -439,5 +455,231 @@ describe("recipe share procedures", () => {
         version: 4,
       }
     );
+  });
+
+  // ── SHARE-01: per-recipe visibility gate ──────────────────────────────
+
+  function mockActiveShareForToken() {
+    getActiveRecipeShareByTokenMock.mockResolvedValue({
+      id: shareId,
+      userId: user.id,
+      recipeId,
+      tokenHash: "hashed",
+      expiresAt: null,
+      revokedAt: null,
+      lastAccessedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      version: 2,
+    });
+  }
+
+  it("does NOT serve a PRIVATE recipe via the public token route", async () => {
+    const caller = recipeSharesProcedures.createCaller(publicCtx as never);
+
+    // A valid, active share token exists, but the recipe is private.
+    mockActiveShareForToken();
+    getRecipeFullMock.mockResolvedValue(createMockFullRecipe({ id: recipeId, visibility: "private" }));
+
+    // SHARE-01 gate lives in sharedRecipeProcedure (the public choke point):
+    // a non-public recipe is the SAME opaque NOT_FOUND as a missing token.
+    await expect(caller.getShared({ token: "valid-token" })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    // The gate short-circuits BEFORE building the public view.
+    expect(getPublicRecipeViewMock).not.toHaveBeenCalled();
+  });
+
+  it("does NOT serve a HOUSEHOLD recipe via the public token route", async () => {
+    const caller = recipeSharesProcedures.createCaller(publicCtx as never);
+
+    mockActiveShareForToken();
+    getRecipeFullMock.mockResolvedValue(
+      createMockFullRecipe({ id: recipeId, visibility: "household" })
+    );
+
+    await expect(caller.getShared({ token: "valid-token" })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    expect(getPublicRecipeViewMock).not.toHaveBeenCalled();
+  });
+
+  it("serves ONLY a PUBLIC recipe via the public token route, with a single-recipe payload", async () => {
+    const caller = recipeSharesProcedures.createCaller(publicCtx as never);
+    const recipe = createMockFullRecipe({ id: recipeId, visibility: "public" });
+
+    mockActiveShareForToken();
+    getRecipeFullMock.mockResolvedValue(recipe);
+    getPublicRecipeViewMock.mockResolvedValue({
+      name: recipe.name,
+      description: recipe.description,
+      notes: recipe.notes ?? null,
+      url: recipe.url,
+      image: "/share/valid-token/media/cover.jpg",
+      servings: recipe.servings,
+      prepMinutes: recipe.prepMinutes,
+      cookMinutes: recipe.cookMinutes,
+      totalMinutes: recipe.totalMinutes,
+      systemUsed: recipe.systemUsed,
+      calories: recipe.calories,
+      fat: recipe.fat,
+      carbs: recipe.carbs,
+      protein: recipe.protein,
+      categories: recipe.categories,
+      tags: [{ name: "dinner" }],
+      recipeIngredients: [
+        { ingredientName: "Flour", amount: 200, unit: "g", systemUsed: "metric", order: 0 },
+      ],
+      steps: [{ step: "Mix", systemUsed: "metric", order: 0, images: [] }],
+      author: { name: "Test User", image: null },
+      images: [],
+      videos: [],
+    });
+
+    const result = await caller.getShared({ token: "valid-token" });
+
+    expect(getPublicRecipeViewMock).toHaveBeenCalledWith(recipeId, "valid-token");
+    // The public payload is single-recipe display data ONLY: never the owner's
+    // id/userId/householdId, member lists, cookbook contents, or share tokens.
+    expect(result).not.toHaveProperty("id");
+    expect(result).not.toHaveProperty("userId");
+    expect(result).not.toHaveProperty("householdId");
+    expect(result).not.toHaveProperty("tokenHash");
+    expect(result.author).not.toHaveProperty("id");
+    expect(result.name).toBe(recipe.name);
+  });
+
+  it("promotes the recipe to PUBLIC when a share link is created", async () => {
+    const caller = recipeSharesProcedures.createCaller(authedCtx as never);
+
+    assertRecipeAccessMock.mockResolvedValue(undefined);
+    getRecipeVisibilityMock.mockResolvedValue({ visibility: "private", version: 7 });
+    createRecipeShareMock.mockResolvedValue({
+      id: shareId,
+      userId: user.id,
+      recipeId,
+      expiresAt: null,
+      revokedAt: null,
+      lastAccessedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      version: 1,
+      status: "active",
+      url: "/share/token-1",
+    });
+
+    await caller.shareCreate({ recipeId, expiresIn: "forever" });
+
+    expect(setRecipeVisibilityMock).toHaveBeenCalledWith(recipeId, "public", 7);
+  });
+
+  it("reverts the recipe to PRIVATE when the last active share is revoked", async () => {
+    const caller = recipeSharesProcedures.createCaller(authedCtx as never);
+
+    getRecipeShareByIdMock.mockResolvedValue({
+      id: shareId,
+      userId: user.id,
+      recipeId,
+      tokenHash: "hashed",
+      expiresAt: null,
+      revokedAt: null,
+      lastAccessedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      version: 2,
+    });
+    revokeRecipeShareMock.mockResolvedValue({
+      stale: false,
+      value: {
+        id: shareId,
+        userId: user.id,
+        recipeId,
+        expiresAt: null,
+        revokedAt: new Date(),
+        lastAccessedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        version: 3,
+        status: "revoked",
+      },
+    });
+    countActiveRecipeSharesMock.mockResolvedValue(0);
+    getRecipeVisibilityMock.mockResolvedValue({ visibility: "public", version: 9 });
+
+    await caller.shareRevoke({ id: shareId, version: 2 });
+
+    expect(setRecipeVisibilityMock).toHaveBeenCalledWith(recipeId, "private", 9);
+  });
+
+  it("keeps the recipe PUBLIC when other active shares remain after a revoke", async () => {
+    const caller = recipeSharesProcedures.createCaller(authedCtx as never);
+
+    getRecipeShareByIdMock.mockResolvedValue({
+      id: shareId,
+      userId: user.id,
+      recipeId,
+      tokenHash: "hashed",
+      expiresAt: null,
+      revokedAt: null,
+      lastAccessedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      version: 2,
+    });
+    revokeRecipeShareMock.mockResolvedValue({
+      stale: false,
+      value: {
+        id: shareId,
+        userId: user.id,
+        recipeId,
+        expiresAt: null,
+        revokedAt: new Date(),
+        lastAccessedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        version: 3,
+        status: "revoked",
+      },
+    });
+    countActiveRecipeSharesMock.mockResolvedValue(1);
+
+    await caller.shareRevoke({ id: shareId, version: 2 });
+
+    expect(setRecipeVisibilityMock).not.toHaveBeenCalled();
+  });
+
+  it("sets visibility after enforcing recipe EDIT access", async () => {
+    const caller = recipeSharesProcedures.createCaller(authedCtx as never);
+
+    assertRecipeAccessMock.mockResolvedValue(undefined);
+    setRecipeVisibilityMock.mockResolvedValue({
+      applied: true,
+      stale: false,
+      value: { visibility: "public", version: 5 },
+    });
+    getRecipeFullMock.mockResolvedValue(createMockFullRecipe({ id: recipeId, visibility: "public" }));
+
+    const result = await caller.shareSetVisibility({
+      recipeId,
+      visibility: "public",
+      version: 4,
+    });
+
+    expect(assertRecipeAccessMock).toHaveBeenCalledWith(authedCtx, recipeId, "edit");
+    expect(setRecipeVisibilityMock).toHaveBeenCalledWith(recipeId, "public", 4);
+    expect(result).toEqual({ recipeId, visibility: "public", version: 5, stale: false });
+  });
+
+  it("rejects setVisibility when the caller lacks EDIT access", async () => {
+    const caller = recipeSharesProcedures.createCaller(authedCtx as never);
+
+    assertRecipeAccessMock.mockRejectedValue(
+      new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to access this recipe" })
+    );
+
+    await expect(
+      caller.shareSetVisibility({ recipeId, visibility: "public", version: 4 })
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(setRecipeVisibilityMock).not.toHaveBeenCalled();
   });
 });
