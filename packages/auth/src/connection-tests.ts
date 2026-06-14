@@ -66,6 +66,31 @@ export async function testGoogleProvider(config: {
   return { success: true };
 }
 
+// WorkOS Client IDs are opaque (client_... or project_...). We can't validate the
+// credentials without exposing the API key, so this is a light presence/shape check
+// (mirrors the google/github validators). The real round-trip is the live login.
+export async function testWorkOSProvider(config: {
+  clientId: string;
+}): Promise<{ success: boolean; error?: string }> {
+  const clientId = config.clientId?.trim();
+
+  if (!clientId) {
+    return {
+      success: false,
+      error: "Client ID is required",
+    };
+  }
+
+  if (!clientId.startsWith("client_") && !clientId.startsWith("project_")) {
+    return {
+      success: false,
+      error: "WorkOS Client ID should start with client_ or project_",
+    };
+  }
+
+  return { success: true };
+}
+
 async function testPerplexityConnection(
   apiKey?: string
 ): Promise<{ success: boolean; error?: string }> {

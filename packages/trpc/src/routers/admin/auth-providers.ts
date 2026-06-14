@@ -5,6 +5,7 @@ import {
   testGitHubProvider,
   testGoogleProvider,
   testOIDCProvider,
+  testWorkOSProvider,
 } from "@norish/auth/connection-tests";
 import {
   AuthProviderGitHubInputSchema,
@@ -13,6 +14,8 @@ import {
   AuthProviderGoogleSchema,
   AuthProviderOIDCInputSchema,
   AuthProviderOIDCSchema,
+  AuthProviderWorkOSInputSchema,
+  AuthProviderWorkOSSchema,
   ServerConfigKeys,
 } from "@norish/config/zod/server-config";
 import {
@@ -81,10 +84,28 @@ const updateGoogle = adminProcedure
   });
 
 /**
+ * Update WorkOS auth provider config.
+ */
+const updateWorkOS = adminProcedure
+  .input(AuthProviderWorkOSInputSchema)
+  .mutation(async ({ input, ctx }) => {
+    log.info({ userId: ctx.user.id }, "Updating WorkOS auth provider");
+
+    await setConfig(
+      ServerConfigKeys.AUTH_PROVIDER_WORKOS,
+      { ...input, isOverridden: true },
+      ctx.user.id,
+      true
+    );
+
+    return { success: true };
+  });
+
+/**
  * Delete an auth provider.
  */
 const deleteProvider = adminProcedure
-  .input(z.enum(["oidc", "github", "google"]))
+  .input(z.enum(["oidc", "github", "google", "workos"]))
   .mutation(async ({ input, ctx }) => {
     log.info({ userId: ctx.user.id, provider: input }, "Deleting auth provider");
 
@@ -92,7 +113,8 @@ const deleteProvider = adminProcedure
       oidc: ServerConfigKeys.AUTH_PROVIDER_OIDC,
       github: ServerConfigKeys.AUTH_PROVIDER_GITHUB,
       google: ServerConfigKeys.AUTH_PROVIDER_GOOGLE,
-    } satisfies Record<"oidc" | "github" | "google", ServerConfigKey>;
+      workos: ServerConfigKeys.AUTH_PROVIDER_WORKOS,
+    } satisfies Record<"oidc" | "github" | "google" | "workos", ServerConfigKey>;
     const key = keyMap[input];
 
     // Check if this is the last configured auth method
@@ -133,7 +155,7 @@ const deleteProvider = adminProcedure
 const testProvider = adminProcedure
   .input(
     z.object({
-      type: z.enum(["oidc", "github", "google"]),
+      type: z.enum(["oidc", "github", "google", "workos"]),
       config: z.record(z.string(), z.unknown()),
     })
   )
@@ -168,6 +190,15 @@ const testProvider = adminProcedure
 
         return await testGoogleProvider(result.data);
       }
+      case "workos": {
+        const result = AuthProviderWorkOSSchema.safeParse(input.config);
+
+        if (!result.success) {
+          return { success: false, error: result.error.message };
+        }
+
+        return await testWorkOSProvider(result.data);
+      }
       default:
         return { success: false, error: `Unknown provider type: ${input.type}` };
     }
@@ -177,6 +208,7 @@ export const authProvidersProcedures = router({
   updateOIDC,
   updateGitHub,
   updateGoogle,
+  updateWorkOS,
   deleteProvider,
   testProvider,
 });

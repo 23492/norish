@@ -2,6 +2,7 @@ import type {
   AuthProviderGitHub,
   AuthProviderGoogle,
   AuthProviderOIDC,
+  AuthProviderWorkOS,
 } from "@norish/config/zod/server-config";
 import type { ProviderInfo } from "@norish/shared/contracts";
 
@@ -59,6 +60,21 @@ export async function getAvailableProviders(): Promise<ProviderInfo[]> {
     });
   }
 
+  // Check WorkOS provider
+  const workos = await getConfig<AuthProviderWorkOS>(
+    ServerConfigKeys.AUTH_PROVIDER_WORKOS,
+    true
+  );
+
+  if (workos?.clientId) {
+    providers.push({
+      id: "workos",
+      name: "WorkOS",
+      icon: "logos:workos-icon",
+      type: "oauth",
+    });
+  }
+
   return providers;
 }
 
@@ -69,10 +85,11 @@ export async function isPasswordAuthEnabled(): Promise<boolean> {
 }
 
 export async function getConfiguredProviders(): Promise<Record<string, boolean>> {
-  const [github, google, oidc, passwordEnabled] = await Promise.all([
+  const [github, google, oidc, workos, passwordEnabled] = await Promise.all([
     getConfig<AuthProviderGitHub>(ServerConfigKeys.AUTH_PROVIDER_GITHUB, true),
     getConfig<AuthProviderGoogle>(ServerConfigKeys.AUTH_PROVIDER_GOOGLE, true),
     getConfig<AuthProviderOIDC>(ServerConfigKeys.AUTH_PROVIDER_OIDC, true),
+    getConfig<AuthProviderWorkOS>(ServerConfigKeys.AUTH_PROVIDER_WORKOS, true),
     getConfig<boolean>(ServerConfigKeys.PASSWORD_AUTH_ENABLED),
   ]);
 
@@ -80,6 +97,7 @@ export async function getConfiguredProviders(): Promise<Record<string, boolean>>
     github: !!github?.clientId,
     google: !!google?.clientId,
     oidc: !!(oidc?.clientId && oidc?.issuer),
+    workos: !!workos?.clientId,
     password: !!passwordEnabled,
   };
 }
