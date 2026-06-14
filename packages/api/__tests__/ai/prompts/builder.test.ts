@@ -10,6 +10,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildAutoTaggingPrompt } from "@norish/api/ai/prompts/builder";
+import {
+  buildLanguageInstruction,
+  localeToLanguageName,
+} from "@norish/api/ai/prompts/fragments/language";
 import { getAutoTaggingMode } from "@norish/config/server-config-loader";
 import { listAllTagNames } from "@norish/db/repositories/tags";
 import { loadPrompt } from "@norish/shared-server/ai/prompts/loader";
@@ -217,5 +221,64 @@ PREDEFINED TAGS:
       expect(result).toContain("Simple Eggs");
       expect(result).not.toContain("Description:");
     });
+  });
+});
+
+describe("buildLanguageInstruction", () => {
+  it("instructs the model to keep free-text fields in the source language", () => {
+    const result = buildLanguageInstruction();
+
+    expect(result).toContain("LANGUAGE:");
+    expect(result).toContain("SAME language as the source content");
+    expect(result).toMatch(/Do NOT translate/i);
+    // Lists the free-text fields that must follow the source language.
+    expect(result).toContain("description");
+    expect(result).toContain("ingredients");
+    expect(result).toContain("keywords");
+  });
+
+  it("keeps the categories enum in English regardless of source language", () => {
+    const result = buildLanguageInstruction("nl");
+
+    expect(result).toContain("categories");
+    expect(result).toMatch(/categories.*MUST stay in English/i);
+    expect(result).toContain("Breakfast, Lunch, Dinner, Snack");
+  });
+
+  it("names the resolved target language when a locale code is given", () => {
+    const result = buildLanguageInstruction("nl");
+
+    expect(result).toContain("Nederlands");
+    expect(result).toContain("produce all of the above fields in Nederlands");
+  });
+
+  it("omits the explicit-language line when no target is given", () => {
+    const result = buildLanguageInstruction();
+
+    expect(result).not.toContain("The source content is in");
+  });
+});
+
+describe("localeToLanguageName", () => {
+  it("maps a known locale code to its human-readable name", () => {
+    expect(localeToLanguageName("nl")).toBe("Nederlands");
+    expect(localeToLanguageName("en")).toBe("English");
+    expect(localeToLanguageName("de-formal")).toBe("Deutsch (Sie)");
+  });
+
+  it("falls back to the base subtag of a BCP-47 tag", () => {
+    expect(localeToLanguageName("nl-NL")).toBe("Nederlands");
+    expect(localeToLanguageName("en-US")).toBe("English");
+  });
+
+  it("passes through an unknown code or a human-readable name unchanged", () => {
+    expect(localeToLanguageName("Nederlands")).toBe("Nederlands");
+    expect(localeToLanguageName("xx")).toBe("xx");
+  });
+
+  it("returns undefined for empty or missing input", () => {
+    expect(localeToLanguageName(undefined)).toBeUndefined();
+    expect(localeToLanguageName("")).toBeUndefined();
+    expect(localeToLanguageName("   ")).toBeUndefined();
   });
 });
