@@ -628,6 +628,7 @@
         "openai": "OpenAI Whisper",
         "groq": "Groq Whisper",
         "azure": "Azure OpenAI Whisper",
+        "assemblyai": "AssemblyAI",
         "ollama": "Ollama",
         "genericOpenai": "Generisk OpenAI-kompatibel"
       },

@@ -323,6 +323,7 @@ export default function VideoProcessingForm({ onDirtyChange }: VideoProcessingFo
         <SelectItem key="openai">{t("transcriptionProviders.openai")}</SelectItem>
         <SelectItem key="groq">{t("transcriptionProviders.groq")}</SelectItem>
         <SelectItem key="azure">{t("transcriptionProviders.azure")}</SelectItem>
+        <SelectItem key="assemblyai">{t("transcriptionProviders.assemblyai")}</SelectItem>
         <SelectItem key="ollama">{t("transcriptionProviders.ollama")}</SelectItem>
         <SelectItem key="generic-openai">{t("transcriptionProviders.genericOpenai")}</SelectItem>
       </Select>
