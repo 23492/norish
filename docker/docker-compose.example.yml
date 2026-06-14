@@ -55,10 +55,14 @@ services:
 
       # Option 5: WorkOS AuthKit (uncomment and remove OIDC above)
       # Configured ONLY via env (config-as-code); WorkOS has no admin-UI panel.
+      # Wired as a standard OIDC provider via WORKOS_AUTHKIT_DOMAIN -> discovery doc
+      # https://<domain>/.well-known/openid-configuration (auto-discovers endpoints).
       # Register the callback ${AUTH_URL}/api/auth/oauth2/callback/workos in the WorkOS dashboard.
-      # WORKOS_CLIENT_ID is the WorkOS Client ID (client_.../project_...); WORKOS_API_KEY is the API Key (sk_...).
+      # WORKOS_CLIENT_ID is the WorkOS Client ID (client_.../project_...); WORKOS_API_KEY is the API Key (sk_...);
+      # WORKOS_AUTHKIT_DOMAIN is the AuthKit domain (e.g. your-app.authkit.app). All three are required.
       # WORKOS_CLIENT_ID: <workos-client-id>
       # WORKOS_API_KEY: <workos-api-key>
+      # WORKOS_AUTHKIT_DOMAIN: <your-app>.authkit.app
 
       # Redis for real-time events (required)
       REDIS_URL: redis://redis:6379
