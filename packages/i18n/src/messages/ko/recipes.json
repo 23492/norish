@@ -36,6 +36,7 @@
     "notes": "메모",
     "addToGroceries": "장보기에 추가",
     "ratingPrompt": "이 레시피에 대해 어떻게 생각하시나요?",
+    "clearRating": "평점 지우기",
     "ratingsCount": "{count, plural, one {# rating} other {# ratings}}",
     "ratedBy": "Rated by {name}",
     "you": "You",

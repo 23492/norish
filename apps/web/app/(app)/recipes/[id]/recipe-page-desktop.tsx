@@ -45,7 +45,7 @@ export default function RecipePageDesktop() {
   const { isFavorite: checkFavorite } = useFavoritesQuery();
   const { toggleFavorite } = useFavoritesMutation();
   const { userRating, averageRating, isLoading: isRatingLoading } = useRatingQuery(recipe.id);
-  const { rateRecipe, isRating } = useRatingsMutation();
+  const { rateRecipe, removeRating, isRating } = useRatingsMutation();
   const { user } = useUserContext();
   const t = useTranslations("recipes.detail");
   const showRatings = getShowRatingsPreference(user);
@@ -54,6 +54,7 @@ export default function RecipePageDesktop() {
   const isFavorite = checkFavorite(recipe.id);
   const handleToggleFavorite = () => toggleFavorite(recipe.id);
   const handleRateRecipe = (rating: number) => rateRecipe(recipe.id, rating);
+  const handleClearRating = () => removeRating(recipe.id);
 
   return (
     <div className="hidden flex-col space-y-6 px-6 pb-10 md:flex">
@@ -168,7 +169,10 @@ export default function RecipePageDesktop() {
                 <StarRating
                   isLoading={isRating || isRatingLoading}
                   value={userRating ?? averageRating}
+                  userValue={userRating}
                   onChange={handleRateRecipe}
+                  onClear={handleClearRating}
+                  clearLabel={t("clearRating")}
                 />
                 <RecipeRaters recipeId={recipe.id} />
               </div>

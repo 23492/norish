@@ -36,6 +36,7 @@
     "notes": "Заметки",
     "addToGroceries": "Добавить в список покупок",
     "ratingPrompt": "Что вы думаете об этом рецепте?",
+    "clearRating": "Удалить оценку",
     "ratingsCount": "{count, plural, one {# rating} other {# ratings}}",
     "ratedBy": "Rated by {name}",
     "you": "You",

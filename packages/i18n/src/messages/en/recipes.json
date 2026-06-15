@@ -36,6 +36,7 @@
     "notes": "Notes",
     "addToGroceries": "Add to groceries",
     "ratingPrompt": "What did you think of this recipe?",
+    "clearRating": "Clear rating",
     "ratingsCount": "{count, plural, one {# rating} other {# ratings}}",
     "ratedBy": "Rated by {name}",
     "you": "You",
