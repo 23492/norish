@@ -35,7 +35,17 @@ services:
       # Option 1: Password auth - basic auth with email/password
       # If not set defaults to disabled if OIDC or OAuth is configured.
       # Defaults to true if no other auth providers are configured.
-      #PASSWORD_AUTH_ENABLED=false # Enable/disable password auth default: false
+      #
+      # AUTH TOGGLES (operator config — env is the SOURCE OF TRUTH).
+      # REGISTRATION_ENABLED + PASSWORD_AUTH_ENABLED, when SET, are re-seeded into the DB
+      # on EVERY boot (env wins) and SURVIVE a clean DB. When UNSET each is a no-op and the
+      # prior DB/admin value is kept — self-host behaviour is unchanged, incl. registration
+      # auto-disabling after the first user. Values: true/1 or false/0.
+      # Commercial SaaS (WorkOS-only): registration OPEN + password OFF =>
+      #   REGISTRATION_ENABLED: "true"
+      #   PASSWORD_AUTH_ENABLED: "false"
+      # REGISTRATION_ENABLED: "true"   # Open self-service signup (env-authoritative; overrides the post-first-user auto-disable)
+      # PASSWORD_AUTH_ENABLED: "false" # Enable/disable email+password auth (default: false when an OAuth/OIDC provider is configured)
 
       # Option 2: OIDC (Authentik, Keycloak, PocketID, etc.)
       # OIDC_NAME: NoraId
