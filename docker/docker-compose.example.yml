@@ -62,6 +62,14 @@ services:
       # Both are required.
       # WORKOS_CLIENT_ID: <workos-client-id>
       # WORKOS_API_KEY: <workos-api-key>
+      #
+      # SERVER ADMIN / OPERATOR ALLOWLIST (config-as-code — env is the source of truth).
+      # Comma-separated, case-insensitive emails = the SINGLE source of truth for who is
+      # a SERVER admin (Settings => Admin). When SET it is authoritative and re-evaluated
+      # on every login (first signup is NOT auto-admin unless listed; a previously
+      # auto-promoted non-listed user is demoted). When UNSET the legacy first-user-owner
+      # behavior is preserved. Server-level only; per-cookbook ownership is unaffected.
+      # ADMIN_EMAILS: admin@example.com,ops@example.com
 
       # ─────────────────────────────────────────────────────────────────────────
       # AI & TRANSCRIPTION (operator config — env is the SOURCE OF TRUTH)
