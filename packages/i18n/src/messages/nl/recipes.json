@@ -36,6 +36,7 @@
     "notes": "Notities",
     "addToGroceries": "Toevoegen aan boodschappen",
     "ratingPrompt": "Wat vond je van dit recept?",
+    "clearRating": "Beoordeling wissen",
     "ratingsCount": "{count, plural, one {# beoordeling} other {# beoordelingen}}",
     "ratedBy": "Beoordeeld door {name}",
     "you": "Jij",

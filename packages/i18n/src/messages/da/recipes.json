@@ -36,6 +36,7 @@
     "notes": "Noter",
     "addToGroceries": "Tilføj til indkøbsliste",
     "ratingPrompt": "Hvad syntes du om denne opskrift?",
+    "clearRating": "Ryd bedømmelse",
     "ratingsCount": "{count, plural, one {# rating} other {# ratings}}",
     "ratedBy": "Rated by {name}",
     "you": "You",

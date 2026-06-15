@@ -4,9 +4,14 @@ import {
   getRecipeRaters,
   getUserRatingWithVersion,
   rateRecipe,
+  removeUserRating,
 } from "@norish/db/repositories/ratings";
 import { trpcLogger as log } from "@norish/shared-server/logger";
-import { RatingGetInputSchema, RatingInputSchema } from "@norish/shared/contracts/zod";
+import {
+  RatingGetInputSchema,
+  RatingInputSchema,
+  RatingRemoveInputSchema,
+} from "@norish/shared/contracts/zod";
 
 import { emitByPolicy } from "../../helpers";
 import { authedProcedure } from "../../middleware";
@@ -68,6 +73,41 @@ const rate = authedProcedure.input(RatingInputSchema).mutation(({ ctx, input }) 
   return { success: true };
 });
 
+const removeRating = authedProcedure
+  .input(RatingRemoveInputSchema)
+  .mutation(({ ctx, input }) => {
+    const { recipeId } = input;
+
+    log.debug({ userId: ctx.user.id, recipeId }, "Removing recipe rating");
+
+    removeUserRating(ctx.user.id, recipeId)
+      .then(async (result) => {
+        const stats = await getAverageRating(recipeId);
+        const policy = await getRecipePermissionPolicy();
+
+        log.info(
+          { userId: ctx.user.id, recipeId, removed: result.removed },
+          "Recipe rating removed"
+        );
+
+        emitByPolicy(
+          ratingsEmitter,
+          policy.view,
+          { userId: ctx.user.id, householdKey: ctx.householdKey },
+          "ratingUpdated",
+          { recipeId, averageRating: stats.averageRating, ratingCount: stats.ratingCount }
+        );
+      })
+      .catch((err) => {
+        const error = err as Error;
+
+        log.error({ err: error, userId: ctx.user.id, recipeId }, "Failed to remove rating");
+        emitRatingFailed(ctx, recipeId, error.message || "Failed to remove rating");
+      });
+
+    return { success: true };
+  });
+
 const getUserRatingProcedure = authedProcedure
   .input(RatingGetInputSchema)
   .query(async ({ ctx, input }) => {
@@ -101,6 +141,7 @@ const getRaters = authedProcedure.input(RatingGetInputSchema).query(async ({ ctx
 
 export const ratingsProcedures = router({
   rate,
+  removeRating,
   getUserRating: getUserRatingProcedure,
   getAverage,
   getRaters,

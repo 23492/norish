@@ -36,6 +36,7 @@
     "notes": "Notatki",
     "addToGroceries": "Dodaj do zakupów",
     "ratingPrompt": "Co sądzisz o tym przepisie?",
+    "clearRating": "Usuń ocenę",
     "ratingsCount": "{count, plural, one {# rating} other {# ratings}}",
     "ratedBy": "Rated by {name}",
     "you": "You",
