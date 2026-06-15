@@ -454,6 +454,28 @@ export async function setUserAdminStatus(userId: string, isAdmin: boolean): Prom
     .where(eq(users.id, userId));
 }
 
+/**
+ * Set BOTH server-role flags in a single write (env-authoritative path, R2).
+ *
+ * Used by the ADMIN_EMAILS allowlist re-evaluation to DEMOTE a previously
+ * auto-owner who is not in the list (isServerOwner=false, isServerAdmin=false),
+ * or to set an exact role. Unlike setUserAdminStatus (admin-only) and
+ * setUserAsOwnerAndAdmin (both-true), this can also CLEAR isServerOwner.
+ * Setting isServerOwner=false is always safe wrt the single-owner partial
+ * unique index; this function never grants owner to more than one user on its
+ * own (callers pass owner=false on the env path).
+ */
+export async function setUserServerRole(
+  userId: string,
+  isServerOwner: boolean,
+  isServerAdmin: boolean
+): Promise<void> {
+  await db
+    .update(users)
+    .set({ isServerOwner, isServerAdmin, version: sql`${users.version} + 1` })
+    .where(eq(users.id, userId));
+}
+
 export async function countUsers(): Promise<number> {
   const result = await db.select({ id: users.id }).from(users);
 
