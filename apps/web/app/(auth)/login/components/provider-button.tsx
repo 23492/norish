@@ -11,6 +11,7 @@ interface ProviderButtonProps {
   providerName: string;
   icon: string;
   callbackUrl?: string;
+  iconOnly?: boolean;
 }
 
 export function ProviderButton({
@@ -18,12 +19,13 @@ export function ProviderButton({
   providerName,
   icon,
   callbackUrl = "/",
+  iconOnly = false,
 }: ProviderButtonProps) {
   const t = useTranslations("auth.provider");
   const handleSignIn = async () => {
     const id = providerId.toLowerCase();
 
-    // GitHub and Google use signIn.social(), OIDC uses signIn.oauth2()
+    // GitHub and Google use signIn.social(), OIDC/WorkOS use signIn.oauth2()
     if (id === "github" || id === "google") {
       await signIn.social({
         provider: id,
@@ -31,7 +33,7 @@ export function ProviderButton({
         errorCallbackURL: "/auth-error",
       });
     } else {
-      // Generic OAuth (OIDC) via genericOAuth plugin
+      // Generic OAuth (OIDC / WorkOS) via genericOAuth plugin
       await signIn.oauth2({
         providerId,
         callbackURL: callbackUrl,
@@ -39,6 +41,23 @@ export function ProviderButton({
       });
     }
   };
+
+  // Compact, icon-only tile — used when several providers render side by side
+  // (matches the AuthKit-style row of social buttons).
+  if (iconOnly) {
+    return (
+      <Button
+        isIconOnly
+        aria-label={t("signInWith", { provider: providerName })}
+        className="border-default-200 bg-default-100 hover:bg-default-100 active:bg-default-200 h-12 w-full rounded-xl border shadow-sm transition-colors"
+        title={t("signInWith", { provider: providerName })}
+        variant="flat"
+        onPress={handleSignIn}
+      >
+        <ProviderIcon icon={icon} providerName={providerName} width={22} />
+      </Button>
+    );
+  }
 
   return (
     <Button

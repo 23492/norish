@@ -4,7 +4,7 @@ import type { ProviderInfo } from "@norish/shared/contracts";
 
 import { Divider } from "@heroui/react";
 import { useTranslations } from "next-intl";
-
+import Link from "next/link";
 
 import { AuthCard } from "../../components/auth-card";
 
@@ -38,14 +38,26 @@ export function LoginClient({
 
   const hasCredential = !!credentialProvider;
   const hasOAuth = oauthProviders.length > 0;
+  // Render social providers as a compact icon row (AuthKit-widget style) once
+  // there are several; a lone provider stays a full labeled button for clarity.
+  const useIconRow = oauthProviders.length >= 2;
 
   return (
     <AuthCard
       footer={
-        hasOAuth &&
-        !hasCredential && (
-          <p className="text-small text-default-500 mt-6 text-center">{t("redirectMessage")}</p>
-        )
+        <div className="mt-6 flex flex-col items-center gap-2">
+          {hasOAuth && !hasCredential && (
+            <p className="text-small text-default-500 text-center">{t("redirectMessage")}</p>
+          )}
+          {registrationEnabled && (
+            <p className="text-small text-default-500 text-center">
+              {t("noAccount")}{" "}
+              <Link className="text-primary font-medium hover:underline" href="/signup">
+                {t("signUp")}
+              </Link>
+            </p>
+          )}
+        </div>
       }
       subtitle={t("subtitle")}
       title={t("title")}
@@ -66,12 +78,17 @@ export function LoginClient({
 
       {/* OAuth provider buttons */}
       {hasOAuth && (
-        <div className="flex flex-col gap-3">
+        <div
+          className={
+            useIconRow ? "grid grid-cols-2 gap-3 sm:grid-cols-4" : "flex flex-col gap-3"
+          }
+        >
           {oauthProviders.map((provider) => (
             <ProviderButton
               key={provider.id}
               callbackUrl={callbackUrl}
               icon={provider.icon}
+              iconOnly={useIconRow}
               providerId={provider.id}
               providerName={provider.name}
             />
