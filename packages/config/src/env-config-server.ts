@@ -129,11 +129,22 @@ const ServerConfigSchema = z.object({
     ? z.url().default("postgresql://build:build@localhost:5432/build")
     : z.url(),
 
-  ENABLE_REGISTRATION: z
+  // Auth toggles (operator config — env is the SOURCE OF TRUTH, R4). Optional booleans:
+  // when SET they are authoritative and re-seeded into the server_config DB on EVERY
+  // boot (env wins); when UNSET (undefined) the sync is a no-op and the DB/admin value
+  // is preserved (no regression for self-host). Parsed from "true"/"1" => true,
+  // "false"/"0" => false. See syncAuthTogglesFromEnv in seed-config.ts.
+  // (Commercial SaaS: REGISTRATION_ENABLED=true, PASSWORD_AUTH_ENABLED=false for WorkOS-only.)
+  REGISTRATION_ENABLED: z
     .string()
     .transform((val) => val === "true" || val === "1")
     .pipe(z.boolean())
-    .default(false),
+    .optional(),
+  PASSWORD_AUTH_ENABLED: z
+    .string()
+    .transform((val) => val === "true" || val === "1")
+    .pipe(z.boolean())
+    .optional(),
 
   AI_ENABLED: z
     .string()
