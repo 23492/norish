@@ -31,12 +31,25 @@ vi.mock("@/app/providers/trpc-provider", () => ({
           return opts;
         },
       },
+      removeRating: {
+        mutationOptions: (opts: unknown) => {
+          mockMutationOptions(opts);
+
+          return opts;
+        },
+      },
       getUserRating: {
         queryKey: (input: { recipeId: string }) => mockQueryKey(input),
       },
       getAverage: {
         queryKey: (input: { recipeId: string }) => [
           ["ratings", "getAverage"],
+          { input, type: "query" },
+        ],
+      },
+      getRaters: {
+        queryKey: (input: { recipeId: string }) => [
+          ["ratings", "getRaters"],
           { input, type: "query" },
         ],
       },
@@ -166,6 +179,38 @@ describe("useRatingsMutation", () => {
       });
 
       expect(mockMutate).toHaveBeenCalledWith({ recipeId: testRecipeId, rating: 4, version: 9 });
+    });
+
+    it("optimistically clears the rating on remove", async () => {
+      queryClient.setQueryData(userRatingQueryKey, createMockUserRatingData(testRecipeId, 4, 2));
+
+      const { renderHook, act } = require("@testing-library/react");
+      renderHook(() => useRatingsMutation(), {
+        wrapper: createTestWrapper(queryClient),
+      });
+
+      const removeOpts = mockMutationOptions.mock.calls[1][0];
+
+      await act(async () => {
+        await removeOpts.onMutate({ recipeId: testRecipeId });
+      });
+
+      const cachedData = queryClient.getQueryData<{ userRating: number | null }>(userRatingQueryKey);
+
+      expect(cachedData?.userRating).toBeNull();
+    });
+
+    it("removeRating triggers the mutation", () => {
+      const { renderHook, act } = require("@testing-library/react");
+      const { result } = renderHook(() => useRatingsMutation(), {
+        wrapper: createTestWrapper(queryClient),
+      });
+
+      act(() => {
+        result.current.removeRating(testRecipeId);
+      });
+
+      expect(mockMutate).toHaveBeenCalledWith({ recipeId: testRecipeId });
     });
   });
 
