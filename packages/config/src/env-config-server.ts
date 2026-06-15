@@ -101,6 +101,26 @@ const ServerConfigSchema = z.object({
         : []
     )
     .pipe(z.array(z.string())),
+  // Server-admin / operator allowlist (config-as-code, R2). Comma-separated emails;
+  // the SINGLE source of truth for who is a SERVER admin (can reach /settings/admin).
+  // Normalized here to a lowercased, trimmed, de-empty string[]. When SET it is
+  // authoritative (re-evaluated on every login; first signup is NOT auto-admin unless
+  // listed). When UNSET/empty the legacy first-user-owner fallback applies (self-host).
+  // This is a pure env var (like MASTER_KEY / WORKOS_*) — it does NOT mirror into the
+  // server_config zod schema. See @norish/auth/admin-allowlist.
+  ADMIN_EMAILS: z
+    .string()
+    .optional()
+    .transform((val) =>
+      val
+        ? val
+            .split(",")
+            .map((s) => s.trim().toLowerCase())
+            .filter(Boolean)
+        : []
+    )
+    .pipe(z.array(z.string()))
+    .default([]),
   UPLOADS_DIR: z.string().default(defaultUploadsDir),
 
   // During build, allow placeholder DB URL so server-only modules can be imported
