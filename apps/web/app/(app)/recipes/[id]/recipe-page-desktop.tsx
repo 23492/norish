@@ -167,12 +167,12 @@ export default function RecipePageDesktop() {
               <div className="bg-default-100 mx-3 mt-4 mb-3 flex flex-col items-center gap-4 rounded-xl py-6">
                 <p className="text-default-600 font-medium">{t("ratingPrompt")}</p>
                 <StarRating
+                  clearLabel={t("clearRating")}
                   isLoading={isRating || isRatingLoading}
-                  value={userRating ?? averageRating}
                   userValue={userRating}
+                  value={userRating ?? averageRating}
                   onChange={handleRateRecipe}
                   onClear={handleClearRating}
-                  clearLabel={t("clearRating")}
                 />
                 <RecipeRaters recipeId={recipe.id} />
               </div>
