@@ -588,6 +588,7 @@ function operatorConfigEqual(a: unknown, b: unknown): boolean {
 async function importEnvOperatorConfig(): Promise<void> {
   await syncAIConfigFromEnv();
   await syncVideoConfigFromEnv();
+  await syncAuthTogglesFromEnv();
 }
 
 /**
@@ -682,6 +683,58 @@ async function syncVideoConfigFromEnv(): Promise<void> {
       "Synced video/transcription config from env (env is source of truth)"
     );
   }
+}
+
+/**
+ * Seed/UPDATE a single boolean auth toggle (registration_enabled / password_auth_enabled)
+ * from env on every boot (env wins). Mirrors syncAIConfigFromEnv: when the env var is SET
+ * the value is UNCONDITIONALLY authoritative and overwrites the DB row; when UNSET
+ * (undefined) it is a NO-OP and the existing DB/admin value is preserved. Only writes when
+ * the stored value actually differs (no needless version bumps). Not sensitive (plain bool).
+ */
+async function syncBooleanToggleFromEnv(
+  key: typeof ServerConfigKeys.REGISTRATION_ENABLED | typeof ServerConfigKeys.PASSWORD_AUTH_ENABLED,
+  envValue: boolean | undefined,
+  label: string
+): Promise<void> {
+  // Env unset => leave the DB/admin row untouched (no regression for self-host installs).
+  if (envValue === undefined) {
+    return;
+  }
+
+  const existing = await getConfig<boolean>(key);
+
+  if (existing !== envValue) {
+    await setConfig(key, envValue, null, false);
+    serverLogger.info({ [label]: envValue }, `Synced ${label} from env (env is source of truth)`);
+  }
+}
+
+/**
+ * Sync the auth toggles registration_enabled + password_auth_enabled from env on EVERY boot.
+ *
+ * Mirrors importEnvOperatorConfig's AI/video syncs: env is the source of truth and survives
+ * a clean DB / relaunch (commercial SaaS direction). These keys have NO isOverridden field, so
+ * when the env var is SET env is UNCONDITIONALLY authoritative (a stale DB row — e.g. the value
+ * auth.ts writes when it auto-disables registration after the first user, or an admin-UI edit
+ * via the trpc admin/general router — never wins). When the env var is UNSET each is a no-op and
+ * the DB/admin value (seeded by seedMissingConfigs on a clean DB) remains authoritative.
+ *
+ * This fixes the env<->DB drift: previously these toggles were ONLY seeded via seedMissingConfigs()
+ * (first-boot-only, gated on !configExists), so env changes never propagated — the WorkOS-only
+ * launch (registration OPEN, password OFF) required a manual DB UPDATE because of exactly this.
+ */
+async function syncAuthTogglesFromEnv(): Promise<void> {
+  await syncBooleanToggleFromEnv(
+    ServerConfigKeys.REGISTRATION_ENABLED,
+    SERVER_CONFIG.REGISTRATION_ENABLED,
+    "registrationEnabled"
+  );
+  await syncBooleanToggleFromEnv(
+    ServerConfigKeys.PASSWORD_AUTH_ENABLED,
+    SERVER_CONFIG.PASSWORD_AUTH_ENABLED,
+    "passwordAuthEnabled"
+  );
 }
 
 async function syncPrompts(): Promise<void> {
