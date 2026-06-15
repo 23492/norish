@@ -10,6 +10,11 @@ export const RatingGetInputSchema = z.object({
   recipeId: z.uuid(),
 });
 
+// RATE: remove the caller's own rating on a recipe (undo an accidental click).
+export const RatingRemoveInputSchema = z.object({
+  recipeId: z.uuid(),
+});
+
 // RATE-01: a single rater surfaced on the recipe (display name + their stars).
 // `name` is null when the user's display name is missing/undecryptable.
 export const RecipeRaterSchema = z.object({
