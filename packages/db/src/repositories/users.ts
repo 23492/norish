@@ -3,6 +3,7 @@ import type { MutationOutcome } from "./mutation-outcomes";
 
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { decrypt, encrypt, hmacIndex } from "@norish/auth/crypto";
+import { SERVER_CONFIG } from "@norish/config/env-config-server";
 import { authLogger } from "@norish/db/logger";
 
 
@@ -35,6 +36,22 @@ export async function createUser(
   // Check if this will be the first user BEFORE inserting
   const isFirstUser = (await countUsers()) === 0;
 
+  // Server-admin (operator) is env-authoritative via ADMIN_EMAILS (R2). When the
+  // allowlist is configured, the first signup is NOT auto-admin unless its email is
+  // listed; when unset we preserve the legacy first-user-owner fallback (self-host).
+  // Kept in lockstep with resolveServerAdminOnCreate in @norish/auth/admin-allowlist
+  // (this repo cannot import @norish/auth — that would be a circular dep — so the same
+  // decision is inlined here against the normalized SERVER_CONFIG.ADMIN_EMAILS list).
+  // user.email is PLAINTEXT here (encrypted into the payload below).
+  const adminEmails = new Set(
+    (SERVER_CONFIG.ADMIN_EMAILS ?? []).map((e) => e.trim().toLowerCase()).filter(Boolean)
+  );
+  const allowlistConfigured = adminEmails.size > 0;
+  const isServerAdmin = allowlistConfigured
+    ? adminEmails.has(user.email.trim().toLowerCase())
+    : isFirstUser;
+  const isServerOwner = allowlistConfigured ? false : isFirstUser;
+
   const payload = {
     id: user.id,
     email: encrypt(user.email),
@@ -42,9 +59,9 @@ export async function createUser(
     name: encrypt(user.name ?? ""),
     image: user.image ? encrypt(user.image) : null,
     emailVerified: user.emailVerified ?? false,
-    // Set owner/admin flags for first user
-    isServerOwner: isFirstUser,
-    isServerAdmin: isFirstUser,
+    // Env-authoritative server-admin (see comment above).
+    isServerOwner,
+    isServerAdmin,
   };
 
   const [inserted] = await db.insert(users).values(payload).returning();
@@ -53,9 +70,12 @@ export async function createUser(
     throw new Error("Failed to create user");
   }
 
-  // If first user, disable registration
+  // If first user, disable registration (independent of who is server-admin).
   if (isFirstUser) {
-    authLogger.info({ email: user.email }, "First user registered, set as server owner/admin");
+    authLogger.info(
+      { email: user.email },
+      "First user registered (server-admin is env-driven via ADMIN_EMAILS)"
+    );
     authLogger.info("Disabling registration after first user");
     await setConfig(ServerConfigKeys.REGISTRATION_ENABLED, false, user.id, false);
   }

@@ -28,6 +28,11 @@ import { getPublisherClient } from "@norish/queue/redis/client";
 import { authLogger } from "@norish/shared-server/logger";
 
 import {
+  applyServerAdminOnLogin,
+  getAdminEmailSet,
+  resolveServerAdminOnCreate,
+} from "./admin-allowlist";
+import {
   getPendingOIDCProfile,
   mergeOIDCTokenClaims,
   processClaimsForUser,
@@ -420,6 +425,20 @@ function createBetterAuth() {
     },
     socialProviders: buildSocialProviders(),
     databaseHooks: {
+      // Re-evaluate SERVER-admin status from ADMIN_EMAILS on EVERY login
+      // (provider-agnostic: WorkOS / OIDC / Google / password all create a session).
+      // No-op when the allowlist is unset (legacy first-user-owner preserved). Never
+      // throws — a login must not hard-fail on this. Plaintext email is fetched by
+      // applyServerAdminOnLogin via getUserById (decrypt), since email is encrypted.
+      session: {
+        create: {
+          before: async (session) => {
+            await applyServerAdminOnLogin(session.userId);
+
+            return;
+          },
+        },
+      },
       user: {
         create: {
           before: async (user) => {
@@ -439,6 +458,16 @@ function createBetterAuth() {
             const encryptedName = user.name ? encrypt(user.name) : user.name;
             const encryptedImage = user.image ? encrypt(user.image) : user.image;
 
+            // Server-admin (operator) is env-authoritative via ADMIN_EMAILS (R2):
+            // when the allowlist is configured the first signup is NOT auto-admin
+            // unless listed; when unset we preserve the legacy first-user-owner
+            // fallback. user.email is PLAINTEXT here (encrypted just above).
+            const serverAdminFlags = resolveServerAdminOnCreate({
+              email: user.email,
+              isFirstUser,
+              adminSet: getAdminEmailSet(),
+            });
+
             const result = {
               data: {
                 ...user,
@@ -446,9 +475,7 @@ function createBetterAuth() {
                 name: encryptedName,
                 image: encryptedImage,
                 emailHmac: user.email ? hmacIndex(user.email) : undefined,
-                // Set owner/admin for first user
-                isServerOwner: isFirstUser,
-                isServerAdmin: isFirstUser,
+                ...serverAdminFlags,
               },
             };
 
@@ -461,7 +488,7 @@ function createBetterAuth() {
             if (userCount === 1) {
               authLogger.info(
                 { email: user.email },
-                "First user registered, set as server owner/admin"
+                "First user registered (server-admin is env-driven via ADMIN_EMAILS)"
               );
               authLogger.info("Disabling registration after first user");
               await setConfig(ServerConfigKeys.REGISTRATION_ENABLED, false, user.id, false);
