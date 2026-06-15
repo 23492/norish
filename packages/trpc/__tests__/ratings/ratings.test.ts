@@ -11,6 +11,7 @@ import {
   getUserRating,
   getUserRatingWithVersion,
   rateRecipe,
+  removeUserRating,
 } from "../mocks/ratings-repository";
 import { createMockAuthedContext, createMockHousehold, createMockUser } from "./test-utils";
 
@@ -212,6 +213,24 @@ describe("ratings procedures", () => {
 
       await expect(caller.rate({ recipeId: "recipe-1", rating: 0 })).rejects.toThrow();
       await expect(caller.rate({ recipeId: "recipe-1", rating: 6 })).rejects.toThrow();
+    });
+  });
+
+  describe("removeRating", () => {
+    it("removes the caller's rating and reports success", async () => {
+      const recipeId = crypto.randomUUID();
+
+      removeUserRating.mockResolvedValue({ removed: true });
+      getAverageRating.mockResolvedValue({ averageRating: null, ratingCount: 0 });
+
+      const caller = ratingsProcedures.createCaller({ ...ctx, multiplexer: null } as any);
+      const result = await caller.removeRating({ recipeId });
+
+      await Promise.resolve();
+
+      expect(result).toEqual({ success: true });
+      // Always scoped to the authenticated caller — a user can only remove their OWN rating.
+      expect(removeUserRating).toHaveBeenCalledWith(ctx.user.id, recipeId);
     });
   });
 });
