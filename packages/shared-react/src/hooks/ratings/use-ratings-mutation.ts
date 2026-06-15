@@ -76,6 +76,50 @@ export function createUseRatingsMutation({
       })
     );
 
+    const removeMutation = useMutation(
+      trpc.ratings.removeRating.mutationOptions({
+        onMutate: async ({ recipeId }) => {
+          const userRatingQueryKey = trpc.ratings.getUserRating.queryKey({ recipeId });
+
+          await queryClient.cancelQueries({ queryKey: userRatingQueryKey });
+
+          const previousUserRating = queryClient.getQueryData<UserRatingData>(userRatingQueryKey);
+
+          queryClient.setQueryData<UserRatingData>(userRatingQueryKey, {
+            recipeId,
+            userRating: null,
+            version: null,
+          });
+
+          return { previousUserRating, userRatingQueryKey };
+        },
+        onError: (error, _variables, context) => {
+          if (preserveOptimisticUpdate(error, shouldPreserveOptimisticUpdate)) {
+            return;
+          }
+
+          if (context?.previousUserRating) {
+            queryClient.setQueryData(context.userRatingQueryKey, context.previousUserRating);
+          }
+        },
+        onSettled: (_data, error, variables) => {
+          if (error && preserveOptimisticUpdate(error, shouldPreserveOptimisticUpdate)) {
+            return;
+          }
+
+          queryClient.invalidateQueries({
+            queryKey: trpc.ratings.getUserRating.queryKey({ recipeId: variables.recipeId }),
+          });
+          queryClient.invalidateQueries({
+            queryKey: trpc.ratings.getAverage.queryKey({ recipeId: variables.recipeId }),
+          });
+          queryClient.invalidateQueries({
+            queryKey: trpc.ratings.getRaters.queryKey({ recipeId: variables.recipeId }),
+          });
+        },
+      })
+    );
+
     return {
       rateRecipe: (recipeId: string, rating: number) => {
         const userRatingQueryKey = trpc.ratings.getUserRating.queryKey({ recipeId });
@@ -87,7 +131,10 @@ export function createUseRatingsMutation({
           version: previousUserRating?.version ?? undefined,
         });
       },
-      isRating: rateMutation.isPending,
+      removeRating: (recipeId: string) => {
+        removeMutation.mutate({ recipeId });
+      },
+      isRating: rateMutation.isPending || removeMutation.isPending,
     };
   };
 }
