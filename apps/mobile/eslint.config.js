@@ -7,4 +7,34 @@ module.exports = defineConfig([
   {
     ignores: ["dist/*"],
   },
+  {
+    settings: {
+      "import/resolver": {
+        typescript: {
+          project: "./tsconfig.json",
+        },
+        node: {
+          extensions: [
+            ".android.js",
+            ".android.jsx",
+            ".android.ts",
+            ".android.tsx",
+            ".ios.js",
+            ".ios.jsx",
+            ".ios.ts",
+            ".ios.tsx",
+            ".native.js",
+            ".native.jsx",
+            ".native.ts",
+            ".native.tsx",
+            ".js",
+            ".jsx",
+            ".ts",
+            ".tsx",
+            ".d.ts",
+          ],
+        },
+      },
+    },
+  },
 ]);

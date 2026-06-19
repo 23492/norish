@@ -1,34 +1,26 @@
 "use client";
 
-import type { PanInfo } from "motion/react";
-
 import React, {
   createContext,
   ReactElement,
   ReactNode,
   useCallback,
   useContext,
-  useEffect,
-  useRef,
+  useMemo,
   useState,
 } from "react";
-import { XMarkIcon } from "@heroicons/react/16/solid";
-import { Button } from "@heroui/react";
-import { AnimatePresence, motion, useDragControls } from "motion/react";
-import { createPortal } from "react-dom";
-
-export const PANEL_HEIGHT_COMPACT = 40;
-export const PANEL_HEIGHT_MEDIUM = 60;
-export const PANEL_HEIGHT_LARGE = 85; // Default height when none is specified
+import { Sheet } from "@heroui-pro/react";
 
 export interface PanelProps {
   className?: string;
+  contentClassName?: string;
   panelClassName?: string;
+  backdropVariant?: "opaque" | "blur" | "transparent";
   title?: string;
   children: ReactNode;
   trigger?: ReactElement;
   open?: boolean;
-  height?: number;
+  nested?: boolean;
   onOpenChange?: (open: boolean) => void;
 }
 
@@ -42,18 +34,49 @@ export function usePanel() {
   return useContext(PanelContext);
 }
 
-export const Panel: React.FC<PanelProps> = ({
+type PanelSectionProps = {
+  children: ReactNode;
+  className?: string;
+};
+
+type PanelTriggerProps = {
+  "aria-expanded"?: boolean;
+  "aria-haspopup"?: "dialog";
+  onClick?: (event: unknown) => void;
+};
+
+const PANEL_MAX_HEIGHT_CLASS = "max-h-[80dvh]";
+
+function getClassName(element: ReactElement<PanelSectionProps>) {
+  return element.props.className ?? "";
+}
+
+export function PanelBody({ children }: PanelSectionProps) {
+  return <>{children}</>;
+}
+
+export function PanelFooter({ children }: PanelSectionProps) {
+  return <>{children}</>;
+}
+
+type PanelComponent = React.FC<PanelProps> & {
+  Body: typeof PanelBody;
+  Footer: typeof PanelFooter;
+};
+
+const PanelRoot: React.FC<PanelProps> = ({
   className = "",
+  contentClassName = "",
   panelClassName = "",
+  backdropVariant = "blur",
   title = "",
-  height = PANEL_HEIGHT_LARGE,
+  nested = false,
   children,
   trigger,
   open: controlledOpen,
   onOpenChange,
 }) => {
   const [internalOpen, setInternalOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? controlledOpen : internalOpen;
 
@@ -67,118 +90,92 @@ export const Panel: React.FC<PanelProps> = ({
 
   const close = useCallback(() => setOpen(false), [setOpen]);
   const toggle = useCallback(() => setOpen(!open), [open, setOpen]);
-  const controls = useDragControls();
-  const ref = useRef<HTMLDivElement>(null);
+  const { bodyChildren, bodyClassName, footerChildren, footerClassName } = useMemo(() => {
+    const body: ReactNode[] = [];
+    const bodyClasses: string[] = [];
+    const footer: ReactNode[] = [];
+    const footerClasses: string[] = [];
 
-  useEffect(() => setMounted(true), []);
+    React.Children.forEach(children, (child) => {
+      if (React.isValidElement(child) && child.type === PanelFooter) {
+        const element = child as ReactElement<PanelSectionProps>;
 
-  // Close on Escape key
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && open) {
-        close();
+        footer.push(element.props.children);
+        footerClasses.push(getClassName(element));
+      } else if (React.isValidElement(child) && child.type === PanelBody) {
+        const element = child as ReactElement<PanelSectionProps>;
+
+        body.push(element.props.children);
+        bodyClasses.push(getClassName(element));
+      } else {
+        body.push(child);
       }
+    });
+
+    return {
+      bodyChildren: body,
+      bodyClassName: bodyClasses.filter(Boolean).join(" "),
+      footerChildren: footer,
+      footerClassName: footerClasses.filter(Boolean).join(" "),
     };
+  }, [children]);
+  const hasFooter = footerChildren.length > 0;
+  const contentClasses = ["mx-auto max-w-[420px]", PANEL_MAX_HEIGHT_CLASS, contentClassName]
+    .filter(Boolean)
+    .join(" ");
+  const dialogClasses = ["min-h-0", PANEL_MAX_HEIGHT_CLASS, panelClassName]
+    .filter(Boolean)
+    .join(" ");
+  const bodyClasses = ["flex min-h-0 flex-1 flex-col", bodyClassName].filter(Boolean).join(" ");
+  const footerClasses = ["shrink-0", footerClassName].filter(Boolean).join(" ");
 
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [open, close]);
-
+  const panelTrigger = trigger as ReactElement<PanelTriggerProps> | undefined;
   const triggerElement =
-    trigger &&
-    React.cloneElement(trigger as ReactElement<any>, {
+    panelTrigger &&
+    React.cloneElement(panelTrigger, {
       "aria-haspopup": "dialog",
       "aria-expanded": open,
-      onClick: (e: any) => {
-        const original = (trigger as any).props?.onClick;
+      onClick: (event: unknown) => {
+        const original = panelTrigger.props.onClick;
 
-        if (typeof original === "function") original(e);
+        if (typeof original === "function") original(event);
         toggle();
       },
     });
+  const Root = nested ? Sheet.NestedRoot : Sheet.Root;
 
   return (
     <div data-panel className={className}>
       {trigger && <span className="inline-flex">{triggerElement}</span>}
 
       <PanelContext.Provider value={{ open, close, toggle }}>
-        {mounted &&
-          createPortal(
-            <AnimatePresence>
-              {open && (
-                <div className="fixed inset-0 z-[1000]">
-                  {/* Overlay */}
-                  <button
-                    aria-label="Close overlay"
-                    className="absolute inset-0 bg-black/40"
-                    onClick={close}
-                  />
+        <Root isOpen={open} placement="bottom" onOpenChange={setOpen}>
+          <Sheet.Backdrop className="z-[1000]" variant={backdropVariant}>
+            <Sheet.Content className={contentClasses}>
+              <Sheet.Dialog aria-label={title || "Panel"} className={dialogClasses}>
+                <Sheet.Handle className="relative z-10" />
+                <Sheet.CloseTrigger aria-label="Close panel" className="z-30" />
 
-                  <motion.div
-                    key="panel"
-                    ref={ref}
-                    animate={{
-                      y: 0,
-                      opacity: 1,
-                      transition: { type: "spring", stiffness: 280, damping: 30 },
-                    }}
-                    aria-label={title || "Panel"}
-                    className={`bg-background absolute bottom-0 left-1/2 flex w-full -translate-x-1/2 flex-col overflow-hidden rounded-t-2xl md:max-w-md ${panelClassName} `}
-                    drag="y"
-                    dragConstraints={{ top: 0, bottom: 0 }}
-                    dragControls={controls}
-                    dragElastic={0.08}
-                    dragListener={false}
-                    exit={{ y: "100%", opacity: 1, transition: { duration: 0.2 } }}
-                    initial={{ y: "100%", opacity: 1 }}
-                    role="dialog"
-                    style={{
-                      height: `${height}dvh`,
-                    }}
-                    onClick={(e: React.MouseEvent<HTMLDivElement>) => e.stopPropagation()}
-                    onDragEnd={(_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-                      if (info.offset.y > 60) close();
-                    }}
-                  >
-                    {/* Header */}
-                    <div
-                      className="border-default-100 relative flex shrink-0 items-center justify-between border-b p-4 select-none"
-                      onPointerDown={(e) => controls.start(e)}
-                    >
-                      <Button
-                        isIconOnly
-                        aria-label="Close panel"
-                        color="primary"
-                        radius="full"
-                        size="md"
-                        variant="solid"
-                        onPress={close}
-                      >
-                        <XMarkIcon className="h-5 w-5" />
-                      </Button>
+                <Sheet.Header>
+                  <Sheet.Heading>{title}</Sheet.Heading>
+                </Sheet.Header>
 
-                      <h2 className="pointer-events-none flex-1 text-center text-lg font-semibold">
-                        {title}
-                      </h2>
-
-                      {/* Spacer keeps title centered */}
-                      <div className="h-8 w-8" />
-                    </div>
-
-                    {/* Content */}
-                    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
-                      {children}
-                    </div>
-                  </motion.div>
-                </div>
-              )}
-            </AnimatePresence>,
-            document.body
-          )}
+                <Sheet.Body className={bodyClasses}>{bodyChildren}</Sheet.Body>
+                {hasFooter && (
+                  <Sheet.Footer className={footerClasses}>{footerChildren}</Sheet.Footer>
+                )}
+              </Sheet.Dialog>
+            </Sheet.Content>
+          </Sheet.Backdrop>
+        </Root>
       </PanelContext.Provider>
     </div>
   );
 };
+
+export const Panel = Object.assign(PanelRoot, {
+  Body: PanelBody,
+  Footer: PanelFooter,
+}) satisfies PanelComponent;
 
 export default Panel;

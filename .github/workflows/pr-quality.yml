@@ -7,6 +7,7 @@ env:
   SKIP_ENV_VALIDATION: "1"
   AUTH_URL: http://localhost:3000
   CHROME_WS_ENDPOINT: ws://localhost:3000
+  HEROUI_AUTH_TOKEN: ${{ secrets.HEROUI_AUTH_TOKEN }}
 
 on:
   pull_request:
@@ -37,6 +38,7 @@ jobs:
   quality:
     name: Quality Checks
     uses: ./.github/workflows/_node-ci.yml
+    secrets: inherit
     with:
       run-build: true
       run-tests: true

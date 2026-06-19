@@ -23,6 +23,7 @@ Norish is a real-time, household-first recipe app for planning meals, sharing gr
   - [Vision](#vision)
   - [Why Norish](#why-norish)
   - [Core Features](#core-features)
+  - [Community Apps and Extensions](#community-apps-and-extensions)
   - [Deploying](#deploying)
     - [Minimal Docker Compose](#minimal-docker-compose)
     - [First-User Setup](#first-user-setup)
@@ -90,6 +91,12 @@ Norish is intentionally minimal. It focuses on practical day-to-day use.
 - **Internationalization (i18n)** currently supporting EN, NL, DE, FR, ES, RU, KO, PL, DA, and IT
 
 _Note: AI feature speed can vary by provider, model, and region._
+
+---
+
+## Community Apps and Extensions
+
+- [Norish Quick Import Extension](https://github.com/AfoxDesignz/Norish-Quick-Import-Extension) is a community-maintained browser extension for quickly importing recipes into Norish. This extension is not maintained by me.
 
 ---
 

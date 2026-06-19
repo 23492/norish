@@ -8,12 +8,14 @@ import {
   useAppearancePreference,
 } from "@/context/appearance-preference-context";
 import { AuthProvider, useAuth } from "@/context/auth-context";
+import { GroceriesProvider } from "@/context/groceries-context";
 import { HouseholdProvider } from "@/context/household-context";
 import { MobileIntlFallbackProvider, MobileIntlProvider } from "@/context/mobile-i18n-context";
 import { NetworkProvider } from "@/context/network-context";
 import { PermissionsProvider } from "@/context/permissions-context";
 import { RecipeFiltersProvider } from "@/context/recipe-filters-context";
 import { RecipesProvider } from "@/context/recipes-context";
+import { StoresProvider } from "@/context/stores-context";
 import { UserProvider } from "@/context/user-context";
 import { useBackendBaseUrl } from "@/hooks/use-backend-base-url";
 import { useCacheHydration } from "@/hooks/use-cache-hydration";
@@ -124,7 +126,11 @@ function AuthenticatedProviders({ children }: { children: React.ReactNode }) {
         <UserProvider>
           <AuthenticatedEffects />
           <HouseholdProvider>
-            <RecipesProvider>{children}</RecipesProvider>
+            <RecipesProvider>
+              <StoresProvider>
+                <GroceriesProvider>{children}</GroceriesProvider>
+              </StoresProvider>
+            </RecipesProvider>
           </HouseholdProvider>
         </UserProvider>
       </PermissionsProvider>

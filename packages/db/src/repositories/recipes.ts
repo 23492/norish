@@ -1,3 +1,5 @@
+import { and, asc, desc, eq, ilike, inArray, like, lte, or, sql } from "drizzle-orm";
+import z from "zod";
 
 import type { RecipePermissionPolicy } from "@norish/config/zod/server-config";
 import type {
@@ -14,18 +16,16 @@ import type {
 } from "@norish/shared/contracts/dto/recipe-ingredient";
 import type { StepDto, StepInsertDto } from "@norish/shared/contracts/dto/steps";
 import type { FilterMode, SearchField, SortOrder } from "@norish/shared/contracts/store-types";
-import type { MutationOutcome } from "./mutation-outcomes";
-
 import {
   DEFAULT_RECIPE_PERMISSION_POLICY,
   ServerConfigKeys,
 } from "@norish/config/zod/server-config";
+import { db } from "@norish/db/drizzle";
 import { dbLogger } from "@norish/db/logger";
 import { stripHtmlTags } from "@norish/shared/lib/helpers";
-import z from "zod";
-import { and, asc, desc, eq, ilike, inArray, lte, or, sql } from "drizzle-orm";
+import { normalizeUnit } from "@norish/shared/lib/unit-localization";
 
-import { db } from "../drizzle";
+import type { MutationOutcome } from "./mutation-outcomes";
 import {
   ingredients,
   recipeImages,
@@ -43,8 +43,11 @@ import {
   FullRecipeUpdateSchema,
   RecipeDashboardSchema,
 } from "../zodSchemas";
-
-import { attachIngredientsToRecipeByInputTx, getOrCreateManyIngredientsTx } from "./ingredients";
+import {
+  attachIngredientsToRecipeByInputTx,
+  getOrCreateManyIngredientsTx,
+  getUnitsForNormalization,
+} from "./ingredients";
 import { appliedOutcome, staleOutcome } from "./mutation-outcomes";
 import { getConfig } from "./server-config";
 import { createManyRecipeStepsTx } from "./steps";
@@ -687,6 +690,7 @@ export async function createRecipeWithRefs(
         payload.recipeIngredients.map((ri) => ({
           ...ri,
           recipeId: rid,
+          systemUsed: ri.systemUsed ?? payload.systemUsed,
         }))
       );
     }
@@ -894,7 +898,7 @@ export async function getRecipeFull(id: string): Promise<FullRecipeDTO | null> {
     carbs: full.carbs ?? null,
     protein: full.protein ?? null,
     categories: full.categories ?? [],
-    steps: ((full.steps as any) ?? []).map((s: any) => ({
+    steps: (full.steps ?? []).map((s: any) => ({
       step: s.step,
       systemUsed: s.systemUsed,
       order: s.order,
@@ -913,7 +917,7 @@ export async function getRecipeFull(id: string): Promise<FullRecipeDTO | null> {
       .map((rt: any) => rt.tag)
       .filter((tag: { name?: string; version?: number } | null | undefined) => tag?.name)
       .map((tag: { name: string; version: number }) => ({ name: tag.name, version: tag.version })),
-    recipeIngredients: ((full.ingredients as any) ?? []).map((ri: any) => ({
+    recipeIngredients: (full.ingredients ?? []).map((ri: any) => ({
       id: ri.id,
       ingredientId: ri.ingredientId,
       amount: ri.amount ? Number(ri.amount) : null,
@@ -1013,6 +1017,7 @@ async function syncRecipeIngredientsTx(
     );
   const existingById = new Map(existing.map((row: { id: string }) => [row.id, row]));
   const resolvedInputs = await resolveRecipeIngredientIdsTx(tx, inputs);
+  const units = await getUnitsForNormalization();
   const retainedIds = new Set<string>();
 
   for (const [index, ingredient] of resolvedInputs.entries()) {
@@ -1021,9 +1026,9 @@ async function syncRecipeIngredientsTx(
     const values = {
       ingredientId: ingredient.ingredientId,
       amount: ingredient.amount ?? null,
-      unit: ingredient.unit ?? null,
+      unit: ingredient.unit ? normalizeUnit(ingredient.unit, units) : null,
       order: ingredient.order ?? index,
-      systemUsed: ingredient.systemUsed ?? systemUsed,
+      systemUsed,
     };
 
     if (ingredient.id && existingById.has(ingredient.id)) {
@@ -1114,7 +1119,7 @@ async function syncRecipeStepsTx(
       recipeId,
       step: step.step,
       order: index,
-      systemUsed: step.systemUsed ?? systemUsed,
+      systemUsed,
     };
 
     if (existingStep) {
@@ -1299,7 +1304,7 @@ export async function updateRecipeWithRefs(
 
         // If all ingredients use the same system, use that
         if (inferredSystems.size === 1) {
-          systemToUpdate = Array.from(inferredSystems)[0] as any;
+          systemToUpdate = Array.from(inferredSystems)[0];
         }
       }
 
@@ -1334,7 +1339,7 @@ export async function updateRecipeWithRefs(
 
         // If all steps use the same system, use that
         if (inferredSystems.size === 1) {
-          systemToUpdate = Array.from(inferredSystems)[0] as any;
+          systemToUpdate = Array.from(inferredSystems)[0];
         }
       }
 
@@ -1848,4 +1853,63 @@ export async function replaceRecipeVideos(
       version: row.version,
     }));
   });
+}
+
+/**
+ * List all media references stored in the database (recipe cover images,
+ * gallery images, and videos). Used by startup media cleanup to detect
+ * orphaned files on disk.
+ */
+export async function listAllRecipeMediaReferences(): Promise<{
+  recipes: { id: string; image: string | null }[];
+  galleryImageUrls: string[];
+  videoUrls: string[];
+}> {
+  const [allRecipes, galleryImages, videos] = await Promise.all([
+    db.select({ id: recipes.id, image: recipes.image }).from(recipes),
+    db.select({ image: recipeImages.image }).from(recipeImages),
+    db.select({ video: recipeVideos.video }).from(recipeVideos),
+  ]);
+
+  return {
+    recipes: allRecipes,
+    galleryImageUrls: galleryImages.map((row) => row.image),
+    videoUrls: videos.map((row) => row.video),
+  };
+}
+
+/**
+ * Legacy image migration helpers. Used only by the startup gallery image
+ * migration (`@norish/api/startup/migrate-gallery-images`).
+ */
+export async function listRecipeIdsAndImages(): Promise<{ id: string; image: string | null }[]> {
+  return await db.select({ id: recipes.id, image: recipes.image }).from(recipes);
+}
+
+export async function listRecipesWithLegacyImageUrls(
+  urlPrefix: string
+): Promise<{ id: string; image: string | null }[]> {
+  return await db
+    .select({ id: recipes.id, image: recipes.image })
+    .from(recipes)
+    .where(like(recipes.image, `${urlPrefix}%`));
+}
+
+export async function updateRecipeImageUrl(recipeId: string, imageUrl: string): Promise<void> {
+  await db.update(recipes).set({ image: imageUrl }).where(eq(recipes.id, recipeId));
+}
+
+export async function listGalleryImagesWithLegacyUrls(): Promise<
+  { id: string; recipeId: string; image: string }[]
+> {
+  return await db
+    .select({ id: recipeImages.id, recipeId: recipeImages.recipeId, image: recipeImages.image })
+    .from(recipeImages)
+    .where(
+      or(like(recipeImages.image, "/recipes/images/%"), like(recipeImages.image, "%/gallery/%"))
+    );
+}
+
+export async function updateGalleryImageUrl(imageId: string, imageUrl: string): Promise<void> {
+  await db.update(recipeImages).set({ image: imageUrl }).where(eq(recipeImages.id, imageId));
 }
