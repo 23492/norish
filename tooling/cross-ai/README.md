@@ -23,11 +23,38 @@ operating rules + a SUMMARY contract and dispatches to a provider by
 | Worker | Auth | Billing | Quota wall | Notes |
 | --- | --- | --- | --- | --- |
 | **`antigravity`** (default) | Google login (personal **Plus** sub) | included in sub | **yes** (250/5h + 2,800/week) | First-party `agy` CLI → ToS-clean. Gemini 3.5 Flash, aggressive `--think`. |
-| `deepseek` | DeepSeek API key | pay-per-token | no | Claude Code harness → DeepSeek's native Anthropic endpoint. No quota wall. |
+| `deepseek` _(disabled for now)_ | DeepSeek API key | pay-per-token | no | Claude Code harness → DeepSeek's native Anthropic endpoint. Re-enable with `NORISH_CROSS_AI_ALLOW_DEEPSEEK=1`. |
 
 **Default = Antigravity / Gemini 3.5 Flash with aggressive thinking**, on the personal
-Google subscription: sanctioned (first-party tool + login), no extra billing. DeepSeek
-stays available as the no-quota-wall fallback when the weekly Gemini cap is spent.
+Google subscription: sanctioned (first-party tool + login), no extra billing.
+**DeepSeek is disabled for now** (the executor stays in place; set
+`NORISH_CROSS_AI_ALLOW_DEEPSEEK=1` to bring it back as the no-quota-wall fallback).
+
+## Mandatory review of worker output (hard gate)
+
+Worker models (Gemini Flash / DeepSeek) are **lower-trust than the Opus supervisor**, and
+their self-reported result can be wrong — gsd's own context-budget guidance warns of
+"silent partial completion" where an agent claims done but the work is incomplete, and a
+self-check that only proves file existence, not semantic correctness. So **everything a
+worker produces is untrusted until the native supervisor has strictly reviewed it.** This
+is a CLAUDE.md hard constraint, not a nicety.
+
+Each worker SUMMARY ends with a `## Provenance` line flagging it as pending review. Before
+those commits are carried forward, the supervisor MUST:
+
+1. **Distrust the `## Self-Check`** — treat it as a claim, not evidence.
+2. **Independently re-run the gates** — `pnpm typecheck`, `pnpm lint`, `pnpm test` in the
+   real tree (don't take the worker's word).
+3. **Read the full diff** against the plan's `<acceptance_criteria>` / must-haves for
+   *semantic* completeness — not just that files changed.
+4. **Re-run the per-cookbook isolation checks** (security-critical boundary); for
+   security-relevant changes, the adversarial check (weaken → suites go red → revert).
+5. **Real-row/DTO check** where a resolver or DTO changed — the fork's known blind spot
+   (mocked suites miss zod-vs-real-Postgres mismatches); use a testcontainers parse test
+   or a Chrome-verify.
+6. **Decide: accept / rework / take over.** On any gap, send the plan back to the worker
+   with specifics, or the supervisor finishes it. Worker commits are **not** merged into
+   the trusted line until the review passes.
 
 ## Quota-aware overnight running (`run-or-defer.sh`)
 
