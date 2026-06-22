@@ -66,6 +66,7 @@ Reliable recipe import & management for Kiran's groups — including bot-protect
 | **Per-household permission policies = critical** near-term phase | Each cookbook owns its view/edit/delete; Phase 2 keeps single-policy-reinterpreted for v1, dedicated phase follows | Pending (POLICY-01) |
 | Recipe-in-multiple-households handled via **versions / lineage** | Phase 2 stays recipes-1:N-home; saving a shared recipe forks a version in a shared bucket (future lineage_id/parent_recipe_id) | Pending (VERSION-01) |
 | Sharing is **per-link only** for now (no public gallery) | Per-recipe private/household/public on `recipe_shares`; public = token no-auth view; gallery/discovery deferred | Pending (SHARE-01) |
+| **Remote (cloud) Claude Code sessions** complement the LXC-110 model | Phone-reachable, resumable web sessions own code + cheap-verify (install/typecheck/lint/test) and push the branch; build/deploy stay operator-run on LXC 110. SessionStart hook auto-installs deps; Homelab/Hermes bridge gives phone notifications + remote permission approvals. See `.planning/REMOTE-SESSION-WORKFLOW.md` | Done (2026-06-22) |
 
 ---
-*Last updated: 2026-06-12 — Phase 2 (multi-household) planned; Phases 0 + 1 marked complete (Camoufox scraping shipped + bundled).*
+*Last updated: 2026-06-22 — added remote (Claude Code on the web) session workflow + SessionStart hook + Homelab connector docs. Phase 2 (multi-household) planned; Phases 0 + 1 complete (Camoufox scraping shipped + bundled).*
