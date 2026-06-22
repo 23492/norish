@@ -15,7 +15,10 @@
     "test_command": "pnpm test",
     "tdd_mode": false,
     "pattern_mapper": true,
-    "use_worktrees": false
+    "use_worktrees": false,
+    "cross_ai_execution": true,
+    "cross_ai_command": "tooling/cross-ai/deepseek-executor.sh",
+    "cross_ai_timeout": 1800
   },
   "ship": {
     "pr_body_sections": []
