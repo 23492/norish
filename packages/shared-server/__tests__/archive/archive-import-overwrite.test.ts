@@ -124,7 +124,7 @@ describe("archive importer overwrite behavior", () => {
     const zipBytes = Buffer.from(await zip.generateAsync({ type: "uint8array" }));
 
     const { importArchive } = await import("@norish/shared-server/archive/parser");
-    const result = await importArchive("user-1", ["user-1"], zipBytes);
+    const result = await importArchive("user-1", ["user-1"], null, zipBytes);
 
     expect(mockUpdateRecipeWithRefs).toHaveBeenCalledWith(
       "existing-recipe-id",
@@ -156,7 +156,7 @@ describe("archive importer overwrite behavior", () => {
 
     const { importArchive } = await import("@norish/shared-server/archive/parser");
 
-    await importArchive("user-1", ["user-1"], zipBytes);
+    await importArchive("user-1", ["user-1"], null, zipBytes);
 
     const parserRecipeId = mockParseMelaRecipeToDTO.mock.calls[0]?.[1];
 
@@ -164,6 +164,7 @@ describe("archive importer overwrite behavior", () => {
     expect(mockCreateRecipeWithRefs).toHaveBeenCalledWith(
       parserRecipeId,
       "user-1",
+      null,
       expect.objectContaining({ id: parserRecipeId, name: "Updated Soup" })
     );
   });
@@ -187,7 +188,7 @@ describe("archive importer overwrite behavior", () => {
 
     const { importArchive } = await import("@norish/shared-server/archive/parser");
 
-    await importArchive("user-1", ["user-1"], zipBytes);
+    await importArchive("user-1", ["user-1"], null, zipBytes);
 
     expect(mockRateRecipe).toHaveBeenCalledWith("user-1", "new-recipe-id", 5);
   });
@@ -211,7 +212,7 @@ describe("archive importer overwrite behavior", () => {
 
     const { importArchive } = await import("@norish/shared-server/archive/parser");
 
-    await importArchive("user-1", ["user-1"], zipBytes);
+    await importArchive("user-1", ["user-1"], null, zipBytes);
 
     expect(mockRateRecipe).not.toHaveBeenCalled();
   });
