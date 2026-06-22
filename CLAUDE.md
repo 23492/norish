@@ -5,6 +5,7 @@ This is a fork of upstream **norish-recipes/norish** (AGPL-3.0). Treat the rules
 ## Golden rules
 
 - **Complete work, no placeholders.** No TODOs, stubs, or "left as an exercise". Every change compiles, type-checks, lints, and is tested.
+- **Always read the vault.** Kiran's Obsidian wiki is the canonical knowledge base for this fork — consult it (`wiki_search` / `wiki_read`) at the start of any task and whenever you need context, *before* acting. Start from [[norish-fork-workflow]], [[norish-feature-roadmap]], and [[norish-remote-session-workflow]]; it complements (does not replace) the repo's `.planning/` artifacts.
 - **Before changing anything, ask: is it needed? is it the best way? can it be simpler? is it complete?**
 - **Stay as close as possible to the original repo's code style.** Match upstream norish conventions exactly: naming, file/module layout, import ordering, error handling, typing, formatting (the repo's Prettier/ESLint config), and test style. Mirror the style of the file/package you are editing, and prefer an existing upstream pattern over inventing a new one. Keep every diff minimal and well-isolated so the fork stays cleanly re-baseable against upstream.
 - **Track upstream.** `upstream` remote = norish-recipes/norish. Prefer additive, well-contained changes; consider upstreaming features.
@@ -44,8 +45,9 @@ The repo lives on **LXC 110**; the orchestrating session runs on the operator's 
 - **Mutual table foreign keys** need `references((): AnyPgColumn => other.id, ...)` + `import { type AnyPgColumn }` or `tsc` collapses both table types to `any`.
 - **Heavy Next.js builds need swap headroom**: add a temporary host swapfile + `pct set 110 -swap <MB>` (live cgroup change, no restart), restore after.
 
-## Documentation (Obsidian vault)
+## Documentation & knowledge base (Obsidian vault)
 
+- **Read the vault for context, always** (`wiki_search` / `wiki_read`) — ground every task in the relevant reference pages before editing (see the "Always read the vault" golden rule). The read-then-write loop is mandatory: consult it going in, update it as you land work.
 - **Document this project in Kiran's Obsidian vault** (homelab knowledge base, `projects/homelab/references/`), in addition to the repo's `.planning/` artifacts.
 - Keep [[norish-feature-roadmap]] current — update the status table and append to the milestone log **semi-live, as each milestone lands** (decisions made, phases shipped, deploys done).
 - When architecture changes, update/add the relevant reference pages (e.g. `norish-camofox-integration`, `camofox-browser-server`, `norish-deployment`). The development **way of working** is documented at [[norish-fork-workflow]].

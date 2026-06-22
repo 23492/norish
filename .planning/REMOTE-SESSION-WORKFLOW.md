@@ -112,6 +112,10 @@ clean, pushed branch.
 
 ## 6. House rules (unchanged from the fork constraints)
 
+- **Always read the vault** (`wiki_search` / `wiki_read`) for context before acting —
+  it is the canonical knowledge base ([[norish-fork-workflow]],
+  [[norish-feature-roadmap]], [[norish-remote-session-workflow]]). This is a
+  `CLAUDE.md` golden rule; following the repo guidelines means following it.
 - Develop on `claude/serene-planck-rc2zj7`; `git push -u origin <branch>`.
   **Never** push to a different branch without explicit permission.
 - **No PRs unless explicitly asked.** GitHub interactions go through the
