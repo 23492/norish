@@ -98,6 +98,7 @@ describe("processImageImportJob", () => {
         recipeId: "recipe-123",
         userId: "user-1",
         householdKey: "household-1",
+        householdId: "household-1",
         householdUserIds: null,
         files: [
           {
@@ -117,6 +118,7 @@ describe("processImageImportJob", () => {
     expect(createRecipeWithRefs).toHaveBeenCalledWith(
       "recipe-123",
       "user-1",
+      "household-1",
       expect.objectContaining({ id: "recipe-123", name: "Extracted Recipe" })
     );
     expect(saveImageBytes).toHaveBeenCalledWith(expect.any(Buffer), "recipe-123");
