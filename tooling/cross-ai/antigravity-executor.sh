@@ -6,28 +6,30 @@
 # subscription (Plus tier). ToS-clean: official tool + official login, not a
 # third-party harness routing credentials — so subscription use is sanctioned and
 # costs no extra (contrast: Anthropic bans subscription-via-proxy; DeepSeek needs a
-# paid API key). Reads the worker prompt on STDIN, runs `agy` headless in the repo
-# (edits + commits), prints the agent's final output (the SUMMARY) on STDOUT.
+# paid API key). Reads the worker prompt on STDIN, runs `agy` non-interactively in the
+# repo (edits + commits), prints the agent's final output (the SUMMARY) on STDOUT.
 #
-# Model: Gemini 3.5 Flash with aggressive ("--think") extended reasoning by default.
+# Model: Gemini 3.5 Flash (High) by default — in agy v1.0.10 the reasoning level is
+# baked into the model variant (Low/Medium/High); there is no separate --think flag.
 #
 # Exit codes: 0 = done · 75 = quota exhausted (EX_TEMPFAIL; run-or-defer reschedules)
 #             1 = empty/failed run · 2 = agy not installed
 #
 # Config (env):
-#   NORISH_GEMINI_MODEL    default gemini-3.5-flash
-#   NORISH_GEMINI_THINK    default "--think" (most aggressive). Set "" to disable, or
-#                          e.g. "--thinking-level high" if your agy build uses levels.
-#   NORISH_AGY_APPROVE     default "all" (--approve all → auto-approve writes + shell;
-#                          agy auto-enables nsjail sandboxing on Linux for yolo/headless)
+#   NORISH_GEMINI_MODEL    default "Gemini 3.5 Flash (High)" — exact agy model display
+#                          name (see `agy models`). High = most aggressive reasoning.
+#   NORISH_AGY_SANDBOX     default "" (off). Set "--sandbox" to enable agy's restricted
+#                          terminal sandbox (verify it still permits repo writes/git/pnpm).
 #   NORISH_AGY_BIN         default "agy"
+# Auto-approve: --dangerously-skip-permissions (v1.0.10's auto-approve; --approve/--headless
+#   from earlier builds no longer exist).
 #
-# Auth: a one-time `agy` Google login as THIS user must already be done on the box.
+# Auth: a one-time `agy` Google login (run `agy` with no args) as THIS user must already
+# be done on the box.
 set -euo pipefail
 
-MODEL="${NORISH_GEMINI_MODEL:-gemini-3.5-flash}"
-THINK="${NORISH_GEMINI_THINK:---think}"
-APPROVE="${NORISH_AGY_APPROVE:-all}"
+MODEL="${NORISH_GEMINI_MODEL:-Gemini 3.5 Flash (High)}"
+SANDBOX="${NORISH_AGY_SANDBOX:-}"
 AGY="${NORISH_AGY_BIN:-agy}"
 
 command -v "$AGY" >/dev/null 2>&1 || { echo "ERROR: '$AGY' (Antigravity CLI) not on PATH" >&2; exit 2; }
@@ -41,7 +43,7 @@ PROMPT="$(cat)"
 # (google-antigravity/antigravity-cli#76). Allocate a pty via `script` and capture
 # that. Base64 the prompt so newlines/quotes survive embedding in the inner command.
 B64="$(printf '%s' "$PROMPT" | base64 | tr -d '\n')"
-INNER="$AGY -p \"\$(printf %s '$B64' | base64 -d)\" --headless --approve $APPROVE --model \"$MODEL\" $THINK"
+INNER="$AGY -p \"\$(printf %s '$B64' | base64 -d)\" --dangerously-skip-permissions --model \"$MODEL\" $SANDBOX"
 
 RAW="$(script -qec "$INNER" /dev/null 2>/dev/null || true)"
 # Strip ANSI escapes and CRs the pty injects.
