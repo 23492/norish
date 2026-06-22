@@ -1,66 +1,114 @@
-# cross-ai — DeepSeek workers under an Opus supervisor
+# cross-ai — model-split workers under an Opus supervisor
 
 Wires the norish fork's gsd workflow into a **director/executor model split**:
 
 - **Supervisor = native Claude Code (Opus) on Kiran's subscription.** Plans,
-  orchestrates, verifies. Runs the normal way (`claude` logged in via OAuth) — the
-  official harness, used as intended. No proxy in front of it.
-- **Workers = DeepSeek v4-pro**, via `deepseek-executor.sh`, for any plan that opts in.
+  orchestrates, verifies. Runs the normal way (`claude` via OAuth) — the official
+  harness, used as intended. No proxy in front of it.
+- **Workers = a cheaper/owned model**, invoked per plan via `worker.sh`.
 
-### Why this shape (and not a router in front of Opus)
+### Why split at the orchestration layer (not a router in front of Opus)
 
-The tempting alternative — `claude-code-router` translating your *subscription OAuth*
-token into Anthropic API calls so subagents can be a different model — is the exact
-pattern Anthropic **bans** ("extracting OAuth tokens to use in a third-party API
-client equals a ban", early-2026 OpenClaw crackdown). Subscription OAuth is for the
-native harness only; anything programmatic must use an `sk-ant-api03` API key.
+Putting `claude-code-router` in front of Opus to translate your **subscription OAuth**
+into API calls is the exact pattern Anthropic **bans** ("extracting OAuth tokens to use
+in a third-party API client equals a ban", the early-2026 OpenClaw crackdown). So Opus
+stays native/legit, and the worker is a *separate* model invoked as an external command.
 
-So we split at the **orchestration layer** instead of the harness layer: Opus stays
-native/legit, and DeepSeek is invoked as an external worker using **DeepSeek's own
-key + native Anthropic-compatible endpoint** (`api.deepseek.com/anthropic`). No
-Anthropic credential ever transits a proxy. ToS-clean, no extra Anthropic billing.
+## Workers
 
-### How gsd uses it
+`worker.sh` is the gsd `workflow.cross_ai_command`. It wraps the plan task in shared
+operating rules + a SUMMARY contract and dispatches to a provider by
+`NORISH_CROSS_AI_WORKER`:
+
+| Worker | Auth | Billing | Quota wall | Notes |
+| --- | --- | --- | --- | --- |
+| **`antigravity`** (default) | Google login (personal **Plus** sub) | included in sub | **yes** (250/5h + 2,800/week) | First-party `agy` CLI → ToS-clean. Gemini 3.5 Flash, aggressive `--think`. |
+| `deepseek` | DeepSeek API key | pay-per-token | no | Claude Code harness → DeepSeek's native Anthropic endpoint. No quota wall. |
+
+**Default = Antigravity / Gemini 3.5 Flash with aggressive thinking**, on the personal
+Google subscription: sanctioned (first-party tool + login), no extra billing. DeepSeek
+stays available as the no-quota-wall fallback when the weekly Gemini cap is spent.
+
+## Quota-aware overnight running (`run-or-defer.sh`)
+
+Antigravity on Plus is rate-capped and `agy` can't pre-report remaining quota, so this is
+**try-then-defer**, not pre-check:
+
+```
+run-or-defer.sh <task-file>   # enqueue a task, attempt it now
+run-or-defer.sh --drain       # process the queue (what cron calls); honours cooldown
+run-or-defer.sh --status      # queue + cooldown
+```
+
+- **success** → SUMMARY filed in `.cross-ai/done/`, cooldown cleared.
+- **quota exhausted** (`agy` reports `Individual quota reached … Resets in …` / 429
+  `RESOURCE_EXHAUSTED`) → the worker exits `75`; the runner records a `blocked-until`
+  cooldown from the parsed reset, **leaves the task queued**, and arms a cron drainer.
+- **other failure** → task moved to `.cross-ai/failed/` (no infinite retry).
+
+### The cron "wake when usage returns" (`install-scheduler.sh`)
+
+```
+install-scheduler.sh            # install the drainer (idempotent)
+install-scheduler.sh --print    # show the crontab line
+install-scheduler.sh --uninstall
+```
+
+It installs (for the **current user** — the one with the `agy` login) a crontab line
+that ticks `run-or-defer.sh --drain` every `NORISH_CROSS_AI_CRON_MIN` minutes
+(default 15). Between ticks the drainer is **gated by the cooldown**, so it cheaply
+no-ops until the quota window resets and then runs the queued work automatically —
+i.e. it "wakes when there is usage again." `run-or-defer.sh` auto-arms it on the first
+deferral. (No cron daemon? Use a systemd timer calling the same `--drain`.)
+
+All runtime state lives under `.cross-ai/` (gitignored): `queue/`, `done/`, `failed/`,
+`blocked-until`, `cron.log`.
+
+## Configuration (env)
+
+**Antigravity worker**
+| Var | Default | Purpose |
+| --- | --- | --- |
+| `NORISH_CROSS_AI_WORKER` | `antigravity` | `antigravity` \| `deepseek` |
+| `NORISH_GEMINI_MODEL` | `gemini-3.5-flash` | worker model |
+| `NORISH_GEMINI_THINK` | `--think` | most-aggressive thinking. `""` disables; `--thinking-level high` if your `agy` uses levels |
+| `NORISH_AGY_APPROVE` | `all` | `--approve` policy (auto-approve writes + shell; `agy` adds nsjail sandbox) |
+| `NORISH_AGY_BIN` | `agy` | CLI binary |
+
+**DeepSeek worker**
+| Var | Default | Purpose |
+| --- | --- | --- |
+| `DEEPSEEK_API_KEY` / `NORISH_CROSS_AI_KEY_FILE` | — | DeepSeek key (never commit it) |
+| `NORISH_CROSS_AI_BASE_URL` | `https://api.deepseek.com/anthropic` | or `http://127.0.0.1:3456` to reuse claude-code-router |
+| `NORISH_CROSS_AI_MODEL` | `deepseek-v4-pro` | worker model |
+
+**Scheduler**: `NORISH_CROSS_AI_CRON_MIN` (default 15).
+
+## gsd integration
 
 `.planning/config.json` → `workflow`:
 
 ```json
 "cross_ai_execution": true,
-"cross_ai_command": "tooling/cross-ai/deepseek-executor.sh",
+"cross_ai_command": "tooling/cross-ai/worker.sh",
 "cross_ai_timeout": 1800
 ```
 
-During `execute-phase`, gsd's `cross_ai_delegation` step pipes a plan's task prompt to
-the command on **stdin**; the command does the work in the repo and prints a
-SUMMARY.md on **stdout**. A non-zero exit makes gsd fall back to the native Opus
-executor for that plan — so a missing key or a worker failure degrades gracefully.
+gsd's `cross_ai_delegation` step pipes a plan's task to `worker.sh` on stdin and reads
+the SUMMARY from stdout; a non-zero exit makes gsd fall back to the native Opus
+executor for that plan. **Note:** gsd's path is *synchronous* — for unattended overnight
+Antigravity runs where you want to *wait out* the quota instead of falling back to Opus,
+drive execution through `run-or-defer.sh` + the cron drainer instead.
 
-**Which plans go to DeepSeek:**
-- per-plan: set `cross_ai: true` in the PLAN.md frontmatter (the supervisor decides
-  which plans are worker-suitable), or
-- whole run: `/gsd-execute-phase <phase> --cross-ai` (force all), `--no-cross-ai` (disable).
+Which plans go to a worker: set `cross_ai: true` in a PLAN.md frontmatter, or run
+`/gsd-execute-phase <phase> --cross-ai` (force all) / `--no-cross-ai` (disable).
 
-Plans without `cross_ai: true` run on the native Opus executor as usual.
+## One-time box setup & "verify on LXC 110" items
 
-### Configuration (env)
-
-| Var | Default | Purpose |
-| --- | --- | --- |
-| `DEEPSEEK_API_KEY` | — | DeepSeek key (preferred). **Never commit it.** |
-| `NORISH_CROSS_AI_KEY_FILE` | — | Alternative: path to a file holding the key. |
-| `NORISH_CROSS_AI_BASE_URL` | `https://api.deepseek.com/anthropic` | Set to `http://127.0.0.1:3456` to reuse the box's existing `claude-code-router` instead of going direct. |
-| `NORISH_CROSS_AI_MODEL` | `deepseek-v4-pro` | Worker model. |
-
-On LXC 110, export `DEEPSEEK_API_KEY` (or point `NORISH_CROSS_AI_KEY_FILE` at a
-root-only file) in the environment the gsd supervisor runs in. The key lives only in
-the environment / a gitignored file — never in the repo.
-
-**Run as a non-root user.** Claude Code refuses `bypassPermissions` as root, so the
-worker (which inherits the supervisor's user) must run as the non-root `claude` /
-`claude-ds` user on LXC 110. The script fails fast with a clear hint if run as root.
-
-### Boundaries (inherited by the worker prompt)
-
-The worker is told to obey `./CLAUDE.md`, read the vault first, commit per task, stay
-on the current branch (the supervisor owns branching), and never touch the live
-stack / deploy / `docker:build` / anything outside the repo.
+- `agy` Google login as the user that runs the drainer (the personal Plus account).
+- The worker inherits that user — and `claude` (DeepSeek path) refuses bypass as root,
+  so use a **non-root** user.
+- **Verify on the box** (can't be tested off-box): that `agy --headless --approve all`'s
+  nsjail sandbox still permits repo writes, `git`, and `pnpm`'s network to the registry;
+  and the exact `--think`/thinking-level flag for your installed `agy` version (the
+  non-TTY stdout drop is already handled via a pty wrapper).

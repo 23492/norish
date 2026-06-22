@@ -17,7 +17,7 @@
     "pattern_mapper": true,
     "use_worktrees": false,
     "cross_ai_execution": true,
-    "cross_ai_command": "tooling/cross-ai/deepseek-executor.sh",
+    "cross_ai_command": "tooling/cross-ai/worker.sh",
     "cross_ai_timeout": 1800
   },
   "ship": {

@@ -96,3 +96,6 @@ docker-compose.yml
 
 # gsd-core machine-local settings
 .claude/settings.local.json
+
+# cross-ai runtime state (queue, results, quota cooldown, key files) — box-local
+.cross-ai/
