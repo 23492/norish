@@ -87,18 +87,19 @@ export function RecipeActionsMenu({ ctx }: RecipeActionsMenuProps) {
   }, [createShare, intl, isCreatingShare, recipe]);
 
   // --- Visit Original ---
+  const recipeUrl = recipe?.url;
   const handleVisitOriginal = useCallback(async () => {
-    if (!recipe?.url) return;
+    if (!recipeUrl) return;
 
     try {
-      await Linking.openURL(recipe.url);
+      await Linking.openURL(recipeUrl);
     } catch {
       Alert.alert(
         intl.formatMessage({ id: "auth.errors.default.title" }),
         intl.formatMessage({ id: "recipes.actions.visitOriginal" })
       );
     }
-  }, [recipe?.url, intl]);
+  }, [recipeUrl, intl]);
 
   // --- Delete ---
   const handleDelete = useCallback(() => {

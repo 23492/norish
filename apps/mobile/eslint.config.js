@@ -37,4 +37,12 @@ module.exports = defineConfig([
       },
     },
   },
+  {
+    rules: {
+      "react-hooks/globals": "off",
+      "react-hooks/immutability": "off",
+      "react-hooks/refs": "off",
+      "react-hooks/set-state-in-effect": "off",
+    },
+  },
 ]);

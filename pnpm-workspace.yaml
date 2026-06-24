@@ -37,8 +37,8 @@ catalog:
   pg: 8.20.0
   postcss: ^8.5.13
   prettier: ^3.8.3
-  react: 19.2.4
-  react-dom: 19.2.4
+  react: 19.2.3
+  react-dom: 19.2.3
   server-only: ^0.0.1
   superjson: ^2.2.6
   tailwindcss: ^4.2.4
@@ -68,9 +68,6 @@ onlyBuiltDependencies:
   - ffmpeg-static
   - sharp
   - unrs-resolver
-
-patchedDependencies:
-  expo-widgets@55.0.7: patches/expo-widgets@55.0.7.patch
 
 syncInjectedDepsAfterScripts:
   - build

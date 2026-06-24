@@ -23,8 +23,8 @@ import { useCacheInvalidationOnReconnect } from "@/hooks/use-cache-lifecycle";
 import { useSessionRevalidation } from "@/hooks/use-session-revalidation";
 import { useUserLocaleSync } from "@/hooks/use-user-locale-sync";
 import { TrpcProvider } from "@/providers/trpc-provider";
-import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { Stack } from "expo-router";
+import { DarkTheme, DefaultTheme, ThemeProvider } from "expo-router/react-navigation";
 import { HeroUINativeProvider } from "heroui-native";
 import { PortalHost } from "heroui-native/portal";
 
