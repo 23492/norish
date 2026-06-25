@@ -26,6 +26,13 @@ See: .planning/PROJECT.md (updated 2026-06-12)
 
 **Historical focus (superseded — kept for context):** Phase 4 — Recipe sharing (SHARE-01 + RATE-01) both code-complete; Phases 2/3/5/6 also code-complete, human-verify pending.
 
+## Session log — 2026-06-25
+
+- **Phase 19 (UNIT-NORM-01)** landed + verified (first real cross-AI worker delegation). Commits dfe3ef17/bee88d06/f4501079 on `claude/overnight-20260622`.
+- **gsd agent pack installed** (commit cd0c1fbc) — `.claude/agents/*.md` (gsd-planner/plan-checker/verifier/executor + 29 more), pinned to vendored gsd-core 1.4.4. `agents_installed` is now `true`, so the plan-checker/verifier quality gates can spawn (previously the director ran them inline). Full skill+command surface also surfaced; trim with `gsd:surface` if the cold-start overhead is unwanted.
+- **Upstream v0.19.0-beta** assessed + scheduled as **Phase 20** (ROADMAP "Upstream tracking" + vault `norish-upstream-0.19.0-incorporation-assessment`). Large, high-overlap merge — its own integration branch.
+- **Open: live-integration program (the "push to live" ask).** DISCOVERED: the feature phases are NOT on `main` or on `claude/overnight-20260622` (that branch is only +13 over main: cross-ai tooling + Phase 19 + doc/test commits). Phases 2–16/18 live on ~14 separate unmerged `feat/*` branches; live `norish-app` runs `norish:live` built ~10 days ago (predates all of it). "Push what we have to live" = a sequenced 14-branch integration → build → gated verify → deliberate live cutover (migrations run on the prod DB at boot — back up first; consider the `norishp2` stack as a verify-stack). Sequencing + safety choices pending with the lead before any irreversible step.
+
 ## Current Position
 
 Phase: 19 of 19 — ingredient-unit-normalization-update-path (COMPLETE, verified 2026-06-25)
