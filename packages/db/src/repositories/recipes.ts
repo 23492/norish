@@ -23,6 +23,7 @@ import {
 } from "@norish/config/zod/server-config";
 import { dbLogger } from "@norish/db/logger";
 import { stripHtmlTags } from "@norish/shared/lib/helpers";
+import { normalizeUnit } from "@norish/shared/lib/unit-localization";
 import z from "zod";
 import { and, asc, desc, eq, gt, ilike, inArray, isNull, lte, or, sql } from "drizzle-orm";
 
@@ -47,7 +48,11 @@ import {
   RecipeDashboardSchema,
 } from "../zodSchemas";
 
-import { attachIngredientsToRecipeByInputTx, getOrCreateManyIngredientsTx } from "./ingredients";
+import {
+  attachIngredientsToRecipeByInputTx,
+  getOrCreateManyIngredientsTx,
+  getUnitsForNormalization,
+} from "./ingredients";
 import { appliedOutcome, staleOutcome } from "./mutation-outcomes";
 import { getConfig } from "./server-config";
 import { createManyRecipeStepsTx } from "./steps";
@@ -1275,6 +1280,9 @@ async function syncRecipeIngredientsTx(
   const existingById = new Map(existing.map((row: { id: string }) => [row.id, row]));
   const resolvedInputs = await resolveRecipeIngredientIdsTx(tx, inputs);
   const retainedIds = new Set<string>();
+  // Normalize locale-specific unit terms to canonical IDs, mirroring the create
+  // path (attachIngredientsToRecipeByInputTx) so create and update behave alike.
+  const units = await getUnitsForNormalization();
 
   for (const [index, ingredient] of resolvedInputs.entries()) {
     if (!ingredient.ingredientId) continue;
@@ -1282,7 +1290,7 @@ async function syncRecipeIngredientsTx(
     const values = {
       ingredientId: ingredient.ingredientId,
       amount: ingredient.amount ?? null,
-      unit: ingredient.unit ?? null,
+      unit: normalizeUnit(ingredient.unit ?? "", units),
       order: ingredient.order ?? index,
       systemUsed: ingredient.systemUsed ?? systemUsed,
     };

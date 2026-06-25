@@ -30,7 +30,7 @@ import { normalizeUnit } from "@norish/shared/lib/unit-localization";
 
 const IngredientArraySchema = z.array(IngredientSelectBaseSchema);
 
-async function getUnitsForNormalization(): Promise<UnitsMap> {
+export async function getUnitsForNormalization(): Promise<UnitsMap> {
   const value = await getConfig<unknown>(ServerConfigKeys.UNITS);
 
   const wrapped = UnitsConfigSchema.safeParse(value);
