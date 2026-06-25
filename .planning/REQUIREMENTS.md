@@ -108,6 +108,10 @@ Locked from the product backlog + brainstorm (2026-06-12). All **Backlog/v2** un
 - **REC-01** (v2): Recommendations ("recipes others liked, similar to this") — content-based first, collaborative as ratings grow.
 - **DISCOVER-01** (v2 / potential): Public cookbook discovery.
 
+### Correctness / fork-maintenance fixes
+
+- **UNIT-NORM-01** (Phase 19) — The recipe UPDATE path must normalize locale-specific ingredient unit terms to canonical IDs identically to the CREATE path. `syncRecipeIngredientsTx` (`packages/db/src/repositories/recipes.ts`) wrote `unit: ingredient.unit ?? null` verbatim, so editing a recipe persisted un-normalized units (e.g. Dutch "handvol" instead of "handful"). Fix: export `getUnitsForNormalization` from `ingredients.ts` and apply `normalizeUnit(ingredient.unit ?? "", units)` at the single update site — mirroring `attachIngredientsToRecipeByInputTx`. Closes the 3 `updateRecipeWithRefs` failures in `ingredient-unit-normalization.test.ts` that Phase 18 logged as out-of-scope. No schema/migration; no security surface.
+
 ### Explicitly out of scope
 
 | Feature | Reason |
