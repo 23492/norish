@@ -1,16 +1,18 @@
 ---
-gsd_state_version: 1.0
-milestone: v0.19.0
-milestone_name: milestone
-status: executing
-last_updated: "2026-06-26T11:50:18.664Z"
-last_activity: "2026-06-14 — Phase 10 / 10-01 (WorkOS-only auth: disable norish-only email/password + auto-redirect the unauthenticated entry straight to WorkOS AuthKit, WORKOS-ONLY-01) CODE-COMPLETE on branch feat/workos-only-auth (off main). Owner wants WorkOS to be the SOLE sign-in/sign-up path. INVESTIGATION: norish ALREADY shipped most of this — apps/web/app/(auth)/login/page.tsx already auto-redirected for a sole OAuth provider (oauthProviders.length===1 && !hasCredential && !justLoggedOut) and login-client.tsx already rendered <AutoSignIn> which calls signIn.oauth2({providerId:'workos'}) -> the AuthKit page; signup/page.tsx already redirect('/login') when !passwordEnabled, and getAvailableProviders only adds the credential provider when PASSWORD_AUTH_ENABLED, so turning password off already removes the email/password form + the signup route (no norish-only accounts). Loop-safety already existed: apps/web/proxy.ts EXCLUDES /login, /signup, /auth-error, /api/auth from the auth matcher and the OAuth flow uses errorCallbackURL='/auth-error'; the WorkOS callback ${AUTH_URL}/api/auth/oauth2/callback/workos is under the excluded api/auth so the post-auth callback can't re-enter the auto-redirect. PASSWORD_AUTH_ENABLED already defaults to !hasOAuthEnvConfigured() (phase 09). WHAT NEEDED CODE: (1) extracted the inline redirect condition into a TESTABLE pure shouldAutoRedirectToSso(providers, escapeRequested) in packages/auth/src/providers.ts (!escapeRequested && oauthProviders.length===1 && !hasCredential — conservative + self-recovering); (2) login/page.tsx + signup/page.tsx call it and add the explicit ?sso=0 recovery escape the task required (the only prior escape was ?logout=true), forwarded through the signup->login redirect; (3) a visible 'Use another sign-in method' -> /login?sso=0 link on the AutoSignIn spinner (new login.useAnotherMethod i18n key in all 11 locales — en/nl/de/fr/es/it translated, da/ko/pl/ru English fallback — keeps check:locale-keys parity); (4) sso-auto-redirect.test.ts (8 tests: sole-provider->redirect, password-on->no, no-provider->no, >1-provider->no, ?sso=0/escape->no). The genericOAuth WorkOS provider (buildWorkOSProviders), the proxy matcher, the better-auth callback, and login-client.tsx's defensive re-check are ALL UNCHANGED. THE FLIP (lead, at deploy): set PASSWORD_AUTH_ENABLED=false (+ WORKOS_CLIENT_ID/WORKOS_API_KEY) — no new flag introduced; ?sso=0 is a URL param, not config. Static verify GREEN: typecheck @norish/auth + @norish/web EXIT 0 (web real tsc); i18n:check EXIT 0; lint @norish/auth + the 3 touched web files clean. Tests: @norish/auth 114/114 (7 files) incl. the 8 new sso-auto-redirect + workos-provider 7/7 + password-auth 9/9 UNCHANGED. Pre-existing OUT-OF-SCOPE failures (untouched): archive-import-overwrite (shared-server), updateRecipeWithRefs (db). gsd PLAN+SUMMARY under .planning/phases/10-workos-only-auth/. 3 commits (b1391406 feat helper+escape, 19875741 feat escape-link+i18n, a3f2727e test) on feat/workos-only-auth; NO docker:build (lead-owned), NO merge to main, live containers/DB + /opt/norish/ UNTOUCHED, NO schema/migration. WORKOS-ONLY-01 satisfied. HUMAN-VERIFY: LEAD = set PASSWORD_AUTH_ENABLED=false + WorkOS env + docker:build + redeploy + Chrome e2e (logged-out lands on AuthKit not the norish UI; /login?sso=0 + /signup behave; recovery with password re-enabled). PENDING."
+gsd_state_version: '1.0'
+status: planning
 progress:
-  total_phases: 11
-  completed_phases: 7
-  total_plans: 12
-  completed_plans: 15
-  percent: 64
+  total_phases: 19
+  completed_phases: 3
+  total_plans: 24
+  completed_plans: 24
+  percent: 100
+  note: >-
+    All 24 plans across phases 0-19 (17 skipped) are CODE-COMPLETE. "completed_phases: 3"
+    = the 3 fully verified/done (0 fork-setup, 1 Camoufox, 19 unit-normalization). Phases
+    2-16 + 18 are code-complete but await the LEAD's human-verify (docker:build + Chrome
+    e2e + live deploy) — that gate, not code, is what's outstanding. Upstream v0.19.0-beta
+    is available and not yet incorporated (see ROADMAP "Upstream tracking").
 ---
 
 # Project State
