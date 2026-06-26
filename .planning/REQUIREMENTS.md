@@ -74,6 +74,7 @@ _(renumbered from Phase 3/4 to make room for the Sharing phase.)_
 | SETUP-01..03 | Phase 0 | In progress |
 | SETUP-04 | Phase 1 | Done |
 | SETUP-05 | Phases 1/3 + cross-cutting | In progress |
+| UPSTREAM-019 | Phase 20 | Pending |
 
 **Coverage:** v1 = 22 requirements, all mapped to phases.
 
@@ -111,6 +112,10 @@ Locked from the product backlog + brainstorm (2026-06-12). All **Backlog/v2** un
 ### Correctness / fork-maintenance fixes
 
 - **UNIT-NORM-01** (Phase 19) — The recipe UPDATE path must normalize locale-specific ingredient unit terms to canonical IDs identically to the CREATE path. `syncRecipeIngredientsTx` (`packages/db/src/repositories/recipes.ts`) wrote `unit: ingredient.unit ?? null` verbatim, so editing a recipe persisted un-normalized units (e.g. Dutch "handvol" instead of "handful"). Fix: export `getUnitsForNormalization` from `ingredients.ts` and apply `normalizeUnit(ingredient.unit ?? "", units)` at the single update site — mirroring `attachIngredientsToRecipeByInputTx`. Closes the 3 `updateRecipeWithRefs` failures in `ingredient-unit-normalization.test.ts` that Phase 18 logged as out-of-scope. No schema/migration; no security surface.
+
+### Upstream incorporation
+
+- [ ] **UPSTREAM-019** (Phase 20) — Incorporate upstream `norish-recipes/norish` **v0.19.0-beta** (PR #468, squashed commit `1f684480`) into the fork on a dedicated integration branch off `main`, re-asserting the fork's hard constraints at every conflict (Camoufox-not-Chrome — `packages/api/src/parser/fetch.ts`, never reintroduce `playwright.ts`/headless Chrome; per-cookbook isolation HOUSE-06 stays green; config-as-code env sync in `seed-config.ts`; WorkOS + multi-household + per-cookbook permissions in `auth.ts`/`permissions.ts`/`claim-processor.ts`) and reconciling our `packages/db/src/schema` (multi-household, `recipe_shares`, `recipe_ratings`, `visibility`, per-cookbook policy columns, migrations 0035–0038) against upstream's NEW `packages/db-schema/` package split. ~996 files changed upstream, ~110 overlap our fork. Hard gates: per-cookbook isolation + db/queue testcontainer suites under `sg docker`, full typecheck/lint/test green, then a director-owned `pnpm docker:build`. Off the live stack throughout (live cutover is a separate, deliberate step). Full assessment: vault `norish-upstream-0.19.0-incorporation-assessment`.
 
 ### Explicitly out of scope
 
