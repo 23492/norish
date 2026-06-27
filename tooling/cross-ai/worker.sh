@@ -7,29 +7,18 @@
 # selected provider executor. STDOUT is the SUMMARY.md; exit code is the executor's
 # (0 = done, 75 = quota-exhausted/try-later, other = failure).
 #
-# Worker selection (env):
-#   NORISH_CROSS_AI_WORKER   antigravity (default) | deepseek
-#
-# Default = Antigravity (Gemini 3.5 Flash, aggressive thinking) on Kiran's personal
-# Google subscription — ToS-clean (first-party CLI + login), no extra billing.
-# DeepSeek (its own key) remains available as a no-quota-wall fallback.
+# Antigravity (Gemini 3.5 Flash, aggressive thinking) on Kiran's personal
+# Google subscription is the sole cross-AI worker — ToS-clean (first-party CLI + login),
+# no extra billing.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKER="${NORISH_CROSS_AI_WORKER:-antigravity}"
 
-case "$WORKER" in
-  antigravity) EXECUTOR="$HERE/antigravity-executor.sh" ;;
-  deepseek)
-    # DeepSeek fallback is DISABLED for now (2026-06-22). The executor is kept in
-    # place; re-enable by setting NORISH_CROSS_AI_ALLOW_DEEPSEEK=1.
-    if [ "${NORISH_CROSS_AI_ALLOW_DEEPSEEK:-0}" != "1" ]; then
-      echo "ERROR: DeepSeek fallback is disabled for now (set NORISH_CROSS_AI_ALLOW_DEEPSEEK=1 to re-enable)" >&2
-      exit 64
-    fi
-    EXECUTOR="$HERE/deepseek-executor.sh" ;;
-  *) echo "ERROR: unknown NORISH_CROSS_AI_WORKER='$WORKER' (antigravity)" >&2; exit 64 ;;
-esac
+EXECUTOR="$HERE/antigravity-executor.sh"
+if [ -n "$WORKER" ] && [ "$WORKER" != "antigravity" ]; then
+  echo "WARNING: NORISH_CROSS_AI_WORKER=$WORKER ignored; antigravity is the only cross-AI worker" >&2
+fi
 [ -x "$EXECUTOR" ] || { echo "ERROR: executor not found/executable: $EXECUTOR" >&2; exit 64; }
 
 TASK="$(cat)"
@@ -62,7 +51,7 @@ None (or a list)
 ## Self-Check
 PASSED or FAILED — <one line: typecheck/lint/test status as evidence>
 ## Provenance
-Produced by cross-AI worker ($WORKER) — PENDING strict supervisor review. Do NOT
+Produced by cross-AI worker (antigravity) — PENDING strict supervisor review. Do NOT
 carry these commits forward until the native supervisor has independently reviewed
 the diff and re-run typecheck/lint/test + acceptance criteria.
 EOF
