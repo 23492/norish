@@ -5,8 +5,8 @@
 # Runs Google's first-party Antigravity CLI (`agy`) on Kiran's PERSONAL Google
 # subscription (Plus tier). ToS-clean: official tool + official login, not a
 # third-party harness routing credentials — so subscription use is sanctioned and
-# costs no extra (contrast: Anthropic bans subscription-via-proxy; DeepSeek needs a
-# paid API key). Reads the worker prompt on STDIN, runs `agy` non-interactively in the
+# costs no extra (contrast: Anthropic bans subscription-via-proxy; a third-party
+# API key would cost extra). Reads the worker prompt on STDIN, runs `agy` non-interactively in the
 # repo (edits + commits), prints the agent's final output (the SUMMARY) on STDOUT.
 #
 # Model: Gemini 3.5 Flash (High) by default — in agy v1.0.10 the reasoning level is

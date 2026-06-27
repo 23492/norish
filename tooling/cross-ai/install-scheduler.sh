@@ -16,7 +16,7 @@
 #
 # Config (env):
 #   NORISH_CROSS_AI_CRON_MIN   tick interval in minutes (default 15)
-#   NORISH_CROSS_AI_WORKER     worker for the drain (default antigravity)
+#   NORISH_CROSS_AI_WORKER     (kept for cron-line compatibility; antigravity is the only worker)
 set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"

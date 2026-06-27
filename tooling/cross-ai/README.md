@@ -22,17 +22,15 @@ operating rules + a SUMMARY contract and dispatches to a provider by
 
 | Worker | Auth | Billing | Quota wall | Notes |
 | --- | --- | --- | --- | --- |
-| **`antigravity`** (default) | Google login (personal **Plus** sub) | included in sub | **yes** (250/5h + 2,800/week) | First-party `agy` CLI → ToS-clean. Gemini 3.5 Flash, aggressive `--think`. |
-| `deepseek` _(disabled for now)_ | DeepSeek API key | pay-per-token | no | Claude Code harness → DeepSeek's native Anthropic endpoint. Re-enable with `NORISH_CROSS_AI_ALLOW_DEEPSEEK=1`. |
+| **`antigravity`** | Google login (personal **Plus** sub) | included in sub | **yes** (250/5h + 2,800/week) | First-party `agy` CLI → ToS-clean. Gemini 3.5 Flash, aggressive `--think`. |
 
-**Default = Antigravity / Gemini 3.5 Flash with aggressive thinking**, on the personal
-Google subscription: sanctioned (first-party tool + login), no extra billing.
-**DeepSeek is disabled for now** (the executor stays in place; set
-`NORISH_CROSS_AI_ALLOW_DEEPSEEK=1` to bring it back as the no-quota-wall fallback).
+**Antigravity / Gemini 3.5 Flash with aggressive thinking** is the sole cross-AI worker,
+on the personal Google subscription: sanctioned (first-party tool + login), no extra
+billing.
 
 ## Mandatory review of worker output (hard gate)
 
-Worker models (Gemini Flash / DeepSeek) are **lower-trust than the Opus supervisor**, and
+The worker model (Gemini Flash) is **lower-trust than the Opus supervisor**, and
 their self-reported result can be wrong — gsd's own context-budget guidance warns of
 "silent partial completion" where an agent claims done but the work is incomplete, and a
 self-check that only proves file existence, not semantic correctness. So **everything a
@@ -96,18 +94,11 @@ All runtime state lives under `.cross-ai/` (gitignored): `queue/`, `done/`, `fai
 **Antigravity worker**
 | Var | Default | Purpose |
 | --- | --- | --- |
-| `NORISH_CROSS_AI_WORKER` | `antigravity` | `antigravity` \| `deepseek` |
+| `NORISH_CROSS_AI_WORKER` | `antigravity` | `antigravity` (the only worker) |
 | `NORISH_GEMINI_MODEL` | `gemini-3.5-flash` | worker model |
 | `NORISH_GEMINI_THINK` | `--think` | most-aggressive thinking. `""` disables; `--thinking-level high` if your `agy` uses levels |
 | `NORISH_AGY_APPROVE` | `all` | `--approve` policy (auto-approve writes + shell; `agy` adds nsjail sandbox) |
 | `NORISH_AGY_BIN` | `agy` | CLI binary |
-
-**DeepSeek worker**
-| Var | Default | Purpose |
-| --- | --- | --- |
-| `DEEPSEEK_API_KEY` / `NORISH_CROSS_AI_KEY_FILE` | — | DeepSeek key (never commit it) |
-| `NORISH_CROSS_AI_BASE_URL` | `https://api.deepseek.com/anthropic` | or `http://127.0.0.1:3456` to reuse claude-code-router |
-| `NORISH_CROSS_AI_MODEL` | `deepseek-v4-pro` | worker model |
 
 **Scheduler**: `NORISH_CROSS_AI_CRON_MIN` (default 15).
 
@@ -133,8 +124,7 @@ Which plans go to a worker: set `cross_ai: true` in a PLAN.md frontmatter, or ru
 ## One-time box setup & "verify on LXC 110" items
 
 - `agy` Google login as the user that runs the drainer (the personal Plus account).
-- The worker inherits that user — and `claude` (DeepSeek path) refuses bypass as root,
-  so use a **non-root** user.
+- The worker inherits that user — run as a **non-root** user (the `agy` user on LXC 110).
 - **Verify on the box** (can't be tested off-box): that `agy --headless --approve all`'s
   nsjail sandbox still permits repo writes, `git`, and `pnpm`'s network to the registry;
   and the exact `--think`/thinking-level flag for your installed `agy` version (the
