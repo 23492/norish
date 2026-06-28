@@ -6,17 +6,13 @@
  */
 
 import type { Queue } from "bullmq";
+
 import type {
   AddAllergyDetectionJobResult,
   AllergyDetectionJobData,
 } from "@norish/queue/contracts/job-types";
-
-import { getAIConfig, isAIEnabled } from "@norish/config/server-config-loader";
-import {
-  getActiveHouseholdForUser,
-  getAllergiesForUsers,
-  getHouseholdMemberIds,
-} from "@norish/db";
+import { getAllergiesForUsers, getHouseholdMemberIds } from "@norish/db";
+import { getAIConfig, isAIEnabled } from "@norish/shared-server/config/server-config-loader";
 import { createLogger } from "@norish/shared-server/logger";
 
 import { isJobInQueue } from "../helpers";
@@ -46,11 +42,8 @@ export async function addAllergyDetectionJob(
     return { status: "skipped", reason: "disabled" };
   }
 
-  // Check if the active household has any allergies configured
-  const activeHousehold = await getActiveHouseholdForUser(data.userId);
-  const householdUserIds = activeHousehold
-    ? await getHouseholdMemberIds(activeHousehold.id)
-    : [data.userId];
+  // Check if household has any allergies configured
+  const householdUserIds = await getHouseholdMemberIds(data.userId);
   const householdAllergies = await getAllergiesForUsers(householdUserIds);
 
   if (householdAllergies.length === 0) {

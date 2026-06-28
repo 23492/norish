@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-
 import JSZip from "jszip";
+
 import { SERVER_CONFIG } from "@norish/config/env-config-server";
 import {
   createRecipeWithRefs,
@@ -154,7 +154,7 @@ async function rehomeArchiveMediaToRecipe(
       thumbnail:
         rewriteRecipeMediaUrl(video.thumbnail, sourceRecipeId, targetRecipeId) ?? video.thumbnail,
     })),
-    steps: dto.steps.map((step) => ({
+    steps: (dto.steps ?? []).map((step) => ({
       ...step,
       images: step.images?.map((image) => ({
         ...image,

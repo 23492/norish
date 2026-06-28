@@ -1,5 +1,6 @@
 packages:
   - apps/*
+  - "!apps/quick-import-extension"
   - packages/*
   - tooling/*
 
@@ -10,10 +11,10 @@ catalog:
   "@better-auth/utils": 0.4.0
   "@eslint/js": ^9.39.4
   "@heroicons/react": 2.2.0
-  "@heroui/react": ^2.8.10
-  "@scalar/nextjs-api-reference": ^0.10.13
+  "@heroui/react": ^3.0.4
+  "@scalar/nextjs-api-reference": ^0.10.16
   "@tailwindcss/postcss": ^4.2.4
-  "@tanstack/react-query": ^5.100.8
+  "@tanstack/react-query": ^5.100.11
   "@testcontainers/postgresql": ^11.14.0
   "@trpc/client": ^11.17.0
   "@trpc/server": ^11.17.0
@@ -53,6 +54,13 @@ catalog:
 injectWorkspacePackages: true
 
 nodeLinker: hoisted
+
+overrides:
+  "@tanstack/react-query": 5.100.11
+  "@trpc/client": 11.17.0
+  "@trpc/server": 11.17.0
+  "@trpc/tanstack-react-query": 11.17.0
+  "zod": 4.4.2
 
 onlyBuiltDependencies:
   - "@tailwindcss/oxide"

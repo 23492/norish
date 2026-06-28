@@ -1,16 +1,13 @@
-import type { User } from "@norish/shared/contracts/dto/user";
-import type { MutationOutcome } from "./mutation-outcomes";
-
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { decrypt, encrypt, hmacIndex } from "@norish/auth/crypto";
-import { SERVER_CONFIG } from "@norish/config/env-config-server";
+
+import type { User } from "@norish/shared/contracts/dto/user";
+import { decrypt, encrypt, hmacIndex } from "@norish/config/crypto";
+import { db } from "@norish/db/drizzle";
 import { authLogger } from "@norish/db/logger";
 
-
-import { db } from "../drizzle";
+import type { MutationOutcome } from "./mutation-outcomes";
 import { accounts, users } from "../schema/auth";
 import { ServerConfigKeys } from "../zodSchemas/server-config";
-
 import { appliedOutcome, staleOutcome } from "./mutation-outcomes";
 import { setConfig } from "./server-config";
 
@@ -36,22 +33,6 @@ export async function createUser(
   // Check if this will be the first user BEFORE inserting
   const isFirstUser = (await countUsers()) === 0;
 
-  // Server-admin (operator) is env-authoritative via ADMIN_EMAILS (R2). When the
-  // allowlist is configured, the first signup is NOT auto-admin unless its email is
-  // listed; when unset we preserve the legacy first-user-owner fallback (self-host).
-  // Kept in lockstep with resolveServerAdminOnCreate in @norish/auth/admin-allowlist
-  // (this repo cannot import @norish/auth — that would be a circular dep — so the same
-  // decision is inlined here against the normalized SERVER_CONFIG.ADMIN_EMAILS list).
-  // user.email is PLAINTEXT here (encrypted into the payload below).
-  const adminEmails = new Set(
-    (SERVER_CONFIG.ADMIN_EMAILS ?? []).map((e) => e.trim().toLowerCase()).filter(Boolean)
-  );
-  const allowlistConfigured = adminEmails.size > 0;
-  const isServerAdmin = allowlistConfigured
-    ? adminEmails.has(user.email.trim().toLowerCase())
-    : isFirstUser;
-  const isServerOwner = allowlistConfigured ? false : isFirstUser;
-
   const payload = {
     id: user.id,
     email: encrypt(user.email),
@@ -59,9 +40,9 @@ export async function createUser(
     name: encrypt(user.name ?? ""),
     image: user.image ? encrypt(user.image) : null,
     emailVerified: user.emailVerified ?? false,
-    // Env-authoritative server-admin (see comment above).
-    isServerOwner,
-    isServerAdmin,
+    // Set owner/admin flags for first user
+    isServerOwner: isFirstUser,
+    isServerAdmin: isFirstUser,
   };
 
   const [inserted] = await db.insert(users).values(payload).returning();
@@ -70,12 +51,9 @@ export async function createUser(
     throw new Error("Failed to create user");
   }
 
-  // If first user, disable registration (independent of who is server-admin).
+  // If first user, disable registration
   if (isFirstUser) {
-    authLogger.info(
-      { email: user.email },
-      "First user registered (server-admin is env-driven via ADMIN_EMAILS)"
-    );
+    authLogger.info({ email: user.email }, "First user registered, set as server owner/admin");
     authLogger.info("Disabling registration after first user");
     await setConfig(ServerConfigKeys.REGISTRATION_ENABLED, false, user.id, false);
   }
@@ -474,60 +452,10 @@ export async function setUserAdminStatus(userId: string, isAdmin: boolean): Prom
     .where(eq(users.id, userId));
 }
 
-/**
- * Set BOTH server-role flags in a single write (env-authoritative path, R2).
- *
- * Used by the ADMIN_EMAILS allowlist re-evaluation to DEMOTE a previously
- * auto-owner who is not in the list (isServerOwner=false, isServerAdmin=false),
- * or to set an exact role. Unlike setUserAdminStatus (admin-only) and
- * setUserAsOwnerAndAdmin (both-true), this can also CLEAR isServerOwner.
- * Setting isServerOwner=false is always safe wrt the single-owner partial
- * unique index; this function never grants owner to more than one user on its
- * own (callers pass owner=false on the env path).
- */
-export async function setUserServerRole(
-  userId: string,
-  isServerOwner: boolean,
-  isServerAdmin: boolean
-): Promise<void> {
-  await db
-    .update(users)
-    .set({ isServerOwner, isServerAdmin, version: sql`${users.version} + 1` })
-    .where(eq(users.id, userId));
-}
-
 export async function countUsers(): Promise<number> {
   const result = await db.select({ id: users.id }).from(users);
 
   return result.length;
-}
-
-/**
- * Reads the user's active household pointer (user.active_household_id).
- * Returns null when the user has no active cookbook selected (personal view).
- */
-export async function getActiveHouseholdId(userId: string): Promise<string | null> {
-  const user = await db.query.users.findFirst({
-    where: eq(users.id, userId),
-    columns: { activeHouseholdId: true },
-  });
-
-  return user?.activeHouseholdId ?? null;
-}
-
-/**
- * Sets the user's active household pointer (user.active_household_id).
- * Pass null to switch back to the personal cookbook. Membership validation is
- * the caller's responsibility (see households.setActiveHousehold).
- */
-export async function setActiveHouseholdId(
-  userId: string,
-  householdId: string | null
-): Promise<void> {
-  await db
-    .update(users)
-    .set({ activeHouseholdId: householdId, version: sql`${users.version} + 1` })
-    .where(eq(users.id, userId));
 }
 
 /**
@@ -597,4 +525,51 @@ export async function updateUserPreferences(
 
     throw error;
   }
+}
+
+/**
+ * Set BOTH server-role flags in a single write (env-authoritative path).
+ *
+ * Used by the ADMIN_EMAILS allowlist re-evaluation to DEMOTE a previously
+ * auto-owner who is not in the list (isServerOwner=false, isServerAdmin=false),
+ * or to set an exact role. Unlike setUserAdminStatus (admin-only) and
+ * setUserAsOwnerAndAdmin (both-true), this can also CLEAR isServerOwner.
+ */
+export async function setUserServerRole(
+  userId: string,
+  isServerOwner: boolean,
+  isServerAdmin: boolean
+): Promise<void> {
+  await db
+    .update(users)
+    .set({ isServerOwner, isServerAdmin, version: sql`${users.version} + 1` })
+    .where(eq(users.id, userId));
+}
+
+/**
+ * Reads the user's active household pointer (user.active_household_id).
+ * Returns null when the user has no active cookbook selected (personal view).
+ */
+export async function getActiveHouseholdId(userId: string): Promise<string | null> {
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+    columns: { activeHouseholdId: true },
+  });
+
+  return user?.activeHouseholdId ?? null;
+}
+
+/**
+ * Sets the user's active household pointer (user.active_household_id).
+ * Pass null to switch back to the personal cookbook. Membership validation is
+ * the caller's responsibility (see households.setActiveHousehold).
+ */
+export async function setActiveHouseholdId(
+  userId: string,
+  householdId: string | null
+): Promise<void> {
+  await db
+    .update(users)
+    .set({ activeHouseholdId: householdId, version: sql`${users.version} + 1` })
+    .where(eq(users.id, userId));
 }

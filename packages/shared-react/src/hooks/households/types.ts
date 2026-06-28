@@ -1,10 +1,9 @@
 import type { QueryKey } from "@tanstack/react-query";
 import type { createTRPCContext } from "@trpc/tanstack-react-query";
-import type { PermissionLevel } from "@norish/config/zod/server-config";
+
 import type {
   HouseholdAdminSettingsDto,
   HouseholdSettingsDto,
-  HouseholdSummaryDto,
 } from "@norish/shared/contracts/dto/household";
 import type { AppRouter } from "@norish/trpc/client";
 
@@ -28,15 +27,6 @@ export type HouseholdQueryResult = {
   invalidate: () => void;
 };
 
-export type HouseholdsListResult = {
-  households: HouseholdSummaryDto[];
-  activeHouseholdId: string | null;
-  currentUserId: string | undefined;
-  isLoading: boolean;
-  queryKey: QueryKey;
-  invalidate: () => void;
-};
-
 export type HouseholdCacheHelpers = {
   setHouseholdData: (
     updater: (prev: HouseholdData | undefined) => HouseholdData | undefined
@@ -52,18 +42,6 @@ export type HouseholdMutationsResult = {
   kickUser: (householdId: string, userId: string) => void;
   regenerateJoinCode: (householdId: string) => void;
   transferAdmin: (householdId: string, newAdminId: string) => void;
-  rename: (householdId: string, name: string, version: number) => void;
-  /** Set the cookbook's per-cookbook recipe permission policy (admin-only, optimistic version). */
-  setPolicy: (
-    householdId: string,
-    policy: { view: "household" | "owner"; edit: PermissionLevel; delete: PermissionLevel },
-    version: number
-  ) => void;
-  switchActive: (householdId: string | null) => void;
-  /** Generate (or regenerate) the shareable invite link token; resolves to the new token. */
-  generateInviteToken: (householdId: string) => Promise<string>;
-  /** Join a cookbook via its invite token; resolves to the joined household id. */
-  joinByInviteToken: (token: string) => Promise<string>;
 };
 
 export interface CreateHouseholdHooksOptions {

@@ -89,7 +89,7 @@ vi.mock("@/components/shared/media-carousel", () => ({
   buildMediaItems: () => [],
 }));
 
-vi.mock("@/components/recipes/nutrition-card", () => ({
+vi.mock("@/app/(app)/recipes/[id]/components/nutrition-card", () => ({
   default: () => <div>nutrition-card</div>,
   NutritionSection: () => <div>nutrition-section</div>,
 }));
@@ -106,8 +106,11 @@ vi.mock("@/app/(app)/recipes/[id]/components/ingredient-list", () => ({
 vi.mock("@/app/(app)/recipes/[id]/components/servings-control", () => ({
   default: () => <div>servings-control</div>,
 }));
-vi.mock("@/app/(app)/recipes/[id]/components/amount-display-toggle", () => ({
+vi.mock("@/components/recipes/amount-display-toggle", () => ({
   default: () => <div>amount-toggle</div>,
+}));
+vi.mock("@/app/(app)/recipes/[id]/components/cookingmode", () => ({
+  default: () => <div>cooking-mode</div>,
 }));
 vi.mock("@/app/(app)/recipes/[id]/components/steps-list", () => ({
   default: () => <div>steps-list</div>,
@@ -118,7 +121,7 @@ vi.mock("@/app/(app)/recipes/[id]/components/system-convert-menu", () => ({
 vi.mock("@/app/(app)/recipes/[id]/components/wake-lock-toggle", () => ({
   default: () => <div>wake-lock-toggle</div>,
 }));
-vi.mock("@/app/(app)/recipes/[id]/components/author-chip", () => ({
+vi.mock("@/components/recipes/author-chip", () => ({
   default: () => <div>author-chip</div>,
 }));
 

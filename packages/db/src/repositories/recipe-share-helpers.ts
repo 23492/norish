@@ -4,7 +4,6 @@ import type {
   RecipeShareDto,
   RecipeShareSummaryDto,
 } from "@norish/shared/contracts/dto/recipe-shares";
-
 import {
   PublicRecipeViewSchema,
   RecipeShareSummarySchema,
@@ -111,7 +110,7 @@ export function mapRecipeToPublicRecipeView(
     protein: recipe.protein ?? null,
     categories: recipe.categories ?? [],
     tags: (recipe.tags ?? []).map((tag) => ({ name: tag.name })),
-    recipeIngredients: (recipe.recipeIngredients ?? []).map((ingredient) => ({
+    recipeIngredients: (recipe.recipeIngredients ?? []).map((ingredient: any) => ({
       ingredientName: ingredient.ingredientName,
       amount: ingredient.amount,
       unit: ingredient.unit ?? null,

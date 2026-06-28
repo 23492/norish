@@ -1,7 +1,5 @@
 import type { BetterAuthOptions, Where } from "better-auth";
 import type { DBAdapter } from "better-auth/adapters";
-import type { ApiKeyAuthService } from "@norish/shared/contracts/dto/auth";
-
 import { apiKey } from "@better-auth/api-key";
 import { expo } from "@better-auth/expo";
 import { betterAuth } from "better-auth";
@@ -9,9 +7,10 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
 import { genericOAuth } from "better-auth/plugins";
-import { AUTH_SECRET, encrypt, hmacIndex, safeDecrypt } from "@norish/auth/crypto";
+
+import type { ApiKeyAuthService } from "@norish/shared/contracts/dto/auth";
+import { AUTH_SECRET, encrypt, hmacIndex, safeDecrypt } from "@norish/config/crypto";
 import { SERVER_CONFIG } from "@norish/config/env-config-server";
-import { isRegistrationEnabled } from "@norish/config/server-config-loader";
 import { ServerConfigKeys } from "@norish/config/zod/server-config";
 import { db } from "@norish/db/drizzle";
 import { setApiKeyAuthService } from "@norish/db/repositories/api-keys";
@@ -24,8 +23,9 @@ import {
 } from "@norish/db/repositories/households";
 import { countUsers } from "@norish/db/repositories/users";
 import * as schema from "@norish/db/schema/auth";
-import { getPublisherClient } from "@norish/queue/redis/client";
+import { isRegistrationEnabled } from "@norish/shared-server/config/server-config-loader";
 import { authLogger } from "@norish/shared-server/logger";
+import { getPublisherClient } from "@norish/shared-server/redis/client";
 
 import {
   applyServerAdminOnLogin,
@@ -657,7 +657,7 @@ type AuthInstance = ReturnType<typeof betterAuth> & {
 };
 
 function createAuth(): AuthInstance {
-  return createBetterAuth() as AuthInstance;
+  return createBetterAuth() as unknown as AuthInstance;
 }
 
 // Lazy-initialized auth instance

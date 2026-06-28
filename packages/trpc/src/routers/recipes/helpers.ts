@@ -1,10 +1,9 @@
-
 import type { PermissionAction } from "@norish/auth/permissions";
 import type { FullRecipeDTO } from "@norish/shared/contracts";
 
 import { TRPCError } from "@trpc/server";
 import { canAccessResource, resolveRecipeCookbookPolicy } from "@norish/auth/permissions";
-import { getRecipePermissionPolicy } from "@norish/config/server-config-loader";
+import { getRecipePermissionPolicy } from "@norish/shared-server/config/server-config-loader";
 import { getRecipeFull, getRecipeOwnerAndHousehold } from "@norish/db";
 import { trpcLogger as log } from "@norish/shared-server/logger";
 

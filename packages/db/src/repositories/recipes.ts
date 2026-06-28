@@ -1,3 +1,5 @@
+import { and, asc, desc, eq, gt, ilike, inArray, isNull, like, lte, or, sql } from "drizzle-orm";
+import z from "zod";
 
 import type { RecipePermissionPolicy } from "@norish/config/zod/server-config";
 import type {
@@ -15,19 +17,16 @@ import type {
 } from "@norish/shared/contracts/dto/recipe-ingredient";
 import type { StepDto, StepInsertDto } from "@norish/shared/contracts/dto/steps";
 import type { FilterMode, SearchField, SortOrder } from "@norish/shared/contracts/store-types";
-import type { MutationOutcome } from "./mutation-outcomes";
-
 import {
   DEFAULT_RECIPE_PERMISSION_POLICY,
   ServerConfigKeys,
 } from "@norish/config/zod/server-config";
+import { db } from "@norish/db/drizzle";
 import { dbLogger } from "@norish/db/logger";
 import { stripHtmlTags } from "@norish/shared/lib/helpers";
 import { normalizeUnit } from "@norish/shared/lib/unit-localization";
-import z from "zod";
-import { and, asc, desc, eq, gt, ilike, inArray, isNull, lte, or, sql } from "drizzle-orm";
 
-import { db } from "../drizzle";
+import type { MutationOutcome } from "./mutation-outcomes";
 import {
   households,
   ingredients,
@@ -47,7 +46,6 @@ import {
   FullRecipeUpdateSchema,
   RecipeDashboardSchema,
 } from "../zodSchemas";
-
 import {
   attachIngredientsToRecipeByInputTx,
   getOrCreateManyIngredientsTx,
@@ -144,10 +142,6 @@ export async function getRecipeOwnerId(recipeId: string): Promise<string | null>
   return row?.userId ?? null;
 }
 
-/**
- * Get the owner userId AND the household_id (cookbook) of a recipe, for the
- * per-cookbook permission boundary. Returns null when the recipe does not exist.
- */
 export async function getRecipeOwnerAndHousehold(
   recipeId: string
 ): Promise<{ userId: string | null; householdId: string | null } | null> {
@@ -162,10 +156,18 @@ export async function getRecipeOwnerAndHousehold(
   return { userId: row.userId ?? null, householdId: row.householdId ?? null };
 }
 
-/**
- * Read a recipe's visibility level (private | household | public) without going
- * through getRecipeFull. Returns null when the recipe does not exist.
- */
+export async function getRecipeByUrl(url: string): Promise<FullRecipeDTO | null> {
+  const rows = await db.query.recipes.findFirst({
+    where: eq(recipes.url, url),
+    columns: { id: true },
+  });
+
+  if (!rows) return null;
+  const recipe = await getRecipeFull(rows.id);
+
+  return FullRecipeSchema.parse(recipe);
+}
+
 export async function getRecipeVisibility(
   recipeId: string
 ): Promise<{ visibility: RecipeVisibility; version: number } | null> {
@@ -228,26 +230,12 @@ export async function countActiveRecipeShares(recipeId: string): Promise<number>
   return Number(row?.count ?? 0);
 }
 
-export async function getRecipeByUrl(url: string): Promise<FullRecipeDTO | null> {
-  const rows = await db.query.recipes.findFirst({
-    where: eq(recipes.url, url),
-    columns: { id: true },
-  });
-
-  if (!rows) return null;
-  const recipe = await getRecipeFull(rows.id);
-
-  return FullRecipeSchema.parse(recipe);
-}
-
 /**
- * Check if recipe URL exists based on view policy.
+ * Check if recipe URL exists based on view policy, scoped per-cookbook.
  * Used for queue deduplication before creating new recipes.
  *
- * Dedup is per-cookbook (recipes.household_id):
- * - "everyone": Any recipe with this URL (server-wide)
- * - "household": Any recipe with this URL in the TARGET cookbook (household_id),
- *   or, when personal (householdId null), the user's own personal recipe
+ * - "everyone": Any recipe with this URL
+ * - "household": Any recipe in the TARGET cookbook with this URL (per-cookbook dedup)
  * - "owner": Any recipe with this URL owned by the user
  */
 export async function recipeExistsByUrlForPolicy(
@@ -607,7 +595,6 @@ export async function listRecipes(
       columns: {
         id: true,
         userId: true,
-        householdId: true,
         name: true,
         description: true,
         notes: true,
@@ -622,6 +609,8 @@ export async function listRecipes(
         createdAt: true,
         updatedAt: true,
         version: true,
+        householdId: true,
+        visibility: true,
       },
       with: {
         recipeTags: {
@@ -653,7 +642,6 @@ export async function listRecipes(
     return {
       id: r.id,
       userId: r.userId,
-      householdId: r.householdId,
       name: r.name,
       description: r.description ?? null,
       notes: r.notes ?? null,
@@ -668,6 +656,8 @@ export async function listRecipes(
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
       version: r.version,
+      householdId: r.householdId ?? null,
+      visibility: r.visibility ?? "private",
       tags: (r.recipeTags ?? []).flatMap(
         (rt: { tag?: { name?: string; version?: number } | null }) =>
           rt.tag && typeof rt.tag.name === "string" && typeof rt.tag.version === "number"
@@ -704,7 +694,6 @@ export async function dashboardRecipe(id: string): Promise<RecipeDashboardDTO | 
     columns: {
       id: true,
       userId: true,
-      householdId: true,
       name: true,
       description: true,
       notes: true,
@@ -719,6 +708,8 @@ export async function dashboardRecipe(id: string): Promise<RecipeDashboardDTO | 
       createdAt: true,
       updatedAt: true,
       version: true,
+      householdId: true,
+      visibility: true,
     },
     with: {
       recipeTags: {
@@ -749,7 +740,6 @@ export async function dashboardRecipe(id: string): Promise<RecipeDashboardDTO | 
   const dto = {
     id: r.id,
     userId: r.userId,
-    householdId: r.householdId,
     name: r.name,
     description: r.description ?? null,
     notes: r.notes ?? null,
@@ -764,6 +754,8 @@ export async function dashboardRecipe(id: string): Promise<RecipeDashboardDTO | 
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
     version: r.version,
+    householdId: r.householdId ?? null,
+    visibility: r.visibility ?? "private",
     tags: (r.recipeTags ?? [])
       .map((rt: any) => rt.tag)
       .filter((tag: { name?: string; version?: number } | null | undefined) => tag?.name)
@@ -842,16 +834,17 @@ export async function createRecipeWithRefs(
       await attachTagsToRecipeByInputTx(
         tx,
         rid,
-        payload.tags.map((t) => t.name)
+        (payload.tags as { name: string }[]).map((t) => t.name)
       );
     }
 
     if (payload.recipeIngredients.length) {
       await attachIngredientsToRecipeByInputTx(
         tx,
-        payload.recipeIngredients.map((ri) => ({
+        (payload.recipeIngredients as any[]).map((ri) => ({
           ...ri,
           recipeId: rid,
+          systemUsed: ri.systemUsed ?? payload.systemUsed,
         }))
       );
     }
@@ -859,7 +852,7 @@ export async function createRecipeWithRefs(
     if (payload.steps.length) {
       await createManyRecipeStepsTx(
         tx,
-        payload.steps.map((s) => ({
+        (payload.steps as any[]).map((s) => ({
           ...s,
           recipeId: rid,
         }))
@@ -894,103 +887,6 @@ export async function createRecipeWithRefs(
   });
 
   return finalRecipeId;
-}
-
-/**
- * Rewrite a `/recipes/<from>/...` media URL onto a new recipe id. Returns the
- * URL unchanged when it does not belong to the source recipe (e.g. an external
- * URL). Pure string transform — the matching media files are copied separately
- * by the caller (shared-server owns the filesystem). Mirrors the archive
- * importer's `rewriteRecipeMediaUrl`.
- */
-function rewriteSavedRecipeMediaUrl(
-  url: string | null | undefined,
-  fromRecipeId: string,
-  toRecipeId: string
-): string | null {
-  if (!url || !url.startsWith(`/recipes/${fromRecipeId}/`)) {
-    return url ?? null;
-  }
-
-  return `/recipes/${toRecipeId}${url.slice(`/recipes/${fromRecipeId}`.length)}`;
-}
-
-/**
- * Deep-copy a (public, share-resolved) recipe into a target user's ACTIVE
- * cookbook as a brand-new recipe they OWN (SHARE-02 "save to my cookbook").
- *
- * - `userId` = the saver; `householdId` = the saver's active cookbook
- *   (`ctx.household?.id ?? null`) — never the source recipe's cookbook, so a
- *   saved recipe always lands in the saver's own cookbook and never widens
- *   cross-cookbook visibility.
- * - Copies name, description, notes, image(s), ingredients, steps (+ step
- *   images), times, nutrition, categories and tags. Media URLs are rewritten
- *   from the source recipe id onto `newRecipeId`; the matching files are copied
- *   by the caller before this runs.
- * - `url` is cleared: the source URL points at the original external source and
- *   the `uq_recipes_url_household` unique constraint would otherwise dedup the
- *   copy against the saver's own imports. A saved copy is a fresh owned recipe.
- * - Visibility is intentionally NOT carried over: `createRecipeWithRefs` never
- *   writes the column, so the copy lands at the DB default `private`. The saver
- *   opts in to sharing their own copy separately (it never inherits the
- *   source's `public`).
- *
- * Returns the new recipe id, or `null` if the insert could not be persisted.
- */
-export async function copyRecipeForSave(
-  source: FullRecipeDTO,
-  userId: string,
-  householdId: string | null,
-  newRecipeId: string
-): Promise<string | null> {
-  const insert: FullRecipeInsertDTO = {
-    name: source.name,
-    description: source.description ?? null,
-    notes: source.notes ?? null,
-    // Cleared on a saved copy — see the doc comment (avoids URL-dedup collision).
-    url: null,
-    image: rewriteSavedRecipeMediaUrl(source.image, source.id, newRecipeId),
-    servings: source.servings,
-    systemUsed: source.systemUsed,
-    prepMinutes: source.prepMinutes ?? null,
-    cookMinutes: source.cookMinutes ?? null,
-    totalMinutes: source.totalMinutes ?? null,
-    calories: source.calories ?? null,
-    fat: source.fat ?? null,
-    carbs: source.carbs ?? null,
-    protein: source.protein ?? null,
-    categories: source.categories ?? [],
-    tags: (source.tags ?? []).map((tag) => ({ name: tag.name })),
-    recipeIngredients: (source.recipeIngredients ?? []).map((ingredient) => ({
-      ingredientName: ingredient.ingredientName,
-      ingredientId: null,
-      amount: ingredient.amount,
-      unit: ingredient.unit ?? null,
-      systemUsed: ingredient.systemUsed,
-      order: ingredient.order,
-    })),
-    steps: (source.steps ?? []).map((step) => ({
-      step: step.step,
-      systemUsed: step.systemUsed,
-      order: step.order,
-      images: (step.images ?? []).map((image) => ({
-        image: rewriteSavedRecipeMediaUrl(image.image, source.id, newRecipeId) ?? image.image,
-        order: image.order,
-      })),
-    })),
-    images: (source.images ?? []).map((image) => ({
-      image: rewriteSavedRecipeMediaUrl(image.image, source.id, newRecipeId) ?? image.image,
-      order: image.order,
-    })),
-    videos: (source.videos ?? []).map((video) => ({
-      video: rewriteSavedRecipeMediaUrl(video.video, source.id, newRecipeId) ?? video.video,
-      thumbnail: rewriteSavedRecipeMediaUrl(video.thumbnail, source.id, newRecipeId),
-      duration: video.duration ?? null,
-      order: video.order,
-    })),
-  };
-
-  return createRecipeWithRefs(newRecipeId, userId, householdId, insert);
 }
 
 export async function setActiveSystemForRecipe(
@@ -1057,6 +953,7 @@ export async function getRecipeFull(id: string): Promise<FullRecipeDTO | null> {
       id: true,
       userId: true,
       householdId: true,
+      visibility: true,
       name: true,
       description: true,
       notes: true,
@@ -1067,7 +964,6 @@ export async function getRecipeFull(id: string): Promise<FullRecipeDTO | null> {
       cookMinutes: true,
       totalMinutes: true,
       systemUsed: true,
-      visibility: true,
       calories: true,
       fat: true,
       carbs: true,
@@ -1143,7 +1039,8 @@ export async function getRecipeFull(id: string): Promise<FullRecipeDTO | null> {
   const dto = {
     id: full.id,
     userId: full.userId,
-    householdId: full.householdId,
+    householdId: full.householdId ?? null,
+    visibility: full.visibility ?? "private",
     name: full.name,
     description: full.description ?? null,
     notes: full.notes ?? null,
@@ -1154,13 +1051,12 @@ export async function getRecipeFull(id: string): Promise<FullRecipeDTO | null> {
     cookMinutes: full.cookMinutes ?? null,
     totalMinutes: full.totalMinutes ?? null,
     systemUsed: full.systemUsed,
-    visibility: full.visibility,
     calories: full.calories ?? null,
     fat: full.fat ?? null,
     carbs: full.carbs ?? null,
     protein: full.protein ?? null,
     categories: full.categories ?? [],
-    steps: ((full.steps as any) ?? []).map((s: any) => ({
+    steps: (full.steps ?? []).map((s: any) => ({
       step: s.step,
       systemUsed: s.systemUsed,
       order: s.order,
@@ -1179,7 +1075,7 @@ export async function getRecipeFull(id: string): Promise<FullRecipeDTO | null> {
       .map((rt: any) => rt.tag)
       .filter((tag: { name?: string; version?: number } | null | undefined) => tag?.name)
       .map((tag: { name: string; version: number }) => ({ name: tag.name, version: tag.version })),
-    recipeIngredients: ((full.ingredients as any) ?? []).map((ri: any) => ({
+    recipeIngredients: (full.ingredients ?? []).map((ri: any) => ({
       id: ri.id,
       ingredientId: ri.ingredientId,
       amount: ri.amount ? Number(ri.amount) : null,
@@ -1248,12 +1144,13 @@ async function resolveRecipeIngredientIdsTx(
   tx: any,
   inputs: NonNullable<FullRecipeUpdateDTO["recipeIngredients"]>
 ) {
+  const typedInputs = inputs as any[];
   const names = Array.from(
-    new Set(inputs.map((item) => item.ingredientName?.trim() ?? "").filter(Boolean))
+    new Set(typedInputs.map((item) => item.ingredientName?.trim() ?? "").filter(Boolean))
   );
   const resolvedIngredients = names.length > 0 ? await getOrCreateManyIngredientsTx(tx, names) : [];
 
-  return inputs.map((item) => ({
+  return typedInputs.map((item) => ({
     ...item,
     ingredientId:
       item.ingredientId ??
@@ -1279,10 +1176,8 @@ async function syncRecipeIngredientsTx(
     );
   const existingById = new Map(existing.map((row: { id: string }) => [row.id, row]));
   const resolvedInputs = await resolveRecipeIngredientIdsTx(tx, inputs);
-  const retainedIds = new Set<string>();
-  // Normalize locale-specific unit terms to canonical IDs, mirroring the create
-  // path (attachIngredientsToRecipeByInputTx) so create and update behave alike.
   const units = await getUnitsForNormalization();
+  const retainedIds = new Set<string>();
 
   for (const [index, ingredient] of resolvedInputs.entries()) {
     if (!ingredient.ingredientId) continue;
@@ -1290,9 +1185,9 @@ async function syncRecipeIngredientsTx(
     const values = {
       ingredientId: ingredient.ingredientId,
       amount: ingredient.amount ?? null,
-      unit: normalizeUnit(ingredient.unit ?? "", units),
+      unit: ingredient.unit ? normalizeUnit(ingredient.unit, units) : null,
       order: ingredient.order ?? index,
-      systemUsed: ingredient.systemUsed ?? systemUsed,
+      systemUsed,
     };
 
     if (ingredient.id && existingById.has(ingredient.id)) {
@@ -1364,7 +1259,7 @@ async function syncRecipeStepsTx(
   systemUsed: MeasurementSystem,
   inputs: NonNullable<FullRecipeUpdateDTO["steps"]>
 ): Promise<void> {
-  const normalized = inputs
+  const normalized = (inputs as any[])
     .map((step, index) => ({
       ...step,
       order: step.order ?? index,
@@ -1383,7 +1278,7 @@ async function syncRecipeStepsTx(
       recipeId,
       step: step.step,
       order: index,
-      systemUsed: step.systemUsed ?? systemUsed,
+      systemUsed,
     };
 
     if (existingStep) {
@@ -1551,7 +1446,7 @@ export async function updateRecipeWithRefs(
       await attachTagsToRecipeByInputTx(
         tx,
         recipeId,
-        payload.tags.map((t) => t.name)
+        (payload.tags as { name: string }[]).map((t) => t.name)
       );
     }
 
@@ -1563,12 +1458,12 @@ export async function updateRecipeWithRefs(
       // If systemUsed is not provided at top level, infer it from the ingredients themselves
       if (!systemToUpdate && payload.recipeIngredients.length > 0) {
         const inferredSystems = new Set(
-          payload.recipeIngredients.map((ri) => ri.systemUsed).filter(Boolean)
+          (payload.recipeIngredients as any[]).map((ri) => ri.systemUsed).filter(Boolean)
         );
 
         // If all ingredients use the same system, use that
         if (inferredSystems.size === 1) {
-          systemToUpdate = Array.from(inferredSystems)[0] as any;
+          systemToUpdate = Array.from(inferredSystems)[0];
         }
       }
 
@@ -1578,7 +1473,7 @@ export async function updateRecipeWithRefs(
           tx,
           recipeId,
           systemToUpdate,
-          payload.recipeIngredients.map((ri) => ({
+          (payload.recipeIngredients as any[]).map((ri) => ({
             ...ri,
             recipeId,
             ingredientId: ri.ingredientId ?? null,
@@ -1599,11 +1494,11 @@ export async function updateRecipeWithRefs(
 
       // If systemUsed is not provided at top level, infer it from the steps themselves
       if (!systemToUpdate && payload.steps.length > 0) {
-        const inferredSystems = new Set(payload.steps.map((s) => s.systemUsed).filter(Boolean));
+        const inferredSystems = new Set((payload.steps as any[]).map((s) => s.systemUsed).filter(Boolean));
 
         // If all steps use the same system, use that
         if (inferredSystems.size === 1) {
-          systemToUpdate = Array.from(inferredSystems)[0] as any;
+          systemToUpdate = Array.from(inferredSystems)[0];
         }
       }
 
@@ -2117,4 +2012,153 @@ export async function replaceRecipeVideos(
       version: row.version,
     }));
   });
+}
+
+/**
+ * List all media references stored in the database (recipe cover images,
+ * gallery images, and videos). Used by startup media cleanup to detect
+ * orphaned files on disk.
+ */
+export async function listAllRecipeMediaReferences(): Promise<{
+  recipes: { id: string; image: string | null }[];
+  galleryImageUrls: string[];
+  videoUrls: string[];
+}> {
+  const [allRecipes, galleryImages, videos] = await Promise.all([
+    db.select({ id: recipes.id, image: recipes.image }).from(recipes),
+    db.select({ image: recipeImages.image }).from(recipeImages),
+    db.select({ video: recipeVideos.video }).from(recipeVideos),
+  ]);
+
+  return {
+    recipes: allRecipes,
+    galleryImageUrls: galleryImages.map((row) => row.image),
+    videoUrls: videos.map((row) => row.video),
+  };
+}
+
+/**
+ * Legacy image migration helpers. Used only by the startup gallery image
+ * migration (`@norish/api/startup/migrate-gallery-images`).
+ */
+export async function listRecipeIdsAndImages(): Promise<{ id: string; image: string | null }[]> {
+  return await db.select({ id: recipes.id, image: recipes.image }).from(recipes);
+}
+
+export async function listRecipesWithLegacyImageUrls(
+  urlPrefix: string
+): Promise<{ id: string; image: string | null }[]> {
+  return await db
+    .select({ id: recipes.id, image: recipes.image })
+    .from(recipes)
+    .where(like(recipes.image, `${urlPrefix}%`));
+}
+
+export async function updateRecipeImageUrl(recipeId: string, imageUrl: string): Promise<void> {
+  await db.update(recipes).set({ image: imageUrl }).where(eq(recipes.id, recipeId));
+}
+
+export async function listGalleryImagesWithLegacyUrls(): Promise<
+  { id: string; recipeId: string; image: string }[]
+> {
+  return await db
+    .select({ id: recipeImages.id, recipeId: recipeImages.recipeId, image: recipeImages.image })
+    .from(recipeImages)
+    .where(
+      or(like(recipeImages.image, "/recipes/images/%"), like(recipeImages.image, "%/gallery/%"))
+    );
+}
+
+export async function updateGalleryImageUrl(imageId: string, imageUrl: string): Promise<void> {
+  await db.update(recipeImages).set({ image: imageUrl }).where(eq(recipeImages.id, imageId));
+}
+
+function rewriteSavedRecipeMediaUrl(
+  url: string | null | undefined,
+  fromRecipeId: string,
+  toRecipeId: string
+): string | null {
+  if (!url || !url.startsWith(`/recipes/${fromRecipeId}/`)) {
+    return url ?? null;
+  }
+
+  return `/recipes/${toRecipeId}${url.slice(`/recipes/${fromRecipeId}`.length)}`;
+}
+
+/**
+ * Deep-copy a (public, share-resolved) recipe into a target user's ACTIVE
+ * cookbook as a brand-new recipe they OWN (SHARE-02 "save to my cookbook").
+ *
+ * - `userId` = the saver; `householdId` = the saver's active cookbook
+ *   (`ctx.household?.id ?? null`) — never the source recipe's cookbook, so a
+ *   saved recipe always lands in the saver's own cookbook and never widens
+ *   cross-cookbook visibility.
+ * - Copies name, description, notes, image(s), ingredients, steps (+ step
+ *   images), times, nutrition, categories and tags. Media URLs are rewritten
+ *   from the source recipe id onto `newRecipeId`; the matching files are copied
+ *   by the caller before this runs.
+ * - `url` is cleared: the source URL points at the original external source and
+ *   the `uq_recipes_url_household` unique constraint would otherwise dedup the
+ *   copy against the saver's own imports. A saved copy is a fresh owned recipe.
+ * - Visibility is intentionally NOT carried over: `createRecipeWithRefs` never
+ *   writes the column, so the copy lands at the DB default `private`. The saver
+ *   opts in to sharing their own copy separately (it never inherits the
+ *   source's `public`).
+ *
+ * Returns the new recipe id, or `null` if the insert could not be persisted.
+ */
+export async function copyRecipeForSave(
+  source: FullRecipeDTO,
+  userId: string,
+  householdId: string | null,
+  newRecipeId: string
+): Promise<string | null> {
+  const insert: FullRecipeInsertDTO = {
+    name: source.name,
+    description: source.description ?? null,
+    notes: source.notes ?? null,
+    // Cleared on a saved copy — see the doc comment (avoids URL-dedup collision).
+    url: null,
+    image: rewriteSavedRecipeMediaUrl(source.image, source.id, newRecipeId),
+    servings: source.servings,
+    systemUsed: source.systemUsed,
+    prepMinutes: source.prepMinutes ?? null,
+    cookMinutes: source.cookMinutes ?? null,
+    totalMinutes: source.totalMinutes ?? null,
+    calories: source.calories ?? null,
+    fat: source.fat ?? null,
+    carbs: source.carbs ?? null,
+    protein: source.protein ?? null,
+    categories: source.categories ?? [],
+    tags: (source.tags ?? []).map((tag) => ({ name: tag.name })),
+    recipeIngredients: (source.recipeIngredients ?? []).map((ingredient) => ({
+      ingredientName: ingredient.ingredientName,
+      ingredientId: null,
+      amount: ingredient.amount,
+      unit: ingredient.unit ?? null,
+      systemUsed: ingredient.systemUsed,
+      order: ingredient.order,
+    })),
+    steps: (source.steps ?? []).map((step) => ({
+      step: step.step,
+      systemUsed: step.systemUsed,
+      order: step.order,
+      images: (step.images ?? []).map((image) => ({
+        image: rewriteSavedRecipeMediaUrl(image.image, source.id, newRecipeId) ?? image.image,
+        order: image.order,
+      })),
+    })),
+    images: (source.images ?? []).map((image) => ({
+      image: rewriteSavedRecipeMediaUrl(image.image, source.id, newRecipeId) ?? image.image,
+      order: image.order,
+    })),
+    videos: (source.videos ?? []).map((video) => ({
+      video: rewriteSavedRecipeMediaUrl(video.video, source.id, newRecipeId) ?? video.video,
+      thumbnail: rewriteSavedRecipeMediaUrl(video.thumbnail, source.id, newRecipeId),
+      duration: video.duration ?? null,
+      order: video.order,
+    })),
+  };
+
+  return createRecipeWithRefs(newRecipeId, userId, householdId, insert);
 }

@@ -31,7 +31,7 @@ vi.mock("@norish/db", async (importOriginal) => ({
 }));
 vi.mock("@norish/auth/permissions", () => import("../mocks/permissions"));
 vi.mock("@norish/trpc/routers/calendar/emitter", () => import("../mocks/calendar-emitter"));
-vi.mock("@norish/config/server-config-loader", () => import("../mocks/config"));
+vi.mock("@norish/shared-server/config/server-config-loader", () => import("../mocks/config"));
 
 const t = initTRPC.context<ReturnType<typeof createMockAuthedContext>>().create({
   transformer: superjson,

@@ -1,24 +1,22 @@
 "use client";
 
-import type {
-  FullRecipeInsertDTO,
-  FullRecipeUpdateDTO,
-  RecipeDashboardDTO,
-} from "@norish/shared/contracts";
-
-import { createContext, useContext, useEffect, useMemo, useRef } from "react";
+import { createContext, useContext, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { addToast } from "@heroui/react";
-import { useTranslations } from "next-intl";
-import { createScopedMessageTranslator } from "@norish/i18n";
-import { createRecipesContext } from "@norish/shared-react/contexts";
-
-import { useHouseholdContext } from "@/context/household-context";
 import { useRecipesFiltersContext } from "@/context/recipes-filters-context";
 import { useFavoritesMutation, useFavoritesQuery } from "@/hooks/favorites";
 import { useRecipesMutations, useRecipesQuery } from "@/hooks/recipes";
 import { sharedDashboardRecipeHooks } from "@/hooks/recipes/shared-recipe-hooks";
 import { useActiveAllergies, useUserAllergiesQuery } from "@/hooks/user";
+import { toast } from "@heroui/react";
+import { useTranslations } from "next-intl";
+
+import type {
+  FullRecipeInsertDTO,
+  FullRecipeUpdateDTO,
+  RecipeDashboardDTO,
+} from "@norish/shared/contracts";
+import { createScopedMessageTranslator } from "@norish/i18n";
+import { createRecipesContext } from "@norish/shared-react/contexts";
 
 type Ctx = {
   recipes: RecipeDashboardDTO[];
@@ -59,16 +57,21 @@ const sharedRecipesContext = createRecipesContext({
     const tRecipes = useTranslations("recipes");
 
     return {
-      show: ({ severity, title, description, actionLabel, onActionPress }) =>
-        addToast({
-          severity,
-          title,
+      show: ({ severity, title, description, actionLabel, onActionPress }) => {
+        const variant = severity === "primary" || severity === "secondary" ? "accent" : severity;
+        const actionProps = actionLabel
+          ? {
+              children: actionLabel,
+              onPress: onActionPress,
+            }
+          : undefined;
+
+        toast(title, {
           description,
-          shouldShowTimeoutProgress: true,
-          radius: "full",
-          actionLabel,
-          onActionPress,
-        }),
+          variant,
+          ...(actionProps ? { actionProps } : {}),
+        });
+      },
       translate: createScopedMessageTranslator({
         common: (messageKey) => tCommon(messageKey as Parameters<typeof tCommon>[0]),
         recipes: (messageKey) => tRecipes(messageKey as Parameters<typeof tRecipes>[0]),
@@ -98,21 +101,8 @@ export function RecipesContextProvider({ children }: { children: React.ReactNode
 function RecipesContextAdapter({ children }: { children: React.ReactNode }) {
   const base = sharedRecipesContext.useRecipesContext();
   const { filters } = useRecipesFiltersContext();
-  const { activeHouseholdId } = useHouseholdContext();
 
   const { allergies } = useActiveAllergies();
-
-  // The recipe list is scoped server-side by the active cookbook, so refetch it
-  // whenever the active household changes (covers both the local switchActive
-  // and any server-driven household-switched event). Skip the initial mount.
-  const previousActiveHouseholdId = useRef(activeHouseholdId);
-
-  useEffect(() => {
-    if (previousActiveHouseholdId.current !== activeHouseholdId) {
-      previousActiveHouseholdId.current = activeHouseholdId;
-      base.invalidate();
-    }
-  }, [activeHouseholdId, base]);
 
   const { recipes, total } = useMemo(() => {
     if (!filters.showFavoritesOnly) {

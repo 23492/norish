@@ -1,4 +1,5 @@
-import type { Job } from "bullmq";
+import { z } from "zod";
+
 import type {
   AllergyDetectionJobData,
   AutoCategorizationJobData,
@@ -7,10 +8,8 @@ import type {
   RecipeImportJobData,
 } from "@norish/queue/contracts/job-types";
 import type { PendingRecipeDTO } from "@norish/shared/contracts";
-
-import { z } from "zod";
-import { getRecipePermissionPolicy } from "@norish/config/server-config-loader";
 import { getQueues } from "@norish/queue/registry";
+import { getRecipePermissionPolicy } from "@norish/shared-server/config/server-config-loader";
 import { trpcLogger as log } from "@norish/shared-server/logger";
 
 import { authedProcedure } from "../../middleware";
@@ -24,7 +23,7 @@ const getPending = authedProcedure.query(async ({ ctx }) => {
 
   const jobs = await queues.recipeImport.getJobs(["waiting", "active", "delayed"]);
 
-  const filteredJobs = jobs.filter((job: Job<RecipeImportJobData>) => {
+  const filteredJobs = jobs.filter((job) => {
     const data = job.data;
 
     switch (policy.view) {
@@ -42,7 +41,7 @@ const getPending = authedProcedure.query(async ({ ctx }) => {
     return false;
   });
 
-  const pendingRecipes: PendingRecipeDTO[] = filteredJobs.map((job: Job<RecipeImportJobData>) => ({
+  const pendingRecipes: PendingRecipeDTO[] = filteredJobs.map((job) => ({
     recipeId: job.data.recipeId,
     url: job.data.url,
     addedAt: job.timestamp,
@@ -62,7 +61,7 @@ const isNutritionEstimating = authedProcedure
     const queues = getQueues();
     const jobs = await queues.nutritionEstimation.getJobs(["waiting", "active", "delayed"]);
 
-    const isEstimating = jobs.some((job: Job<NutritionEstimationJobData>) => {
+    const isEstimating = jobs.some((job) => {
       return job.data.recipeId === input.recipeId;
     });
 
@@ -87,10 +86,10 @@ const getPendingAutoTagging = authedProcedure.query(async ({ ctx }) => {
   // Auto-tagging jobs are per-recipe and user-scoped
   const recipeIds = jobs
     .filter(
-      (job: Job<AutoTaggingJobData>) =>
+      (job) =>
         job.data.userId === ctx.user.id || job.data.householdKey === ctx.householdKey
     )
-    .map((job: Job<AutoTaggingJobData>) => job.data.recipeId);
+    .map((job) => job.data.recipeId);
 
   log.debug({ userId: ctx.user.id, count: recipeIds.length }, "Found pending auto-tagging jobs");
 
@@ -107,7 +106,7 @@ const isAutoTagging = authedProcedure
     const jobs = await queues.autoTagging.getJobs(["waiting", "active", "delayed"]);
 
     const isActive = jobs.some(
-      (job: Job<AutoTaggingJobData>) => job.data.recipeId === input.recipeId
+      (job) => job.data.recipeId === input.recipeId
     );
 
     log.debug(
@@ -125,7 +124,7 @@ const isAutoCategorizing = authedProcedure
     const jobs = await queues.autoCategorization.getJobs(["waiting", "active", "delayed"]);
 
     const isActive = jobs.some(
-      (job: Job<AutoCategorizationJobData>) => job.data.recipeId === input.recipeId
+      (job) => job.data.recipeId === input.recipeId
     );
 
     log.debug(
@@ -148,10 +147,10 @@ const getPendingAllergyDetection = authedProcedure.query(async ({ ctx }) => {
 
   // Allergy detection jobs are per-recipe and user-scoped
   const recipeIds = jobs
-    .filter((job: Job<AllergyDetectionJobData>) => {
+    .filter((job) => {
       return job.data.userId === ctx.user.id || job.data.householdKey === ctx.householdKey;
     })
-    .map((job: Job<AllergyDetectionJobData>) => job.data.recipeId);
+    .map((job) => job.data.recipeId);
 
   log.debug(
     { userId: ctx.user.id, count: recipeIds.length },
@@ -170,7 +169,7 @@ const isAllergyDetecting = authedProcedure
     const queues = getQueues();
     const jobs = await queues.allergyDetection.getJobs(["waiting", "active", "delayed"]);
 
-    const isActive = jobs.some((job: Job<AllergyDetectionJobData>) => {
+    const isActive = jobs.some((job) => {
       return job.data.recipeId === input.recipeId;
     });
 

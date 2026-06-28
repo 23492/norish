@@ -1,19 +1,19 @@
-import type { SubscriptionMultiplexer } from "@norish/queue/redis/subscription-multiplexer";
+import { TRPCError } from "@trpc/server";
+
+import type { SubscriptionMultiplexer } from "@norish/shared-server/redis/subscription-multiplexer";
 import type { FullRecipeDTO, HouseholdWithUsersNamesDto, User } from "@norish/shared/contracts";
 import type { RecipeShareDto } from "@norish/shared/contracts/dto/recipe-shares";
 import type { OperationId } from "@norish/shared/contracts/realtime-envelope";
-import type { Context } from "./context";
-
-import { TRPCError } from "@trpc/server";
-import { getHouseholdsForUser, isUserServerAdmin } from "@norish/db";
-import { getCachedHouseholdForUser } from "@norish/db/cached-household";
+import { isUserServerAdmin } from "@norish/db";
+import { getUserHouseholdIds } from "@norish/db/repositories/households";
 import { getActiveRecipeShareByToken } from "@norish/db/repositories/recipe-shares";
 import { getRecipeFull } from "@norish/db/repositories/recipes";
-import { getOrCreateMultiplexer } from "@norish/queue/redis/subscription-multiplexer";
+import { getCachedHouseholdForUser } from "@norish/shared-server/cache/household";
 import { runWithOperationContext } from "@norish/shared-server/lib/operation-context";
+import { getOrCreateMultiplexer } from "@norish/shared-server/redis/subscription-multiplexer";
 import { ResolveSharedRecipeInputSchema } from "@norish/shared/contracts/zod/recipe-shares";
 
-
+import type { Context } from "./context";
 import { middleware, publicProcedure } from "./trpc";
 
 /**
@@ -37,11 +37,8 @@ const withAuth = middleware(async ({ ctx, next }) => {
   const allUserIds = [user.id, ...householdUserIds].filter((id, i, arr) => arr.indexOf(id) === i);
   const householdKey = household?.id ?? user.id;
   const isServerAdmin = user.isServerAdmin ?? false;
-
-  // All household ids the user is a member of — the set permissions use for the
-  // per-cookbook isolation check (Plan 02-03).
-  const memberHouseholds = await getHouseholdsForUser(user.id);
-  const memberHouseholdIds = memberHouseholds.map((h) => h.id);
+  // All household IDs this user is a member of (multi-cookbook support, HOUSE-06).
+  const memberHouseholdIds = await getUserHouseholdIds(user.id);
 
   // Get or create the subscription multiplexer for this WebSocket connection
   // The multiplexer consolidates all Redis subscriptions into a single connection
@@ -87,71 +84,31 @@ export type SharedRecipeProcedureContext = Context & {
   };
 };
 
-/**
- * Resolve a `/share/<token>` token to its recipe and enforce the SHARE-01
- * public-visibility gate, attaching the result as `ctx.sharedRecipe`.
- *
- * SHARE-01: the public surface is gated on the recipe's explicit visibility.
- * A private/household recipe is NOT reachable via /share/<token>, even with a
- * valid active token. Every failure (missing/expired/revoked token OR a
- * non-public recipe) is the SAME opaque NOT_FOUND, so a probe cannot
- * distinguish "no such token" from "not public" (no enumeration).
- *
- * This is the SINGLE token->recipe choke point. It backs both the anonymous
- * public procedures (getShared, sharePublicConfig) and the authenticated
- * save-to-cookbook procedure (SHARE-02 saveShared): a user can only save a
- * recipe reachable via a valid PUBLIC share token — never an arbitrary or
- * private recipe id. Weakening this gate is adversarially tested.
- */
-async function resolveSharedRecipe(
-  input: unknown
-): Promise<SharedRecipeProcedureContext["sharedRecipe"]> {
-  const { token } = ResolveSharedRecipeInputSchema.parse(input);
-
-  const share = await getActiveRecipeShareByToken(token, { touchLastAccessedAt: true });
-
-  if (!share) {
-    throw new TRPCError({ code: "NOT_FOUND", message: "Shared recipe not found" });
-  }
-
-  const recipe = await getRecipeFull(share.recipeId);
-
-  if (!recipe) {
-    throw new TRPCError({ code: "NOT_FOUND", message: "Shared recipe not found" });
-  }
-
-  if (recipe.visibility !== "public") {
-    throw new TRPCError({ code: "NOT_FOUND", message: "Shared recipe not found" });
-  }
-
-  return { share, token, recipe };
-}
-
-/**
- * Anonymous (no-auth) procedure for the public /share/<token> view. Resolves
- * the token to a PUBLIC recipe via the shared gate above.
- */
 export const sharedRecipeProcedure = publicProcedure
   .input(ResolveSharedRecipeInputSchema)
   .use(async ({ ctx, input, next }) => {
-    const sharedRecipe = await resolveSharedRecipe(input);
+    const share = await getActiveRecipeShareByToken(input.token, { touchLastAccessedAt: true });
 
-    return next({ ctx: { ...ctx, sharedRecipe } as SharedRecipeProcedureContext });
-  });
+    if (!share) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Shared recipe not found" });
+    }
 
-/**
- * Authenticated counterpart of `sharedRecipeProcedure` (SHARE-02): the caller
- * must be logged in (authedProcedure) AND the token must resolve to a PUBLIC
- * recipe through the SAME `resolveSharedRecipe` gate. The inline middleware
- * keeps the authed context (ctx.user, ctx.household, ...) so the save resolver
- * can copy the recipe into the saver's active cookbook.
- */
-export const authedSharedRecipeProcedure = authedProcedure
-  .input(ResolveSharedRecipeInputSchema)
-  .use(async ({ ctx, input, next }) => {
-    const sharedRecipe = await resolveSharedRecipe(input);
+    const recipe = await getRecipeFull(share.recipeId);
 
-    return next({ ctx: { ...ctx, sharedRecipe } });
+    if (!recipe) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Shared recipe not found" });
+    }
+
+    return next({
+      ctx: {
+        ...ctx,
+        sharedRecipe: {
+          share,
+          token: input.token,
+          recipe,
+        },
+      } as SharedRecipeProcedureContext,
+    });
   });
 
 export type AuthedProcedureContext = Context & {

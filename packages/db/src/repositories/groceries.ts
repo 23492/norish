@@ -1,11 +1,11 @@
+import { and, asc, eq, inArray, isNull, lte, sql } from "drizzle-orm";
+import z from "zod";
+
 import type {
   GroceryDto,
   GroceryInsertDto,
   GroceryUpdateDto,
 } from "@norish/shared/contracts/dto/groceries";
-
-import { and, asc, eq, inArray, isNull, lte, sql } from "drizzle-orm";
-import z from "zod";
 import { db } from "@norish/db/drizzle";
 import { groceries, householdUsers, recipeIngredients, recipes } from "@norish/db/schema";
 import {
@@ -147,11 +147,20 @@ export async function createGroceries(
         );
     }
 
-    // Insert new groceries with sortOrder: 0, 1, 2... (first item at top)
-    const valuesToInsert = prepared.map((p, index) => ({
-      ...(p as any),
-      sortOrder: index,
-    }));
+    const nextSortOrderByStore = new Map<string | null, number>();
+
+    // Insert new groceries with sortOrder: 0, 1, 2... inside each store group.
+    const valuesToInsert = prepared.map((p) => {
+      const storeKey = p.storeId ?? null;
+      const sortOrder = nextSortOrderByStore.get(storeKey) ?? 0;
+
+      nextSortOrderByStore.set(storeKey, sortOrder + 1);
+
+      return {
+        ...(p as any),
+        sortOrder,
+      };
+    });
 
     const inserted = await trx.insert(groceries).values(valuesToInsert).returning();
 
@@ -236,7 +245,7 @@ export async function updateGroceries(input: GroceryUpdateDto[]): Promise<Grocer
   return await db.transaction(async (trx) => {
     const updatedGroceries: GroceryDto[] = [];
 
-    for (const g of parsed.data) {
+    for (const g of parsed.data as GroceryUpdateDto[]) {
       const whereConditions = [eq(groceries.id, g.id)];
 
       if (g.version) {
@@ -255,7 +264,7 @@ export async function updateGroceries(input: GroceryUpdateDto[]): Promise<Grocer
         if (!validated.success) {
           throw new Error(`Failed to parse updated grocery (id=${g.id})`);
         }
-        updatedGroceries.push(validated.data);
+        updatedGroceries.push(validated.data as GroceryDto);
       }
     }
 

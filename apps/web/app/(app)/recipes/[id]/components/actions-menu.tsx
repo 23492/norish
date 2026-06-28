@@ -2,6 +2,11 @@
 
 import React, { useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { MiniCalendar, MiniGroceries } from "@/components/Panel/consumers";
+import { DeleteRecipeModal } from "@/components/shared/delete-recipe-modal";
+import { usePermissionsContext } from "@/context/permissions-context";
+import { useRecipesContext } from "@/context/recipes-context";
+import { useActiveAllergies } from "@/hooks/user";
 import {
   CalendarDaysIcon,
   DevicePhoneMobileIcon,
@@ -12,30 +17,18 @@ import {
   SparklesIcon,
   TrashIcon,
 } from "@heroicons/react/16/solid";
-import {
-  Button,
-  Dropdown,
-  DropdownItem,
-  DropdownMenu,
-  DropdownTrigger,
-  useDisclosure,
-} from "@heroui/react";
+import { Button, Dropdown, Label, useOverlayState } from "@heroui/react";
 import { useTranslations } from "next-intl";
+
 import { cssAIGradientText, cssAIIconColor, cssButtonPill } from "@norish/web/config/css-tokens";
 
 import { useRecipeContextRequired } from "../context";
-
 import RecipeSharePanel from "./recipe-share-panel";
 import { useWakeLockContext } from "./wake-lock-context";
 
-import { useActiveAllergies } from "@/hooks/user";
-import { useRecipesContext } from "@/context/recipes-context";
-import { usePermissionsContext } from "@/context/permissions-context";
-import { DeleteRecipeModal } from "@/components/shared/delete-recipe-modal";
-import { MiniCalendar, MiniGroceries } from "@/components/Panel/consumers";
-
-type Props = { id: string };
-
+type Props = {
+  id: string;
+};
 type MenuItem = {
   key: string;
   label: string;
@@ -46,7 +39,6 @@ type MenuItem = {
   iconClassName?: string;
   isDisabled?: boolean;
 };
-
 export default function ActionsMenu({ id }: Props) {
   const [isDropdownOpen, setIsDropdownOpen] = React.useState(false);
   const [openCalendar, setOpenCalendar] = React.useState(false);
@@ -54,9 +46,9 @@ export default function ActionsMenu({ id }: Props) {
   const [openSharePanel, setOpenSharePanel] = React.useState(false);
   const {
     isOpen: isDeleteModalOpen,
-    onOpen: onDeleteModalOpen,
-    onClose: onDeleteModalClose,
-  } = useDisclosure();
+    open: onDeleteModalOpen,
+    close: onDeleteModalClose,
+  } = useOverlayState();
   const router = useRouter();
   const { canEditRecipe, canDeleteRecipe, isAutoTaggingEnabled, isAIEnabled } =
     usePermissionsContext();
@@ -75,20 +67,16 @@ export default function ActionsMenu({ id }: Props) {
   const { allergies } = useActiveAllergies();
   const { isSupported, isActive, toggle } = useWakeLockContext();
   const t = useTranslations("recipes.actions");
-
   const canEdit = recipe.userId ? canEditRecipe(recipe.userId) : true;
   const canDelete = recipe.userId ? canDeleteRecipe(recipe.userId) : true;
-
   const handleDeleteClick = React.useCallback(() => {
     onDeleteModalOpen();
   }, [onDeleteModalOpen]);
-
   const handleDeleteConfirm = React.useCallback(() => {
     onDeleteModalClose();
     deleteRecipe(id, recipe.version);
     router.push("/");
   }, [deleteRecipe, id, recipe.version, router, onDeleteModalClose]);
-
   const menuItems = useMemo(() => {
     const items: MenuItem[] = [
       {
@@ -104,7 +92,6 @@ export default function ActionsMenu({ id }: Props) {
         onPress: () => setOpenGroceries(true),
       },
     ];
-
     if (canEdit) {
       items.push({
         key: "share",
@@ -112,7 +99,6 @@ export default function ActionsMenu({ id }: Props) {
         icon: <ShareIcon className="size-4" />,
         onPress: () => setOpenSharePanel(true),
       });
-
       items.push({
         key: "edit",
         label: t("edit"),
@@ -120,7 +106,6 @@ export default function ActionsMenu({ id }: Props) {
         onPress: () => router.push(`/recipes/edit/${id}`),
       });
     }
-
     if (isSupported) {
       items.push({
         key: "wake-lock",
@@ -128,10 +113,9 @@ export default function ActionsMenu({ id }: Props) {
         icon: <DevicePhoneMobileIcon className="size-4" />,
         onPress: toggle,
         labelClassName: isActive ? "text-success" : "",
-        iconClassName: isActive ? "text-success" : "text-default-400",
+        iconClassName: isActive ? "text-success" : "text-muted",
       });
     }
-
     if (isAutoTaggingEnabled && canEdit) {
       items.push({
         key: "auto-tag",
@@ -143,7 +127,6 @@ export default function ActionsMenu({ id }: Props) {
         isDisabled: isAutoTagging,
       });
     }
-
     if (isAIEnabled && canEdit) {
       items.push({
         key: "auto-categorize",
@@ -158,7 +141,6 @@ export default function ActionsMenu({ id }: Props) {
 
     // Show allergy detection when AI is enabled, user can edit, and allergies are configured
     const hasAllergies = allergies.length > 0;
-
     if (isAIEnabled && canEdit && hasAllergies) {
       items.push({
         key: "detect-allergies",
@@ -183,7 +165,6 @@ export default function ActionsMenu({ id }: Props) {
         isDisabled: isEstimatingNutrition,
       });
     }
-
     if (canDelete) {
       items.push({
         key: "delete",
@@ -194,7 +175,6 @@ export default function ActionsMenu({ id }: Props) {
         iconClassName: "text-danger",
       });
     }
-
     return items;
   }, [
     canEdit,
@@ -218,60 +198,51 @@ export default function ActionsMenu({ id }: Props) {
     isCategorizing,
     triggerAutoCategorize,
   ]);
-
   return (
     <>
-      <Dropdown
-        classNames={{ content: "z-[500]" }}
-        isOpen={isDropdownOpen}
-        onOpenChange={setIsDropdownOpen}
-      >
-        <DropdownTrigger>
-          <Button
-            isIconOnly
-            aria-label={t("actionsLabel")}
-            className="transition active:scale-95"
-            size="sm"
-            variant="light"
-          >
-            <EllipsisHorizontalIcon className="text-default-500 h-5 w-5" />
-          </Button>
-        </DropdownTrigger>
-
-        <DropdownMenu
+      <Dropdown isOpen={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
+        <Button
+          isIconOnly
           aria-label={t("actionsLabel")}
-          classNames={{
-            base: "max-h-[min(24rem,calc(100vh-6rem))] overflow-y-auto scrollbar-hide",
-            list: "gap-1",
-          }}
-          items={menuItems}
+          className="transition active:scale-95"
+          size="sm"
+          variant="tertiary"
         >
-          {(item: MenuItem) => (
-            <DropdownItem
-              key={item.key}
-              className="py-1 data-[focus=true]:bg-transparent data-[hover=true]:bg-transparent"
-            >
-              <Button
-                className={`w-full justify-start bg-transparent ${cssButtonPill} ${item.className ?? ""}`}
-                isDisabled={item.isDisabled}
-                radius="full"
-                size="md"
-                startContent={
-                  <span className={item.iconClassName ?? "text-default-400"}>{item.icon}</span>
-                }
-                variant="light"
-                onPress={() => {
-                  setIsDropdownOpen(false);
-                  item.onPress();
-                }}
+          <EllipsisHorizontalIcon className="text-muted h-5 w-5" />
+        </Button>
+
+        <Dropdown.Popover className="bg-overlay z-[500]">
+          <Dropdown.Menu
+            aria-label={t("actionsLabel")}
+            className="scrollbar-hide max-h-[min(24rem,calc(100vh-6rem))] overflow-y-auto"
+            items={menuItems}
+          >
+            {(item: MenuItem) => (
+              <Dropdown.Item
+                id={item.key}
+                key={item.key}
+                className="py-1 data-[focus=true]:bg-transparent data-[hovered=true]:bg-transparent"
+                textValue={item.label}
               >
-                <span className={`text-sm font-medium ${item.labelClassName ?? ""}`}>
-                  {item.label}
-                </span>
-              </Button>
-            </DropdownItem>
-          )}
-        </DropdownMenu>
+                <Button
+                  className={`w-full justify-start bg-transparent ${cssButtonPill} ${item.className ?? ""}`}
+                  isDisabled={item.isDisabled}
+                  size="md"
+                  onPress={() => {
+                    setIsDropdownOpen(false);
+                    item.onPress();
+                  }}
+                  variant="tertiary"
+                >
+                  {<span className={item.iconClassName ?? "text-muted"}>{item.icon}</span>}
+                  <span className={`text-sm font-medium ${item.labelClassName ?? ""}`}>
+                    <Label>{item.label}</Label>
+                  </span>
+                </Button>
+              </Dropdown.Item>
+            )}
+          </Dropdown.Menu>
+        </Dropdown.Popover>
       </Dropdown>
 
       <MiniGroceries open={openGroceries} recipeId={id} onOpenChange={setOpenGroceries} />

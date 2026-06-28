@@ -1,4 +1,3 @@
-import { getRecipePermissionPolicy } from "@norish/config/server-config-loader";
 import {
   getAverageRating,
   getRecipeRaters,
@@ -6,6 +5,7 @@ import {
   rateRecipe,
   removeUserRating,
 } from "@norish/db/repositories/ratings";
+import { getRecipePermissionPolicy } from "@norish/shared-server/config/server-config-loader";
 import { trpcLogger as log } from "@norish/shared-server/logger";
 import {
   RatingGetInputSchema,
@@ -17,7 +17,6 @@ import { emitByPolicy } from "../../helpers";
 import { authedProcedure } from "../../middleware";
 import { assertRecipeAccess } from "../recipes/helpers";
 import { router } from "../../trpc";
-
 import { ratingsEmitter } from "./emitter";
 
 interface UserContext {

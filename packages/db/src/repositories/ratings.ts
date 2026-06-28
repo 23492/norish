@@ -1,7 +1,8 @@
 import { and, avg, count, desc, eq, sql } from "drizzle-orm";
-import { decrypt } from "@norish/auth/crypto";
 
-import { db } from "../drizzle";
+import { decrypt } from "@norish/config/crypto";
+import { db } from "@norish/db/drizzle";
+
 import { recipeRatings, users } from "../schema";
 
 export interface RatingStats {
@@ -56,22 +57,6 @@ export async function rateRecipe(
   return { rating, isNew: true };
 }
 
-/**
- * Remove the caller's OWN rating for a recipe (undo an accidental click).
- * Scoped to (userId, recipeId) so a user can never delete another user's
- * rating; idempotent (removed: false when there was nothing to delete).
- */
-export async function removeUserRating(
-  userId: string,
-  recipeId: string
-): Promise<{ removed: boolean }> {
-  const result = await db
-    .delete(recipeRatings)
-    .where(and(eq(recipeRatings.userId, userId), eq(recipeRatings.recipeId, recipeId)));
-
-  return { removed: (result.rowCount ?? 0) > 0 };
-}
-
 export async function getUserRating(userId: string, recipeId: string): Promise<number | null> {
   const result = await db
     .select({ rating: recipeRatings.rating })
@@ -113,6 +98,17 @@ export async function getAverageRating(recipeId: string): Promise<RatingStats> {
     averageRating: row?.averageRating ? parseFloat(row.averageRating) : null,
     ratingCount: Number(row?.ratingCount ?? 0),
   };
+}
+
+export async function removeUserRating(
+  userId: string,
+  recipeId: string
+): Promise<{ removed: boolean }> {
+  const result = await db
+    .delete(recipeRatings)
+    .where(and(eq(recipeRatings.userId, userId), eq(recipeRatings.recipeId, recipeId)));
+
+  return { removed: (result.rowCount ?? 0) > 0 };
 }
 
 /**

@@ -14,6 +14,11 @@
       "ingredients": "Składniki",
       "steps": "Kroki",
       "tags": "Tagi"
+    },
+    "viewMode": {
+      "label": "Widok przepisów",
+      "grid": "Siatka",
+      "list": "Lista"
     }
   },
   "empty": {
@@ -26,7 +31,8 @@
     "noImage": "Brak obrazu",
     "viewGroceries": "Zobacz zakupy",
     "addToCalendar": "Dodaj do kalendarza",
-    "deleteRecipe": "Usuń przepis"
+    "deleteRecipe": "Usuń przepis",
+    "recipeOptions": "Opcje przepisu"
   },
   "detail": {
     "backToRecipes": "Powrót do przepisów",

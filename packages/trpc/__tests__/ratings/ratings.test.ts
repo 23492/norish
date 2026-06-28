@@ -22,7 +22,7 @@ vi.mock("@norish/db", async (importOriginal) => ({
   getHouseholdsForUser: vi.fn(() => Promise.resolve([])),
 }));
 vi.mock("@norish/trpc/routers/ratings/emitter", () => import("../mocks/ratings-emitter"));
-vi.mock("@norish/config/server-config-loader", () => ({
+vi.mock("@norish/shared-server/config/server-config-loader", () => ({
   getRecipePermissionPolicy: vi.fn().mockResolvedValue({ view: "household" }),
 }));
 vi.mock("@norish/shared-server/logger", () => ({

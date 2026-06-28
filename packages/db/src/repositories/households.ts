@@ -25,7 +25,6 @@ import {
   HouseholdWithUsersNamesSchema,
 } from "@norish/shared/contracts/zod/household";
 
-
 import { appliedOutcome, staleOutcome } from "./mutation-outcomes";
 import { getConfig } from "./server-config";
 import { getActiveHouseholdId, getUsersByIds, setActiveHouseholdId } from "./users";
@@ -277,6 +276,19 @@ export async function getHouseholdMemberIds(householdId: string): Promise<string
     .where(eq(householdUsers.householdId, householdId));
 
   return Array.from(new Set(rows.map((r) => r.userId)));
+}
+
+/**
+ * Gets all household IDs that a user belongs to.
+ * Used for multi-cookbook membership checks in permission resolution.
+ */
+export async function getUserHouseholdIds(userId: string): Promise<string[]> {
+  const rows = await db
+    .select({ householdId: householdUsers.householdId })
+    .from(householdUsers)
+    .where(eq(householdUsers.userId, userId));
+
+  return rows.map((r) => r.householdId);
 }
 
 export async function addUserToHousehold(input: HouseholdUserInsertDto): Promise<HouseholdUserDto> {

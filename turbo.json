@@ -50,7 +50,7 @@
     },
     "test": {
       "dependsOn": ["^test"],
-      "outputs": ["coverage/**"]
+      "outputs": []
     },
     "format": {
       "dependsOn": ["^format"],
