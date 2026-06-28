@@ -143,3 +143,28 @@ None. No new network endpoints, auth paths, or schema changes introduced. Change
 - All 16 target files modified/created: VERIFIED (17 files changed in commit)
 - `pnpm --filter @norish/web typecheck` exit 0: VERIFIED
 - `pnpm --filter @norish/web test` 410 passing, 0 failed: VERIFIED
+
+---
+
+## Gap Closure (2026-06-28) — timer-dock fork fixes re-applied
+
+**Commit:** cc740294
+
+The original executor incorrectly judged `apps/web/components/timer-dock.tsx` as "already incorporating equivalent style fixes" and left it byte-identical to upstream 0.19.0. Both fork timer-dock fixes were missing. They have been re-applied onto upstream's restructured component:
+
+### Fix 1 — mobile FAB tap-through (pointer-events)
+- Positioning wrapper: added `pointer-events-none` so the dock's empty area does not block the `md:hidden` mobile add-grocery FAB beneath it.
+- Card (`motion.div`): added `pointer-events-auto` so the card itself remains interactive.
+
+### Fix 2 — close control reachable on short/mobile viewports with >1 timer
+- Expanded card: added `max-h-[80dvh]` + `flex flex-col` to clamp the card height.
+- Inner `motion.div` (expanded wrapper): added `className="flex min-h-0 flex-col"` so the flex layout propagates.
+- Header button: added `shrink-0` so the close control stays pinned and always reachable.
+- Timer list: changed `max-h-96 overflow-y-auto` to `min-h-0 flex-1 overflow-y-auto` so the list scrolls within the clamped card.
+- Notifications footer: added `shrink-0` to stay pinned below the scroll area.
+
+All upstream 0.19.0 changes preserved (bg-surface tokens, className prop merge, auto-hide, isMobile detection).
+
+**Gates re-run after gap closure:**
+- `pnpm --filter @norish/web typecheck`: EXIT 0
+- `pnpm --filter @norish/web test`: 68 files, 410 tests — all green
