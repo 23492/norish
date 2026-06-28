@@ -155,7 +155,7 @@ export function TimerDock({ className = "" }: { className?: string }) {
                     scale: 1,
                   }
             }
-            className={`fixed right-4 flex flex-col items-end space-y-2 ${className || "z-50"}`}
+            className={`pointer-events-none fixed right-4 flex flex-col items-end space-y-2 ${className || "z-50"}`}
             exit={{
               opacity: 0,
               y: 8,
@@ -176,7 +176,7 @@ export function TimerDock({ className = "" }: { className?: string }) {
             {/* Morphing Container */}
             <motion.div
               layout
-              className={`overflow-hidden shadow-xl ring-1 ring-black/5 backdrop-blur-sm ${isExpanded ? "bg-surface w-80 rounded-2xl dark:ring-white/10" : "bg-surface/90 rounded-full dark:ring-white/10"}`}
+              className={`pointer-events-auto overflow-hidden shadow-xl ring-1 ring-black/5 backdrop-blur-sm ${isExpanded ? "bg-surface flex max-h-[80dvh] w-80 flex-col rounded-2xl dark:ring-white/10" : "bg-surface/90 rounded-full dark:ring-white/10"}`}
               transition={{
                 duration: 0.25,
                 ease: [0.4, 0, 0.2, 1],
@@ -187,6 +187,7 @@ export function TimerDock({ className = "" }: { className?: string }) {
                   animate={{
                     opacity: 1,
                   }}
+                  className="flex min-h-0 flex-col"
                   exit={{
                     opacity: 0,
                   }}
@@ -200,7 +201,7 @@ export function TimerDock({ className = "" }: { className?: string }) {
                   {/* Header */}
                   <button
                     aria-label="Close timer summary"
-                    className="border-border flex w-full cursor-pointer items-center justify-between border-b p-4"
+                    className="border-border flex w-full shrink-0 cursor-pointer items-center justify-between border-b p-4"
                     type="button"
                     onClick={() => setIsExpanded(false)}
                   >
@@ -215,7 +216,7 @@ export function TimerDock({ className = "" }: { className?: string }) {
                   </button>
 
                   {/* Timer List */}
-                  <div className="max-h-96 overflow-y-auto">
+                  <div className="min-h-0 flex-1 overflow-y-auto">
                     {sortedTimers.map((timer, index) => (
                       <TimerRow
                         key={timer.id}
@@ -229,7 +230,7 @@ export function TimerDock({ className = "" }: { className?: string }) {
 
                   {/* Notifications disabled hint */}
                   {notificationsSupported && notificationsDenied && (
-                    <div className="border-border text-muted border-t px-4 py-2 text-xs">
+                    <div className="border-border text-muted shrink-0 border-t px-4 py-2 text-xs">
                       {t("timer.notifications_disabled_hint")}
                     </div>
                   )}
