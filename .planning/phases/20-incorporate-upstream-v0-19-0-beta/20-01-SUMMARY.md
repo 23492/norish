@@ -239,3 +239,34 @@ None - no placeholder data wired to UI rendering in the db-schema subsystem.
 - [x] Weakened file not committed: `git diff` clean after revert
 
 ## Self-Check: PASSED
+
+---
+
+## Director Review (2026-06-28) — ACCEPTED
+
+Independently re-verified by the Opus director (not trusting the executor Self-Check):
+- Merge commit `421c1214` parents = `33bc77e9` + `1f684480` (upstream/main) ✓; `MERGE_HEAD` gone; zero conflict markers tree-wide; working tree clean.
+- Tag `pre-0.19.0-integration` on `33bc77e9` ✓. Migration journal = 39 entries ✓.
+- Camoufox: `playwright.ts` absent, `fetch.ts` on camofox, 0 playwright refs ✓.
+- `@norish/db-schema` holds upstream's full table set + fork re-ports (permission_level, invite/policy, uq_households_invite_token, recipe_visibility, uq_recipes_url_household replacing uq_recipes_url_user, active_household_id + AnyPgColumn); `packages/db/src/schema/*` are shims ✓.
+- Independent re-run: `pnpm --filter @norish/db typecheck` clean; `households.isolation` **6/6** on its own testcontainer DB; adversarial weaken→3/6 RED→revert→6/6 GREEN (no weakening left — tree clean) ✓.
+- The **12 db failures VERIFIED environmental**, NOT a regression: both files (`timer-keywords-config`, `cleanup-workflows`) are byte-unchanged by the merge (empty diff vs `33bc77e9`), use a static `localhost:5432` pool (no testcontainer), and nothing listens on `:5432` here — they fail identically pre-merge in this env.
+
+**Deviation noted (additive, accepted):** the executor expanded scope beyond db to satisfy a self-imposed trpc-typecheck gate, re-applying fork deltas into some 20-03-owned files. The committed-tree state, director-verified by fork-marker grep, supersedes the executor's (inconsistent) "Files Pending Re-assertion" list:
+
+| File | State after 20-01 |
+|------|-------------------|
+| `trpc/src/middleware.ts` (memberHouseholdIds) | RE-APPLIED — 20-03 verify only |
+| `trpc/src/routers/recipes/helpers.ts` (assertRecipeAccess/resolveRecipeCookbookPolicy) | RE-APPLIED — 20-03 verify only |
+| `trpc/src/routers/recipes/recipes.ts` (memberHouseholdIds/activeHouseholdId) | RE-APPLIED — 20-03 verify only |
+| `trpc/src/routers/recipes/shares.ts` (assertRecipeAccess/shareSetVisibility) | RE-APPLIED/auto-merged — 20-03 verify only |
+| `shared/src/contracts/zod/household.ts` (inviteToken/policy) | RE-APPLIED — 20-03 verify only |
+| `shared-server/src/cache/household.ts` | upstream's moved helper (no fork delta) — accept |
+| `trpc/src/routers/households/households.ts` (rename/invite/setPolicy) | **STILL UPSTREAM — 20-03 re-applies** |
+| `shared/src/contracts/zod/recipe.ts` (visibility) | **STILL UPSTREAM — 20-03 re-applies** |
+| `shared-react/**` (ratings useRecipeRatersQuery, household mutations, context) | **STILL UPSTREAM — 20-03 re-applies** |
+| `api/src/ai/*`, `api/src/video/normalizer.ts` (locale delta) | STILL UPSTREAM — 20-02 re-applies |
+| `apps/web/**` | STILL UPSTREAM — 20-04 re-applies |
+| `queue/src/allergy-detection/*` | upstream path adopted (no fork delta) — 20-05 verify |
+
+20-03 must run its full auth+trpc suites + the tRPC-layer adversarial gate against this hybrid tree, re-assert the STILL-UPSTREAM rows, and only verify (not rewrite) the RE-APPLIED rows.
