@@ -10,7 +10,7 @@ import {
   getErrorMessage,
   mapErrorToCode,
 } from "@norish/shared-server/ai/types/result";
-import { isAIEnabled } from "@norish/shared-server/config/server-config-loader";
+import { getDefaultLocale, isAIEnabled } from "@norish/shared-server/config/server-config-loader";
 import { aiLogger } from "@norish/shared-server/logger";
 
 import type { RecipeExtractionOutput } from "./schemas/recipe.schema";
@@ -79,8 +79,12 @@ export async function extractRecipeFromImages(
     const { visionModel, providerName } = await getModels();
     const settings = await getGenerationSettings();
 
+    // Keep the extracted recipe in the source language (fall back to the
+    // configured default locale; the prompt also matches the source content).
+    const targetLanguage = await getDefaultLocale();
+
     // Build prompt using shared builder
-    const prompt = await buildImageExtractionPrompt(allergies);
+    const prompt = await buildImageExtractionPrompt(allergies, targetLanguage);
 
     aiLogger.debug(
       { fileCount: files.length, filenames: files.map((f) => f.filename), provider: providerName },

@@ -9,7 +9,7 @@ import { isCloudTranscriptionProvider } from "@norish/config/zod/server-config";
 const getVideoConfig = vi.fn();
 const getAIConfig = vi.fn();
 
-vi.mock("@norish/config/server-config-loader", () => ({
+vi.mock("@norish/shared-server/config/server-config-loader", () => ({
   getVideoConfig: (...args: unknown[]) => getVideoConfig(...args),
   getAIConfig: (...args: unknown[]) => getAIConfig(...args),
 }));
