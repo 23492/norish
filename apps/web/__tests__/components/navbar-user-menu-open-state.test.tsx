@@ -52,6 +52,14 @@ vi.mock("@/hooks/user/use-language-switch", () => ({
   }),
 }));
 
+vi.mock("@/context/household-context", () => ({
+  useHouseholdContext: () => ({
+    activeHouseholdId: null,
+    households: [],
+    switchActive: vi.fn(),
+  }),
+}));
+
 vi.mock("@/components/shared/import-recipe-modal", () => ({
   default: ({ isOpen }: { isOpen: boolean }) => (isOpen ? <div>Import recipe modal</div> : null),
 }));
@@ -160,10 +168,25 @@ vi.mock("@heroui/react", async () => {
     );
   }
 
+  function Section({
+    children,
+    title,
+  }: {
+    children: React.ReactNode;
+    title?: string;
+  }) {
+    return (
+      <div aria-label={title}>
+        {children}
+      </div>
+    );
+  }
+
   const Dropdown = Object.assign(DropdownRoot, {
     Item,
     Menu,
     Popover,
+    Section,
   });
 
   return {

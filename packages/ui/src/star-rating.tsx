@@ -12,6 +12,17 @@ type StarRatingBaseProps = {
   size?: "sm" | "lg";
   /** Show the selected value as a "{value}+" suffix (used for minimum-rating filters) */
   showValueSuffix?: boolean;
+  /**
+   * RATE-01 fork prop: the logged-in user's own rating (vs the aggregate `value`).
+   * When set, re-clicking the current star calls onClear (if provided) to remove the rating.
+   */
+  userValue?: number | null;
+  /**
+   * RATE-01 fork prop: called when the user wants to clear their own rating.
+   * Prefer `allowClear` + nullable onChange for new callers; `onClear` is retained for
+   * compatibility with existing recipe page callers.
+   */
+  onClear?: () => void;
 };
 
 type StarRatingProps = StarRatingBaseProps &
@@ -25,13 +36,23 @@ type StarRatingProps = StarRatingBaseProps &
   );
 
 export default function StarRating(props: StarRatingProps) {
-  const { value, isLoading = false, size = "lg", showValueSuffix = false } = props;
+  const {
+    value,
+    isLoading = false,
+    size = "lg",
+    showValueSuffix = false,
+    userValue = null,
+    onClear,
+  } = props;
   const [hoverValue, setHoverValue] = useState<number | null>(null);
   const displayValue = hoverValue ?? value ?? 0;
 
   const handleSelect = (starValue: number) => {
     if (props.allowClear) {
       props.onChange(value === starValue ? null : starValue);
+    } else if (onClear && userValue === starValue) {
+      // RATE-01: clicking the star you already gave clears it via onClear
+      onClear();
     } else {
       props.onChange(starValue);
     }

@@ -3,6 +3,8 @@
 import { useEffect, useRef } from "react";
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { Card, Spinner } from "@heroui/react";
+import Link from "next/link";
+import { useTranslations } from "next-intl";
 
 import type { ProviderInfo } from "@norish/shared/contracts";
 import { signIn } from "@norish/shared/lib/auth/client";
@@ -15,6 +17,7 @@ interface AutoSignInProps {
 }
 
 export function AutoSignIn({ provider, callbackUrl }: AutoSignInProps) {
+  const t = useTranslations("auth.login");
   const redirectInitiated = useRef(false);
 
   useEffect(() => {
@@ -63,6 +66,15 @@ export function AutoSignIn({ provider, callbackUrl }: AutoSignInProps) {
               <p className="text-muted text-xs">You&apos;ll be signed in automatically</p>
               <Spinner color="accent" size="sm" />
             </div>
+
+            {/* Recovery hatch: lets the user reach the normal login page even
+                while SSO-only auto-redirect is active (e.g. provider down). */}
+            <Link
+              className="text-muted hover:text-foreground text-xs underline underline-offset-2"
+              href="/login?sso=0"
+            >
+              {t("useAnotherMethod")}
+            </Link>
           </div>
         </Card.Content>
       </Card>

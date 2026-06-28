@@ -1,7 +1,8 @@
 "use client";
 
-import { createContext, useContext, useMemo } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { useHouseholdContext } from "@/context/household-context";
 import { useRecipesFiltersContext } from "@/context/recipes-filters-context";
 import { useFavoritesMutation, useFavoritesQuery } from "@/hooks/favorites";
 import { useRecipesMutations, useRecipesQuery } from "@/hooks/recipes";
@@ -101,8 +102,21 @@ export function RecipesContextProvider({ children }: { children: React.ReactNode
 function RecipesContextAdapter({ children }: { children: React.ReactNode }) {
   const base = sharedRecipesContext.useRecipesContext();
   const { filters } = useRecipesFiltersContext();
+  const { activeHouseholdId } = useHouseholdContext();
 
   const { allergies } = useActiveAllergies();
+
+  // The recipe list is scoped server-side by the active cookbook, so refetch it
+  // whenever the active household changes (covers both the local switchActive
+  // and any server-driven household-switched event). Skip the initial mount.
+  const previousActiveHouseholdId = useRef(activeHouseholdId);
+
+  useEffect(() => {
+    if (previousActiveHouseholdId.current !== activeHouseholdId) {
+      previousActiveHouseholdId.current = activeHouseholdId;
+      base.invalidate();
+    }
+  }, [activeHouseholdId, base]);
 
   const { recipes, total } = useMemo(() => {
     if (!filters.showFavoritesOnly) {

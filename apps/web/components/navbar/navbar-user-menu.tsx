@@ -5,15 +5,19 @@ import { useRouter } from "next/navigation";
 import ImportRecipeModal from "@/components/shared/import-recipe-modal";
 import { LanguageSwitchContent } from "@/components/shared/language-switch";
 import UserAvatar from "@/components/shared/user-avatar";
+import { useHouseholdContext } from "@/context/household-context";
 import { useUserContext } from "@/context/user-context";
 import { useVersionQuery } from "@/hooks/config";
 import { useLanguageSwitch } from "@/hooks/user/use-language-switch";
 import {
   ArrowDownTrayIcon,
   ArrowLeftStartOnRectangleIcon,
+  BookOpenIcon,
+  CheckIcon,
   Cog6ToothIcon,
   EllipsisVerticalIcon,
   PlusIcon,
+  UserGroupIcon,
 } from "@heroicons/react/16/solid";
 import { Button, Dropdown, Label } from "@heroui/react";
 import { useTranslations } from "next-intl";
@@ -34,7 +38,9 @@ export default function NavbarUserMenu({
   trigger = "avatar",
 }: NavbarUserMenuProps) {
   const t = useTranslations("navbar.userMenu");
+  const tCookbook = useTranslations("navbar.cookbook");
   const { user, signOut } = useUserContext();
+  const { households, activeHouseholdId, switchActive } = useHouseholdContext();
   const router = useRouter();
   const [localOpen, setLocalOpen] = useState(false);
   const [showUrlModal, setShowUrlModal] = useState(false);
@@ -108,6 +114,59 @@ export default function NavbarUserMenu({
             >
               <LanguageSwitchContent {...languageSwitch} />
             </Dropdown.Item>
+
+            <Dropdown.Section title={tCookbook("label")}>
+              <Dropdown.Item
+                key="cookbook-personal"
+                className={`py-3 ${cssButtonPill}`}
+                id="cookbook-personal"
+                textValue={tCookbook("personal")}
+                onPress={() => {
+                  switchActive(null);
+                  handleOpenChange(false);
+                }}
+              >
+                <span className="text-muted">
+                  <BookOpenIcon className="size-5" />
+                </span>
+                <div className="flex min-w-0 flex-1 flex-col items-start">
+                  <Label className="text-base leading-tight font-medium">
+                    {tCookbook("personal")}
+                  </Label>
+                  <span className="text-muted text-xs leading-tight">
+                    {tCookbook("personalDescription")}
+                  </span>
+                </div>
+                {activeHouseholdId === null && (
+                  <CheckIcon aria-label={tCookbook("active")} className="size-5 text-accent" />
+                )}
+              </Dropdown.Item>
+              {households.map((cookbook) => (
+                <Dropdown.Item
+                  key={`cookbook-${cookbook.id}`}
+                  className={`py-3 ${cssButtonPill}`}
+                  id={`cookbook-${cookbook.id}`}
+                  textValue={cookbook.name}
+                  onPress={() => {
+                    switchActive(cookbook.id);
+                    handleOpenChange(false);
+                  }}
+                >
+                  <span className="text-muted">
+                    <UserGroupIcon className="size-5" />
+                  </span>
+                  <div className="flex min-w-0 flex-1 flex-col items-start">
+                    <Label className="text-base leading-tight font-medium">{cookbook.name}</Label>
+                    <span className="text-muted text-xs leading-tight">
+                      {tCookbook("members", { count: cookbook.memberCount })}
+                    </span>
+                  </div>
+                  {cookbook.id === activeHouseholdId && (
+                    <CheckIcon aria-label={tCookbook("active")} className="size-5 text-accent" />
+                  )}
+                </Dropdown.Item>
+              ))}
+            </Dropdown.Section>
 
             <Dropdown.Item
               key="create-recipe"

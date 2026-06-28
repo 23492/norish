@@ -47,6 +47,10 @@ export default defineConfig({
       "@/styles": path.resolve(__dirname, "styles"),
       "@/public": path.resolve(__dirname, "public"),
       "@norish/web": __dirname,
+      // @heroui-pro/react requires a paid HEROUI_AUTH_TOKEN to download.
+      // In test environments without the token, resolve to a stub so
+      // vi.mock("@heroui-pro/react", ...) in tests can work correctly.
+      "@heroui-pro/react": path.resolve(__dirname, "__tests__/stubs/heroui-pro-react.ts"),
     },
   },
 });

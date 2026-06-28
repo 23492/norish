@@ -29,6 +29,9 @@ function SharedRecipePageContent({ token }: { token: string }) {
   if (isLoading) {
     return <RecipeSkeleton />;
   }
+  // Visibility gate: the server (sharedRecipeProcedure) returns NOT_FOUND for
+  // recipes whose visibility does not permit anonymous access (private / household).
+  // The UI reflects that gate — no recipe data is ever returned for non-public recipes.
   if (!recipe || (error instanceof TRPCClientError && error.data?.code === "NOT_FOUND")) {
     return <NotFoundView message={t("notFoundMessage")} title={t("notFound")} />;
   }

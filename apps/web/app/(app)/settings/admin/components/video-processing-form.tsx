@@ -46,6 +46,7 @@ const TRANSCRIPTION_PROVIDER_OPTIONS: TranscriptionProvider[] = [
   "openai",
   "groq",
   "azure",
+  "assemblyai",
   "ollama",
   "generic-openai",
 ];

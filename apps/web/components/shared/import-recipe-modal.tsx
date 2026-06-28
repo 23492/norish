@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useHouseholdContext } from "@/context/household-context";
 import { usePermissionsContext } from "@/context/permissions-context";
 import { useRecipesContext } from "@/context/recipes-context";
 import { showSafeErrorToast } from "@/lib/ui/safe-error-toast";
-import { ArrowDownTrayIcon, SparklesIcon } from "@heroicons/react/16/solid";
+import { ArrowDownTrayIcon, BookOpenIcon, SparklesIcon } from "@heroicons/react/16/solid";
 import { Button, Input, Label, Modal, TextField } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
@@ -16,9 +17,17 @@ export default function ImportRecipeModal({ isOpen, onOpenChange }: ImportRecipe
   const t = useTranslations("common.import.url");
   const tErrors = useTranslations("common.errors");
   const tActions = useTranslations("common.actions");
+  const tCookbook = useTranslations("navbar.cookbook");
   const { importRecipe, importRecipeWithAI } = useRecipesContext();
+  const { households, activeHouseholdId } = useHouseholdContext();
   const { isAIEnabled } = usePermissionsContext();
   const [importUrl, setImportUrl] = useState("");
+
+  // The backend assigns the import to the user's ACTIVE cookbook (02-02); show
+  // which cookbook that is so the destination is never a surprise.
+  const activeCookbookName =
+    households.find((cookbook) => cookbook.id === activeHouseholdId)?.name ??
+    tCookbook("personal");
 
   function handleOpenChange(open: boolean) {
     if (!open) {
@@ -106,6 +115,10 @@ export default function ImportRecipeModal({ isOpen, onOpenChange }: ImportRecipe
                     <Label>{t("label")}</Label>
                     <Input fullWidth placeholder={t("placeholder")} variant="secondary" />
                   </TextField>
+                  <p className="text-muted flex items-center gap-1.5 text-sm">
+                    <BookOpenIcon className="size-4 shrink-0" />
+                    <span>{t("targetCookbook", { cookbook: activeCookbookName })}</span>
+                  </p>
                 </Modal.Body>
                 <Modal.Footer>
                   {isAIEnabled && (

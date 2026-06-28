@@ -14,6 +14,7 @@ import {
   ReadonlyRecipeSummary,
 } from "@/components/recipes/readonly-recipe-sections";
 import { MOBILE_RECIPE_MEDIA_HEIGHT_STYLE } from "@/components/recipes/recipe-layout-constants";
+import RecipeRaters from "@/components/recipes/recipe-raters";
 import DoubleTapContainer from "@/components/shared/double-tap-container";
 import HeartButton from "@/components/shared/heart-button";
 import { useUserContext } from "@/context/user-context";
@@ -42,7 +43,7 @@ export default function RecipePageMobile() {
   const { isFavorite: checkFavorite } = useFavoritesQuery();
   const { toggleFavorite } = useFavoritesMutation();
   const { userRating, averageRating, isLoading: isRatingLoading } = useRatingQuery(recipe.id);
-  const { rateRecipe, isRating } = useRatingsMutation();
+  const { rateRecipe, removeRating, isRating } = useRatingsMutation();
   const { user } = useUserContext();
   const t = useTranslations("recipes.detail");
   const showRatings = getShowRatingsPreference(user);
@@ -53,6 +54,7 @@ export default function RecipePageMobile() {
   const isFavorite = checkFavorite(recipe.id);
   const handleToggleFavorite = () => toggleFavorite(recipe.id);
   const handleRateRecipe = (rating: number) => rateRecipe(recipe.id, rating);
+  const handleClearRating = () => removeRating(recipe.id);
 
   return (
     <div
@@ -186,9 +188,12 @@ export default function RecipePageMobile() {
                 <p className="text-muted font-medium">{t("ratingPrompt")}</p>
                 <StarRating
                   isLoading={isRating || isRatingLoading}
+                  userValue={userRating}
                   value={userRating ?? averageRating}
                   onChange={handleRateRecipe}
+                  onClear={handleClearRating}
                 />
+                <RecipeRaters recipeId={recipe.id} />
               </div>
             )}
           </div>
