@@ -1,0 +1,93 @@
+# norish-beta isolated validation stack — for norish-beta.knoppsmart.com (Phase 20 / D-11/D-12)
+#
+# PURPOSE: Run the 0.19.0-beta integration branch alongside the LIVE stack without touching it.
+#   Live stack:  /opt/norish/docker-compose.fork.yml  (norish-app / norish:live  / port 3000)
+#   Beta stack:  this file                             (norish-beta / norish:beta / port 3001)
+#
+# ISOLATION INVARIANTS (T-20-06-DBLEAK / T-20-06-KEY):
+#   - Separate Postgres container (norish-beta-db) + volume (norish_beta_db_data) — never the live volume
+#   - Separate Redis container (norish-beta-redis)
+#   - Dedicated docker network (norish-beta) — cannot reach live's default network
+#   - Separate MASTER_KEY (set in beta.env; MUST differ from live — encrypted secrets are key-incompatible)
+#   - DATABASE_URL points ONLY at norish-beta-db
+#
+# USAGE:
+#   Copy docker/beta.env.example to /opt/norish/beta.env, fill in secrets, then:
+#     docker compose -f docker/docker-compose.beta.yml --env-file /opt/norish/beta.env up -d
+#
+#   Before each validation session, refresh the beta DB:
+#     bash tooling/beta/clone-beta-db.sh [/path/to/dump]  (see tooling/beta/README.md)
+#
+# DO NOT start this file until the director has built the beta image (see tooling/beta/README.md).
+
+services:
+  norish-beta:
+    image: norish:beta
+    container_name: norish-beta
+    restart: always
+    ports:
+      - "3001:3000"
+    volumes:
+      - norish_beta_data:/app/uploads
+    environment:
+      AUTH_URL: ${AUTH_URL:-https://norish-beta.knoppsmart.com}
+      TRUSTED_ORIGINS: ${TRUSTED_ORIGINS:-https://norish-beta.knoppsmart.com}
+      DATABASE_URL: ${DATABASE_URL}
+      MASTER_KEY: ${MASTER_KEY}
+      REDIS_URL: ${REDIS_URL:-redis://norish-beta-redis:6379}
+      CAMOFOX_URL: ${CAMOFOX_URL:-http://192.168.2.26:9377}
+      UPLOADS_DIR: /app/uploads
+      PASSWORD_AUTH_ENABLED: ${PASSWORD_AUTH_ENABLED:-false}
+      DEFAULT_LOCALE: ${DEFAULT_LOCALE:-nl}
+      ENABLED_LOCALES: ${ENABLED_LOCALES:-nl,en}
+      ENABLE_REGISTRATION: ${ENABLE_REGISTRATION:-true}
+      AI_ENABLED: ${AI_ENABLED:-true}
+      WORKOS_CLIENT_ID: ${WORKOS_CLIENT_ID:-}
+      WORKOS_API_KEY: ${WORKOS_API_KEY:-}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "require(''http'').get(''http://localhost:3000/api/v1/health'', r => process.exit(r.statusCode===200?0:1))"',
+        ]
+      interval: 1m
+      timeout: 15s
+      retries: 3
+      start_period: 1m
+    depends_on:
+      - norish-beta-db
+      - norish-beta-redis
+    networks:
+      - norish-beta
+
+  norish-beta-db:
+    image: postgres:17-alpine
+    container_name: norish-beta-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: norish-beta
+      POSTGRES_DB: norish
+    volumes:
+      - norish_beta_db_data:/var/lib/postgresql/data
+    networks:
+      - norish-beta
+
+  norish-beta-redis:
+    image: redis:8.6.2
+    container_name: norish-beta-redis
+    restart: unless-stopped
+    volumes:
+      - norish_beta_redis_data:/data
+    networks:
+      - norish-beta
+
+networks:
+  norish-beta:
+    name: norish-beta
+    # Dedicated network — isolates beta from the live stack's default bridge
+
+volumes:
+  norish_beta_data:
+  norish_beta_db_data:
+  norish_beta_redis_data:
