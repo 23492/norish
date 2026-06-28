@@ -48,6 +48,7 @@ Reliable recipe import & management for Kiran's groups — including bot-protect
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
+| Phase 20 upstream-0.19.0 merge uses **Strategy B** (commit the merge at 20-01, deferred subsystems on the upstream base, re-assert fork deltas per-plan) | The plans' literal "leave conflicted yet committed per subsystem" is git-impossible (can't commit with unmerged paths). Strategy B commits the single merge at 20-01 (db-schema re-ported; all other conflicts taken to upstream per D-08), then 20-02..20-05 re-apply each fork delta as its own reviewable commit — satisfies locked D-03 (per-subsystem commits) + D-08, and is resumable. Integration branch bases off main's live tip (not the stale `866f518e`). Director-confirmed 2026-06-28; plan git-state gates corrected accordingly. | Planned (Phase 20) |
 | Fork + rebuild (not boot-patch) | Maintainable, native, drops fragile bundle-patching | Done |
 | Native Camoufox replaces Chrome in source | User directive; Camoufox beats bot-walls | Done (Phase 1) |
 | AssemblyAI as native transcription provider | User choice; folds boot-patch into source | Pending (Phase 3) |
