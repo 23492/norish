@@ -6,6 +6,7 @@ import { vi } from "vitest";
 export const listRecipes = vi.fn();
 export const getRecipeFull = vi.fn();
 export const getRecipeOwnerId = vi.fn();
+export const getRecipeOwnerAndHousehold = vi.fn();
 export const createRecipeWithRefs = vi.fn();
 export const updateRecipeWithRefs = vi.fn();
 export const updateRecipeCategories = vi.fn();
@@ -18,6 +19,7 @@ export function resetRecipesMocks() {
   listRecipes.mockReset();
   getRecipeFull.mockReset();
   getRecipeOwnerId.mockReset();
+  getRecipeOwnerAndHousehold.mockReset();
   createRecipeWithRefs.mockReset();
   updateRecipeWithRefs.mockReset();
   updateRecipeCategories.mockReset();

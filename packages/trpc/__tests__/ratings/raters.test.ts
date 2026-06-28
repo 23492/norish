@@ -15,6 +15,7 @@ const getRecipeRatersMock = vi.hoisted(() => vi.fn());
 const getAverageRatingMock = vi.hoisted(() => vi.fn());
 const getRecipeOwnerAndHouseholdMock = vi.hoisted(() => vi.fn());
 const getHouseholdsForUserMock = vi.hoisted(() => vi.fn());
+const getUserHouseholdIdsMock = vi.hoisted(() => vi.fn());
 const getHouseholdPolicyMock = vi.hoisted(() => vi.fn());
 const getConfigMock = vi.hoisted(() => vi.fn());
 
@@ -37,14 +38,16 @@ vi.mock("@norish/db", () => ({
 }));
 
 // resolveRecipeCookbookPolicy reads the recipe's OWN cookbook policy + admin.
+// getUserHouseholdIds is called by withAuth middleware to populate ctx.memberHouseholdIds.
 vi.mock("@norish/db/repositories/households", () => ({
   getHouseholdForUser: vi.fn(),
   getHouseholdPolicy: getHouseholdPolicyMock,
+  getUserHouseholdIds: getUserHouseholdIdsMock,
 }));
 vi.mock("@norish/db/repositories/server-config", () => ({
   getConfig: getConfigMock,
 }));
-vi.mock("@norish/config/server-config-loader", () => ({
+vi.mock("@norish/shared-server/config/server-config-loader", () => ({
   getRecipePermissionPolicy: vi.fn(() => Promise.resolve({ view: "household" })),
 }));
 vi.mock("@norish/trpc/routers/ratings/emitter", () => import("../mocks/ratings-emitter"));
@@ -81,6 +84,11 @@ describe("ratings.getRaters (real access boundary, per-cookbook)", () => {
     membership = {};
     getHouseholdsForUserMock.mockImplementation((userId: string) =>
       Promise.resolve((membership[userId] ?? []).map((id) => ({ id })))
+    );
+    // withAuth middleware calls getUserHouseholdIds (returns string[]) to populate
+    // ctx.memberHouseholdIds — keyed by the calling user's membership.
+    getUserHouseholdIdsMock.mockImplementation((userId: string) =>
+      Promise.resolve(membership[userId] ?? [])
     );
     // Recipe lives in cookbook A with a household view policy.
     getRecipeOwnerAndHouseholdMock.mockResolvedValue({ userId: OWNER, householdId: COOKBOOK_A });

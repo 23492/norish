@@ -59,6 +59,10 @@ const connectionManager = vi.hoisted(() => ({
 }));
 
 vi.mock("@norish/db", () => householdDb);
+// withAuth middleware calls getUserHouseholdIds from the sub-path (not the barrel).
+vi.mock("@norish/db/repositories/households", () => ({
+  getUserHouseholdIds: vi.fn(() => Promise.resolve([])),
+}));
 vi.mock("@norish/shared-server/cache/household", () => householdCache);
 vi.mock("@norish/trpc/routers/households/emitter", () => ({ householdEmitter }));
 vi.mock("@norish/trpc/routers/permissions/emitter", () => ({ permissionsEmitter }));

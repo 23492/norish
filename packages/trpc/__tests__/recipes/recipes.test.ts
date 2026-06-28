@@ -4,14 +4,16 @@ import superjson from "superjson";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { recipesRouter } from "../../src/routers/recipes";
-import { canAccessResource } from "../mocks/permissions";
+import { canAccessResource, resolveRecipeCookbookPolicy } from "../mocks/permissions";
 import { recipeEmitter } from "../mocks/recipe-emitter";
+import { getUserHouseholdIds } from "../mocks/households-repository";
 // Import mocks for assertions
 import {
   createRecipeWithRefs,
   dashboardRecipe,
   deleteRecipeById,
   getRecipeFull,
+  getRecipeOwnerAndHousehold,
   getRecipeOwnerId,
   getRecipesWithoutCategories,
   listRecipes,
@@ -40,6 +42,7 @@ vi.mock("@norish/db", async (importOriginal) => {
     getAllergiesForUsers: vi.fn(),
     getRecipeByUrl: recipes.getRecipeByUrl,
     getRecipeFull: recipes.getRecipeFull,
+    getRecipeOwnerAndHousehold: recipes.getRecipeOwnerAndHousehold,
     getRecipeOwnerId: recipes.getRecipeOwnerId,
     getRecipesByUrlsForPolicy: vi.fn(),
     getRecipesWithoutCategories: recipes.getRecipesWithoutCategories,
@@ -50,6 +53,8 @@ vi.mock("@norish/db", async (importOriginal) => {
   };
 });
 vi.mock("@norish/db/repositories/recipes", () => import("../mocks/recipes-repository"));
+// withAuth middleware calls getUserHouseholdIds from the sub-path (not the barrel).
+vi.mock("@norish/db/repositories/households", () => import("../mocks/households-repository"));
 vi.mock("@norish/auth/permissions", () => import("../mocks/permissions"));
 vi.mock("@norish/trpc/routers/recipes/emitter", () => import("../mocks/recipe-emitter"));
 vi.mock("@norish/shared-server/config/server-config-loader", () => import("../mocks/config"));
@@ -67,6 +72,9 @@ describe("recipes procedures", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     ctx = createMockAuthedContext(mockUser, mockHousehold);
+    // withAuth middleware calls getUserHouseholdIds to populate memberHouseholdIds.
+    // Default to the test household so permission checks see the expected membership.
+    getUserHouseholdIds.mockResolvedValue(mockHousehold ? [mockHousehold.id] : []);
   });
 
   function createValidFullRecipe(overrides: Parameters<typeof createMockFullRecipe>[0] = {}) {
@@ -465,22 +473,35 @@ describe("recipes procedures", () => {
     }
 
     it("returns recipe when user has edit permission", async () => {
+      const ownerHouseholdId = "owner-household-id";
       const mockRecipe = createValidFullRecipe({ id: editableRecipeId, userId: "other-user-id" });
+      const mockPolicy = { view: "household" as const };
 
       getRecipeFull.mockResolvedValue(mockRecipe);
-      getRecipeOwnerId.mockResolvedValue("other-user-id");
-      canAccessResource.mockResolvedValue(true);
+      getRecipeOwnerAndHousehold.mockResolvedValue({
+        userId: "other-user-id",
+        householdId: ownerHouseholdId,
+      });
+      resolveRecipeCookbookPolicy.mockResolvedValue({
+        policy: mockPolicy,
+        adminUserId: null,
+      });
+      canAccessResource.mockReturnValue(true);
 
       const result = await createCaller().getEditable({ id: editableRecipeId });
 
       expect(getRecipeFull).toHaveBeenCalledWith(editableRecipeId);
-      expect(getRecipeOwnerId).toHaveBeenCalledWith(editableRecipeId);
+      expect(getRecipeOwnerAndHousehold).toHaveBeenCalledWith(editableRecipeId);
+      expect(resolveRecipeCookbookPolicy).toHaveBeenCalledWith(ownerHouseholdId);
       expect(canAccessResource).toHaveBeenCalledWith(
         "edit",
         ctx.user.id,
         "other-user-id",
-        ctx.householdUserIds,
-        ctx.isServerAdmin
+        ownerHouseholdId,
+        ctx.memberHouseholdIds,
+        ctx.isServerAdmin,
+        mockPolicy,
+        null
       );
       expect(result).toEqual(mockRecipe);
     });
@@ -489,8 +510,15 @@ describe("recipes procedures", () => {
       const mockRecipe = createValidFullRecipe({ id: editableRecipeId, userId: "other-user-id" });
 
       getRecipeFull.mockResolvedValue(mockRecipe);
-      getRecipeOwnerId.mockResolvedValue("other-user-id");
-      canAccessResource.mockResolvedValue(false);
+      getRecipeOwnerAndHousehold.mockResolvedValue({
+        userId: "other-user-id",
+        householdId: "owner-household-id",
+      });
+      resolveRecipeCookbookPolicy.mockResolvedValue({
+        policy: { view: "household" as const },
+        adminUserId: null,
+      });
+      canAccessResource.mockReturnValue(false);
 
       await expect(createCaller().getEditable({ id: editableRecipeId })).rejects.toMatchObject({
         code: "FORBIDDEN",
@@ -503,14 +531,15 @@ describe("recipes procedures", () => {
       await expect(createCaller().getEditable({ id: missingRecipeId })).rejects.toMatchObject({
         code: "NOT_FOUND",
       });
-      expect(getRecipeOwnerId).not.toHaveBeenCalled();
+      expect(getRecipeOwnerAndHousehold).not.toHaveBeenCalled();
     });
 
     it("returns orphaned recipe without permission check", async () => {
       const mockRecipe = createValidFullRecipe({ id: orphanRecipeId, userId: null });
 
       getRecipeFull.mockResolvedValue(mockRecipe);
-      getRecipeOwnerId.mockResolvedValue(null);
+      // assertRecipeAccess returns early when userId is null (orphaned recipe).
+      getRecipeOwnerAndHousehold.mockResolvedValue({ userId: null, householdId: null });
 
       const result = await createCaller().getEditable({ id: orphanRecipeId });
 

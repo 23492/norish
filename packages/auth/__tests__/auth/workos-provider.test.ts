@@ -33,7 +33,7 @@ vi.mock("@norish/auth/provider-cache", () => ({
 
 // Heavy auth.ts deps — stub so importing the module does not touch a DB/redis.
 vi.mock("@norish/db/drizzle", () => ({ db: {} }));
-vi.mock("@norish/queue/redis/client", () => ({
+vi.mock("@norish/shared-server/redis/client", () => ({
   getPublisherClient: vi.fn(async () => ({
     get: vi.fn(),
     set: vi.fn(),
@@ -50,11 +50,12 @@ vi.mock("@norish/db/repositories/households", () => ({
   setActiveHousehold: vi.fn(),
 }));
 vi.mock("@norish/db/repositories/users", () => ({ countUsers: vi.fn(async () => 0) }));
-vi.mock("@norish/config/server-config-loader", () => ({
+vi.mock("@norish/shared-server/config/server-config-loader", () => ({
   isRegistrationEnabled: vi.fn(async () => true),
 }));
 vi.mock("@norish/shared-server/logger", () => ({
   authLogger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
+  createLogger: () => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() }),
 }));
 
 const CLIENT_ID = "client_123";

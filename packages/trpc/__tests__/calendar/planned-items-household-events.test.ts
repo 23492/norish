@@ -12,6 +12,8 @@ import {
 import { createMockAuthedContext, createMockHousehold, createMockUser } from "./test-utils";
 
 vi.mock("@norish/db/repositories/planned-items", () => import("../mocks/planned-items"));
+// withAuth middleware calls getUserHouseholdIds from the sub-path (not the barrel).
+vi.mock("@norish/db/repositories/households", () => import("../mocks/households-repository"));
 vi.mock("@norish/auth/permissions", () => import("../mocks/permissions"));
 vi.mock("@norish/trpc/routers/calendar/emitter", () => import("../mocks/calendar-emitter"));
 vi.mock("@norish/shared-server/logger", () => ({

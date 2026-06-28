@@ -28,6 +28,8 @@ vi.mock("@norish/db", () => ({
   updateUserLocale: vi.fn(),
 }));
 
+// withAuth middleware calls getUserHouseholdIds from the sub-path (not the barrel).
+vi.mock("@norish/db/repositories/households", () => import("../mocks/households-repository"));
 vi.mock("@norish/trpc/routers/households/emitter", () => ({
   householdEmitter: { emitToHousehold: vi.fn() },
 }));

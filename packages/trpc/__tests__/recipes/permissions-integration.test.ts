@@ -32,7 +32,7 @@ vi.mock("@norish/db/repositories/server-config", () => ({
 
 // helpers.ts imports getRecipePermissionPolicy from the config loader (failure-
 // emit path only); stub so the module graph resolves.
-vi.mock("@norish/config/server-config-loader", () => ({
+vi.mock("@norish/shared-server/config/server-config-loader", () => ({
   getRecipePermissionPolicy: vi.fn(() => Promise.resolve({ view: "household" })),
 }));
 

@@ -46,6 +46,8 @@ const storesRepository = vi.hoisted(() => ({
 
 // Setup mocks before any imports that use them
 vi.mock("@norish/db", () => import("../mocks/db"));
+// withAuth middleware calls getUserHouseholdIds from the sub-path (not the barrel).
+vi.mock("@norish/db/repositories/households", () => import("../mocks/households-repository"));
 vi.mock("@norish/db/repositories/stores", () => storesRepository);
 vi.mock(
   "@norish/db/repositories/recurring-groceries",

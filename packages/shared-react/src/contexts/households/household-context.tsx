@@ -3,36 +3,96 @@ import { createContext, useContext, useMemo } from "react";
 import type {
   HouseholdAdminSettingsDto,
   HouseholdSettingsDto,
+  HouseholdSummaryDto,
 } from "@norish/shared/contracts/dto/household";
-
-import type { HouseholdMutationsResult, HouseholdQueryResult } from "../../hooks/households/types";
+import type {
+  HouseholdQueryResult,
+  HouseholdsListResult,
+  HouseholdMutationsResult,
+} from "../../hooks/households/types";
 
 export type HouseholdContextValue = {
   household: HouseholdSettingsDto | HouseholdAdminSettingsDto | null;
   currentUserId: string | undefined;
   isLoading: boolean;
+  households: HouseholdSummaryDto[];
+  activeHouseholdId: string | null;
+  switchActive: (householdId: string | null) => void;
+  createHousehold: (name: string) => void;
+  joinHousehold: (code: string) => void;
+  rename: (householdId: string, name: string, version: number) => void;
+  generateInviteToken: (householdId: string) => Promise<string>;
+  joinByInviteToken: (token: string) => Promise<string>;
 };
 
 type CreateHouseholdContextOptions = {
   useHouseholdQuery: () => Pick<HouseholdQueryResult, "household" | "currentUserId" | "isLoading">;
+  useHouseholdsListQuery: () => Pick<
+    HouseholdsListResult,
+    "households" | "activeHouseholdId"
+  >;
+  useSwitchActive: () => HouseholdMutationsResult["switchActive"];
+  useCreateHousehold: () => HouseholdMutationsResult["createHousehold"];
+  useJoinHousehold: () => HouseholdMutationsResult["joinHousehold"];
+  useRename: () => HouseholdMutationsResult["rename"];
+  useGenerateInviteToken: () => HouseholdMutationsResult["generateInviteToken"];
+  useJoinByInviteToken: () => HouseholdMutationsResult["joinByInviteToken"];
   useHouseholdSubscription: () => void;
 };
 
 export function createHouseholdContext({
   useHouseholdQuery,
+  useHouseholdsListQuery,
+  useSwitchActive,
+  useCreateHousehold,
+  useJoinHousehold,
+  useRename,
+  useGenerateInviteToken,
+  useJoinByInviteToken,
   useHouseholdSubscription,
 }: CreateHouseholdContextOptions) {
   const HouseholdContext = createContext<HouseholdContextValue | null>(null);
 
   function HouseholdProvider({ children }: { children: React.ReactNode }) {
     const { household, currentUserId, isLoading } = useHouseholdQuery();
+    const { households, activeHouseholdId } = useHouseholdsListQuery();
+    const switchActive = useSwitchActive();
+    const createHousehold = useCreateHousehold();
+    const joinHousehold = useJoinHousehold();
+    const rename = useRename();
+    const generateInviteToken = useGenerateInviteToken();
+    const joinByInviteToken = useJoinByInviteToken();
 
     // Subscribe to WebSocket events
     useHouseholdSubscription();
 
     const value = useMemo(
-      () => ({ household, currentUserId, isLoading }),
-      [household, currentUserId, isLoading]
+      () => ({
+        household,
+        currentUserId,
+        isLoading,
+        households,
+        activeHouseholdId,
+        switchActive,
+        createHousehold,
+        joinHousehold,
+        rename,
+        generateInviteToken,
+        joinByInviteToken,
+      }),
+      [
+        household,
+        currentUserId,
+        isLoading,
+        households,
+        activeHouseholdId,
+        switchActive,
+        createHousehold,
+        joinHousehold,
+        rename,
+        generateInviteToken,
+        joinByInviteToken,
+      ]
     );
 
     return <HouseholdContext.Provider value={value}>{children}</HouseholdContext.Provider>;
@@ -56,13 +116,13 @@ export function createHouseholdContext({
 
 // --- Household Settings Context ---
 
+// createHousehold / joinHousehold / rename are inherited from HouseholdContextValue.
 export type HouseholdSettingsContextValue = HouseholdContextValue & {
-  createHousehold: (name: string) => void;
-  joinHousehold: (code: string) => void;
   leaveHousehold: (householdId: string) => void;
   kickUser: (householdId: string, userId: string) => void;
   regenerateJoinCode: (householdId: string) => void;
   transferAdmin: (householdId: string, newAdminId: string) => void;
+  setPolicy: HouseholdMutationsResult["setPolicy"];
 };
 
 type CreateHouseholdSettingsContextOptions = {
@@ -77,39 +137,21 @@ export function createHouseholdSettingsContext({
   const HouseholdSettingsContext = createContext<HouseholdSettingsContextValue | null>(null);
 
   function HouseholdSettingsProvider({ children }: { children: React.ReactNode }) {
-    const { household, currentUserId, isLoading } = useHouseholdContext();
-    const {
-      createHousehold,
-      joinHousehold,
-      leaveHousehold,
-      kickUser,
-      regenerateJoinCode,
-      transferAdmin,
-    } = useHouseholdMutations();
+    const base = useHouseholdContext();
+    // createHousehold / joinHousehold / rename come from base (the global context).
+    const { leaveHousehold, kickUser, regenerateJoinCode, transferAdmin, setPolicy } =
+      useHouseholdMutations();
 
     const value = useMemo<HouseholdSettingsContextValue>(
       () => ({
-        household,
-        currentUserId,
-        isLoading,
-        createHousehold,
-        joinHousehold,
+        ...base,
         leaveHousehold,
         kickUser,
         regenerateJoinCode,
         transferAdmin,
+        setPolicy,
       }),
-      [
-        household,
-        currentUserId,
-        isLoading,
-        createHousehold,
-        joinHousehold,
-        leaveHousehold,
-        kickUser,
-        regenerateJoinCode,
-        transferAdmin,
-      ]
+      [base, leaveHousehold, kickUser, regenerateJoinCode, transferAdmin, setPolicy]
     );
 
     return (

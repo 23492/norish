@@ -22,6 +22,8 @@ vi.mock("@norish/db", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@norish/db")>()),
   getHouseholdsForUser: vi.fn(() => Promise.resolve([])),
 }));
+// withAuth middleware calls getUserHouseholdIds from the sub-path (not the barrel).
+vi.mock("@norish/db/repositories/households", () => import("../mocks/households-repository"));
 vi.mock("@norish/shared-server/logger", () => ({
   trpcLogger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),

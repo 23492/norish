@@ -84,31 +84,68 @@ export type SharedRecipeProcedureContext = Context & {
   };
 };
 
+/**
+ * Resolve a shared recipe from a token, enforcing the public-visibility gate.
+ *
+ * SHARE-01: the public surface is gated on the recipe's explicit visibility.
+ * A recipe that is not `public` is treated as NOT_FOUND (same error as a
+ * missing token, so a probe cannot distinguish "no such token" from "not
+ * public" — no enumeration).
+ *
+ * Used by both sharedRecipeProcedure (anonymous) and authedSharedRecipeProcedure
+ * (authenticated), so the gate is applied identically on both paths.
+ */
+async function resolveSharedRecipe(input: { token: string }) {
+  const share = await getActiveRecipeShareByToken(input.token, { touchLastAccessedAt: true });
+
+  if (!share) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Shared recipe not found" });
+  }
+
+  const recipe = await getRecipeFull(share.recipeId);
+
+  if (!recipe) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Shared recipe not found" });
+  }
+
+  // SHARE-01: only publicly-visible recipes may be served through the /share route.
+  if (recipe.visibility !== "public") {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Shared recipe not found" });
+  }
+
+  return { share, token: input.token, recipe };
+}
+
+/**
+ * Anonymous (no-auth) procedure for the public /share/<token> view. Resolves
+ * the shared recipe with the public-visibility gate (SHARE-01).
+ */
 export const sharedRecipeProcedure = publicProcedure
   .input(ResolveSharedRecipeInputSchema)
   .use(async ({ ctx, input, next }) => {
-    const share = await getActiveRecipeShareByToken(input.token, { touchLastAccessedAt: true });
-
-    if (!share) {
-      throw new TRPCError({ code: "NOT_FOUND", message: "Shared recipe not found" });
-    }
-
-    const recipe = await getRecipeFull(share.recipeId);
-
-    if (!recipe) {
-      throw new TRPCError({ code: "NOT_FOUND", message: "Shared recipe not found" });
-    }
+    const sharedRecipe = await resolveSharedRecipe(input);
 
     return next({
       ctx: {
         ...ctx,
-        sharedRecipe: {
-          share,
-          token: input.token,
-          recipe,
-        },
+        sharedRecipe,
       } as SharedRecipeProcedureContext,
     });
+  });
+
+/**
+ * Authenticated counterpart of `sharedRecipeProcedure` (SHARE-02): the caller
+ * must be logged in (authedProcedure) AND the token must resolve to a PUBLIC
+ * recipe through the SAME `resolveSharedRecipe` gate. The inline middleware
+ * keeps the authed context (ctx.user, ctx.household, ...) so the save resolver
+ * can copy the recipe into the saver's active cookbook.
+ */
+export const authedSharedRecipeProcedure = authedProcedure
+  .input(ResolveSharedRecipeInputSchema)
+  .use(async ({ ctx, input, next }) => {
+    const sharedRecipe = await resolveSharedRecipe(input);
+
+    return next({ ctx: { ...ctx, sharedRecipe } });
   });
 
 export type AuthedProcedureContext = Context & {

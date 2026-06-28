@@ -25,6 +25,8 @@ import {
 
 // Setup mocks
 vi.mock("@norish/db", () => import("../mocks/db"));
+// withAuth middleware calls getUserHouseholdIds from the sub-path (not the barrel).
+vi.mock("@norish/db/repositories/households", () => import("../mocks/households-repository"));
 vi.mock(
   "@norish/db/repositories/recurring-groceries",
   () => import("../mocks/recurring-groceries")
