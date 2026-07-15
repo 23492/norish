@@ -9,7 +9,7 @@ import React, {
   useMemo,
   useState,
 } from "react";
-import { Sheet } from "@heroui-pro/react";
+import { Drawer } from "@heroui/react";
 
 export interface PanelProps {
   className?: string;
@@ -142,32 +142,34 @@ const PanelRoot: React.FC<PanelProps> = ({
         toggle();
       },
     });
-  const Root = nested ? Sheet.NestedRoot : Sheet.Root;
 
+  // Free @heroui/react Drawer has no NestedRoot; a nested panel is just a second
+  // Drawer.Root rendered while its parent stays open (react-aria overlays stack).
+  // The `nested` prop is retained for API parity and surfaced as a data attribute.
   return (
-    <div data-panel className={className}>
+    <div data-nested={nested || undefined} data-panel className={className}>
       {trigger && <span className="inline-flex">{triggerElement}</span>}
 
       <PanelContext.Provider value={{ open, close, toggle }}>
-        <Root isOpen={open} placement="bottom" onOpenChange={setOpen}>
-          <Sheet.Backdrop className="z-[1000]" variant={backdropVariant}>
-            <Sheet.Content className={contentClasses}>
-              <Sheet.Dialog aria-label={title || "Panel"} className={dialogClasses}>
-                <Sheet.Handle className="relative z-10" />
-                <Sheet.CloseTrigger aria-label="Close panel" className="z-30" />
+        <Drawer.Root isOpen={open} onOpenChange={setOpen}>
+          <Drawer.Backdrop className="z-[1000]" variant={backdropVariant}>
+            <Drawer.Content className={contentClasses} placement="bottom">
+              <Drawer.Dialog aria-label={title || "Panel"} className={dialogClasses}>
+                <Drawer.Handle className="relative z-10" />
+                <Drawer.CloseTrigger aria-label="Close panel" className="z-30" />
 
-                <Sheet.Header>
-                  <Sheet.Heading>{title}</Sheet.Heading>
-                </Sheet.Header>
+                <Drawer.Header>
+                  <Drawer.Heading>{title}</Drawer.Heading>
+                </Drawer.Header>
 
-                <Sheet.Body className={bodyClasses}>{bodyChildren}</Sheet.Body>
+                <Drawer.Body className={bodyClasses}>{bodyChildren}</Drawer.Body>
                 {hasFooter && (
-                  <Sheet.Footer className={footerClasses}>{footerChildren}</Sheet.Footer>
+                  <Drawer.Footer className={footerClasses}>{footerChildren}</Drawer.Footer>
                 )}
-              </Sheet.Dialog>
-            </Sheet.Content>
-          </Sheet.Backdrop>
-        </Root>
+              </Drawer.Dialog>
+            </Drawer.Content>
+          </Drawer.Backdrop>
+        </Drawer.Root>
       </PanelContext.Provider>
     </div>
   );

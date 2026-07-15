@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -6,63 +5,9 @@ import "@testing-library/jest-dom";
 
 import Panel from "@/components/Panel/Panel";
 
-type MockSheetProps = {
-  "aria-label"?: string;
-  children?: ReactNode;
-  className?: string;
-  isOpen?: boolean;
-  placement?: string;
-  variant?: string;
-};
-
-vi.mock("@heroui-pro/react", () => {
-  const Root = ({ children, isOpen, placement }: MockSheetProps) => (
-    <div data-open={isOpen ? "true" : "false"} data-placement={placement} data-testid="sheet-root">
-      {children}
-    </div>
-  );
-
-  return {
-    Sheet: {
-      Root,
-      NestedRoot: Root,
-      Backdrop: ({ children, className, variant }: MockSheetProps) => (
-        <div className={className} data-testid="sheet-backdrop" data-variant={variant}>
-          {children}
-        </div>
-      ),
-      Content: ({ children, className }: MockSheetProps) => (
-        <div className={className} data-testid="sheet-content">
-          {children}
-        </div>
-      ),
-      Dialog: ({ "aria-label": ariaLabel, children, className }: MockSheetProps) => (
-        <section aria-label={ariaLabel} className={className} role="dialog">
-          {children}
-        </section>
-      ),
-      Handle: ({ className }: MockSheetProps) => (
-        <div className={className} data-testid="sheet-handle" />
-      ),
-      CloseTrigger: ({ className }: MockSheetProps) => (
-        <button className={className} type="button">
-          Close
-        </button>
-      ),
-      Header: ({ children }: MockSheetProps) => <header>{children}</header>,
-      Heading: ({ children }: MockSheetProps) => <h2>{children}</h2>,
-      Body: ({ children, className }: MockSheetProps) => (
-        <div className={className} data-testid="sheet-body">
-          {children}
-        </div>
-      ),
-      Footer: ({ children, className }: MockSheetProps) => (
-        <footer className={className}>{children}</footer>
-      ),
-    },
-  };
-});
-
+// Panel now renders on the free @heroui/react Drawer (react-aria overlay). When
+// open, the dialog + its content portal into the document; we assert the shared
+// height cap, backdrop variant, and body classes on the real rendered nodes.
 describe("Panel", () => {
   it("uses the shared 80dvh height cap and blur backdrop by default", () => {
     render(
@@ -74,19 +19,27 @@ describe("Panel", () => {
       </Panel>
     );
 
-    expect(screen.getByTestId("sheet-backdrop")).toHaveAttribute("data-variant", "blur");
-    expect(screen.getByTestId("sheet-content")).toHaveClass("max-h-[80dvh]");
-    expect(screen.getByRole("dialog", { name: "Filters" })).toHaveClass("max-h-[80dvh]");
-    expect(screen.getByTestId("sheet-body")).toHaveClass("min-h-0");
+    const dialog = screen.getByRole("dialog", { name: "Filters" });
+
+    expect(dialog).toHaveClass("max-h-[80dvh]");
+    expect(dialog).toHaveClass("min-h-0");
+    expect(screen.getByText("Filter controls")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Apply" })).toBeInTheDocument();
+
+    // Default blur backdrop: the modal overlay carries the pinned z-index class.
+    const backdrop = document.querySelector(".z-\\[1000\\]");
+
+    expect(backdrop).not.toBeNull();
   });
 
-  it("still allows a deliberate backdrop override", () => {
+  it("does not render dialog content while closed", () => {
     render(
-      <Panel backdropVariant="transparent" open title="Calendar" onOpenChange={vi.fn()}>
+      <Panel title="Calendar" onOpenChange={vi.fn()}>
         <Panel.Body>Calendar controls</Panel.Body>
       </Panel>
     );
 
-    expect(screen.getByTestId("sheet-backdrop")).toHaveAttribute("data-variant", "transparent");
+    expect(screen.queryByRole("dialog", { name: "Calendar" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Calendar controls")).not.toBeInTheDocument();
   });
 });

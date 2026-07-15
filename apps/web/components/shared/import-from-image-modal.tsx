@@ -1,15 +1,15 @@
 "use client";
 
-import type { DropZoneAreaProps } from "@heroui-pro/react";
+import type { DropZoneAreaProps } from "@/components/ui/drop-zone";
 import { useCallback, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { DropZone } from "@/components/ui/drop-zone";
 import { useUploadLimitsQuery } from "@/hooks/config";
 import { useRecipesMutations } from "@/hooks/recipes";
 import { useClipboardImagePaste } from "@/hooks/use-clipboard-image-paste";
 import { showSafeErrorToast } from "@/lib/ui/safe-error-toast";
 import { PhotoIcon, SparklesIcon, XMarkIcon } from "@heroicons/react/16/solid";
-import { DropZone } from "@heroui-pro/react";
 import { Button, Kbd, Modal, toast } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
@@ -28,8 +28,6 @@ interface FilePreview {
   file: File;
   preview: string;
 }
-const OCR_IMAGE_ACCEPT = ALLOWED_OCR_MIME_TYPES.join(",");
-
 export default function ImportFromImageModal({ isOpen, onOpenChange }: ImportFromImageModalProps) {
   const t = useTranslations("common.import.image");
   const tErrors = useTranslations("common.errors");
@@ -214,9 +212,14 @@ export default function ImportFromImageModal({ isOpen, onOpenChange }: ImportFro
                       <DropZone.Description className="flex items-center justify-center gap-1.5">
                         <Kbd keys={["ctrl"]}>V</Kbd> {t("paste")}
                       </DropZone.Description>
-                      <DropZone.Trigger>{t("library")}</DropZone.Trigger>
+                      <DropZone.Trigger
+                        acceptedFileTypes={ALLOWED_OCR_MIME_TYPES}
+                        allowsMultiple
+                        onSelect={handleAddFiles}
+                      >
+                        {t("library")}
+                      </DropZone.Trigger>
                     </DropZone.Area>
-                    <DropZone.Input multiple accept={OCR_IMAGE_ACCEPT} onSelect={handleAddFiles} />
                   </DropZone>
 
                   {/* File previews */}

@@ -4,7 +4,7 @@ import type { RecipeDashboardViewMode } from "@/hooks/use-recipe-dashboard-view-
 import type { Key } from "react";
 import { useRecipeDashboardViewMode } from "@/hooks/use-recipe-dashboard-view-mode";
 import { ListBulletIcon, Squares2X2Icon } from "@heroicons/react/20/solid";
-import { Segment } from "@heroui-pro/react";
+import { ToggleButton, ToggleButtonGroup } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
 function toRecipeDashboardViewMode(key: Key): RecipeDashboardViewMode {
@@ -16,33 +16,38 @@ export default function RecipeViewModeToggle() {
   const [viewMode, setViewMode] = useRecipeDashboardViewMode();
 
   return (
-    <Segment
+    <ToggleButtonGroup
       aria-label={t("label")}
       className="shrink-0"
-      selectedKey={viewMode}
+      disallowEmptySelection
+      selectedKeys={[viewMode]}
+      selectionMode="single"
       size="sm"
-      onSelectionChange={(key) => setViewMode(toRecipeDashboardViewMode(key))}
+      onSelectionChange={(keys) => {
+        const [key] = Array.from(keys);
+
+        if (key) setViewMode(toRecipeDashboardViewMode(key));
+      }}
     >
-      <Segment.Item
+      <ToggleButton
         aria-label={t("grid")}
         className="min-w-8 px-2.5 sm:min-w-16"
         id="grid"
         title={t("grid")}
       >
-        <Segment.Separator />
         <Squares2X2Icon className="h-4 w-4" />
         <span className="sr-only sm:not-sr-only">{t("grid")}</span>
-      </Segment.Item>
-      <Segment.Item
+      </ToggleButton>
+      <ToggleButton
         aria-label={t("list")}
         className="min-w-8 px-2.5 sm:min-w-16"
         id="list"
         title={t("list")}
       >
-        <Segment.Separator />
+        <ToggleButtonGroup.Separator />
         <ListBulletIcon className="h-4 w-4" />
         <span className="sr-only sm:not-sr-only">{t("list")}</span>
-      </Segment.Item>
-    </Segment>
+      </ToggleButton>
+    </ToggleButtonGroup>
   );
 }
