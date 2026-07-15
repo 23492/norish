@@ -393,9 +393,6 @@ importers:
       '@heroicons/react':
         specifier: 'catalog:'
         version: 2.2.0(react@19.2.4)
-      '@heroui-pro/react':
-        specifier: 1.0.0-beta.5
-        version: 1.0.0-beta.5
       '@heroui/react':
         specifier: ^3.1.0
         version: 3.1.0(@react-spectrum/provider@3.11.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(tailwindcss@4.3.0)
@@ -2959,9 +2956,6 @@ packages:
     resolution: {integrity: sha512-LMcepvRaS9LYHJGsF0zzmgKCUim/X3N/DQKc4jepAXJ7l8QxJ1PmxJzqplF2Z3FE4PqBAIGyJAQ/w4B5dsqbtQ==}
     peerDependencies:
       react: '>= 16 || ^19.0.0-rc'
-
-  '@heroui-pro/react@1.0.0-beta.5':
-    resolution: {integrity: sha512-KqsFFqWvUJGGpICR1WVlAlhiWW0Wx69pkJvykm28fcT/rn8xXnvY42xvmDwXACUYW6//mLrUZds4pXqwVWq81Q==}
 
   '@heroui/react@3.1.0':
     resolution: {integrity: sha512-q+K3Kz5h2ceOEMPuNORLGX1Pqh4McN30y31eykzZZjLbmta4nwi4sDMVAv7/w8QWnWVDOucusXz5x9s5N656nA==}
@@ -12574,11 +12568,6 @@ snapshots:
   '@heroicons/react@2.2.0(react@19.2.4)':
     dependencies:
       react: 19.2.4
-
-  '@heroui-pro/react@1.0.0-beta.5':
-    dependencies:
-      chalk: 5.6.2
-      heroui-pro: 1.0.0-beta.9
 
   '@heroui/react@3.1.0(@react-spectrum/provider@3.11.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(tailwindcss@4.3.0)':
     dependencies:

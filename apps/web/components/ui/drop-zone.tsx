@@ -7,7 +7,7 @@ import { DropZone as AriaDropZone, FileTrigger } from "react-aria-components";
 
 /**
  * Local styled DropZone compound built on `react-aria-components` (free, already
- * installed transitively via HeroUI v3) — replaces the paid `@heroui-pro/react`
+ * installed transitively via HeroUI v3) — replaces the paid HeroUI Pro
  * DropZone. `DropZone.Area` is the RAC DropZone (drag target); `DropZone.Trigger`
  * wraps a FileTrigger + free Button (file picker), folding in the old `.Input`.
  * The drop callbacks (`onDrop`/`getDropOperation`) keep the RAC signatures the

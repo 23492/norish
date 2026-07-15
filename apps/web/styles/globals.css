@@ -2,7 +2,6 @@
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/fira-code";
 @import "@heroui/styles";
-@import "@heroui-pro/react/css";
 @import "@norish/tailwind-config/heroui-theme";
 @source "../../../node_modules/@heroui/styles/dist/**/*.{css,js,ts,jsx,tsx}";
 

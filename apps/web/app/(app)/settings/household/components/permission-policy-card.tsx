@@ -4,7 +4,7 @@ import type { PermissionLevel } from "@norish/config/zod/server-config";
 
 import { useState } from "react";
 import { ShieldCheckIcon } from "@heroicons/react/24/outline";
-import { Card, CardBody, CardHeader, Select, SelectItem } from "@heroui/react";
+import { Card, ListBox, Select } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
 import { useHouseholdSettingsContext } from "../context";
@@ -62,13 +62,13 @@ export default function HouseholdPermissionPolicyCard() {
 
   return (
     <Card>
-      <CardHeader>
+      <Card.Header>
         <h2 className="flex items-center gap-2 text-lg font-semibold">
           <ShieldCheckIcon className="h-5 w-5" />
           {t("title")}
         </h2>
-      </CardHeader>
-      <CardBody className="gap-6">
+      </Card.Header>
+      <Card.Content className="gap-6">
         <p className="text-default-500 text-base">{t("description")}</p>
 
         <div className="flex flex-col gap-4">
@@ -81,24 +81,36 @@ export default function HouseholdPermissionPolicyCard() {
             <Select
               aria-label={t("viewRecipes")}
               className="w-full sm:w-48"
-              classNames={{ trigger: "bg-content2" }}
               isDisabled={saving !== null}
-              selectedKeys={[view]}
+              selectedKey={view}
               size="sm"
-              onSelectionChange={(keys) => {
-                const value = Array.from(keys)[0] as PermissionLevel;
-
-                if (value) handleChange("view", value);
+              onSelectionChange={(key) => {
+                if (key) handleChange("view", key as PermissionLevel);
               }}
             >
-              {VIEW_OPTIONS.map((option) => (
-                <SelectItem key={option.value} textValue={t(option.labelKey)}>
-                  <div className="flex flex-col">
-                    <span className="font-medium">{t(option.labelKey)}</span>
-                    <span className="text-default-400 text-xs">{t(option.descriptionKey)}</span>
-                  </div>
-                </SelectItem>
-              ))}
+              <Select.Trigger className="bg-content2">
+                <Select.Value />
+                <Select.Indicator />
+              </Select.Trigger>
+              <Select.Popover>
+                <ListBox>
+                  {VIEW_OPTIONS.map((option) => (
+                    <ListBox.Item
+                      key={option.value}
+                      id={option.value}
+                      textValue={t(option.labelKey)}
+                    >
+                      <div className="flex flex-col">
+                        <span className="font-medium">{t(option.labelKey)}</span>
+                        <span className="text-default-400 text-xs">
+                          {t(option.descriptionKey)}
+                        </span>
+                      </div>
+                      <ListBox.ItemIndicator />
+                    </ListBox.Item>
+                  ))}
+                </ListBox>
+              </Select.Popover>
             </Select>
           </div>
 
@@ -111,24 +123,36 @@ export default function HouseholdPermissionPolicyCard() {
             <Select
               aria-label={t("editRecipes")}
               className="w-full sm:w-48"
-              classNames={{ trigger: "bg-content2" }}
               isDisabled={saving !== null}
-              selectedKeys={[editPolicy]}
+              selectedKey={editPolicy}
               size="sm"
-              onSelectionChange={(keys) => {
-                const value = Array.from(keys)[0] as PermissionLevel;
-
-                if (value) handleChange("edit", value);
+              onSelectionChange={(key) => {
+                if (key) handleChange("edit", key as PermissionLevel);
               }}
             >
-              {EDIT_OPTIONS.map((option) => (
-                <SelectItem key={option.value} textValue={t(option.labelKey)}>
-                  <div className="flex flex-col">
-                    <span className="font-medium">{t(option.labelKey)}</span>
-                    <span className="text-default-400 text-xs">{t(option.descriptionKey)}</span>
-                  </div>
-                </SelectItem>
-              ))}
+              <Select.Trigger className="bg-content2">
+                <Select.Value />
+                <Select.Indicator />
+              </Select.Trigger>
+              <Select.Popover>
+                <ListBox>
+                  {EDIT_OPTIONS.map((option) => (
+                    <ListBox.Item
+                      key={option.value}
+                      id={option.value}
+                      textValue={t(option.labelKey)}
+                    >
+                      <div className="flex flex-col">
+                        <span className="font-medium">{t(option.labelKey)}</span>
+                        <span className="text-default-400 text-xs">
+                          {t(option.descriptionKey)}
+                        </span>
+                      </div>
+                      <ListBox.ItemIndicator />
+                    </ListBox.Item>
+                  ))}
+                </ListBox>
+              </Select.Popover>
             </Select>
           </div>
 
@@ -141,24 +165,36 @@ export default function HouseholdPermissionPolicyCard() {
             <Select
               aria-label={t("deleteRecipes")}
               className="w-full sm:w-48"
-              classNames={{ trigger: "bg-content2" }}
               isDisabled={saving !== null}
-              selectedKeys={[deletePolicy]}
+              selectedKey={deletePolicy}
               size="sm"
-              onSelectionChange={(keys) => {
-                const value = Array.from(keys)[0] as PermissionLevel;
-
-                if (value) handleChange("delete", value);
+              onSelectionChange={(key) => {
+                if (key) handleChange("delete", key as PermissionLevel);
               }}
             >
-              {EDIT_OPTIONS.map((option) => (
-                <SelectItem key={option.value} textValue={t(option.labelKey)}>
-                  <div className="flex flex-col">
-                    <span className="font-medium">{t(option.labelKey)}</span>
-                    <span className="text-default-400 text-xs">{t(option.descriptionKey)}</span>
-                  </div>
-                </SelectItem>
-              ))}
+              <Select.Trigger className="bg-content2">
+                <Select.Value />
+                <Select.Indicator />
+              </Select.Trigger>
+              <Select.Popover>
+                <ListBox>
+                  {EDIT_OPTIONS.map((option) => (
+                    <ListBox.Item
+                      key={option.value}
+                      id={option.value}
+                      textValue={t(option.labelKey)}
+                    >
+                      <div className="flex flex-col">
+                        <span className="font-medium">{t(option.labelKey)}</span>
+                        <span className="text-default-400 text-xs">
+                          {t(option.descriptionKey)}
+                        </span>
+                      </div>
+                      <ListBox.ItemIndicator />
+                    </ListBox.Item>
+                  ))}
+                </ListBox>
+              </Select.Popover>
             </Select>
           </div>
         </div>
@@ -166,7 +202,7 @@ export default function HouseholdPermissionPolicyCard() {
         <div className="bg-content2 text-default-600 mt-2 rounded-lg p-3 text-base">
           {t("note")}
         </div>
-      </CardBody>
+      </Card.Content>
     </Card>
   );
 }

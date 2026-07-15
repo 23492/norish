@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Local carousel compound — replaces the paid `@heroui-pro/react` Carousel.
+ * Local carousel compound — replaces the paid HeroUI Pro Carousel.
  *
  * Base: shadcn/ui "Carousel" (21st.dev component 813, MIT) built on
  * `embla-carousel-react` (already a dependency). Adapted for Norish:

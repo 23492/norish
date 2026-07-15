@@ -7,7 +7,6 @@ env:
   SKIP_ENV_VALIDATION: "1"
   AUTH_URL: http://localhost:3000
   CAMOFOX_URL: http://localhost:9377
-  HEROUI_AUTH_TOKEN: ${{ secrets.HEROUI_AUTH_TOKEN }}
 
 on:
   pull_request:
