@@ -28,6 +28,7 @@ Fork upstream norish and evolve it in feature phases — native Camoufox scrapin
 - [ ] **Phase 18: Open registration via env (R4)** - `registration_enabled` + `password_auth_enabled` as config-as-code (re-seeded every boot, env wins, survives a clean DB), removing the manual `UPDATE server_config` for the commercial WorkOS-only launch (OPEN-REGISTRATION-ENV-01); code-complete 2026-06-15, human-verify (lead sets the toggles in the live env + docker:build + redeploy) pending. *(Phase 17 number was skipped — never created.)*
 - [x] **Phase 19: Ingredient unit normalization (update path)** - The recipe UPDATE path normalizes locale-specific unit terms to canonical IDs identically to the CREATE path (UNIT-NORM-01); **COMPLETE & verified green 2026-06-25** (db testcontainer suite 8/8 under `sg docker`, adversarially confirmed). First plan executed end-to-end through the cross-AI Antigravity/Gemini worker under native Opus review.
 - [ ] **Phase 20: Incorporate upstream v0.19.0-beta** - Merge upstream's `v0.19.0-beta` (PR #468) into the fork on a dedicated integration branch (UPSTREAM-019-01). LARGE + high-overlap (~996 files, ~110 overlapping ours): re-assert the fork's hard constraints at each conflict (Camoufox-not-Chrome in `parser/fetch.ts`/no `playwright.ts`; per-cookbook isolation suites stay green; config-as-code env sync), and reconcile our `packages/db/src/schema` against upstream's NEW `packages/db-schema/` package split. Gate on the isolation + db testcontainer suites (`sg docker`) + `pnpm docker:build`. **Not started.** Full assessment: vault `norish-upstream-0.19.0-incorporation-assessment`. Sequence vs the Phase 2–18 live-integration (below) is TBD — likely integrate-and-deploy the existing fork work first, then rebase 0.19.0 onto it.
+- [ ] **Phase 20.1: Replace @heroui-pro/react with free components (INSERTED 2026-07-15)** - Unblock phase 20's `pnpm docker:build` gate WITHOUT buying the HeroUI Pro license (Kiran's decision 2026-07-15): replace all 6 pro usages (Segment ✅ done, Sheet→free Drawer in Panel.tsx, Carousel×3→local embla compound from 21st.dev @shadcn/carousel, DropZone→react-aria-components) with zero NEW npm deps, then purge the dep + `HEROUI_AUTH_TOKEN` plumbing from Dockerfile/CI. Gate: `pnpm --filter @norish/web build` green token-free + full-monorepo suites + director docker:build. 3 plans on `integ/upstream-0.19.0`. Vault: `norish-heroui-pro-replacement`.
 
 ## Upstream tracking
 
@@ -208,3 +209,21 @@ Plans:
 - [ ] 20-04-PLAN.md — web UI resolution: 15 web + star-rating conflicts onto HeroUI v3 keeping ratings/sharing/cookbook/WorkOS/AssemblyAI/timer-dock UI; @norish/web typecheck+test. (wave 4)
 - [ ] 20-05-PLAN.md — CI/tooling + module-boundary import fixups + lockfile finalize + full-monorepo typecheck/lint/test green (db/queue/trpc under sg docker); build-candidate gate. (wave 5)
 - [ ] 20-06-PLAN.md — norish-beta provisioning (config artifacts: isolated compose stack, beta env template, guarded DB clone/refresh script, runbook) + blocking operator checkpoint for build/deploy/DNS/WorkOS/Cloudflare (autonomous:false; live untouched). (wave 6)
+
+### Phase 20.1: Replace @heroui-pro/react with free components (inserted 2026-07-15)
+**Goal**: The fork builds and ships upstream 0.19.0's UI with ZERO paid dependencies: every `@heroui-pro/react` usage replaced by a free, already-installed equivalent (free `@heroui/react` v3, `react-aria-components`, `embla-carousel-react`), and the `HEROUI_AUTH_TOKEN` secret plumbing removed from Dockerfile + CI. Resolves the phase-20 build blocker (STATE.md 2026-06-28) per Kiran's decision NOT to buy the HeroUI Pro license.
+**Depends on**: Phase 20 waves 1–5 (the integration branch `integ/upstream-0.19.0` with the HeroUI v3 web UI). Blocks the 20-06 operator deploy (which needs a buildable image).
+**Requirements**: UPSTREAM-019 (deployability)
+**Success Criteria** (what must be TRUE):
+  1. `grep -rn "heroui-pro\|HEROUI_AUTH_TOKEN"` over apps/packages/docker/.github (excl. node_modules/.planning) returns zero hits; `@heroui-pro/react` gone from package.json + lockfile.
+  2. Replacements are behaviorally equivalent: dashboard grid/list toggle (free ToggleButtonGroup — DONE 2026-07-15), all 13 Panel bottom-sheet consumers on free Drawer (incl. nested), media-carousel/image-lightbox/step-images on a local embla Carousel compound (dots, thumbnails, loop, selectedIndex), import-from-image dropzone on react-aria-components DropZone+FileTrigger (drag-drop + picker).
+  3. Zero NEW npm dependencies added (21st.dev used as code reference only: @shadcn/carousel id 813 MIT as the carousel base).
+  4. GATE: `pnpm --filter @norish/web build` (the exact blocked Next.js build) EXIT 0 with no token; full-monorepo typecheck/lint/test green (sg docker); then the director-owned `pnpm docker:build` succeeds secret-free.
+**Plans**: 3 plans, serial (20.1-01 free swaps Segment/Sheet/DropZone; 20.1-02 local embla carousel + 3 call sites; 20.1-03 dep/CSS/CI purge + build gate + director checkpoint)
+
+Canonical refs: `.planning/phases/20.1-replace-heroui-pro/` (CONTEXT + RESEARCH incl. the retrieved 21st.dev sources + API mappings); vault note `norish-heroui-pro-replacement`
+
+Plans:
+- [ ] 20.1-01-PLAN.md — Free-sibling swaps: Segment→ToggleButtonGroup (applied in working tree, verify+commit), Panel.tsx Sheet→free Drawer (13 consumers untouched), pro DropZone→react-aria-components DropZone/FileTrigger wrapper; web typecheck+test. (wave 1)
+- [ ] 20.1-02-PLAN.md — Local `components/ui/carousel.tsx` on embla (21st.dev @shadcn/carousel base + Dots/Thumbnails/selectedIndex/--carousel-gap extensions) + migrate media-carousel/image-lightbox/step-images. (wave 2)
+- [ ] 20.1-03-PLAN.md — Purge dep + globals.css import + vitest stub + Dockerfile/CI HEROUI_AUTH_TOKEN; `pnpm --filter @norish/web build` token-free gate + full-monorepo green; director docker:build + visual-parity checkpoint. (wave 3)
