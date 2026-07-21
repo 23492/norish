@@ -64,8 +64,10 @@ COPY tooling/tailwind/heroui-theme.js ./tooling/tailwind/heroui-theme.js
 COPY tooling/tailwind/postcss-config.js ./tooling/tailwind/postcss-config.js
 COPY tooling/typescript/package.json ./tooling/typescript/package.json
 
-# patches (required for patchedDependencies in pnpm-workspace.yaml)
-COPY patches/ ./patches/
+# NOTE: no `COPY patches/` — upstream v0.20.0-beta dropped the last patched
+# dependency (expo-widgets) and removed `patchedDependencies` from
+# pnpm-workspace.yaml, so patches/ no longer exists and copying it fails
+# the build. Re-add this if a patchedDependencies entry ever returns.
 
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
   SKIP_PARSER_API_INSTALL=1 pnpm install --frozen-lockfile
