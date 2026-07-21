@@ -21,8 +21,10 @@ import {
   getHouseholdById,
   getHouseholdPolicy,
   listRecipes,
+  setConfig,
   setHouseholdPolicy,
 } from "@norish/db";
+import { ServerConfigKeys } from "@norish/config/zod/server-config";
 import { HouseholdSelectBaseSchema } from "@norish/shared/contracts/zod/household";
 import { recipes } from "@norish/db/schema";
 
@@ -90,7 +92,11 @@ describe("per-cookbook recipe permission policy (POLICY-01)", () => {
       const fetched = await getHouseholdById(cookbookA);
 
       expect(fetched).not.toBeNull();
-      expect(fetched!.viewPolicy).toBe("everyone");
+      // ROOT-ISO-01: this asserted "everyone". `setHouseholdPolicy` rejects a
+      // per-cookbook view=everyone (decision #5, tested below) — but createHousehold
+      // inherited it from the server-wide default, so the ONLY way a cookbook could
+      // hold `everyone` was to be born with it. Both live cookbooks were.
+      expect(fetched!.viewPolicy).toBe("household");
       expect(fetched!.editPolicy).toBe("household");
       expect(fetched!.deletePolicy).toBe("household");
 
@@ -101,6 +107,23 @@ describe("per-cookbook recipe permission policy (POLICY-01)", () => {
 
       expect(parsed.success).toBe(true);
     });
+
+    // ROOT-ISO-01: the creator must enforce decision #5 just as the setter does.
+    // Otherwise a server-wide `everyone` is laundered into every new cookbook, which
+    // is exactly how REALTIME-ISO-01 / IMPORT-DEDUP-ISO-01 / LIST-ISO-01 / VIEW-ISO-01
+    // / TAGS-ISO-01 all became live.
+    it("never creates a cookbook with view=everyone, even when the server-wide policy says everyone", async () => {
+      await setConfig(
+        ServerConfigKeys.RECIPE_PERMISSION_POLICY,
+        { view: "everyone", edit: "household", delete: "household" },
+        null
+      );
+
+      const born = await createHousehold({ name: "Cookbook Born Leaky", adminUserId: adminUser });
+      const fetched = await getHouseholdById(born.id);
+
+      expect(fetched!.viewPolicy).not.toBe("everyone");
+    });
   });
 
   describe("getHouseholdPolicy", () => {
@@ -109,7 +132,8 @@ describe("per-cookbook recipe permission policy (POLICY-01)", () => {
 
       expect(result).not.toBeNull();
       expect(result!.adminUserId).toBe(adminUser);
-      expect(result!.policy).toEqual({ view: "everyone", edit: "household", delete: "household" });
+      // ROOT-ISO-01: a freshly-created cookbook is no longer born with view=everyone.
+      expect(result!.policy).toEqual({ view: "household", edit: "household", delete: "household" });
     });
 
     it("returns null for a non-existent household", async () => {
