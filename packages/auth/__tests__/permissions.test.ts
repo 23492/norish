@@ -118,11 +118,36 @@ describe("canAccessResource (per-cookbook policy + admin-or-owner)", () => {
       ).toBe(false);
     });
 
-    it("everyone-level view allows any user", () => {
+    // VIEW-ISO-01. This test previously asserted `everyone` grants a stranger access,
+    // rationalised as "an explicit, admin-chosen instance-wide grant". That rationale is
+    // false: `everyone` is the SHIPPED DEFAULT (DEFAULT_RECIPE_PERMISSION_POLICY), and
+    // both live cookbooks carry view_policy='everyone' having never been configured. So
+    // the leaky behaviour was pinned here as intended.
+    it("everyone-level view still stops at the cookbook boundary", () => {
       expect(
         canAccessResource("view", stranger, owner, cookbookA, [], false, policy({ view: "everyone" }), admin)
+      ).toBe(false);
+    });
+
+    it("everyone-level view still allows a MEMBER of the recipe's cookbook", () => {
+      expect(
+        canAccessResource("view", member, owner, cookbookA, memberOfA, false, policy({ view: "everyone" }), admin)
       ).toBe(true);
     });
+  });
+
+  // VIEW-ISO-01: the personal-recipe invariant must hold under the LIVE policy too.
+  // `households.isolation.test.ts` states it plainly — "personal (household_id NULL)
+  // recipes stay owner-only" — but the suite below only ever seeded `household`.
+  describe("personal recipe (null household) is owner-only under the SHIPPED default", () => {
+    it.each(["view", "edit", "delete"] as const)(
+      "a non-owner cannot %s another user's personal recipe when view is everyone",
+      (action) => {
+        expect(
+          canAccessResource(action, stranger, owner, null, [], false, policy({ view: "everyone" }), null)
+        ).toBe(false);
+      }
+    );
   });
 
   describe("personal recipe (null household) is owner-only under household", () => {
@@ -144,24 +169,27 @@ describe("canAccessResource (per-cookbook policy + admin-or-owner)", () => {
     const levels = ["everyone", "household", "owner"] as const;
 
     // A stranger is a member of cookbook B only; the recipe lives in cookbook A.
-    // For edit/delete, isolation must hold for EVERY level except where the
-    // policy is `everyone` (an explicit, admin-chosen instance-wide grant). The
-    // ONLY widening is `everyone` — `household`/`owner` never reach a non-member.
+    //
+    // VIEW-ISO-01: isolation must hold for EVERY level, `everyone` INCLUDED. This matrix
+    // previously carved out `everyone` (expecting `view === "everyone"` etc.), which is
+    // what let the leak ship — see the note on the everyone-level view test above.
+    // `everyone` answers "who may fetch this if they ask" WITHIN the cookbook; it is not
+    // a licence to cross the HOUSE-06 boundary. Mirrors D-22-01 on the realtime side.
     for (const view of levels) {
       for (const edit of levels) {
         for (const del of levels) {
-          it(`stranger (member of B) blocked on A's recipe for view=${view} edit=${edit} delete=${del} unless everyone`, () => {
+          it(`stranger (member of B) blocked on A's recipe for view=${view} edit=${edit} delete=${del}`, () => {
             const p = policy({ view, edit, delete: del });
             const ctxMemberOfB = ["cookbook-B"];
 
             expect(canAccessResource("view", stranger, owner, cookbookA, ctxMemberOfB, false, p, admin)).toBe(
-              view === "everyone"
+              false
             );
             expect(canAccessResource("edit", stranger, owner, cookbookA, ctxMemberOfB, false, p, admin)).toBe(
-              edit === "everyone"
+              false
             );
             expect(canAccessResource("delete", stranger, owner, cookbookA, ctxMemberOfB, false, p, admin)).toBe(
-              del === "everyone"
+              false
             );
           });
         }
