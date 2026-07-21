@@ -112,13 +112,31 @@ describe("recipe permission enforcement (real boundary, per-cookbook)", () => {
       expect(await findRecipeForViewer(ctx, "r1")).not.toBeNull();
     });
 
-    it("a cookbook with view=everyone lets any user view its recipe", async () => {
+    // VIEW-ISO-01: this asserted the opposite — that view=everyone lets a STRANGER
+    // (memberHouseholdIds: []) read the recipe. Since `everyone` is the shipped default
+    // and both live cookbooks carry it, that made getById a live cross-cookbook read.
+    it("a cookbook with view=everyone does NOT let a non-member view its recipe", async () => {
       setCookbookPolicy({ view: "everyone" }, "cookbook-admin");
       getRecipeFullMock.mockResolvedValue(
         createMockFullRecipe({ id: "r1", userId: "owner-id", householdId: "cookbook-a" })
       );
 
       const ctx = { user: { id: "stranger" }, memberHouseholdIds: [], isServerAdmin: false };
+
+      expect(await findRecipeForViewer(ctx, "r1")).toBeNull();
+    });
+
+    it("a cookbook with view=everyone still lets its OWN members view the recipe", async () => {
+      setCookbookPolicy({ view: "everyone" }, "cookbook-admin");
+      getRecipeFullMock.mockResolvedValue(
+        createMockFullRecipe({ id: "r1", userId: "owner-id", householdId: "cookbook-a" })
+      );
+
+      const ctx = {
+        user: { id: "member-of-a" },
+        memberHouseholdIds: ["cookbook-a"],
+        isServerAdmin: false,
+      };
 
       expect(await findRecipeForViewer(ctx, "r1")).not.toBeNull();
     });

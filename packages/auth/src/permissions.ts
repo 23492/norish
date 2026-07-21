@@ -78,7 +78,8 @@ export async function resolveRecipeCookbookPolicy(
  * - edit/delete = household -> the recipe OWNER or the recipe's cookbook ADMIN
  *   (admin-edits-any / members-edit-own; no new role system — the existing
  *   single households.adminUserId is "the admin").
- * - everyone -> anyone; owner -> only the owner (the short-circuit above).
+ * - everyone -> identical to household (VIEW-ISO-01: it does NOT cross cookbooks);
+ *   owner -> only the owner (the short-circuit above).
  *
  * A personal recipe (resourceHouseholdId NULL) has a null admin, so household-
  * level edit/delete collapses to owner-only — unchanged behavior.
@@ -98,9 +99,14 @@ export function canAccessResource(
   const policyLevel = cookbookPolicy[action];
 
   switch (policyLevel) {
+    // VIEW-ISO-01: `everyone` collapses into `household` — it is NOT a cross-cookbook
+    // grant. It answers "who may fetch this if they ask" WITHIN the recipe's cookbook;
+    // the HOUSE-06 boundary is not the policy's to open. Decision #5 already disallows a
+    // per-cookbook `view = everyone`, but a cookbook seeded from the default-`everyone`
+    // global still carries it (both live cookbooks do), so the clamp has to live here
+    // rather than rely on the stored value. Mirrors D-22-01 on the realtime side, where
+    // `everyone` likewise stops at the cookbook boundary instead of broadcasting.
     case "everyone":
-      return true;
-
     case "household": {
       // Per-cookbook isolation: a personal recipe (null household) is owner-only
       // and never shared via this branch.
