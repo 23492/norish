@@ -7,7 +7,6 @@ import { listAllTagNames, listTagNamesForUsers } from "@norish/db/repositories/t
 import { getAppVersions, trpcLogger as log } from "@norish/shared-server";
 import {
   getLocaleConfig,
-  getRecipePermissionPolicy,
   getRecurrenceConfig,
   getTimerKeywords,
   getUnits,
@@ -116,11 +115,14 @@ const localeConfig = publicProcedure.query(async () => {
 const tags = authedProcedure.query(async ({ ctx }) => {
   log.debug({ userId: ctx.user.id }, "Getting tags");
 
-  const policy = await getRecipePermissionPolicy();
-  const tagNames =
-    policy.view === "everyone" || ctx.isServerAdmin
-      ? await listAllTagNames()
-      : await listTagNamesForUsers(ctx.userIds);
+  // TAGS-ISO-01: the tag list is scoped to the caller, full stop. It used to widen to
+  // every tag on the server whenever the server-wide view policy was `everyone` — which
+  // is the shipped default, so in practice always. Tags are user-authored (diet labels,
+  // occasion names), and `everyone` never was a licence to cross the household boundary.
+  // Server admin stays wide: that is a role, not a policy level.
+  const tagNames = ctx.isServerAdmin
+    ? await listAllTagNames()
+    : await listTagNamesForUsers(ctx.userIds);
 
   return { tags: tagNames };
 });

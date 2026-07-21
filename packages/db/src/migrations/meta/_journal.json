@@ -274,6 +274,13 @@
       "when": 1781395841013,
       "tag": "0038_lean_sauron",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1784669066649,
+      "tag": "0039_root_iso_no_everyone_view",
+      "breakpoints": true
     }
   ]
 }

@@ -371,15 +371,24 @@ export const PermissionLevelSchema = z.enum(["everyone", "household", "owner"]);
 export type PermissionLevel = z.infer<typeof PermissionLevelSchema>;
 
 export const RecipePermissionPolicySchema = z.object({
-  view: PermissionLevelSchema.default("everyone"),
+  view: PermissionLevelSchema.default("household"),
   edit: PermissionLevelSchema.default("household"),
   delete: PermissionLevelSchema.default("household"),
 });
 
 export type RecipePermissionPolicy = z.infer<typeof RecipePermissionPolicySchema>;
 
+/**
+ * ROOT-ISO-01: `view` defaults to "household", NOT "everyone".
+ *
+ * This constant is the origin of five separate live cross-cookbook leaks
+ * (REALTIME-ISO-01, IMPORT-DEDUP-ISO-01, LIST-ISO-01, VIEW-ISO-01, TAGS-ISO-01).
+ * It seeds server_config, and `createHousehold` inherits that into every new cookbook,
+ * so a shipped `everyone` here made every deployment leaky by default while
+ * `setHouseholdPolicy` was busy rejecting the very same value (decision #5).
+ */
 export const DEFAULT_RECIPE_PERMISSION_POLICY: RecipePermissionPolicy = {
-  view: "everyone",
+  view: "household",
   edit: "household",
   delete: "household",
 };

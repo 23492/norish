@@ -22,10 +22,12 @@ export const households = pgTable(
     joinCodeExpiresAt: timestamp("join_code_expires_at", { withTimezone: true }),
     inviteToken: text("invite_token"),
     // Per-cookbook recipe permission policy. Defaults mirror
-    // DEFAULT_RECIPE_PERMISSION_POLICY (everyone/household/household); the global
+    // DEFAULT_RECIPE_PERMISSION_POLICY (household/household/household); the global
     // server-wide policy is applied as the default for NEW cookbooks at create
     // time (and remains the fallback for personal, household-less recipes).
-    viewPolicy: permissionLevel("view_policy").notNull().default("everyone"),
+    // ROOT-ISO-01: `view` is NEVER `everyone` here — decision #5 disallows a
+    // per-cookbook view=everyone, and this column default previously contradicted it.
+    viewPolicy: permissionLevel("view_policy").notNull().default("household"),
     editPolicy: permissionLevel("edit_policy").notNull().default("household"),
     deletePolicy: permissionLevel("delete_policy").notNull().default("household"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

@@ -36,8 +36,14 @@ import { getActiveHouseholdId, getUsersByIds, setActiveHouseholdId } from "./use
  */
 async function getDefaultCookbookPolicy(): Promise<RecipePermissionPolicy> {
   const value = await getConfig<RecipePermissionPolicy>(ServerConfigKeys.RECIPE_PERMISSION_POLICY);
+  const policy = value ?? DEFAULT_RECIPE_PERMISSION_POLICY;
 
-  return value ?? DEFAULT_RECIPE_PERMISSION_POLICY;
+  // ROOT-ISO-01: decision #5 disallows a per-cookbook `view = everyone`, and
+  // `setHouseholdPolicy` has always rejected it. Inheriting the server-wide default
+  // was the hole: it laundered an `everyone` straight into every new cookbook, which
+  // is how both live cookbooks came to hold a value the setter would refuse. Clamp on
+  // the way in, so a cookbook can never be BORN with something it cannot be SET to.
+  return policy.view === "everyone" ? { ...policy, view: "household" } : policy;
 }
 
 export async function getUsersByHouseholdId(householdId: string): Promise<HouseholdUserDto[]> {
