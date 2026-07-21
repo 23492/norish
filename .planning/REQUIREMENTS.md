@@ -75,6 +75,8 @@ _(renumbered from Phase 3/4 to make room for the Sharing phase.)_
 | SETUP-04 | Phase 1 | Done |
 | SETUP-05 | Phases 1/3 + cross-cutting | In progress |
 | UPSTREAM-019 | Phase 20 | Complete |
+| MEDIA-UX-01 | Phase 21 | Pending — raised by the 2026-07-21 UAT (A3) |
+| UI-POLISH-01 | Phase 21 | Pending — raised by the 2026-07-21 UAT (D) |
 
 **Coverage:** v1 = 22 requirements, all mapped to phases.
 
@@ -116,6 +118,11 @@ Locked from the product backlog + brainstorm (2026-06-12). All **Backlog/v2** un
 ### Upstream incorporation
 
 - [x] **UPSTREAM-019** (Phase 20) — Incorporate upstream `norish-recipes/norish` **v0.19.0-beta** (PR #468, squashed commit `1f684480`) into the fork on a dedicated integration branch off `main`, re-asserting the fork's hard constraints at every conflict (Camoufox-not-Chrome — `packages/api/src/parser/fetch.ts`, never reintroduce `playwright.ts`/headless Chrome; per-cookbook isolation HOUSE-06 stays green; config-as-code env sync in `seed-config.ts`; WorkOS + multi-household + per-cookbook permissions in `auth.ts`/`permissions.ts`/`claim-processor.ts`) and reconciling our `packages/db/src/schema` (multi-household, `recipe_shares`, `recipe_ratings`, `visibility`, per-cookbook policy columns, migrations 0035–0038) against upstream's NEW `packages/db-schema/` package split. ~996 files changed upstream, ~110 overlap our fork. Hard gates: per-cookbook isolation + db/queue testcontainer suites under `sg docker`, full typecheck/lint/test green, then a director-owned `pnpm docker:build`. Off the live stack throughout (live cutover is a separate, deliberate step). Full assessment: vault `norish-upstream-0.19.0-incorporation-assessment`.
+
+### UI polish & media UX — Phase 21 (from the 2026-07-21 UAT)
+
+- [ ] **MEDIA-UX-01** (Phase 21) — Opening a recipe's media must keep the user in the same media set. Today `media-carousel.tsx` builds the lightbox from `items.filter(type === "image")`, so a recipe with 1 photo + N videos opens a single-image lightbox with no position counter, no prev/next and no thumbnail strip — the media you were swiping disappears. The lightbox must expose the full media set (or at minimum every image) with counter + navigation, and returning from it must leave the carousel on the same item. Additionally, thumbnails must not download the full-size original into a 64px slot (`unoptimized` + `sizes="64px"` in `components/ui/carousel.tsx`); verify against a browser network trace. Source: UAT section A3.
+- [ ] **UI-POLISH-01** (Phase 21) — Reduce visual and functional chrome so the app reads as a polished product rather than self-hostable software — *"every pixel must earn its place; most should lose"*. Concretely: strip the settings surface to what a normal user needs (removals are reversible), replace the wonky mobile-nav profile avatar, and rework the calendar into tappable rows of 7 that expand into a single day while hiding empty past days. Primarily SUBTRACTIVE. Source: UAT section D.
 
 ### Explicitly out of scope
 
