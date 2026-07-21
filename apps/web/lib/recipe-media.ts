@@ -4,6 +4,10 @@ import path from "node:path";
 import { NextResponse } from "next/server";
 
 import { SERVER_CONFIG } from "@norish/config/env-config-server";
+import { auth } from "@norish/auth/auth";
+import { canAccessResource, resolveRecipeCookbookPolicy } from "@norish/auth/permissions";
+import { getUserHouseholdIds } from "@norish/db/repositories/households";
+import { getRecipeOwnerAndHousehold } from "@norish/db/repositories/recipes";
 
 const VALID_FILENAME_PATTERN = /^[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+$/;
 
@@ -122,6 +126,63 @@ async function serveRecipeMediaFileResponse(req: Request, filePath: string, cach
   } catch {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
+}
+
+/**
+ * MEDIA-AUTHZ-01 — per-recipe gate for the AUTHENTICATED media routes.
+ *
+ * `apps/web/proxy.ts` covers these paths but only proves a session EXISTS; it never checks
+ * that this user may read THIS recipe. Without the check below, any logged-in user could
+ * fetch any cookbook's media given the recipe id and filename.
+ *
+ * Returns a response to send when access is refused, or `null` when the caller may
+ * proceed. Refusals are 404, not 403, so the route never confirms that a recipe exists to
+ * someone who cannot see it — matching `findRecipeForViewer`, which returns null and lets
+ * the router raise NOT_FOUND.
+ *
+ * The `/share/[token]` routes deliberately do NOT call this: they are gated by the share
+ * token itself and are meant to serve anonymous visitors.
+ */
+export async function denyUnauthorizedRecipeMedia(
+  req: Request,
+  recipeId: string
+): Promise<NextResponse | null> {
+  const notFound = NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const session = await auth.api.getSession({ headers: req.headers });
+  const user = session?.user;
+
+  if (!user) {
+    return notFound;
+  }
+
+  const owner = await getRecipeOwnerAndHousehold(recipeId);
+
+  if (!owner) {
+    return notFound;
+  }
+
+  // An orphan recipe (userId NULL) has no owner to scope to and is public by the same
+  // rule the list query uses — see households.isolation.test.ts.
+  if (owner.userId === null) {
+    return null;
+  }
+
+  const { policy, adminUserId } = await resolveRecipeCookbookPolicy(owner.householdId);
+  const memberHouseholdIds = await getUserHouseholdIds(user.id);
+
+  const canView = canAccessResource(
+    "view",
+    user.id,
+    owner.userId,
+    owner.householdId,
+    memberHouseholdIds,
+    user.isServerAdmin ?? false,
+    policy,
+    adminUserId
+  );
+
+  return canView ? null : notFound;
 }
 
 export async function serveRecipeMedia(
