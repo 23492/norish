@@ -165,4 +165,60 @@ describe("cross-cookbook recipe isolation (HOUSE-06)", () => {
 
     expect(inA.exists).toBe(true);
   });
+
+  /**
+   * LIST-ISO-01 — the personal view under the LIVE server policy.
+   *
+   * The tests above seed `view: "household"` because "the per-cookbook boundary is only
+   * meaningful under the household view policy". But production runs
+   * `{"view":"everyone",...}`, and in the personal view (no active cookbook)
+   * `buildViewPolicyCondition` answers `everyone` with NO where-clause at all. That branch
+   * has therefore never been exercised, which is the same shape as Phase 22 / 22.1: the
+   * invariant was proven under a config live does not have.
+   *
+   * The personal view is reachable by any authenticated user — `households.switchActive`
+   * accepts `{ householdId: null }`.
+   */
+  describe("personal view under the live server policy (view: everyone)", () => {
+    beforeEach(async () => {
+      await setConfig(
+        ServerConfigKeys.RECIPE_PERMISSION_POLICY,
+        { view: "everyone", edit: "household", delete: "household" },
+        null
+      );
+    });
+
+    it("does not expose another cookbook's recipes", async () => {
+      const recipeB = await insertRecipe({
+        name: "Recipe in B",
+        userId: userV,
+        householdId: cookbookB,
+      });
+
+      const { recipes: visible } = await listRecipes(ctxFor(null, [cookbookA]), 100);
+
+      expect(visible.map((r) => r.id)).not.toContain(recipeB);
+    });
+
+    it("does not expose another user's personal recipe", async () => {
+      const personalV = await insertRecipe({ name: "V personal", userId: userV, householdId: null });
+
+      const { recipes: visible } = await listRecipes(ctxFor(null, [cookbookA]), 100);
+
+      expect(visible.map((r) => r.id)).not.toContain(personalV);
+    });
+
+    it("still shows the viewer's own recipes and orphans", async () => {
+      const personalU = await insertRecipe({ name: "U personal", userId: userU, householdId: null });
+      const inA = await insertRecipe({ name: "U in A", userId: userU, householdId: cookbookA });
+      const orphan = await insertRecipe({ name: "Orphan", userId: null, householdId: null });
+
+      const { recipes: visible } = await listRecipes(ctxFor(null, [cookbookA]), 100);
+      const ids = visible.map((r) => r.id);
+
+      expect(ids).toContain(personalU);
+      expect(ids).toContain(inA);
+      expect(ids).toContain(orphan);
+    });
+  });
 });
