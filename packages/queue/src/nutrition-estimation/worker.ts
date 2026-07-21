@@ -8,13 +8,11 @@
 import type { Job } from "bullmq";
 
 import type { NutritionEstimationJobData } from "@norish/queue/contracts/job-types";
-import type { PolicyEmitContext } from "@norish/shared-server/realtime/policy";
 import { getRecipeFull, updateRecipeWithRefs } from "@norish/db";
 import { requireQueueApiHandler } from "@norish/queue/api-handlers";
 import { getBullClient } from "@norish/queue/redis/bullmq";
-import { getRecipePermissionPolicy } from "@norish/shared-server/config/server-config-loader";
 import { createLogger } from "@norish/shared-server/logger";
-import { emitByPolicy } from "@norish/shared-server/realtime/policy";
+import { emitByPolicy, resolveRecipeRealtimeScope } from "@norish/shared-server/realtime/policy";
 import { recipeEmitter } from "@norish/shared-server/realtime/recipes";
 
 import { baseWorkerOptions, QUEUE_NAMES, STALLED_INTERVAL, WORKER_CONCURRENCY } from "../config";
@@ -33,8 +31,12 @@ async function processNutritionJob(job: Job<NutritionEstimationJobData>): Promis
     "Processing nutrition estimation job"
   );
 
-  const policy = await getRecipePermissionPolicy();
-  const ctx: PolicyEmitContext = { userId, householdKey };
+  // REALTIME-ISO-01 (D-22-02): scope resolves from the recipe's OWN cookbook, not the
+  // server-wide default and not the actor's active cookbook. Resolved once per job.
+  const { viewPolicy, ctx } = await resolveRecipeRealtimeScope(recipeId, {
+    userId,
+    householdKey,
+  });
 
   const recipe = await getRecipeFull(recipeId);
 
@@ -78,7 +80,7 @@ async function processNutritionJob(job: Job<NutritionEstimationJobData>): Promis
   if (updatedRecipe) {
     log.info({ jobId: job.id, recipeId }, "Nutrition estimated and saved");
 
-    emitByPolicy(recipeEmitter, policy.view, ctx, "updated", { recipe: updatedRecipe });
+    emitByPolicy(recipeEmitter, viewPolicy, ctx, "updated", { recipe: updatedRecipe });
   }
 }
 
@@ -106,10 +108,12 @@ async function handleJobFailed(
 
   if (isFinalFailure) {
     // Emit failed event with recipeId to clear loading state
-    const policy = await getRecipePermissionPolicy();
-    const ctx: PolicyEmitContext = { userId, householdKey };
+    const { viewPolicy, ctx } = await resolveRecipeRealtimeScope(recipeId, {
+      userId,
+      householdKey,
+    });
 
-    emitByPolicy(recipeEmitter, policy.view, ctx, "failed", {
+    emitByPolicy(recipeEmitter, viewPolicy, ctx, "failed", {
       reason: error.message || "Failed to estimate nutrition after multiple attempts",
       recipeId,
     });

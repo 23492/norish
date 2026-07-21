@@ -12,7 +12,6 @@ import type {
   PasteImportJobResult,
   StructuredPasteImportRecipe,
 } from "@norish/queue/contracts/job-types";
-import type { PolicyEmitContext } from "@norish/shared-server/realtime/policy";
 import type { FullRecipeInsertDTO } from "@norish/shared/contracts";
 import { createRecipeWithRefs, dashboardRecipe, getAllergiesForUsers } from "@norish/db";
 import { getAverageRating, rateRecipe } from "@norish/db/repositories/ratings";
@@ -21,14 +20,10 @@ import { requireQueueApiHandler } from "@norish/queue/api-handlers";
 import { addAutoTaggingJob } from "@norish/queue/auto-tagging/producer";
 import { getBullClient } from "@norish/queue/redis/bullmq";
 import { getQueues } from "@norish/queue/registry";
-import {
-  getAIConfig,
-  getRecipePermissionPolicy,
-  isAIEnabled,
-} from "@norish/shared-server/config/server-config-loader";
+import { getAIConfig, isAIEnabled } from "@norish/shared-server/config/server-config-loader";
 import { createLogger } from "@norish/shared-server/logger";
 import { deleteRecipeImagesDir } from "@norish/shared-server/media/storage";
-import { emitByPolicy } from "@norish/shared-server/realtime/policy";
+import { emitByPolicy, resolveHouseholdRealtimeScope } from "@norish/shared-server/realtime/policy";
 import { recipeEmitter } from "@norish/shared-server/realtime/recipes";
 import { MAX_RECIPE_PASTE_CHARS } from "@norish/shared/contracts/uploads";
 import { FullRecipeInsertSchema } from "@norish/shared/contracts/zod";
@@ -170,9 +165,13 @@ export async function processPasteImportJob(
     "Processing paste import job"
   );
 
-  const policy = await getRecipePermissionPolicy();
-  const viewPolicy = policy.view;
-  const ctx: PolicyEmitContext = { userId, householdKey };
+  // REALTIME-ISO-01 (D-22-02): the pending recipes belong to the cookbook this import
+  // targets, so scope on THAT cookbook — not the server-wide default, not the actor's
+  // active cookbook. The rows do not exist yet, hence the household-based resolver.
+  const { viewPolicy, ctx } = await resolveHouseholdRealtimeScope(householdId, {
+    userId,
+    householdKey,
+  });
 
   recipeIds.forEach((recipeId) => {
     emitByPolicy(recipeEmitter, viewPolicy, ctx, "importStarted", {
@@ -275,7 +274,7 @@ async function handleJobFailed(
 ): Promise<void> {
   if (!job) return;
 
-  const { recipeIds, userId, householdKey } = job.data;
+  const { recipeIds, userId, householdKey, householdId } = job.data;
   const maxAttempts = job.opts.attempts ?? 3;
   const isFinalFailure = job.attemptsMade >= maxAttempts;
 
@@ -294,11 +293,13 @@ async function handleJobFailed(
   await Promise.all(recipeIds.map((recipeId) => deleteRecipeImagesDir(recipeId)));
 
   if (isFinalFailure) {
-    const policy = await getRecipePermissionPolicy();
-    const ctx: PolicyEmitContext = { userId, householdKey };
+    const { viewPolicy, ctx } = await resolveHouseholdRealtimeScope(householdId, {
+      userId,
+      householdKey,
+    });
 
     recipeIds.forEach((recipeId) => {
-      emitByPolicy(recipeEmitter, policy.view, ctx, "failed", {
+      emitByPolicy(recipeEmitter, viewPolicy, ctx, "failed", {
         reason: error.message || "Failed to import recipe",
         recipeId,
         url: "[pasted]",

@@ -8,7 +8,6 @@
 import type { Job } from "bullmq";
 
 import type { RecipeImportJobData } from "@norish/queue/contracts/job-types";
-import type { PolicyEmitContext } from "@norish/shared-server/realtime/policy";
 import {
   createRecipeWithRefs,
   dashboardRecipe,
@@ -22,13 +21,10 @@ import { addAutoCategorizationJob } from "@norish/queue/auto-categorization/prod
 import { addAutoTaggingJob } from "@norish/queue/auto-tagging/producer";
 import { getBullClient } from "@norish/queue/redis/bullmq";
 import { getQueues } from "@norish/queue/registry";
-import {
-  getAIConfig,
-  getRecipePermissionPolicy,
-} from "@norish/shared-server/config/server-config-loader";
+import { getAIConfig } from "@norish/shared-server/config/server-config-loader";
 import { createLogger } from "@norish/shared-server/logger";
 import { deleteRecipeImagesDir } from "@norish/shared-server/media/storage";
-import { emitByPolicy } from "@norish/shared-server/realtime/policy";
+import { emitByPolicy, resolveHouseholdRealtimeScope } from "@norish/shared-server/realtime/policy";
 import { recipeEmitter } from "@norish/shared-server/realtime/recipes";
 
 import {
@@ -56,9 +52,13 @@ async function processImportJob(job: Job<RecipeImportJobData>): Promise<void> {
     "Processing recipe import job"
   );
 
-  const policy = await getRecipePermissionPolicy();
-  const viewPolicy = policy.view;
-  const ctx: PolicyEmitContext = { userId, householdKey };
+  // REALTIME-ISO-01 (D-22-02): the pending recipe belongs to the cookbook this import
+  // targets, so scope on THAT cookbook — not the server-wide default, not the actor's
+  // active cookbook. The row does not exist yet, hence the household-based resolver.
+  const { viewPolicy, ctx } = await resolveHouseholdRealtimeScope(householdId, {
+    userId,
+    householdKey,
+  });
 
   // Emit import started event
   emitByPolicy(recipeEmitter, viewPolicy, ctx, "importStarted", { recipeId, url });
@@ -193,7 +193,7 @@ async function handleJobFailed(
 ): Promise<void> {
   if (!job) return;
 
-  const { url, recipeId, userId, householdKey } = job.data;
+  const { url, recipeId, userId, householdKey, householdId } = job.data;
   const maxAttempts = job.opts.attempts ?? 3;
   const isFinalFailure = job.attemptsMade >= maxAttempts;
 
@@ -214,10 +214,12 @@ async function handleJobFailed(
 
   if (isFinalFailure) {
     // Emit failed event to remove skeleton
-    const policy = await getRecipePermissionPolicy();
-    const ctx: PolicyEmitContext = { userId, householdKey };
+    const { viewPolicy, ctx } = await resolveHouseholdRealtimeScope(householdId, {
+      userId,
+      householdKey,
+    });
 
-    emitByPolicy(recipeEmitter, policy.view, ctx, "failed", {
+    emitByPolicy(recipeEmitter, viewPolicy, ctx, "failed", {
       reason: error.message || "Failed to import recipe after multiple attempts",
       recipeId,
       url,

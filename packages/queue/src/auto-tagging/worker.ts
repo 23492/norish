@@ -9,14 +9,12 @@
 import type { Job } from "bullmq";
 
 import type { AutoTaggingJobData } from "@norish/queue/contracts/job-types";
-import type { PolicyEmitContext } from "@norish/shared-server/realtime/policy";
 import { getRecipeFull } from "@norish/db";
 import { mergeTagsIntoRecipe } from "@norish/db/repositories/tags";
 import { requireQueueApiHandler } from "@norish/queue/api-handlers";
 import { getBullClient } from "@norish/queue/redis/bullmq";
-import { getRecipePermissionPolicy } from "@norish/shared-server/config/server-config-loader";
 import { createLogger } from "@norish/shared-server/logger";
-import { emitByPolicy } from "@norish/shared-server/realtime/policy";
+import { emitByPolicy, resolveRecipeRealtimeScope } from "@norish/shared-server/realtime/policy";
 import { recipeEmitter } from "@norish/shared-server/realtime/recipes";
 
 import { baseWorkerOptions, QUEUE_NAMES, STALLED_INTERVAL, WORKER_CONCURRENCY } from "../config";
@@ -33,14 +31,18 @@ async function processAutoTaggingJob(job: Job<AutoTaggingJobData>): Promise<void
     "Processing auto-tagging job"
   );
 
-  const policy = await getRecipePermissionPolicy();
-  const ctx: PolicyEmitContext = { userId, householdKey };
+  // REALTIME-ISO-01 (D-22-02): scope resolves from the recipe's OWN cookbook, not the
+  // server-wide default and not the actor's active cookbook. Resolved once per job.
+  const { viewPolicy, ctx } = await resolveRecipeRealtimeScope(recipeId, {
+    userId,
+    householdKey,
+  });
 
   // Emit autoTaggingStarted event so clients can show loading state
-  emitByPolicy(recipeEmitter, policy.view, ctx, "autoTaggingStarted", { recipeId });
+  emitByPolicy(recipeEmitter, viewPolicy, ctx, "autoTaggingStarted", { recipeId });
 
   // Emit toast with i18n key - client just shows it directly
-  emitByPolicy(recipeEmitter, policy.view, ctx, "processingToast", {
+  emitByPolicy(recipeEmitter, viewPolicy, ctx, "processingToast", {
     recipeId,
     titleKey: "processingTags",
     severity: "default",
@@ -54,8 +56,8 @@ async function processAutoTaggingJob(job: Job<AutoTaggingJobData>): Promise<void
 
   if (recipe.recipeIngredients.length === 0) {
     log.warn({ recipeId }, "Recipe has no ingredients, skipping auto-tagging");
-    emitByPolicy(recipeEmitter, policy.view, ctx, "autoTaggingCompleted", { recipeId });
-    emitByPolicy(recipeEmitter, policy.view, ctx, "processingToast", {
+    emitByPolicy(recipeEmitter, viewPolicy, ctx, "autoTaggingCompleted", { recipeId });
+    emitByPolicy(recipeEmitter, viewPolicy, ctx, "processingToast", {
       recipeId,
       titleKey: "tagsComplete",
       severity: "success",
@@ -81,8 +83,8 @@ async function processAutoTaggingJob(job: Job<AutoTaggingJobData>): Promise<void
 
   if (generatedTags.length === 0) {
     log.info({ recipeId }, "AI returned no tags");
-    emitByPolicy(recipeEmitter, policy.view, ctx, "autoTaggingCompleted", { recipeId });
-    emitByPolicy(recipeEmitter, policy.view, ctx, "processingToast", {
+    emitByPolicy(recipeEmitter, viewPolicy, ctx, "autoTaggingCompleted", { recipeId });
+    emitByPolicy(recipeEmitter, viewPolicy, ctx, "processingToast", {
       recipeId,
       titleKey: "tagsComplete",
       severity: "success",
@@ -103,14 +105,14 @@ async function processAutoTaggingJob(job: Job<AutoTaggingJobData>): Promise<void
   const updatedRecipe = await getRecipeFull(recipeId);
 
   if (updatedRecipe) {
-    emitByPolicy(recipeEmitter, policy.view, ctx, "updated", { recipe: updatedRecipe });
+    emitByPolicy(recipeEmitter, viewPolicy, ctx, "updated", { recipe: updatedRecipe });
   }
 
   // Emit completion event so clients can track when auto-tagging is done
-  emitByPolicy(recipeEmitter, policy.view, ctx, "autoTaggingCompleted", { recipeId });
+  emitByPolicy(recipeEmitter, viewPolicy, ctx, "autoTaggingCompleted", { recipeId });
 
   // Emit toast with i18n key for completion
-  emitByPolicy(recipeEmitter, policy.view, ctx, "processingToast", {
+  emitByPolicy(recipeEmitter, viewPolicy, ctx, "processingToast", {
     recipeId,
     titleKey: "tagsComplete",
     severity: "success",

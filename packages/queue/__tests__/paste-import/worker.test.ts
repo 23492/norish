@@ -42,6 +42,17 @@ vi.mock("@norish/queue/allergy-detection/producer", () => ({
 
 vi.mock("@norish/shared-server/realtime/policy", () => ({
   emitByPolicy,
+  // REALTIME-ISO-01: the workers resolve their emit scope through these; stub them to
+  // echo the caller's fallback context so emit assertions stay readable.
+  resolveRecipeRealtimeScope: vi.fn((_recipeId: string, fallback: unknown) =>
+    Promise.resolve({ viewPolicy: "household", ctx: fallback })
+  ),
+  resolveHouseholdRealtimeScope: vi.fn((householdId: string | null, fallback: { userId: string }) =>
+    Promise.resolve({
+      viewPolicy: "household",
+      ctx: { userId: fallback.userId, householdKey: householdId ?? fallback.userId },
+    })
+  ),
 }));
 
 vi.mock("@norish/shared-server/realtime/recipes", () => ({

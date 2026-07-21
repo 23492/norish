@@ -9,7 +9,6 @@
 import type { Job } from "bullmq";
 
 import type { ImageImportJobData } from "@norish/queue/contracts/job-types";
-import type { PolicyEmitContext } from "@norish/shared-server/realtime/policy";
 import {
   addRecipeImages,
   createRecipeWithRefs,
@@ -18,13 +17,10 @@ import {
 } from "@norish/db";
 import { requireQueueApiHandler } from "@norish/queue/api-handlers";
 import { getBullClient } from "@norish/queue/redis/bullmq";
-import {
-  getAIConfig,
-  getRecipePermissionPolicy,
-} from "@norish/shared-server/config/server-config-loader";
+import { getAIConfig } from "@norish/shared-server/config/server-config-loader";
 import { createLogger } from "@norish/shared-server/logger";
 import { deleteRecipeImagesDir, saveImageBytes } from "@norish/shared-server/media/storage";
-import { emitByPolicy } from "@norish/shared-server/realtime/policy";
+import { emitByPolicy, resolveHouseholdRealtimeScope } from "@norish/shared-server/realtime/policy";
 import { recipeEmitter } from "@norish/shared-server/realtime/recipes";
 
 import { baseWorkerOptions, QUEUE_NAMES, STALLED_INTERVAL, WORKER_CONCURRENCY } from "../config";
@@ -41,9 +37,13 @@ export async function processImageImportJob(job: Job<ImageImportJobData>): Promi
 
   log.info({ jobId: job.id, recipeId, fileCount: files.length }, "Processing image import job");
 
-  const policy = await getRecipePermissionPolicy();
-  const viewPolicy = policy.view;
-  const ctx: PolicyEmitContext = { userId, householdKey };
+  // REALTIME-ISO-01 (D-22-02): the pending recipe belongs to the cookbook this import
+  // targets, so scope on THAT cookbook — not the server-wide default, not the actor's
+  // active cookbook. The row does not exist yet, hence the household-based resolver.
+  const { viewPolicy, ctx } = await resolveHouseholdRealtimeScope(householdId, {
+    userId,
+    householdKey,
+  });
 
   // Emit import started event (shows skeleton)
   emitByPolicy(recipeEmitter, viewPolicy, ctx, "importStarted", {
@@ -131,7 +131,7 @@ async function handleJobFailed(
 ): Promise<void> {
   if (!job) return;
 
-  const { recipeId, userId, householdKey, files } = job.data;
+  const { recipeId, userId, householdKey, householdId, files } = job.data;
 
   log.error(
     {
@@ -146,10 +146,12 @@ async function handleJobFailed(
   await deleteRecipeImagesDir(recipeId);
 
   // Emit failed event (removes skeleton)
-  const policy = await getRecipePermissionPolicy();
-  const ctx: PolicyEmitContext = { userId, householdKey };
+  const { viewPolicy, ctx } = await resolveHouseholdRealtimeScope(householdId, {
+    userId,
+    householdKey,
+  });
 
-  emitByPolicy(recipeEmitter, policy.view, ctx, "failed", {
+  emitByPolicy(recipeEmitter, viewPolicy, ctx, "failed", {
     reason: error.message || "Failed to import recipe from images",
     recipeId,
     url: `[${files.length} image(s)]`,

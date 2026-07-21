@@ -1,13 +1,11 @@
 import type { Job } from "bullmq";
 
 import type { AutoCategorizationJobData } from "@norish/queue/contracts/job-types";
-import type { PolicyEmitContext } from "@norish/shared-server/realtime/policy";
 import { getRecipeFull, updateRecipeCategories } from "@norish/db";
 import { requireQueueApiHandler } from "@norish/queue/api-handlers";
 import { getBullClient } from "@norish/queue/redis/bullmq";
-import { getRecipePermissionPolicy } from "@norish/shared-server/config/server-config-loader";
 import { createLogger } from "@norish/shared-server/logger";
-import { emitByPolicy } from "@norish/shared-server/realtime/policy";
+import { emitByPolicy, resolveRecipeRealtimeScope } from "@norish/shared-server/realtime/policy";
 import { recipeEmitter } from "@norish/shared-server/realtime/recipes";
 
 import { baseWorkerOptions, QUEUE_NAMES, STALLED_INTERVAL, WORKER_CONCURRENCY } from "../config";
@@ -24,10 +22,14 @@ async function processAutoCategorizationJob(job: Job<AutoCategorizationJobData>)
     "Processing auto-categorization job"
   );
 
-  const policy = await getRecipePermissionPolicy();
-  const ctx: PolicyEmitContext = { userId, householdKey };
+  // REALTIME-ISO-01 (D-22-02): scope resolves from the recipe's OWN cookbook, not the
+  // server-wide default and not the actor's active cookbook. Resolved once per job.
+  const { viewPolicy, ctx } = await resolveRecipeRealtimeScope(recipeId, {
+    userId,
+    householdKey,
+  });
 
-  emitByPolicy(recipeEmitter, policy.view, ctx, "autoCategorizationStarted", { recipeId });
+  emitByPolicy(recipeEmitter, viewPolicy, ctx, "autoCategorizationStarted", { recipeId });
 
   const recipe = await getRecipeFull(recipeId);
 
@@ -37,14 +39,14 @@ async function processAutoCategorizationJob(job: Job<AutoCategorizationJobData>)
 
   if (recipe.categories.length > 0) {
     log.info({ recipeId }, "Recipe already has categories, skipping auto-categorization");
-    emitByPolicy(recipeEmitter, policy.view, ctx, "autoCategorizationCompleted", { recipeId });
+    emitByPolicy(recipeEmitter, viewPolicy, ctx, "autoCategorizationCompleted", { recipeId });
 
     return;
   }
 
   if (recipe.recipeIngredients.length === 0) {
     log.warn({ recipeId }, "Recipe has no ingredients, skipping auto-categorization");
-    emitByPolicy(recipeEmitter, policy.view, ctx, "autoCategorizationCompleted", { recipeId });
+    emitByPolicy(recipeEmitter, viewPolicy, ctx, "autoCategorizationCompleted", { recipeId });
 
     return;
   }
@@ -65,7 +67,7 @@ async function processAutoCategorizationJob(job: Job<AutoCategorizationJobData>)
 
   if (categories.length === 0) {
     log.info({ recipeId }, "AI returned no categories");
-    emitByPolicy(recipeEmitter, policy.view, ctx, "autoCategorizationCompleted", { recipeId });
+    emitByPolicy(recipeEmitter, viewPolicy, ctx, "autoCategorizationCompleted", { recipeId });
 
     return;
   }
@@ -80,10 +82,10 @@ async function processAutoCategorizationJob(job: Job<AutoCategorizationJobData>)
   const updatedRecipe = await getRecipeFull(recipeId);
 
   if (updatedRecipe) {
-    emitByPolicy(recipeEmitter, policy.view, ctx, "updated", { recipe: updatedRecipe });
+    emitByPolicy(recipeEmitter, viewPolicy, ctx, "updated", { recipe: updatedRecipe });
   }
 
-  emitByPolicy(recipeEmitter, policy.view, ctx, "autoCategorizationCompleted", { recipeId });
+  emitByPolicy(recipeEmitter, viewPolicy, ctx, "autoCategorizationCompleted", { recipeId });
 }
 
 async function handleJobFailed(
