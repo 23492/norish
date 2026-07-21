@@ -43,9 +43,15 @@ Three separate cross-cookbook leaks (REALTIME-ISO-01, IMPORT-DEDUP-ISO-01, LIST-
 all came from the same mistake: a code path treating `everyone` as *unscoped* — broadcast
 to every socket, dedup across every cookbook, list with no where-clause.
 
-- `everyone` answers "who may fetch this if they ask", which is `canAccessResource`'s job.
-  It never widens a **push**, a **dedup search**, or a **list query** past the cookbook
-  (or, with no active cookbook, past the viewer). Clamp it; don't branch to "unfiltered".
+- `everyone` answers "who may fetch this if they ask" **within the recipe's cookbook**. It
+  never widens a **push**, a **dedup search**, a **list query**, or a **permission check**
+  past the cookbook (or, with no active cookbook, past the viewer). Clamp it; don't branch
+  to "unfiltered" or "return true".
+- Authenticating is not authorizing. `apps/web/proxy.ts` proves a session exists; it never
+  proves this user may read this resource. A route handler that serves a per-recipe
+  resource needs its own `canAccessResource` check — see `denyUnauthorizedRecipeMedia`
+  in `apps/web/lib/recipe-media.ts`. Refuse with 404, not 403, so the route doesn't
+  confirm the resource exists to someone who can't see it.
 - Prefer removing `everyone` from a scope-resolving signature entirely over avoiding it at
   the call sites — a reachable `everyone` branch is the foot-gun.
 - **Tests must seed the LIVE policy.** All three defects survived a green isolation suite
