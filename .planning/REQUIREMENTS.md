@@ -7,12 +7,12 @@
 
 ### Scraping (native Camoufox) — Phase 1
 
-- [ ] **SCRAPE-01**: Recipe page fetching uses the Camoufox REST service (LXC 105) natively, configured via `CAMOFOX_URL`.
-- [ ] **SCRAPE-02**: Headless-Chrome dependency removed from the app + docker compose (no `chrome-headless` service required).
-- [ ] **SCRAPE-03**: Per-site cookie/header auth tokens are still applied through Camoufox.
-- [ ] **SCRAPE-04**: Bot-protected sources (e.g. ah.nl) import successfully end-to-end.
-- [ ] **SCRAPE-05**: No boot-time bundle patch needed — Camoufox support ships in the built image.
-- [ ] **SCRAPE-06**: Graceful behavior when Camoufox is unreachable (clear error, no silent empty extraction).
+- [x] **SCRAPE-01**: Recipe page fetching uses the Camoufox REST service (LXC 105) natively, configured via `CAMOFOX_URL`.
+- [x] **SCRAPE-02**: Headless-Chrome dependency removed from the app + docker compose (no `chrome-headless` service required).
+- [x] **SCRAPE-03**: Per-site cookie/header auth tokens are still applied through Camoufox.
+- [x] **SCRAPE-04**: Bot-protected sources (e.g. ah.nl) import successfully end-to-end.
+- [x] **SCRAPE-05**: No boot-time bundle patch needed — Camoufox support ships in the built image.
+- [x] **SCRAPE-06**: Graceful behavior when Camoufox is unreachable (clear error, no silent empty extraction).
 
 ### Households / cookbooks — Phase 2
 
@@ -74,7 +74,7 @@ _(renumbered from Phase 3/4 to make room for the Sharing phase.)_
 | SETUP-01..03 | Phase 0 | In progress |
 | SETUP-04 | Phase 1 | Done |
 | SETUP-05 | Phases 1/3 + cross-cutting | In progress |
-| UPSTREAM-019 | Phase 20 | Pending |
+| UPSTREAM-019 | Phase 20 | Complete |
 
 **Coverage:** v1 = 22 requirements, all mapped to phases.
 
