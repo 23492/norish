@@ -138,7 +138,11 @@ const REQUIRED_CONFIGS: ConfigDefinition[] = [
     key: ServerConfigKeys.RECIPE_PERMISSION_POLICY,
     getDefaultValue: () => DEFAULT_RECIPE_PERMISSION_POLICY,
     sensitive: false,
-    description: "Recipe permission policy (default: household)",
+    // The default is `view: "everyone"` (edit/delete are "household"), NOT household —
+    // see DEFAULT_RECIPE_PERMISSION_POLICY. This string said "household" and was wrong,
+    // which mattered: `everyone` is the setting behind the LIST-ISO-01 /
+    // IMPORT-DEDUP-ISO-01 / REALTIME-ISO-01 leaks, so it ships default-on everywhere.
+    description: 'Recipe permission policy (default: view "everyone", edit/delete "household")',
   },
   {
     key: ServerConfigKeys.PROMPTS,
