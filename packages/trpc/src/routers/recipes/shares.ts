@@ -30,7 +30,6 @@ import {
   setRecipeVisibility,
 } from "@norish/db/repositories/recipes";
 import {
-  getRecipePermissionPolicy,
   getTimerKeywords,
   getUnits,
   isTimersEnabled,
@@ -61,7 +60,7 @@ import {
   SetRecipeVisibilityInputSchema,
 } from "@norish/shared/contracts/zod/recipe";
 
-import { emitByPolicy } from "../../helpers";
+import { emitByPolicy, resolveRecipeRealtimeScope } from "../../helpers";
 import {
   adminProcedure,
   authedProcedure,
@@ -109,12 +108,17 @@ async function emitRecipeShareEvent(
   share: Pick<RecipeShareDto, "id" | "recipeId" | "version">,
   type: RecipeShareLifecycleEventDto["type"]
 ) {
-  const policy = await getRecipePermissionPolicy();
+  // REALTIME-ISO-01 (D-22-02): a share's lifecycle belongs to the SHARED RECIPE's
+  // cookbook, not to whichever cookbook the actor happens to be in.
+  const { viewPolicy, ctx: emitCtx } = await resolveRecipeRealtimeScope(share.recipeId, {
+    userId: ctx.user.id,
+    householdKey: ctx.householdKey,
+  });
 
   emitByPolicy(
     recipeEmitter,
-    policy.view,
-    { userId: ctx.user.id, householdKey: ctx.householdKey },
+    viewPolicy,
+    emitCtx,
     recipeShareEventsByType[type],
     toRecipeShareLifecycleEvent(share, type)
   );
@@ -354,15 +358,12 @@ const setVisibility = authedProcedure
     const updatedRecipe = await getRecipeFull(input.recipeId);
 
     if (updatedRecipe) {
-      const policy = await getRecipePermissionPolicy();
+      const { viewPolicy, ctx: emitCtx } = await resolveRecipeRealtimeScope(input.recipeId, {
+        userId: ctx.user.id,
+        householdKey: ctx.householdKey,
+      });
 
-      emitByPolicy(
-        recipeEmitter,
-        policy.view,
-        { userId: ctx.user.id, householdKey: ctx.householdKey },
-        "updated",
-        { recipe: updatedRecipe }
-      );
+      emitByPolicy(recipeEmitter, viewPolicy, emitCtx, "updated", { recipe: updatedRecipe });
     }
 
     return {
@@ -403,12 +404,7 @@ const saveShared = authedSharedRecipeProcedure
     // Deep copy into the SAVER's active cookbook (household_id = ctx.household?.id
     // ?? null), owned by the saver. NOT a reference to the original, and NOT in
     // the source's cookbook — per-cookbook scoping is preserved.
-    const createdId = await copyRecipeForSave(
-      source,
-      ctx.user.id,
-      targetHouseholdId,
-      newRecipeId
-    );
+    const createdId = await copyRecipeForSave(source, ctx.user.id, targetHouseholdId, newRecipeId);
 
     if (!createdId) {
       throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to save recipe" });
@@ -418,15 +414,15 @@ const saveShared = authedSharedRecipeProcedure
     const dashboardDto = await dashboardRecipe(createdId);
 
     if (dashboardDto) {
-      const policy = await getRecipePermissionPolicy();
+      // Resolve against the NEWLY CREATED recipe (in the saver's cookbook), NOT the
+      // source recipe — the copy is what this event is about, and the source may live in
+      // a cookbook the saver is not a member of.
+      const { viewPolicy, ctx: emitCtx } = await resolveRecipeRealtimeScope(createdId, {
+        userId: ctx.user.id,
+        householdKey: ctx.householdKey,
+      });
 
-      emitByPolicy(
-        recipeEmitter,
-        policy.view,
-        { userId: ctx.user.id, householdKey: ctx.householdKey },
-        "created",
-        { recipe: dashboardDto }
-      );
+      emitByPolicy(recipeEmitter, viewPolicy, emitCtx, "created", { recipe: dashboardDto });
     }
 
     return { recipeId: createdId };

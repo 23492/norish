@@ -5,7 +5,6 @@ import {
   rateRecipe,
   removeUserRating,
 } from "@norish/db/repositories/ratings";
-import { getRecipePermissionPolicy } from "@norish/shared-server/config/server-config-loader";
 import { trpcLogger as log } from "@norish/shared-server/logger";
 import {
   RatingGetInputSchema,
@@ -13,10 +12,10 @@ import {
   RatingRemoveInputSchema,
 } from "@norish/shared/contracts/zod";
 
-import { emitByPolicy } from "../../helpers";
+import { emitByPolicy, resolveRecipeRealtimeScope } from "../../helpers";
 import { authedProcedure } from "../../middleware";
-import { assertRecipeAccess } from "../recipes/helpers";
 import { router } from "../../trpc";
+import { assertRecipeAccess } from "../recipes/helpers";
 import { ratingsEmitter } from "./emitter";
 
 interface UserContext {
@@ -24,15 +23,18 @@ interface UserContext {
   householdKey: string;
 }
 
-async function emitRatingFailed(ctx: UserContext, recipeId: string, reason: string): Promise<void> {
-  const policy = await getRecipePermissionPolicy();
-
+function emitRatingFailed(ctx: UserContext, recipeId: string, reason: string): void {
+  // REALTIME-ISO-01: a failed rating attempt concerns only the user who attempted it —
+  // `owner` scope sends it to that user's channel and nowhere else.
   emitByPolicy(
     ratingsEmitter,
-    policy.view,
+    "owner",
     { userId: ctx.user.id, householdKey: ctx.householdKey },
     "ratingFailed",
-    { recipeId, reason }
+    {
+      recipeId,
+      reason,
+    }
   );
 }
 
@@ -50,17 +52,20 @@ const rate = authedProcedure.input(RatingInputSchema).mutation(({ ctx, input }) 
       }
 
       const stats = await getAverageRating(recipeId);
-      const policy = await getRecipePermissionPolicy();
+      // REALTIME-ISO-01 (D-22-02): the rating belongs to the RECIPE's cookbook, which is
+      // not necessarily the rater's active one (a recipe shared into another cookbook).
+      const { viewPolicy, ctx: emitCtx } = await resolveRecipeRealtimeScope(recipeId, {
+        userId: ctx.user.id,
+        householdKey: ctx.householdKey,
+      });
 
       log.info({ userId: ctx.user.id, recipeId, rating, isNew: result.isNew }, "Recipe rated");
 
-      emitByPolicy(
-        ratingsEmitter,
-        policy.view,
-        { userId: ctx.user.id, householdKey: ctx.householdKey },
-        "ratingUpdated",
-        { recipeId, averageRating: stats.averageRating, ratingCount: stats.ratingCount }
-      );
+      emitByPolicy(ratingsEmitter, viewPolicy, emitCtx, "ratingUpdated", {
+        recipeId,
+        averageRating: stats.averageRating,
+        ratingCount: stats.ratingCount,
+      });
     })
     .catch((err) => {
       const error = err as Error;
@@ -72,40 +77,36 @@ const rate = authedProcedure.input(RatingInputSchema).mutation(({ ctx, input }) 
   return { success: true };
 });
 
-const removeRating = authedProcedure
-  .input(RatingRemoveInputSchema)
-  .mutation(({ ctx, input }) => {
-    const { recipeId } = input;
+const removeRating = authedProcedure.input(RatingRemoveInputSchema).mutation(({ ctx, input }) => {
+  const { recipeId } = input;
 
-    log.debug({ userId: ctx.user.id, recipeId }, "Removing recipe rating");
+  log.debug({ userId: ctx.user.id, recipeId }, "Removing recipe rating");
 
-    removeUserRating(ctx.user.id, recipeId)
-      .then(async (result) => {
-        const stats = await getAverageRating(recipeId);
-        const policy = await getRecipePermissionPolicy();
-
-        log.info(
-          { userId: ctx.user.id, recipeId, removed: result.removed },
-          "Recipe rating removed"
-        );
-
-        emitByPolicy(
-          ratingsEmitter,
-          policy.view,
-          { userId: ctx.user.id, householdKey: ctx.householdKey },
-          "ratingUpdated",
-          { recipeId, averageRating: stats.averageRating, ratingCount: stats.ratingCount }
-        );
-      })
-      .catch((err) => {
-        const error = err as Error;
-
-        log.error({ err: error, userId: ctx.user.id, recipeId }, "Failed to remove rating");
-        emitRatingFailed(ctx, recipeId, error.message || "Failed to remove rating");
+  removeUserRating(ctx.user.id, recipeId)
+    .then(async (result) => {
+      const stats = await getAverageRating(recipeId);
+      const { viewPolicy, ctx: emitCtx } = await resolveRecipeRealtimeScope(recipeId, {
+        userId: ctx.user.id,
+        householdKey: ctx.householdKey,
       });
 
-    return { success: true };
-  });
+      log.info({ userId: ctx.user.id, recipeId, removed: result.removed }, "Recipe rating removed");
+
+      emitByPolicy(ratingsEmitter, viewPolicy, emitCtx, "ratingUpdated", {
+        recipeId,
+        averageRating: stats.averageRating,
+        ratingCount: stats.ratingCount,
+      });
+    })
+    .catch((err) => {
+      const error = err as Error;
+
+      log.error({ err: error, userId: ctx.user.id, recipeId }, "Failed to remove rating");
+      emitRatingFailed(ctx, recipeId, error.message || "Failed to remove rating");
+    });
+
+  return { success: true };
+});
 
 const getUserRatingProcedure = authedProcedure
   .input(RatingGetInputSchema)

@@ -39,7 +39,6 @@ import {
   preparePasteImport,
 } from "@norish/queue";
 import { getQueues } from "@norish/queue/registry";
-import { getRecipePermissionPolicy } from "@norish/shared-server/config/server-config-loader";
 import { trpcLogger as log } from "@norish/shared-server/logger";
 import { deleteRecipeImagesDir } from "@norish/shared-server/media/storage";
 import { selectWeightedRandomRecipe } from "@norish/shared-server/recipes/randomizer";
@@ -47,7 +46,7 @@ import { FilterMode, RecipeCategory, SortOrder } from "@norish/shared/contracts"
 import { FullRecipeSchema, RecipeListResultSchema } from "@norish/shared/contracts/zod";
 
 import { formDataInputSchema, isUploadedFile } from "../../form-data";
-import { emitByPolicy } from "../../helpers";
+import { emitByPolicy, resolveRecipeRealtimeScope } from "../../helpers";
 import { authedProcedure } from "../../middleware";
 import { router } from "../../trpc";
 import { recipeEmitter } from "./emitter";
@@ -217,15 +216,12 @@ export const createRecipeProcedure = authedProcedure
 
         if (dashboardDto) {
           log.info({ userId: ctx.user.id, recipeId: createdId }, "Recipe created");
-          const policy = await getRecipePermissionPolicy();
+          const { viewPolicy, ctx: emitCtx } = await resolveRecipeRealtimeScope(createdId, {
+            userId: ctx.user.id,
+            householdKey: ctx.householdKey,
+          });
 
-          emitByPolicy(
-            recipeEmitter,
-            policy.view,
-            { userId: ctx.user.id, householdKey: ctx.householdKey },
-            "created",
-            { recipe: dashboardDto }
-          );
+          emitByPolicy(recipeEmitter, viewPolicy, emitCtx, "created", { recipe: dashboardDto });
         }
       })
       .catch((err) => handleRecipeError(ctx, err, "create recipe", { recipeId }));
@@ -253,15 +249,12 @@ const update = authedProcedure.input(RecipeUpdateInputSchema).mutation(({ ctx, i
 
       if (updatedRecipe) {
         log.info({ userId: ctx.user.id, recipeId: id }, "Recipe updated");
-        const policy = await getRecipePermissionPolicy();
+        const { viewPolicy, ctx: emitCtx } = await resolveRecipeRealtimeScope(id, {
+          userId: ctx.user.id,
+          householdKey: ctx.householdKey,
+        });
 
-        emitByPolicy(
-          recipeEmitter,
-          policy.view,
-          { userId: ctx.user.id, householdKey: ctx.householdKey },
-          "updated",
-          { recipe: updatedRecipe }
-        );
+        emitByPolicy(recipeEmitter, viewPolicy, emitCtx, "updated", { recipe: updatedRecipe });
       }
     })
     .catch((err) => handleRecipeError(ctx, err, "update recipe", { recipeId: id }));
@@ -298,15 +291,12 @@ const updateCategories = authedProcedure
     const updated = await getRecipeFull(input.recipeId);
 
     if (updated) {
-      const policy = await getRecipePermissionPolicy();
+      const { viewPolicy, ctx: emitCtx } = await resolveRecipeRealtimeScope(input.recipeId, {
+        userId: ctx.user.id,
+        householdKey: ctx.householdKey,
+      });
 
-      emitByPolicy(
-        recipeEmitter,
-        policy.view,
-        { userId: ctx.user.id, householdKey: ctx.householdKey },
-        "updated",
-        { recipe: updated }
-      );
+      emitByPolicy(recipeEmitter, viewPolicy, emitCtx, "updated", { recipe: updated });
     }
 
     return { success: true };
@@ -321,6 +311,14 @@ const deleteProcedure = authedProcedure
 
     assertRecipeAccess(ctx, id, "delete")
       .then(async () => {
+        // Resolve the emit scope BEFORE the row disappears — afterwards
+        // resolveRecipeRealtimeScope can only fail closed to the actor, and the recipe's
+        // own cookbook would never learn of the deletion.
+        const { viewPolicy, ctx: emitCtx } = await resolveRecipeRealtimeScope(id, {
+          userId: ctx.user.id,
+          householdKey: ctx.householdKey,
+        });
+
         await deleteRecipeImagesDir(id);
         const result = await deleteRecipeById(id, version);
 
@@ -331,15 +329,7 @@ const deleteProcedure = authedProcedure
         }
 
         log.info({ userId: ctx.user.id, recipeId: id }, "Recipe deleted");
-        const policy = await getRecipePermissionPolicy();
-
-        emitByPolicy(
-          recipeEmitter,
-          policy.view,
-          { userId: ctx.user.id, householdKey: ctx.householdKey },
-          "deleted",
-          { id }
-        );
+        emitByPolicy(recipeEmitter, viewPolicy, emitCtx, "deleted", { id });
       })
       .catch((err) => handleRecipeError(ctx, err, "delete recipe", { recipeId: id }));
 
@@ -466,15 +456,14 @@ const convertMeasurements = authedProcedure
               return null;
             }
 
-            const policy = await getRecipePermissionPolicy();
+            const { viewPolicy, ctx: emitCtx } = await resolveRecipeRealtimeScope(recipe.id, {
+              userId: ctx.user.id,
+              householdKey: ctx.householdKey,
+            });
 
-            emitByPolicy(
-              recipeEmitter,
-              policy.view,
-              { userId: ctx.user.id, householdKey: ctx.householdKey },
-              "converted",
-              { recipe: { ...recipe, systemUsed: targetSystem } }
-            );
+            emitByPolicy(recipeEmitter, viewPolicy, emitCtx, "converted", {
+              recipe: { ...recipe, systemUsed: targetSystem },
+            });
 
             return null; // Signal to stop chain
           });
@@ -522,15 +511,14 @@ const convertMeasurements = authedProcedure
           .then(async (updatedRecipe) => {
             if (updatedRecipe) {
               log.info({ userId: ctx.user.id, recipeId }, "Recipe measurements converted");
-              const policy = await getRecipePermissionPolicy();
+              const { viewPolicy, ctx: emitCtx } = await resolveRecipeRealtimeScope(recipeId, {
+                userId: ctx.user.id,
+                householdKey: ctx.householdKey,
+              });
 
-              emitByPolicy(
-                recipeEmitter,
-                policy.view,
-                { userId: ctx.user.id, householdKey: ctx.householdKey },
-                "converted",
-                { recipe: { ...updatedRecipe, systemUsed: targetSystem } }
-              );
+              emitByPolicy(recipeEmitter, viewPolicy, emitCtx, "converted", {
+                recipe: { ...updatedRecipe, systemUsed: targetSystem },
+              });
             }
           });
       })
@@ -736,15 +724,12 @@ const estimateNutrition = authedProcedure
       });
     }
 
-    const policy = await getRecipePermissionPolicy();
+    const { viewPolicy, ctx: emitCtx } = await resolveRecipeRealtimeScope(recipeId, {
+      userId: ctx.user.id,
+      householdKey: ctx.householdKey,
+    });
 
-    emitByPolicy(
-      recipeEmitter,
-      policy.view,
-      { userId: ctx.user.id, householdKey: ctx.householdKey },
-      "nutritionStarted",
-      { recipeId }
-    );
+    emitByPolicy(recipeEmitter, viewPolicy, emitCtx, "nutritionStarted", { recipeId });
 
     return { success: true };
   });
@@ -803,15 +788,12 @@ const triggerAutoTag = authedProcedure
       });
     }
 
-    const policy = await getRecipePermissionPolicy();
+    const { viewPolicy, ctx: emitCtx } = await resolveRecipeRealtimeScope(recipeId, {
+      userId: ctx.user.id,
+      householdKey: ctx.householdKey,
+    });
 
-    emitByPolicy(
-      recipeEmitter,
-      policy.view,
-      { userId: ctx.user.id, householdKey: ctx.householdKey },
-      "autoTaggingStarted",
-      { recipeId }
-    );
+    emitByPolicy(recipeEmitter, viewPolicy, emitCtx, "autoTaggingStarted", { recipeId });
 
     return { success: true };
   });
@@ -931,15 +913,12 @@ const triggerAllergyDetection = authedProcedure
       });
     }
 
-    const policy = await getRecipePermissionPolicy();
+    const { viewPolicy, ctx: emitCtx } = await resolveRecipeRealtimeScope(recipeId, {
+      userId: ctx.user.id,
+      householdKey: ctx.householdKey,
+    });
 
-    emitByPolicy(
-      recipeEmitter,
-      policy.view,
-      { userId: ctx.user.id, householdKey: ctx.householdKey },
-      "allergyDetectionStarted",
-      { recipeId }
-    );
+    emitByPolicy(recipeEmitter, viewPolicy, emitCtx, "allergyDetectionStarted", { recipeId });
 
     return { success: true };
   });

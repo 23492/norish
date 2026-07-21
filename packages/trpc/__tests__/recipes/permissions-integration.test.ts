@@ -47,12 +47,22 @@ vi.mock("@norish/trpc/routers/recipes/emitter", () => ({
 
 vi.mock("../../src/helpers", () => ({
   emitByPolicy: vi.fn(),
+  // REALTIME-ISO-01 (D-22-02): the routers resolve their emit scope through these.
+  // Stub them to echo the caller's fallback context so emit assertions stay readable.
+  resolveRecipeRealtimeScope: vi.fn((_recipeId: string, fallback: unknown) =>
+    Promise.resolve({ viewPolicy: "household", ctx: fallback })
+  ),
+  resolveHouseholdRealtimeScope: vi.fn((householdId: string | null, fallback: { userId: string }) =>
+    Promise.resolve({
+      viewPolicy: "household",
+      ctx: { userId: fallback.userId, householdKey: householdId ?? fallback.userId },
+    })
+  ),
 }));
 
 // Import the REAL helpers (which call the REAL canAccessResource) after the mocks.
-const { assertRecipeAccess, findRecipeForViewer } = await import(
-  "../../src/routers/recipes/helpers"
-);
+const { assertRecipeAccess, findRecipeForViewer } =
+  await import("../../src/routers/recipes/helpers");
 
 const GLOBAL_DEFAULT: RecipePermissionPolicy = {
   view: "everyone",
@@ -119,7 +129,11 @@ describe("recipe permission enforcement (real boundary, per-cookbook)", () => {
         createMockFullRecipe({ id: "r1", userId: "owner-id", householdId: "cookbook-a" })
       );
 
-      const ctx = { user: { id: "stranger" }, memberHouseholdIds: ["cookbook-a"], isServerAdmin: false };
+      const ctx = {
+        user: { id: "stranger" },
+        memberHouseholdIds: ["cookbook-a"],
+        isServerAdmin: false,
+      };
 
       expect(await findRecipeForViewer(ctx, "r1")).toBeNull();
     });
@@ -135,7 +149,10 @@ describe("recipe permission enforcement (real boundary, per-cookbook)", () => {
     const recipeId = "recipe-in-A";
 
     beforeEach(() => {
-      setCookbookPolicy({ view: "household", edit: "household", delete: "household" }, cookbookAdmin);
+      setCookbookPolicy(
+        { view: "household", edit: "household", delete: "household" },
+        cookbookAdmin
+      );
       getRecipeOwnerAndHouseholdMock.mockResolvedValue({ userId: owner, householdId: cookbookA });
       getRecipeFullMock.mockResolvedValue(
         createMockFullRecipe({ id: recipeId, userId: owner, householdId: cookbookA })
@@ -145,7 +162,11 @@ describe("recipe permission enforcement (real boundary, per-cookbook)", () => {
     it.each(["edit", "delete"] as const)(
       "the cookbook ADMIN may %s another member's recipe",
       async (action) => {
-        const ctxAdmin = { user: { id: cookbookAdmin }, memberHouseholdIds: [cookbookA], isServerAdmin: false };
+        const ctxAdmin = {
+          user: { id: cookbookAdmin },
+          memberHouseholdIds: [cookbookA],
+          isServerAdmin: false,
+        };
 
         await expect(assertRecipeAccess(ctxAdmin, recipeId, action)).resolves.toBeUndefined();
       }
@@ -154,7 +175,11 @@ describe("recipe permission enforcement (real boundary, per-cookbook)", () => {
     it.each(["edit", "delete"] as const)(
       "a non-admin MEMBER may NOT %s another member's recipe",
       async (action) => {
-        const ctxMember = { user: { id: "plain-member" }, memberHouseholdIds: [cookbookA], isServerAdmin: false };
+        const ctxMember = {
+          user: { id: "plain-member" },
+          memberHouseholdIds: [cookbookA],
+          isServerAdmin: false,
+        };
 
         await expect(assertRecipeAccess(ctxMember, recipeId, action)).rejects.toMatchObject({
           code: "FORBIDDEN",
@@ -165,7 +190,11 @@ describe("recipe permission enforcement (real boundary, per-cookbook)", () => {
     it.each(["edit", "delete"] as const)(
       "the OWNER may %s their own recipe (members-edit-own)",
       async (action) => {
-        const ctxOwner = { user: { id: owner }, memberHouseholdIds: [cookbookA], isServerAdmin: false };
+        const ctxOwner = {
+          user: { id: owner },
+          memberHouseholdIds: [cookbookA],
+          isServerAdmin: false,
+        };
 
         await expect(assertRecipeAccess(ctxOwner, recipeId, action)).resolves.toBeUndefined();
       }
@@ -182,12 +211,23 @@ describe("recipe permission enforcement (real boundary, per-cookbook)", () => {
     const recipeId = "recipe-in-A";
     const owner = "owner-in-A";
 
-    const ctxMemberOfA = { user: { id: "user-U" }, memberHouseholdIds: [cookbookA], isServerAdmin: false };
-    const ctxMemberOfB = { user: { id: "user-W" }, memberHouseholdIds: ["cookbook-b-id"], isServerAdmin: false };
+    const ctxMemberOfA = {
+      user: { id: "user-U" },
+      memberHouseholdIds: [cookbookA],
+      isServerAdmin: false,
+    };
+    const ctxMemberOfB = {
+      user: { id: "user-W" },
+      memberHouseholdIds: ["cookbook-b-id"],
+      isServerAdmin: false,
+    };
     const ctxPersonal = { user: { id: "user-W" }, memberHouseholdIds: [], isServerAdmin: false };
 
     beforeEach(() => {
-      setCookbookPolicy({ view: "household", edit: "household", delete: "household" }, cookbookAdmin);
+      setCookbookPolicy(
+        { view: "household", edit: "household", delete: "household" },
+        cookbookAdmin
+      );
       getRecipeOwnerAndHouseholdMock.mockResolvedValue({ userId: owner, householdId: cookbookA });
       getRecipeFullMock.mockResolvedValue(
         createMockFullRecipe({ id: recipeId, userId: owner, householdId: cookbookA })
@@ -207,7 +247,11 @@ describe("recipe permission enforcement (real boundary, per-cookbook)", () => {
       "ALLOWS a member of cookbook A to %s cookbook A's recipe (admin)",
       async (action) => {
         // ctxMemberOfA is the cookbook admin here (so edit/delete pass too).
-        const ctxAdminOfA = { user: { id: cookbookAdmin }, memberHouseholdIds: [cookbookA], isServerAdmin: false };
+        const ctxAdminOfA = {
+          user: { id: cookbookAdmin },
+          memberHouseholdIds: [cookbookA],
+          isServerAdmin: false,
+        };
 
         await expect(assertRecipeAccess(ctxAdminOfA, recipeId, action)).resolves.toBeUndefined();
       }
@@ -233,7 +277,11 @@ describe("recipe permission enforcement (real boundary, per-cookbook)", () => {
 
     it("a personal recipe (NULL household) is owner-only, not reachable by a cookbook member", async () => {
       // Personal recipe -> resolver uses the global default (getConfig), null admin.
-      getConfigMock.mockResolvedValue({ view: "household", edit: "household", delete: "household" });
+      getConfigMock.mockResolvedValue({
+        view: "household",
+        edit: "household",
+        delete: "household",
+      });
       getRecipeOwnerAndHouseholdMock.mockResolvedValue({ userId: owner, householdId: null });
       getRecipeFullMock.mockResolvedValue(
         createMockFullRecipe({ id: recipeId, userId: owner, householdId: null })

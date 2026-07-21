@@ -3,7 +3,6 @@ import type { FullRecipeDTO } from "@norish/shared/contracts";
 
 import { TRPCError } from "@trpc/server";
 import { canAccessResource, resolveRecipeCookbookPolicy } from "@norish/auth/permissions";
-import { getRecipePermissionPolicy } from "@norish/shared-server/config/server-config-loader";
 import { getRecipeFull, getRecipeOwnerAndHousehold } from "@norish/db";
 import { trpcLogger as log } from "@norish/shared-server/logger";
 
@@ -19,16 +18,16 @@ export type RecipeUserContext = {
   isServerAdmin: boolean;
 };
 
-export async function emitRecipeFailure(
+export function emitRecipeFailure(
   ctx: Pick<RecipeUserContext, "user" | "householdKey">,
   reason: string,
   meta?: { recipeId?: string; url?: string }
-): Promise<void> {
-  const policy = await getRecipePermissionPolicy();
-
+): void {
+  // REALTIME-ISO-01: a failure concerns only the user whose action failed. `owner` scope
+  // sends it to that user's channel — never to a cookbook, never to a broadcast.
   emitByPolicy(
     recipeEmitter,
-    policy.view,
+    "owner",
     { userId: ctx.user.id, householdKey: ctx.householdKey },
     "failed",
     { reason, ...meta }
@@ -44,7 +43,7 @@ export function handleRecipeError(
   const error = err as Error;
 
   log.error({ err: error, userId: ctx.user.id, ...meta }, `Failed to ${operation}`);
-  void emitRecipeFailure(ctx, error.message || `Failed to ${operation}`, meta);
+  emitRecipeFailure(ctx, error.message || `Failed to ${operation}`, meta);
 }
 
 export async function assertRecipeAccess(

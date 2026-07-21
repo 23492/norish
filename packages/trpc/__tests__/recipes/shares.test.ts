@@ -15,6 +15,11 @@ const assertRecipeAccessMock = vi.hoisted(() => vi.fn());
 const createRecipeShareMock = vi.hoisted(() => vi.fn());
 const deleteRecipeShareMock = vi.hoisted(() => vi.fn());
 const emitByPolicyMock = vi.hoisted(() => vi.fn());
+const resolveRecipeRealtimeScopeMock = vi.hoisted(() =>
+  vi.fn((_recipeId: string, fallback: unknown) =>
+    Promise.resolve({ viewPolicy: "household", ctx: fallback })
+  )
+);
 const getActiveRecipeShareByTokenMock = vi.hoisted(() => vi.fn());
 const getTimerKeywordsMock = vi.hoisted(() => vi.fn());
 const getRecipePermissionPolicyMock = vi.hoisted(() => vi.fn());
@@ -44,6 +49,15 @@ vi.mock("../../src/routers/recipes/helpers", () => ({
 
 vi.mock("../../src/helpers", () => ({
   emitByPolicy: emitByPolicyMock,
+  // REALTIME-ISO-01 (D-22-02): the routers resolve their emit scope through these.
+  // Stub them to echo the caller's fallback context so emit assertions stay readable.
+  resolveRecipeRealtimeScope: resolveRecipeRealtimeScopeMock,
+  resolveHouseholdRealtimeScope: vi.fn((householdId: string | null, fallback: { userId: string }) =>
+    Promise.resolve({
+      viewPolicy: "household",
+      ctx: { userId: fallback.userId, householdKey: householdId ?? fallback.userId },
+    })
+  ),
 }));
 
 vi.mock("@norish/shared-server/config/server-config-loader", () => ({
@@ -495,7 +509,9 @@ describe("recipe share procedures", () => {
 
     // A valid, active share token exists, but the recipe is private.
     mockActiveShareForToken();
-    getRecipeFullMock.mockResolvedValue(createMockFullRecipe({ id: recipeId, visibility: "private" }));
+    getRecipeFullMock.mockResolvedValue(
+      createMockFullRecipe({ id: recipeId, visibility: "private" })
+    );
 
     // SHARE-01 gate lives in sharedRecipeProcedure (the public choke point):
     // a non-public recipe is the SAME opaque NOT_FOUND as a missing token.
@@ -673,7 +689,9 @@ describe("recipe share procedures", () => {
       stale: false,
       value: { visibility: "public", version: 5 },
     });
-    getRecipeFullMock.mockResolvedValue(createMockFullRecipe({ id: recipeId, visibility: "public" }));
+    getRecipeFullMock.mockResolvedValue(
+      createMockFullRecipe({ id: recipeId, visibility: "public" })
+    );
 
     const result = await caller.shareSetVisibility({
       recipeId,
@@ -690,7 +708,10 @@ describe("recipe share procedures", () => {
     const caller = recipeSharesProcedures.createCaller(authedCtx as never);
 
     assertRecipeAccessMock.mockRejectedValue(
-      new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to access this recipe" })
+      new TRPCError({
+        code: "FORBIDDEN",
+        message: "You do not have permission to access this recipe",
+      })
     );
 
     await expect(
@@ -703,7 +724,9 @@ describe("recipe share procedures", () => {
 
   const savedRecipeId = "123e4567-e89b-12d3-a456-426614174099";
 
-  function mockActivePublicShare(recipe = createMockFullRecipe({ id: recipeId, visibility: "public" })) {
+  function mockActivePublicShare(
+    recipe = createMockFullRecipe({ id: recipeId, visibility: "public" })
+  ) {
     getActiveRecipeShareByTokenMock.mockResolvedValue({
       id: shareId,
       userId: "some-other-owner",
@@ -754,6 +777,15 @@ describe("recipe share procedures", () => {
 
     // The result carries ONLY the new recipe id (the saver's copy).
     expect(result).toEqual({ recipeId: savedRecipeId });
+
+    // REALTIME-ISO-01: the realtime scope resolves against the NEWLY CREATED copy, not
+    // the source recipe — the source may live in a cookbook the saver cannot see, and
+    // scoping the event there would push it to strangers (or nowhere useful).
+    expect(resolveRecipeRealtimeScopeMock).toHaveBeenCalledWith(savedRecipeId, {
+      userId: user.id,
+      householdKey: household.id,
+    });
+    expect(resolveRecipeRealtimeScopeMock).not.toHaveBeenCalledWith(recipeId, expect.anything());
 
     // It surfaces live in the saver's cookbook like a create.
     expect(emitByPolicyMock).toHaveBeenCalledWith(

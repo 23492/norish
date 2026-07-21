@@ -43,7 +43,14 @@ export async function waitForAbort(signal?: AbortSignal): Promise<void> {
 }
 
 export type { PolicyEmitContext } from "@norish/shared-server/realtime/policy";
-export { emitByPolicy } from "@norish/shared-server/realtime/policy";
+// REALTIME-ISO-01: routers must resolve their emit scope from the RECIPE's own cookbook
+// (D-22-02) and never from the server-wide default. Re-exported alongside emitByPolicy so
+// the two always arrive together.
+export {
+  emitByPolicy,
+  resolveHouseholdRealtimeScope,
+  resolveRecipeRealtimeScope,
+} from "@norish/shared-server/realtime/policy";
 
 /**
  * Extended context for subscriptions that includes the multiplexer.
