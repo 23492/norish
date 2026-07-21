@@ -266,12 +266,12 @@ The product backlog had been living in the vault (`norish-product-roadmap`) and 
 1. **Correctness before features.** Phase 22 is a live cross-cookbook leak in the realtime layer. Every phase below it adds `emitByPolicy` sites, so fixing it first is strictly cheaper than fixing it later.
 2. **Cheap legibility before expensive capability.** Phases 23–26 are all small-to-medium, use only shipped primitives (households, the import queue, `stores`, `recipe_ratings`), and each removes a "this doesn't feel finished" complaint. They should land before any MAJOR phase starts.
 3. **MAJOR phases are sequenced, not parallelised.** 27–30 each carry a real research or external dependency. They are listed in the order that maximises what the *previous* one unlocks, not in order of excitement.
-4. **Nothing with an unresolved product decision is scheduled.** INVITE-02, RATE-02 and SHOP-02 (below) are decisions for Kiran, not phases; they stay in the backlog until decided.
+4. **Nothing with an unresolved product decision is scheduled.** INVITE-02 and RATE-02 are decisions for Kiran, not phases; they stay in the backlog until decided. (SHOP-02 was on this list and was **decided on 2026-07-21** — see below — which is what made Phase 25 plannable.)
 
 **Not scheduled — open decisions for Kiran:**
 - **INVITE-02** — should an invite link let a new user sign up while `registration_enabled` is off? (A deliberate registration bypass; security-shaped, so it wants an explicit yes.)
 - **RATE-02** — should rater *names* show on the no-auth public share view? RATE-01 deliberately kept ratings authenticated-only because exposing cookbook members' names to anonymous visitors is a privacy call.
-- **SHOP-02 (new, surfaced while sizing Phase 25)** — `groceries` and `stores` are keyed on `user_id` with **no `household_id`**, so a *shared* cookbook does **not** share a shopping list. Two members of one household planning the same meal keep two separate lists. This may be intended (personal lists) or a gap; it changes Phase 25's data model, so decide before planning it.
+- ~~SHOP-02~~ — **DECIDED 2026-07-21 (Kiran): "Only a household should share a shopping list."** No longer an open decision; promoted into Phase 25 as a requirement. `groceries`/`stores` re-key onto `household_id`, and SHOP-01's aisle mapping keys the same way, so both land in one migration.
 
 ### Phase 22: Realtime fan-out isolation
 **Goal**: Realtime events obey the same per-cookbook boundary (HOUSE-06) that the tRPC layer already enforces, so no client is ever pushed a recipe it could not have fetched.
@@ -330,16 +330,17 @@ Canonical refs: vault `norish-uat-v0.19.0` section B2; `packages/queue/src/recip
 ### Phase 25: Shopping list — aisle grouping
 **Goal**: The shopping list is ordered the way a shop is walked — grouped by aisle/category — instead of by insertion order.
 **Depends on**: Phase 0 (the shipped grocery/store surface). Independent of Phases 22–24.
-**Requirements**: SHOP-01
+**Requirements**: SHOP-01, SHOP-02
 **Success Criteria** (what must be TRUE):
   1. Every grocery item resolves to a category; the list renders grouped by category in a user-orderable sequence, with uncategorised items in a clearly-labelled bucket rather than hidden.
   2. Categorisation extends the **existing** `ingredient_store_preferences` pattern (`normalized_name` → target, unique per user) rather than inventing a parallel mapping; a user correction sticks for future lists.
   3. A seed mapping (from `open-tandoor-data`, or equivalent) covers common Dutch and English ingredients out of the box, so a new user gets useful grouping with zero configuration — consistent with the "users do zero config" constraint.
   4. Explicitly **decoupled from any pantry/inventory** (dropped as a concept) — no on-hand subtraction.
-  5. `@norish/db` + `@norish/trpc` suites green; i18n in all 11 locales.
+  5. **SHOP-02** — the list is HOUSEHOLD-scoped: members of a shared cookbook see and edit one list. Migration assigns each existing user's groceries/stores to their own household with no data loss and no cross-household merge of pre-existing items; a member never sees a list for a household they aren't in (HOUSE-06).
+  6. `@norish/db` + `@norish/trpc` suites green; i18n in all 11 locales.
 **Note on sizing** (measured 2026-07-21): the vault framed this as a MAJOR phase. It is not. `packages/db-schema/src/schema/stores.ts` already ships `stores` (user-scoped, ordered via `sort_order`) *and* `ingredient_store_preferences` mapping a normalized ingredient name to a store, unique per `(user_id, normalized_name)`. Aisle grouping is the same shape one level down, so the pattern, the repo helpers and the UI affordance all already exist.
-**Blocked on decision**: SHOP-02 (see "Open decisions" above) — whether lists become household-shared changes whether the category mapping is keyed on `user_id` or `household_id`. Settle it before writing plans, because it is a migration either way.
-**Plans**: TBD (~2)
+**Decision recorded 2026-07-21 (Kiran)**: *"Only a household should share a shopping list."* This settles the data model — the previously-blocking SHOP-02 question is answered, and the aisle mapping keys on `household_id` alongside the re-keyed `groceries`/`stores`. One migration, not two. Phase 25 is now plannable.
+**Plans**: TBD (~2) — writable now that SHOP-02 is decided.
 
 Canonical refs: `packages/db-schema/src/schema/{groceries,stores}.ts`; https://github.com/TandoorRecipes/open-tandoor-data
 

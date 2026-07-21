@@ -51,7 +51,7 @@ _(renumbered from Phase 3/4 to make room for the Sharing phase.)_
 
 ## v2 Requirements
 
-- **HOUSE-08**: Per-cookbook permission policy / move-recipe-between-cookbooks.
+- ~~**HOUSE-08**~~: Per-cookbook permission policy / move-recipe-between-cookbooks. **Both halves are now scheduled**: the policy half shipped as POLICY-01 (Phase 3); the move half is CKBK-MOVE-01 (Phase 23), raised independently by the 2026-07-21 UAT (B3).
 - **VIDEO-05**: Dedicated TikTok processor (caption-first hardening).
 
 ## Out of Scope
@@ -82,13 +82,14 @@ _(renumbered from Phase 3/4 to make room for the Sharing phase.)_
 | BULK-01 | Phase 24 | Pending — promoted from backlog 2026-07-21 |
 | IMPORT-UX-01 | Phase 24 | Pending — raised by the 2026-07-21 UAT (B2) |
 | SHOP-01 | Phase 25 | Pending — promoted from backlog 2026-07-21 |
+| SHOP-02 | Phase 25 | Pending — DECIDED 2026-07-21 (household-scoped lists) |
 | DINNER-01 | Phase 26 | Pending — promoted from backlog 2026-07-21 |
 | COOK-01 | Phase 27 | Pending — externally blocked on upstream #470 design |
 | COST-01 | Phase 28 | Pending — promoted from backlog 2026-07-21 |
 | MAKE-01 | Phase 29 | Pending — promoted from backlog 2026-07-21 |
 | VERSION-01 | Phase 30 | Pending — unblocked by SHARE-02 shipping 2026-07-21 |
 
-**Coverage:** v1 = 22 requirements, all mapped to phases. The 2026-07-21 roadmap extension adds 11 more (Phases 22–30), promoting the previously vault-only product backlog into sequenced phases. Still unscheduled by design (open product decisions, not capacity): INVITE-02, RATE-02, SHOP-02, REC-01, DISCOVER-01.
+**Coverage:** v1 = 22 requirements, all mapped to phases. The 2026-07-21 roadmap extension adds 11 more (Phases 22–30), promoting the previously vault-only product backlog into sequenced phases. Still unscheduled by design (open product decisions, not capacity): INVITE-02, RATE-02, REC-01, DISCOVER-01.
 
 ## Backlog / future phases
 
@@ -134,6 +135,10 @@ Locked from the product backlog + brainstorm (2026-06-12). All **Backlog/v2** un
 - [ ] **MEDIA-UX-01** (Phase 21) — Opening a recipe's media must keep the user in the same media set. Today `media-carousel.tsx` builds the lightbox from `items.filter(type === "image")`, so a recipe with 1 photo + N videos opens a single-image lightbox with no position counter, no prev/next and no thumbnail strip — the media you were swiping disappears. The lightbox must expose the full media set (or at minimum every image) with counter + navigation, and returning from it must leave the carousel on the same item. Additionally, thumbnails must not download the full-size original into a 64px slot (`unoptimized` + `sizes="64px"` in `components/ui/carousel.tsx`); verify against a browser network trace. Source: UAT section A3.
 - [ ] **UI-POLISH-01** (Phase 21) — Reduce visual and functional chrome so the app reads as a polished product rather than self-hostable software — *"every pixel must earn its place; most should lose"*. Concretely: strip the settings surface to what a normal user needs (removals are reversible), replace the wonky mobile-nav profile avatar, and rework the calendar into tappable rows of 7 that expand into a single day while hiding empty past days. Primarily SUBTRACTIVE. Source: UAT section D.
 
+### Shopping list — Phase 25
+
+- [ ] **SHOP-02** (Phase 25) — **DECIDED 2026-07-21 by Kiran: only a household should share a shopping list.** Today `groceries` and `stores` are keyed on `user_id` with **no `household_id`** (`packages/db-schema/src/schema/{groceries,stores}.ts`), so members of a shared cookbook keep two separate lists — a real gap in the Phase 2 multi-household work, not an intentional design. Re-key the grocery/store surface onto `household_id` so a cookbook's members see and edit one list, with a migration that assigns each existing user's items to their own household (no data loss, no cross-household merge of pre-existing items). Isolation still applies: a member never sees a list for a household they don't belong to (HOUSE-06). **Settles the Phase 25 data model** — the aisle-category mapping (SHOP-01) keys on `household_id` too, so both land in one migration rather than two.
+
 ### Realtime correctness — Phase 22 (found 2026-07-21 while sequencing the roadmap)
 
 - [ ] **REALTIME-ISO-01** (Phase 22) — **BUG, live today.** Realtime events do not honour per-cookbook isolation. `emitByPolicy` (`packages/shared-server/src/realtime/policy.ts`) maps `view: "everyone"` onto `emitter.broadcast()`; of the 54 `emitByPolicy(` call sites in `packages/queue/src` + `packages/trpc/src`, **34 resolve their policy from the server-wide `getRecipePermissionPolicy()`** rather than the recipe's own household. Live `server_config.recipe_permission_policy` is `{"edit":"household","view":"everyone","delete":"household"}` (queried against the live DB 2026-07-21), so the broadcast branch is the *active* branch in production, and the payloads are full dashboard DTOs (e.g. `emitByPolicy(..., "imported", { recipe: dashboardDto, ... })`) — not bare ids. Net effect: **every connected client is pushed every household's imports, updates, ratings and shares.** Phase 3 proved HOUSE-06 adversarially on the REST/tRPC path only; the socket path was never covered. Fix in code by resolving the policy from the recipe's OWN household (the `canAccessResource` / `getHouseholdPolicy` precedent) — **not** by flipping the live config, which would mask the bug while leaving `view: "everyone"` a foot-gun. Sequenced ahead of all feature work because Phases 24, 26 and 30 each add emit sites.
@@ -145,7 +150,7 @@ Locked from the product backlog + brainstorm (2026-06-12). All **Backlog/v2** un
 
 ### Deferred pending a product decision (not scheduled)
 
-- **SHOP-02** (surfaced 2026-07-21 while sizing Phase 25) — `groceries` and `stores` are both keyed on `user_id` with **no `household_id`** (`packages/db-schema/src/schema/{groceries,stores}.ts`), so members of a *shared* cookbook do **not** share a shopping list — two people planning the same meal keep two separate lists. This may be intentional (lists are personal) or an oversight in the Phase 2 multi-household work. It is a decision, not a task, and it must be settled before Phase 25 is planned: it determines whether the aisle-category mapping is keyed on `user_id` or `household_id`, and it is a migration either way.
+_(SHOP-02 previously sat here as an open decision. **Decided 2026-07-21 by Kiran** — shopping lists are HOUSEHOLD-scoped, not per-user — so it moved up into the "Shopping list — Phase 25" section above as a real requirement.)_
 
 ### Explicitly out of scope
 
