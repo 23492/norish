@@ -366,9 +366,13 @@ export interface RecipeListContext {
  * a seeded `everyone` (inherited from a default-`everyone` global). So in the
  * active-cookbook branch BOTH `everyone` and `household` collapse to
  * active-cookbook scoping; only `owner` narrows further (to the viewer's own
- * recipes within that cookbook). The unfiltered (cross-cookbook) `everyone`
- * widening is reachable ONLY from the personal view (no active household), where
- * it reflects the retained global default on a single-user instance.
+ * recipes within that cookbook).
+ *
+ * LIST-ISO-01: there is NO unfiltered branch. `everyone` never means "no
+ * where-clause" — in the personal view (no active household) it clamps to the
+ * viewer's own recipes plus orphans. That branch used to return `undefined`,
+ * which leaked every recipe on the server to any user who cleared their active
+ * cookbook.
  */
 async function buildViewPolicyCondition(ctx: RecipeListContext) {
   const viewLevel = await getRecipeViewPolicy(ctx.activeHouseholdId);
@@ -394,11 +398,16 @@ async function buildViewPolicyCondition(ctx: RecipeListContext) {
     return or(eq(recipes.householdId, ctx.activeHouseholdId), isNull(recipes.userId));
   }
 
-  // Personal view (no active household).
+  // Personal view (no active household). LIST-ISO-01: this branch must never widen
+  // beyond the viewer either — `switchActive({ householdId: null })` makes it reachable
+  // by any authenticated user, so an unfiltered read here is a cross-cookbook leak.
   switch (viewLevel) {
     case "everyone":
-      // Retained global default on a single-user instance: no filtering.
-      return undefined;
+      // `everyone` is the widest policy, so it gets the widest ISOLATION-SAFE personal
+      // view: everything the viewer owns (in any cookbook) plus orphans. On the
+      // single-user instance this default was retained for, that is the same list as the
+      // old unfiltered read; on a multi-user instance it stops at the viewer.
+      return or(eq(recipes.userId, ctx.userId), isNull(recipes.userId));
 
     case "household":
       // The viewer's own household-less recipes, plus orphans.

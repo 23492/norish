@@ -36,6 +36,22 @@ Use this file for lightweight repo context.
 - Route database access through repositories instead of direct router-level queries.
 - Keep repo guidance concise; prefer practical conventions over long project narratives.
 
+## `view: "everyone"` is never "no boundary"
+
+The server-wide `recipe_permission_policy` is `{"view":"everyone",...}` in production.
+Three separate cross-cookbook leaks (REALTIME-ISO-01, IMPORT-DEDUP-ISO-01, LIST-ISO-01)
+all came from the same mistake: a code path treating `everyone` as *unscoped* — broadcast
+to every socket, dedup across every cookbook, list with no where-clause.
+
+- `everyone` answers "who may fetch this if they ask", which is `canAccessResource`'s job.
+  It never widens a **push**, a **dedup search**, or a **list query** past the cookbook
+  (or, with no active cookbook, past the viewer). Clamp it; don't branch to "unfiltered".
+- Prefer removing `everyone` from a scope-resolving signature entirely over avoiding it at
+  the call sites — a reachable `everyone` branch is the foot-gun.
+- **Tests must seed the LIVE policy.** All three defects survived a green isolation suite
+  because the suite seeded `view: "household"`, so the branch production actually runs was
+  never executed. If a test seeds a policy, it needs a sibling case on `everyone`.
+
 ## Realtime scoping (REALTIME-ISO-01)
 
 - A recipe-bearing realtime event is scoped by the **recipe's own cookbook**, never by the
