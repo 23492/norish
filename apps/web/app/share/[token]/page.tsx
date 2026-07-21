@@ -9,6 +9,7 @@ import { sharedRecipeShareHooks } from "@/hooks/recipes/shared-recipe-hooks";
 import { TRPCClientError } from "@trpc/client";
 import { useTranslations } from "next-intl";
 
+import { ShareSaveButton } from "./components/share-save-button";
 import { SharedRecipePageDesktop } from "./components/shared-recipe-page-desktop";
 import { SharedRecipePageMobile } from "./components/shared-recipe-page-mobile";
 import { PublicRecipeProvider } from "./public/public-recipe-context";
@@ -39,7 +40,8 @@ function SharedRecipePageContent({ token }: { token: string }) {
   return (
     <PublicRecipeProvider recipe={recipe} token={token}>
       <TimerTicker />
-      <div className="hidden justify-end pt-4 md:flex md:px-6">
+      <div className="hidden items-center justify-end gap-2 pt-4 md:flex md:px-6">
+        <ShareSaveButton recipeName={recipe.name} token={token} />
         <AuthLanguageSelector />
       </div>
       <SharedRecipePageDesktop />

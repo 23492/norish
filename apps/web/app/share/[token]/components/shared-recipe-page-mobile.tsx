@@ -14,12 +14,13 @@ import { useTranslations } from "next-intl";
 
 import { usePublicRecipeContext } from "../public/public-recipe-context";
 import { ShareRecipeControls } from "./share-recipe-controls";
+import { ShareSaveButton } from "./share-save-button";
 import { ShareRecipeIngredients } from "./share-recipe-ingredients";
 import { ShareRecipeSteps } from "./share-recipe-steps";
 
 export function SharedRecipePageMobile() {
   const t = useTranslations("recipes.detail");
-  const { recipe } = usePublicRecipeContext();
+  const { recipe, token } = usePublicRecipeContext();
 
   return (
     <div className="-mx-4 -mt-4 flex w-[calc(100%+2rem)] flex-col md:hidden">
@@ -42,7 +43,8 @@ export function SharedRecipePageMobile() {
             ) : null
           }
           topRightContent={
-            <div className="mt-2">
+            <div className="mt-2 flex items-center gap-2">
+              <ShareSaveButton recipeName={recipe.name} token={token} />
               <AuthLanguageSelector />
             </div>
           }

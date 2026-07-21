@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { BookmarkIcon } from "@heroicons/react/16/solid";
-import { addToast, Button } from "@heroui/react";
+import { Button, toast } from "@heroui/react";
 import { useMutation } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useSession } from "@norish/shared/lib/auth/client";
@@ -33,17 +33,15 @@ export function ShareSaveButton({ token, recipeName }: Props) {
   const saveMutation = useMutation(
     trpc.recipes.saveShared.mutationOptions({
       onSuccess: ({ recipeId }) => {
-        addToast({
-          title: t("success"),
+        toast(t("success"), {
           description: t("successDescription", { recipeName }),
-          color: "success",
-          shouldShowTimeoutProgress: true,
+          variant: "success",
         });
         // Land on the saver's own copy.
         router.push(`/recipes/${recipeId}`);
       },
       onError: () => {
-        addToast({ title: t("error"), description: t("errorDescription"), color: "danger" });
+        toast(t("error"), { description: t("errorDescription"), variant: "danger" });
       },
     })
   );
@@ -60,14 +58,8 @@ export function ShareSaveButton({ token, recipeName }: Props) {
   };
 
   return (
-    <Button
-      color="primary"
-      isLoading={saveMutation.isPending}
-      size="sm"
-      startContent={!saveMutation.isPending ? <BookmarkIcon className="h-4 w-4" /> : undefined}
-      variant="flat"
-      onPress={handleSave}
-    >
+    <Button isPending={saveMutation.isPending} size="sm" variant="primary" onPress={handleSave}>
+      {!saveMutation.isPending && <BookmarkIcon className="h-4 w-4" />}
       {t("button")}
     </Button>
   );
