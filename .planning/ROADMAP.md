@@ -32,6 +32,15 @@ Fork upstream norish and evolve it in feature phases — native Camoufox scrapin
 - [x] **Phase 20: Incorporate upstream v0.19.0-beta** - Merge upstream's `v0.19.0-beta` (PR #468) into the fork on a dedicated integration branch (UPSTREAM-019-01). LARGE + high-overlap (~996 files, ~110 overlapping ours): re-assert the fork's hard constraints at each conflict (Camoufox-not-Chrome in `parser/fetch.ts`/no `playwright.ts`; per-cookbook isolation suites stay green; config-as-code env sync), and reconcile our `packages/db/src/schema` against upstream's NEW `packages/db-schema/` package split. Gate on the isolation + db testcontainer suites (`sg docker`) + `pnpm docker:build`. **COMPLETE:** merged on `integ/upstream-0.19.0`, built token-free, deployed to live 2026-07-21 — live now `0.19.0-beta`. Full assessment: vault `norish-upstream-0.19.0-incorporation-assessment`.
 - [x] **Phase 20.1: Replace @heroui-pro/react with free components (INSERTED 2026-07-15)** - Unblock phase 20's `pnpm docker:build` gate WITHOUT buying the HeroUI Pro license (Kiran's decision 2026-07-15): replace all 6 pro usages (Segment→`ToggleButtonGroup`; Sheet→free `Drawer` in Panel.tsx; Carousel×3→local embla compound `apps/web/components/ui/carousel.tsx` from 21st.dev @shadcn/carousel; DropZone→react-aria-components DropZone+FileTrigger in `apps/web/components/ui/drop-zone.tsx`) with zero NEW npm deps, then purge the dep + `HEROUI_AUTH_TOKEN` plumbing from Dockerfile/CI. **COMPLETE & SHIPPED 2026-07-21:** `pnpm --filter @norish/web build` green token-free; `@heroui-pro/react` dependency and all `HEROUI_AUTH_TOKEN` plumbing (Dockerfile secret mount + 5 GitHub workflows) removed. 3 plans on `integ/upstream-0.19.0`. Vault: `norish-heroui-pro-replacement`.
 - [ ] **Phase 21: UI polish & media-viewing UX (from the 2026-07-21 UAT)** - Subtractive polish pass — *"every pixel must earn its place; most should lose"* (Kiran, 2026-07-21). Two strands: **(a) MEDIA-UX-01 — media viewing is broken-by-design**: tapping a photo opens a lightbox that only ever receives `items.filter(type === "image")` (`media-carousel.tsx`), so a recipe with 1 photo + N videos yields a single-image lightbox with **no counter, no arrows, no thumbnails** — you lose the media set you were just swiping. Also: lightbox thumbnails render the **full-size original** into a 64px slot (`unoptimized` in `components/ui/carousel.tsx`), and Kiran reports the same image being fetched at several sizes (needs a network trace to confirm). **(b) Chrome reduction** — strip settings to essentials (it currently reads as self-hostable software, not a polished app), replace the wonky mobile-nav avatar, and rework the calendar into tappable rows of 7 that expand to a single day, hiding empty past days. Inputs: UAT sections A3 + D in vault `norish-uat-v0.19.0`. **Not started.**
+- [ ] **Phase 22: Realtime fan-out isolation (BUG — cross-cookbook leak)** - The realtime layer does NOT honour the per-cookbook isolation the tRPC layer enforces. All 54 `emitByPolicy()` sites take a `viewPolicy`, and **34 of them read the SERVER-WIDE `getRecipePermissionPolicy()`** instead of the recipe's own cookbook policy. Live `server_config.recipe_permission_policy` is `{"view":"everyone",...}` (verified against the live DB 2026-07-21), so `emitByPolicy` takes its `case "everyone"` branch → `emitter.broadcast()` → **every connected client receives the full dashboard recipe DTO of every import, update, rating and share, regardless of cookbook**. This directly contradicts HOUSE-06, which Phase 3 adversarially proved on the REST/tRPC path only. Fix in code (resolve the policy from the recipe's OWN household, as `canAccessResource` already does) — NOT by flipping the live config, which would only mask it. **Sequenced first**: every later phase adds emit sites, and building on a leaky bus multiplies the fix. (REALTIME-ISO-01)
+- [ ] **Phase 23: Cookbook context & moving recipes** - A recipe never shows which cookbook it lives in, and there is no way to move it. Show the owning cookbook on the recipe detail view; tapping it opens a move-to-cookbook action (respecting POLICY-01 edit rights on both source and destination); add a Cookbooks browser entry to the nav. Small, high-frequency, and it makes the multi-cookbook model from Phase 2 legible for the first time. Source: UAT section B3. (CKBK-MOVE-01)
+- [ ] **Phase 24: Import at scale & visible progress** - Two halves of the same queue-UX story: **BULK-01** — accept many URLs (or a blog) in one submission, fanned out over the existing Camoufox import queue with per-item outcome reporting; **IMPORT-UX-01** — a real progress indicator for a running import, since import "can feel a bit slow at times" (UAT B2) and today the only feedback is a skeleton card. The progress surface rides the realtime bus, which is exactly why **Phase 22 must land first**. (BULK-01, IMPORT-UX-01)
+- [ ] **Phase 25: Shopping list — aisle grouping** - Group the shopping list by aisle/category rather than a flat list (Tandoor model: food→category, store→ordered categories; seedable from `open-tandoor-data`). **Smaller than the vault note assumed**: norish already ships `stores` + `ingredient_store_preferences` (`normalized_name` → store, unique per user), which is the exact pattern an aisle mapping should extend rather than invent. Decoupled from any pantry (dropped). (SHOP-01)
+- [ ] **Phase 26: What's-for-dinner suggester** - Suggest tonight's recipe from season + recent ratings, presented with the rater's avatar, stars and a thought-bubble. Builds entirely on the shipped `recipe_ratings` + tags surface — no new data source, no new provider. The cheapest "feels like a product" win on the list. (DINNER-01)
+- [ ] **Phase 27: Cooklang migration (MAJOR, upstream-convergent)** - Migrate recipe step/ingredient representation to Cooklang, delivering the long-wanted **in-step ingredient quantities** and **multi-timer cooking mode**. Converges with upstream issue [#470](https://github.com/norish-recipes/norish/issues/470) (open, maintainer `mikevanes`, still an empty placeholder) — build it **contributable as the PR that closes #470**, which turns the fork from diverging into driving. Parser `@cooklang/cooklang` (MIT, WASM — NOT the archived `cooklang-ts`). Hard parts: no JS structured→`.cook` serializer exists (build + contribute one) so the AI/JSON-LD importer can emit Cooklang; dual metric/US units, nutrition and media need a home in Cooklang metadata. **Has an external blocking dependency** (design coordination with the maintainer) so it must not gate the phases above it. (COOK-01)
+- [ ] **Phase 28: Cost-per-recipe badge (MAJOR)** - € / €€ / €€€ per serving. Daily `supermarkt/checkjebon` (MIT, 12 NL chains) pull → Postgres price index; the existing Camoufox AH scraper as cache-miss enrichment; LLM ingredient→product parse (strong for Dutch) + fuzzy match; computed async, badged on the recipe card. Legal: prices aren't personal data and homelab use is fine, but **do not redistribute** scraped AH data — lean on checkjebon (MIT) and Open Prices (ODbL). (COST-01)
+- [ ] **Phase 29: "What can I make now?" (MAJOR)** - Photograph what's on the counter → AI vision recognises ingredients → suggest makeable recipes and what's missing. Explicitly **image-based, no pantry/inventory** (pantry was dropped as a concept). Uses the existing AI provider's vision path. Per Kiran, the competitive research (incl. Albert Heijn's GenAI direction) is deliberately **deferred to build time** rather than done now. (MAKE-01)
+- [ ] **Phase 30: Shared-recipe versions & lineage (MAJOR)** - Saving a shared recipe creates a **version in a shared lineage bucket** rather than an unrelated copy; users explore the versions others made; reviews aggregate across the lineage but stay attributed to the version they were left on. **Now unblocked** — SHARE-02 (save-to-account) shipped 2026-07-21. Phase 2's recipe↔cookbook model stays forward-compatible via a `lineage_id`/`parent_recipe_id`. (VERSION-01)
 
 ## Upstream tracking
 
@@ -247,3 +256,147 @@ Plans:
 **Plans**: not yet planned — scope from UAT section D before writing plans.
 
 Canonical refs: vault `norish-uat-v0.19.0` (Kiran's filled-in UAT worksheet incl. screenshots); vault `norish-product-roadmap` (the broader unbuilt backlog)
+
+---
+
+## Sequencing rationale (Phases 22–30, drafted 2026-07-21)
+
+The product backlog had been living in the vault (`norish-product-roadmap`) and in the REQUIREMENTS "Backlog / future phases" section, but never as *sequenced phases* — which is why seven researched features stayed invisible to the build. This block merges them in. The ordering follows four rules:
+
+1. **Correctness before features.** Phase 22 is a live cross-cookbook leak in the realtime layer. Every phase below it adds `emitByPolicy` sites, so fixing it first is strictly cheaper than fixing it later.
+2. **Cheap legibility before expensive capability.** Phases 23–26 are all small-to-medium, use only shipped primitives (households, the import queue, `stores`, `recipe_ratings`), and each removes a "this doesn't feel finished" complaint. They should land before any MAJOR phase starts.
+3. **MAJOR phases are sequenced, not parallelised.** 27–30 each carry a real research or external dependency. They are listed in the order that maximises what the *previous* one unlocks, not in order of excitement.
+4. **Nothing with an unresolved product decision is scheduled.** INVITE-02, RATE-02 and SHOP-02 (below) are decisions for Kiran, not phases; they stay in the backlog until decided.
+
+**Not scheduled — open decisions for Kiran:**
+- **INVITE-02** — should an invite link let a new user sign up while `registration_enabled` is off? (A deliberate registration bypass; security-shaped, so it wants an explicit yes.)
+- **RATE-02** — should rater *names* show on the no-auth public share view? RATE-01 deliberately kept ratings authenticated-only because exposing cookbook members' names to anonymous visitors is a privacy call.
+- **SHOP-02 (new, surfaced while sizing Phase 25)** — `groceries` and `stores` are keyed on `user_id` with **no `household_id`**, so a *shared* cookbook does **not** share a shopping list. Two members of one household planning the same meal keep two separate lists. This may be intended (personal lists) or a gap; it changes Phase 25's data model, so decide before planning it.
+
+### Phase 22: Realtime fan-out isolation
+**Goal**: Realtime events obey the same per-cookbook boundary (HOUSE-06) that the tRPC layer already enforces, so no client is ever pushed a recipe it could not have fetched.
+**Depends on**: Phase 3 (POLICY-01 — the per-cookbook policy resolution and `canAccessResource` precedent) + Phase 20 (the current merged surface).
+**Requirements**: REALTIME-ISO-01 (new)
+**Evidence** (measured 2026-07-21, not assumed):
+  - `packages/shared-server/src/realtime/policy.ts` — `emitByPolicy` maps `view: "everyone"` to `emitter.broadcast(event, data)`, i.e. every connected socket.
+  - 54 `emitByPolicy(` call sites across `packages/queue/src` (7 workers, 38 sites) and `packages/trpc/src` (4 files, 16 sites); **34** resolve their policy from the server-wide `getRecipePermissionPolicy()`.
+  - Live `server_config.recipe_permission_policy` = `{"edit":"household","view":"everyone","delete":"household"}` — so the broadcast branch is the *active* branch in production today.
+  - Payloads are not identifiers only: `emitByPolicy(..., "imported", { recipe: dashboardDto, ... })` ships the full dashboard DTO.
+**Success Criteria** (what must be TRUE):
+  1. No recipe-bearing realtime event reaches a client outside that recipe's own cookbook, **regardless of the server-wide default policy** — i.e. the live config can stay `view: "everyone"` and the leak is still closed. The fix is in code; flipping config would only mask it.
+  2. Every one of the 34 server-wide-policy emit sites resolves the effective policy from the recipe's **own** household (mirroring `getHouseholdPolicy` / `canAccessResource`), or degrades to household-scoped emission.
+  3. An adversarial realtime isolation suite (two households, two subscribed clients) proves member B never receives A's `importStarted` / `imported` / recipe-updated / rated / shared events — and the suite goes **RED when the fix is reverted**, verified before it is trusted.
+  4. The meaning of `view: "everyone"` for the *realtime* path is decided and documented — either it is honoured only for a genuinely public surface, or it no longer implies socket broadcast at all. Phase 3 already disallows per-cookbook `view = everyone`; this closes the matching hole one layer down.
+  5. Existing `@norish/queue` + `@norish/trpc` suites stay green under `sg docker`; no live operator action required to deploy the fix.
+**Plans**: 3 (serial — the failing test must exist before any production change)
+
+Canonical refs: `packages/shared-server/src/realtime/policy.ts`; `packages/auth/src/permissions.ts` (`getRecipePermissionPolicy`); `packages/db/src/repositories/households.ts:660` (`getHouseholdPolicy`); Phase 3 `03-CONTEXT.md`
+
+Plans:
+- [ ] 22-01: Audit + adversarial harness — enumerate all 54 emit sites into a table (file, event, payload, policy source), build the two-household two-socket integration harness, and land a **failing** test that proves the leak. No production change in this plan.
+- [ ] 22-02: Queue workers — resolve the effective policy per recipe/household at emit time across the 7 workers (recipe-import, paste-import, image-import, auto-tagging, auto-categorization, allergy-detection, nutrition-estimation); harness goes green for the queue path.
+- [ ] 22-03: tRPC routers (recipes, shares, ratings, helpers) + the `everyone` semantics decision + docs; full-monorepo typecheck/lint/test green under `sg docker`; revert-check confirms the suite goes RED.
+
+### Phase 23: Cookbook context & moving recipes
+**Goal**: A recipe visibly belongs to a cookbook, and can be moved to another one the user may write to. The multi-cookbook model shipped in Phase 2 becomes legible in the UI instead of being an invisible scoping rule.
+**Depends on**: Phase 2 (multi-household membership + active-cookbook context) + Phase 3 (POLICY-01 edit rights).
+**Requirements**: CKBK-MOVE-01 (new)
+**Success Criteria** (what must be TRUE):
+  1. The recipe detail view (desktop + mobile) shows which cookbook the recipe lives in.
+  2. Tapping it offers a move action listing only cookbooks the user may **write** to; moving requires edit rights on the **source** (POLICY-01) and membership of the **destination**. A move never widens access (HOUSE-06) and never orphans the recipe.
+  3. A Cookbooks entry in the nav browses the user's cookbooks and their contents — the "menu option that says cookbooks" from UAT B3.
+  4. Moving a recipe updates every scoped surface it appears on (dashboard, search, meal plan, shopping-list linkage) without a manual refresh — and, post-Phase-22, without notifying the cookbook it left or a cookbook it never entered.
+  5. i18n in all 11 locales; `@norish/web` + `@norish/trpc` suites green.
+**Open question**: what happens to a moved recipe's existing ratings and share links — do they travel with it, or reset? Ratings are per-user and cookbook-scoped for *visibility*, so a move can silently expose or hide who rated what. Decide before planning.
+**Plans**: TBD (~2) — scope after the open question is settled.
+
+Canonical refs: vault `norish-uat-v0.19.0` section B3; `.planning/phases/02-multi-household/02-CONTEXT.md`; `.planning/phases/03-per-cookbook-policies/03-CONTEXT.md`
+
+### Phase 24: Import at scale & visible progress
+**Goal**: Importing more than one recipe is a first-class action, and any running import reports honest progress instead of an indefinite skeleton.
+**Depends on**: **Phase 22** (hard — the progress surface rides the realtime bus; building it on a broadcasting bus would leak one user's import progress to everyone) + Phase 1 (Camoufox scraping) + the existing BullMQ import queue.
+**Requirements**: BULK-01, IMPORT-UX-01 (new)
+**Success Criteria** (what must be TRUE):
+  1. A user submits many URLs (or one blog/index URL) in a single action; each becomes an independent queue job against the active cookbook, and partial failure is normal — the user sees per-item outcome (imported / duplicate / failed + why), not one aggregate error.
+  2. A running import shows real progress derived from actual job state (fetch → parse → enrich), not a synthetic timer. Where a stage's duration genuinely is unknown, the UI says so rather than faking a bar.
+  3. Bulk import respects the same limits and safety as single import: Camoufox stays the only fetch path (no headless Chrome), duplicate detection still applies per cookbook, and a bulk run cannot starve the queue for other users.
+  4. Progress events are cookbook-scoped (inherits Phase 22) — one household's import never appears in another's UI.
+  5. i18n in all 11 locales; `@norish/queue` suites green under `sg docker`.
+**Open question**: what is a sane cap on a single bulk submission, and does a whole-blog crawl need explicit per-domain rate limiting before it points Camoufox at someone's site? Decide before planning.
+**Plans**: TBD (~3)
+
+Canonical refs: vault `norish-uat-v0.19.0` section B2; `packages/queue/src/recipe-import/`; `.planning/phases/01-camofox/`
+
+### Phase 25: Shopping list — aisle grouping
+**Goal**: The shopping list is ordered the way a shop is walked — grouped by aisle/category — instead of by insertion order.
+**Depends on**: Phase 0 (the shipped grocery/store surface). Independent of Phases 22–24.
+**Requirements**: SHOP-01
+**Success Criteria** (what must be TRUE):
+  1. Every grocery item resolves to a category; the list renders grouped by category in a user-orderable sequence, with uncategorised items in a clearly-labelled bucket rather than hidden.
+  2. Categorisation extends the **existing** `ingredient_store_preferences` pattern (`normalized_name` → target, unique per user) rather than inventing a parallel mapping; a user correction sticks for future lists.
+  3. A seed mapping (from `open-tandoor-data`, or equivalent) covers common Dutch and English ingredients out of the box, so a new user gets useful grouping with zero configuration — consistent with the "users do zero config" constraint.
+  4. Explicitly **decoupled from any pantry/inventory** (dropped as a concept) — no on-hand subtraction.
+  5. `@norish/db` + `@norish/trpc` suites green; i18n in all 11 locales.
+**Note on sizing** (measured 2026-07-21): the vault framed this as a MAJOR phase. It is not. `packages/db-schema/src/schema/stores.ts` already ships `stores` (user-scoped, ordered via `sort_order`) *and* `ingredient_store_preferences` mapping a normalized ingredient name to a store, unique per `(user_id, normalized_name)`. Aisle grouping is the same shape one level down, so the pattern, the repo helpers and the UI affordance all already exist.
+**Blocked on decision**: SHOP-02 (see "Open decisions" above) — whether lists become household-shared changes whether the category mapping is keyed on `user_id` or `household_id`. Settle it before writing plans, because it is a migration either way.
+**Plans**: TBD (~2)
+
+Canonical refs: `packages/db-schema/src/schema/{groceries,stores}.ts`; https://github.com/TandoorRecipes/open-tandoor-data
+
+### Phase 26: What's-for-dinner suggester
+**Goal**: The app answers "what should we eat tonight?" from what the household already rated and what's in season — the cheapest phase on this list that makes it feel like a product rather than a database.
+**Depends on**: Phase 4 (RATE-01 — ratings, averages and the named-rater list) + Phase 2 (cookbook scoping). Independent of Phases 22–25, though it inherits Phase 22's correctness if sequenced after it.
+**Requirements**: DINNER-01
+**Success Criteria** (what must be TRUE):
+  1. A suggestion surface proposes recipes from the active cookbook using recency of rating + rating value + season, and explains *why* each was suggested rather than presenting an oracle.
+  2. Each suggestion shows the rater's avatar, their stars, and a thought-bubble treatment — the presentation Kiran specified, not a generic list row.
+  3. Dietary/allergy tags already on the household are respected: a suggestion never surfaces something a member is tagged allergic to.
+  4. Suggestions are cookbook-scoped and never reveal ratings from a cookbook the viewer isn't in (HOUSE-06 / the RATE-01 access gate).
+  5. No new provider, no new external data source, no new npm dependency — season is derivable from the date, everything else is already in the schema.
+**Plans**: TBD (~2)
+
+### Phase 27: Cooklang migration (MAJOR)
+**Goal**: Recipes are represented in Cooklang, delivering in-step ingredient quantities and named concurrent timers (pasta + sauce), built so the work is contributable upstream as the PR that closes issue #470.
+**Depends on**: Phases 22–26 landed (this is the largest lift on the roadmap and should not run against a moving UI). **Externally blocked** on design coordination with upstream maintainer `mikevanes` — #470 is still an empty placeholder, so there is no spec to build against yet.
+**Requirements**: COOK-01
+**Success Criteria** (draft — to be firmed once the upstream design is agreed):
+  1. Recipe steps carry inline ingredient quantities and named timers, parsed via `@cooklang/cooklang` (MIT, WASM — explicitly **not** the archived `cooklang-ts`).
+  2. A structured→`.cook` serializer exists (none does in JS today) so the AI/JSON-LD importer can emit Cooklang; it is written to be contributed, not fork-local.
+  3. norish's dual metric/US units, nutrition data and media survive the round trip via Cooklang metadata/extensions — no data loss on import→edit→export.
+  4. A cooking mode drives multiple named timers concurrently from the parsed steps.
+  5. Migration is reversible: existing recipes convert without loss, and the change is shaped as an upstream-mergeable increment rather than fork divergence.
+**Plans**: TBD — **do not plan until the upstream design conversation has happened.** Writing plans against an empty placeholder issue would guarantee rework.
+
+### Phase 28: Cost-per-recipe badge (MAJOR)
+**Goal**: Each recipe carries a € / €€ / €€€ per-serving cost badge, computed asynchronously from a real Dutch price index.
+**Depends on**: Phase 1 (Camoufox, reused as cache-miss enrichment) + a decided AI provider (ingredient parsing). Independent of Phase 27.
+**Requirements**: COST-01
+**Success Criteria** (draft):
+  1. A daily `supermarkt/checkjebon` (MIT, 12 NL chains) pull populates a Postgres price index; a cache miss falls through to the existing Camoufox AH scrape.
+  2. Ingredient→product matching uses an LLM parse (strong for Dutch) plus fuzzy matching, normalised per serving and bucketed into three tiers.
+  3. Cost is computed **async** and never blocks import or page render; a recipe without a confident match shows no badge rather than a wrong one.
+  4. **Legal constraint honoured**: scraped AH data is never redistributed. Attribution and redistribution rest on checkjebon (MIT) and Open Prices (ODbL).
+**Plans**: TBD (~3)
+
+### Phase 29: "What can I make now?" (MAJOR)
+**Goal**: Photograph what's on the counter and get recipes you can actually make, plus what you'd still need.
+**Depends on**: a vision-capable AI provider (the existing provider abstraction) + Phase 25 (category/ingredient normalisation makes matching tractable).
+**Requirements**: MAKE-01
+**Success Criteria** (draft):
+  1. An image (optionally plus free text) yields recognised ingredients the user can correct before matching — the recognition is a proposal, not a verdict.
+  2. Matching returns makeable recipes from the active cookbook and, for near-misses, exactly what is missing.
+  3. **No pantry/inventory is created or stored** — recognition is on-the-fly. (Pantry was deliberately dropped.)
+  4. Uses the existing AI provider path; no second provider integration.
+**Research**: deliberately **deferred to build time** per Kiran — survey existing image→recipe implementations and the Albert Heijn GenAI capabilities when the phase starts, not now.
+**Plans**: TBD
+
+### Phase 30: Shared-recipe versions & lineage (MAJOR)
+**Goal**: A saved shared recipe becomes a version in a shared lineage rather than a disconnected copy, so people can see how a recipe evolved across households.
+**Depends on**: Phase 4 (SHARE-01 visibility + RATE-01 ratings) and **SHARE-02, which shipped 2026-07-21** — this is no longer blocked. Sequenced last because it is the deepest schema change on the list.
+**Requirements**: VERSION-01
+**Success Criteria** (draft):
+  1. Saving a shared recipe records a `lineage_id`/`parent_recipe_id` link instead of an orphaned copy; Phase 2's recipe↔cookbook model is already forward-compatible with this.
+  2. A lineage view shows the versions others created, with names visible.
+  3. Reviews aggregate across the lineage but stay **attributed to the version** they were left on — an aggregate must never silently reassign a rating to a different version.
+  4. Lineage never widens access: seeing that a version exists must not expose a recipe in a cookbook you cannot view (HOUSE-06).
+**Plans**: TBD
