@@ -120,10 +120,16 @@ const PanelRoot: React.FC<PanelProps> = ({
     };
   }, [children]);
   const hasFooter = footerChildren.length > 0;
-  const contentClasses = ["mx-auto max-w-[420px]", PANEL_MAX_HEIGHT_CLASS, contentClassName]
-    .filter(Boolean)
-    .join(" ");
-  const dialogClasses = ["min-h-0", PANEL_MAX_HEIGHT_CLASS, panelClassName]
+  // Drawer.Content is the full-viewport positioning layer (position:fixed; inset:0;
+  // align-items:flex-end for placement="bottom"), NOT the panel itself — so it must
+  // keep its full height or the sheet detaches from the bottom edge and floats. All
+  // panel sizing belongs on Drawer.Dialog, which is the actual card.
+  const contentClasses = ["justify-center", contentClassName].filter(Boolean).join(" ");
+  const dialogClasses = [
+    "w-full max-w-[420px] min-h-0 rounded-t-2xl pb-[max(1.5rem,env(safe-area-inset-bottom))]",
+    PANEL_MAX_HEIGHT_CLASS,
+    panelClassName,
+  ]
     .filter(Boolean)
     .join(" ");
   const bodyClasses = ["flex min-h-0 flex-1 flex-col", bodyClassName].filter(Boolean).join(" ");

@@ -432,7 +432,7 @@ export default function MediaGalleryInput({
       >
         <DndContext collisionDetection={closestCenter} sensors={sensors} onDragEnd={handleDragEnd}>
           <SortableContext items={itemIds} strategy={horizontalListSortingStrategy}>
-            <div className="flex w-max gap-3">
+            <div className={media.length === 0 ? "flex w-full gap-3" : "flex w-max gap-3"}>
               {media.map((item, index) => (
                 <SortableMediaItem
                   key={item.id || item.src}
@@ -447,7 +447,13 @@ export default function MediaGalleryInput({
               {canAddMore && (
                 <button
                   className={[
-                    "relative flex aspect-square w-28 shrink-0 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed sm:w-32",
+                    "relative flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed",
+                    // Empty state: a full-width drop area (a lone 112px square reads as
+                    // lost on a wide form). Once media exists the tile matches the
+                    // thumbnail size so the scrollable row stays uniform.
+                    media.length === 0
+                      ? "h-36 w-full"
+                      : "aspect-square w-28 shrink-0 sm:w-32",
                     dragActive
                       ? "border-accent bg-accent-soft dark:bg-accent/20"
                       : "border-border-secondary hover:border-accent",
