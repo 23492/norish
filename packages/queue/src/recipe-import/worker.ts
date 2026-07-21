@@ -63,13 +63,16 @@ async function processImportJob(job: Job<RecipeImportJobData>): Promise<void> {
   // Emit import started event
   emitByPolicy(recipeEmitter, viewPolicy, ctx, "importStarted", { recipeId, url });
 
-  // Check if recipe already exists (policy-aware)
+  // IMPORT-DEDUP-ISO-01: dedup is per-cookbook and is NOT the realtime view policy.
+  // Reusing `viewPolicy` here would send a personal import (householdId null, so the
+  // resolver falls back to the server-wide default `everyone`) searching across every
+  // cookbook on the server.
   const existingCheck = await recipeExistsByUrlForPolicy(
     url,
     userId,
     householdId,
     householdUserIds,
-    viewPolicy
+    "household"
   );
 
   if (existingCheck.exists && existingCheck.existingRecipeId) {

@@ -17,30 +17,34 @@ export function sanitizeUrlForJobId(url: string): string {
 }
 
 /**
- * Generate a unique job ID based on the view policy.
+ * Generate a unique job ID for an import, scoped per-cookbook.
  * Note: BullMQ doesn't allow colons in job IDs, so we use underscores as delimiters.
  *
- * - "everyone": `import_${sanitizedUrl}` - globally unique
- * - "household": `import_${householdKey}_${sanitizedUrl}` - unique per household
+ * - "household": `import_${householdKey}_${sanitizedUrl}` - unique per cookbook
  * - "owner": `import_${userId}_${sanitizedUrl}` - unique per user
+ *
+ * IMPORT-DEDUP-ISO-01: there is deliberately NO "everyone" scope. It produced a GLOBAL
+ * job id (`import_${sanitizedUrl}`), so two cookbooks importing the same URL collided on
+ * one BullMQ job and the second was rejected as a duplicate — one household silently
+ * blocking another's import. Job identity must be at least as narrow as dedup scope.
  */
 export function generateJobId(
   url: string,
   userId: string,
   householdKey: string,
-  viewPolicy: PermissionLevel
+  viewPolicy: Exclude<PermissionLevel, "everyone">
 ): string {
   const sanitized = sanitizeUrlForJobId(url);
 
   switch (viewPolicy) {
-    case "everyone":
-      return `import_${sanitized}`;
     case "household":
       return `import_${householdKey}_${sanitized}`;
     case "owner":
       return `import_${userId}_${sanitized}`;
     default:
-      return `import_${sanitized}`;
+      // Unreachable given the narrowed type; fail CLOSED (cookbook-scoped) rather than
+      // falling back to a global id if a future caller widens the type.
+      return `import_${householdKey}_${sanitized}`;
   }
 }
 

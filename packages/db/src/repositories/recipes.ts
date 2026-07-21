@@ -231,28 +231,30 @@ export async function countActiveRecipeShares(recipeId: string): Promise<number>
 }
 
 /**
- * Check if recipe URL exists based on view policy, scoped per-cookbook.
- * Used for queue deduplication before creating new recipes.
+ * Check if recipe URL exists, scoped per-cookbook. Used for queue deduplication before
+ * creating new recipes.
  *
- * - "everyone": Any recipe with this URL
  * - "household": Any recipe in the TARGET cookbook with this URL (per-cookbook dedup)
  * - "owner": Any recipe with this URL owned by the user
+ *
+ * IMPORT-DEDUP-ISO-01: there is deliberately NO "everyone" scope. It used to match
+ * `recipes.url` with no cookbook predicate, so with the server-wide default at
+ * `view: "everyone"` an import into cookbook B would be deduped against — and handed
+ * back — a recipe living in cookbook A, which the importer may not be a member of.
+ * Dedup is a per-cookbook question by definition: "do I already have this?" is asked of
+ * the cookbook being imported into, never of the whole server. Mirrors HOUSE-06 and the
+ * Phase 22 decision that a server-wide `everyone` must not widen a per-cookbook boundary.
  */
 export async function recipeExistsByUrlForPolicy(
   url: string,
   userId: string,
   householdId: string | null,
   householdUserIds: string[] | null,
-  viewPolicy: "everyone" | "household" | "owner"
+  viewPolicy: "household" | "owner"
 ): Promise<{ exists: boolean; existingRecipeId?: string }> {
   let whereCondition: ReturnType<typeof and> | ReturnType<typeof or> | ReturnType<typeof eq>;
 
   switch (viewPolicy) {
-    case "everyone":
-      // Check if URL exists at all
-      whereCondition = eq(recipes.url, url);
-      break;
-
     case "household":
       // Check if the URL already exists in the target cookbook.
       if (householdId) {

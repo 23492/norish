@@ -17,7 +17,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockRecipeExistsByUrlForPolicy = vi.hoisted(() => vi.fn());
 const mockGetRecipePermissionPolicy = vi.hoisted(() => vi.fn());
-const mockIsJobInQueue = vi.hoisted(() => vi.fn());
 
 vi.mock("@norish/db", () => ({
   recipeExistsByUrlForPolicy: mockRecipeExistsByUrlForPolicy,
@@ -72,7 +71,9 @@ function fakeRepository(
   // owner
   const found = userId === USER_IN_A;
 
-  return Promise.resolve(found ? { exists: true, existingRecipeId: RECIPE_IN_A } : { exists: false });
+  return Promise.resolve(
+    found ? { exists: true, existingRecipeId: RECIPE_IN_A } : { exists: false }
+  );
 }
 
 function jobData(overrides: Record<string, unknown> = {}): never {
@@ -87,14 +88,16 @@ function jobData(overrides: Record<string, unknown> = {}): never {
   } as never;
 }
 
-const fakeQueue = { add: vi.fn(() => Promise.resolve({ id: "job-1" })) } as never;
+const fakeQueue = {
+  add: vi.fn(() => Promise.resolve({ id: "job-1" })),
+  getJob: vi.fn(() => Promise.resolve(null)),
+} as never;
 
 describe("import dedup never crosses a cookbook boundary", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetRecipePermissionPolicy.mockResolvedValue(LIVE_SERVER_POLICY);
     mockRecipeExistsByUrlForPolicy.mockImplementation(fakeRepository);
-    mockIsJobInQueue.mockResolvedValue(false);
   });
 
   it("does not return cookbook A's recipe when cookbook B imports the same URL", async () => {
@@ -126,11 +129,23 @@ describe("import dedup never crosses a cookbook boundary", () => {
   });
 
   it("gives two cookbooks distinct job ids for the same URL", () => {
-    // A globally-scoped job id makes household B's import collide with household A's and
+    // A globally-scoped job id made household B's import collide with household A's and
     // get rejected as a duplicate — one household silently blocking another's import.
-    const idForA = generateJobId(SHARED_URL, USER_IN_A, COOKBOOK_A, "everyone");
-    const idForB = generateJobId(SHARED_URL, USER_IN_B, COOKBOOK_B, "everyone");
+    const idForA = generateJobId(SHARED_URL, USER_IN_A, COOKBOOK_A, "household");
+    const idForB = generateJobId(SHARED_URL, USER_IN_B, COOKBOOK_B, "household");
 
     expect(idForA).not.toBe(idForB);
+    expect(idForA).toContain(COOKBOOK_A);
+    expect(idForB).toContain(COOKBOOK_B);
+  });
+
+  it("the producer asks for a cookbook-scoped job id", async () => {
+    await addImportJob(fakeQueue, jobData());
+
+    const addedWithJobId = (fakeQueue as unknown as { add: { mock: { calls: unknown[][] } } }).add
+      .mock.calls[0]![2] as { jobId: string };
+
+    // Not the bare `import_${url}` global form.
+    expect(addedWithJobId.jobId).toContain(COOKBOOK_B);
   });
 });

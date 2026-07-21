@@ -9,7 +9,6 @@ import type { Queue } from "bullmq";
 
 import type { AddImportJobResult, RecipeImportJobData } from "@norish/queue/contracts/job-types";
 import { recipeExistsByUrlForPolicy } from "@norish/db";
-import { getRecipePermissionPolicy } from "@norish/shared-server/config/server-config-loader";
 import { createLogger } from "@norish/shared-server/logger";
 
 import { generateJobId, isJobInQueue } from "../helpers";
@@ -25,17 +24,20 @@ export async function addImportJob(
   queue: Queue<RecipeImportJobData>,
   data: RecipeImportJobData
 ): Promise<AddImportJobResult> {
-  const policy = await getRecipePermissionPolicy();
-  const jobId = generateJobId(data.url, data.userId, data.householdKey, policy.view);
+  // IMPORT-DEDUP-ISO-01: dedup and job identity are per-cookbook, NOT server-wide.
+  // Resolving this from getRecipePermissionPolicy() meant that under the production
+  // default `view: "everyone"` an import into one cookbook was deduped against — and
+  // handed back — a recipe in another cookbook the importer cannot even see.
+  const jobId = generateJobId(data.url, data.userId, data.householdKey, "household");
 
-  log.debug({ url: data.url, jobId, policy: policy.view }, "Attempting to add import job");
+  log.debug({ url: data.url, jobId }, "Attempting to add import job");
 
   const existingCheck = await recipeExistsByUrlForPolicy(
     data.url,
     data.userId,
     data.householdId,
     data.householdUserIds,
-    policy.view
+    "household"
   );
 
   if (existingCheck.exists && existingCheck.existingRecipeId) {

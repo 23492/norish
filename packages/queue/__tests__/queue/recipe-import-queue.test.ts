@@ -152,19 +152,22 @@ describe("Recipe Import Queue", () => {
   });
 
   describe("generateJobId", () => {
-    it("generates global job ID for 'everyone' policy", async () => {
+    // IMPORT-DEDUP-ISO-01: the "everyone" scope was REMOVED. This test previously
+    // asserted the global form `import_example.com_recipe`, which is exactly the defect —
+    // two cookbooks importing the same URL collided on one BullMQ job id and the second
+    // was rejected as a duplicate. Job ids are now always at least cookbook-scoped.
+    it("never generates a globally-scoped job ID", async () => {
       const { generateJobId } = await import("@norish/queue/helpers");
 
       const jobId = generateJobId(
         "https://example.com/recipe",
         "user-123",
         "household-456",
-        "everyone"
+        "household"
       );
 
-      expect(jobId).toBe("import_example.com_recipe");
-      expect(jobId).not.toContain("user-123");
-      expect(jobId).not.toContain("household-456");
+      expect(jobId).not.toBe("import_example.com_recipe");
+      expect(jobId).toContain("household-456");
     }, 15_000);
 
     it("generates household-scoped job ID for 'household' policy", async () => {
