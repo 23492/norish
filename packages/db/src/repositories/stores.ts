@@ -1,5 +1,5 @@
 import type { IFuseOptions } from "fuse.js";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import Fuse from "fuse.js";
 import z from "zod";
 
@@ -46,13 +46,17 @@ export async function getStoreById(id: string): Promise<StoreDto | null> {
   return parsed.data;
 }
 
-export async function listStoresByUserIds(userIds: string[]): Promise<StoreDto[]> {
-  if (!userIds.length) return [];
+/**
+ * SHOP-02: list a household's stores (aisles), ordered. Scopes on
+ * `stores.household_id` — the isolation boundary (HOUSE-06).
+ */
+export async function listStoresByHousehold(householdId: string): Promise<StoreDto[]> {
+  if (!householdId) return [];
 
   const rows = await db
     .select()
     .from(stores)
-    .where(inArray(stores.userId, userIds))
+    .where(eq(stores.householdId, householdId))
     .orderBy(stores.sortOrder);
 
   const parsed = z.array(StoreSelectBaseSchema).safeParse(rows);
@@ -64,15 +68,15 @@ export async function listStoresByUserIds(userIds: string[]): Promise<StoreDto[]
 
 export async function checkStoreNameExistsInHousehold(
   name: string,
-  userIds: string[],
+  householdId: string,
   excludeStoreId?: string
 ): Promise<boolean> {
-  if (!userIds.length) return false;
+  if (!householdId) return false;
 
   const normalizedName = name.toLowerCase().trim();
 
   const conditions = [
-    inArray(stores.userId, userIds),
+    eq(stores.householdId, householdId),
     sql`LOWER(TRIM(${stores.name})) = ${normalizedName}`,
   ];
 
@@ -93,11 +97,11 @@ export async function createStore(id: string, input: StoreInsertDto): Promise<St
 
   if (!parsed.success) throw new Error("Invalid StoreInsertDto");
 
-  // Get max sort order for user's stores
+  // Get max sort order for the household's stores
   const [maxOrder] = await db
     .select({ max: sql<number>`COALESCE(MAX(${stores.sortOrder}), -1)` })
     .from(stores)
-    .where(eq(stores.userId, input.userId));
+    .where(eq(stores.householdId, input.householdId));
 
   const sortOrder = (maxOrder?.max ?? -1) + 1;
 
@@ -298,6 +302,19 @@ export async function getStoreOwnerId(storeId: string): Promise<string | null> {
   return row?.userId ?? null;
 }
 
+/**
+ * SHOP-02 / HOUSE-06: the owning household id for a store (isolation gate).
+ */
+export async function getStoreHouseholdId(storeId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ householdId: stores.householdId })
+    .from(stores)
+    .where(eq(stores.id, storeId))
+    .limit(1);
+
+  return row?.householdId ?? null;
+}
+
 export async function countGroceriesInStore(storeId: string): Promise<number> {
   const [row] = await db
     .select({ count: sql<number>`count(*)` })
@@ -308,7 +325,7 @@ export async function countGroceriesInStore(storeId: string): Promise<number> {
 }
 
 export async function getIngredientStorePreference(
-  userId: string,
+  householdId: string,
   normalizedName: string
 ): Promise<IngredientStorePreferenceDto | null> {
   const [row] = await db
@@ -316,7 +333,7 @@ export async function getIngredientStorePreference(
     .from(ingredientStorePreferences)
     .where(
       and(
-        eq(ingredientStorePreferences.userId, userId),
+        eq(ingredientStorePreferences.householdId, householdId),
         eq(ingredientStorePreferences.normalizedName, normalizedName)
       )
     )
@@ -331,33 +348,18 @@ export async function getIngredientStorePreference(
   return parsed.data;
 }
 
-export async function listIngredientStorePreferences(
-  userId: string
-): Promise<IngredientStorePreferenceDto[]> {
-  const rows = await db
-    .select()
-    .from(ingredientStorePreferences)
-    .where(eq(ingredientStorePreferences.userId, userId));
-
-  const parsed = z.array(IngredientStorePreferenceSelectSchema).safeParse(rows);
-
-  if (!parsed.success) throw new Error("Failed to parse ingredient store preferences");
-
-  return parsed.data;
-}
-
 /**
- * Get all ingredient store preferences for multiple users (household-level)
+ * SHOP-02: all aisle preferences for a household (the shared mapping).
  */
-export async function listIngredientStorePreferencesForUsers(
-  userIds: string[]
+export async function listIngredientStorePreferencesByHousehold(
+  householdId: string
 ): Promise<IngredientStorePreferenceDto[]> {
-  if (!userIds.length) return [];
+  if (!householdId) return [];
 
   const rows = await db
     .select()
     .from(ingredientStorePreferences)
-    .where(inArray(ingredientStorePreferences.userId, userIds));
+    .where(eq(ingredientStorePreferences.householdId, householdId));
 
   const parsed = z.array(IngredientStorePreferenceSelectSchema).safeParse(rows);
 
@@ -367,11 +369,12 @@ export async function listIngredientStorePreferencesForUsers(
 }
 
 export async function upsertIngredientStorePreference(
+  householdId: string,
   userId: string,
   normalizedName: string,
   storeId: string
 ): Promise<IngredientStorePreferenceDto> {
-  const input = { userId, normalizedName, storeId };
+  const input = { householdId, userId, normalizedName, storeId };
   const parsed = IngredientStorePreferenceInsertSchema.safeParse(input);
 
   if (!parsed.success) throw new Error("Invalid IngredientStorePreferenceInsertDto");
@@ -380,9 +383,10 @@ export async function upsertIngredientStorePreference(
     .insert(ingredientStorePreferences)
     .values(parsed.data)
     .onConflictDoUpdate({
-      target: [ingredientStorePreferences.userId, ingredientStorePreferences.normalizedName],
+      target: [ingredientStorePreferences.householdId, ingredientStorePreferences.normalizedName],
       set: {
         storeId,
+        userId,
         updatedAt: new Date(),
         version: sql`${ingredientStorePreferences.version} + 1`,
       },
@@ -397,14 +401,14 @@ export async function upsertIngredientStorePreference(
 }
 
 export async function deleteIngredientStorePreference(
-  userId: string,
+  householdId: string,
   normalizedName: string
 ): Promise<void> {
   await db
     .delete(ingredientStorePreferences)
     .where(
       and(
-        eq(ingredientStorePreferences.userId, userId),
+        eq(ingredientStorePreferences.householdId, householdId),
         eq(ingredientStorePreferences.normalizedName, normalizedName)
       )
     );
@@ -424,101 +428,190 @@ export interface FuzzyPreferenceMatch {
   preference: IngredientStorePreferenceDto;
   score: number; // 0 = perfect match, higher = worse match
   isExactMatch: boolean;
-  isCurrentUser: boolean;
 }
 
 /**
- * Find the best matching store preference using fuzzy matching across household.
+ * SHOP-02: find the best matching aisle preference within a HOUSEHOLD.
+ * The mapping is now household-shared, so there is a single pool of
+ * preferences (no per-user priority). Exact match wins; otherwise the best
+ * fuzzy match above threshold.
  *
- * Priority order:
- * 1. Current user exact match
- * 2. Other household member exact match
- * 3. Current user fuzzy match (best score)
- * 4. Other household member fuzzy match (best score)
- *
- * @param currentUserId - The ID of the user making the request
- * @param userIds - All household member IDs (including current user)
+ * @param householdId - The caller's active shopping household
  * @param searchName - The ingredient name to search for (will be normalized)
  * @returns The best matching preference or null if no match above threshold
  */
 export async function findBestIngredientStorePreference(
-  currentUserId: string,
-  userIds: string[],
+  householdId: string,
   searchName: string
 ): Promise<FuzzyPreferenceMatch | null> {
-  if (!userIds.length || !searchName.trim()) return null;
+  if (!householdId || !searchName.trim()) return null;
 
   const normalizedSearch = normalizeIngredientName(searchName);
 
-  // Get all preferences for household members
-  const allPreferences = await listIngredientStorePreferencesForUsers(userIds);
+  const allPreferences = await listIngredientStorePreferencesByHousehold(householdId);
 
   if (allPreferences.length === 0) return null;
 
-  // Step 1: Check for exact matches first (prioritize current user)
-  const currentUserExact = allPreferences.find(
-    (p) => p.userId === currentUserId && p.normalizedName === normalizedSearch
-  );
+  // Step 1: exact match wins.
+  const exact = allPreferences.find((p) => p.normalizedName === normalizedSearch);
 
-  if (currentUserExact) {
-    return {
-      preference: currentUserExact,
-      score: 0,
-      isExactMatch: true,
-      isCurrentUser: true,
-    };
+  if (exact) {
+    return { preference: exact, score: 0, isExactMatch: true };
   }
 
-  const otherUserExact = allPreferences.find(
-    (p) => p.userId !== currentUserId && p.normalizedName === normalizedSearch
-  );
-
-  if (otherUserExact) {
-    return {
-      preference: otherUserExact,
-      score: 0,
-      isExactMatch: true,
-      isCurrentUser: false,
-    };
-  }
-
-  // Step 2: No exact match, use fuzzy matching
+  // Step 2: fuzzy match.
   const fuse = new Fuse(allPreferences, FUSE_OPTIONS);
   const results = fuse.search(normalizedSearch);
+  const best = results[0];
 
-  if (results.length === 0) return null;
+  if (!best) return null;
 
-  // Separate results by current user vs others
-  const currentUserMatches = results.filter((r) => r.item.userId === currentUserId);
-  const otherUserMatches = results.filter((r) => r.item.userId !== currentUserId);
+  return { preference: best.item, score: best.score ?? 1, isExactMatch: false };
+}
 
-  // Prioritize current user's fuzzy match
-  if (currentUserMatches.length > 0) {
-    const best = currentUserMatches[0];
+/**
+ * SHOP-01: built-in default aisle set. A fresh household is seeded with these
+ * ordered aisles (as `stores`) plus a curated ingredient->aisle mapping (as
+ * `ingredient_store_preferences`) so the shopping list is grouped the way a
+ * shop is walked with ZERO configuration. Keywords cover common EN + NL
+ * ingredients (normalized: lowercased, trimmed). Decision D-25-04: a curated
+ * built-in default rather than importing the full open-tandoor-data dataset.
+ * The migration `0040` seeds the SAME set into existing store-less households;
+ * keep the two in sync.
+ */
+export const DEFAULT_AISLES: ReadonlyArray<{
+  name: string;
+  color: string;
+  ingredients: readonly string[];
+}> = [
+  {
+    name: "Produce",
+    color: "success",
+    ingredients: [
+      "apple", "appel", "banana", "banaan", "tomato", "tomaat", "tomaten", "potato",
+      "aardappel", "aardappelen", "onion", "ui", "uien", "garlic", "knoflook", "carrot",
+      "wortel", "wortels", "lettuce", "sla", "cucumber", "komkommer", "bell pepper", "paprika",
+      "spinach", "spinazie", "mushroom", "champignon", "champignons", "lemon", "citroen",
+      "lime", "limoen", "avocado", "broccoli", "courgette", "zucchini", "bell peppers",
+    ],
+  },
+  {
+    name: "Bakery",
+    color: "warning",
+    ingredients: [
+      "bread", "brood", "baguette", "stokbrood", "croissant", "bun", "buns", "broodje",
+      "broodjes", "bagel", "tortilla", "wrap", "wraps", "roll", "rolls", "pita",
+    ],
+  },
+  {
+    name: "Dairy & Eggs",
+    color: "sky",
+    ingredients: [
+      "milk", "melk", "cheese", "kaas", "butter", "boter", "egg", "eggs", "ei", "eieren",
+      "yogurt", "yoghurt", "cream", "room", "slagroom", "quark", "kwark", "mozzarella",
+      "feta", "creme fraiche",
+    ],
+  },
+  {
+    name: "Meat & Fish",
+    color: "danger",
+    ingredients: [
+      "chicken", "kip", "beef", "rundvlees", "pork", "varkensvlees", "mince", "gehakt",
+      "bacon", "spek", "sausage", "worst", "ham", "salmon", "zalm", "tuna", "tonijn",
+      "shrimp", "garnalen", "fish", "vis", "kipfilet", "chicken breast",
+    ],
+  },
+  {
+    name: "Pantry",
+    color: "secondary",
+    ingredients: [
+      "rice", "rijst", "pasta", "spaghetti", "flour", "bloem", "sugar", "suiker", "salt",
+      "zout", "oil", "olie", "olive oil", "olijfolie", "vinegar", "azijn", "beans", "bonen",
+      "lentils", "linzen", "canned tomatoes", "tomatenblokjes", "stock", "bouillon", "honey",
+      "honing", "peanut butter", "pindakaas", "pepper", "peper", "chickpeas", "kikkererwten",
+    ],
+  },
+  {
+    name: "Frozen",
+    color: "primary",
+    ingredients: [
+      "ice cream", "ijs", "frozen pizza", "diepvriespizza", "frozen vegetables",
+      "diepvriesgroenten", "fries", "frietjes", "patat", "frozen peas", "doperwten",
+    ],
+  },
+  {
+    name: "Drinks",
+    color: "violet",
+    ingredients: [
+      "water", "juice", "sap", "sinaasappelsap", "coffee", "koffie", "tea", "thee", "soda",
+      "cola", "beer", "bier", "wine", "wijn", "orange juice",
+    ],
+  },
+  {
+    name: "Household",
+    color: "slate",
+    ingredients: [
+      "toilet paper", "wc papier", "toiletpapier", "dish soap", "afwasmiddel", "detergent",
+      "wasmiddel", "kitchen roll", "keukenrol", "cleaner", "schoonmaakmiddel", "sponge",
+      "spons", "trash bags", "vuilniszakken", "aluminum foil", "aluminiumfolie",
+    ],
+  },
+];
 
-    if (!best) return null;
+/**
+ * SHOP-01: seed the built-in default aisles + ingredient mapping for a
+ * household. Idempotent: skips entirely if the household already has ANY store
+ * (so it never disturbs a household that already configured its own aisles).
+ * `userId` is written to the added-by/audit `user_id` column.
+ */
+export async function seedDefaultAislesForHousehold(
+  householdId: string,
+  userId: string
+): Promise<void> {
+  if (!householdId || !userId) return;
 
-    return {
-      preference: best.item,
-      score: best.score ?? 1,
-      isExactMatch: false,
-      isCurrentUser: true,
-    };
-  }
+  await db.transaction(async (trx) => {
+    const [existing] = await trx
+      .select({ count: sql<number>`count(*)` })
+      .from(stores)
+      .where(eq(stores.householdId, householdId));
 
-  // Fall back to best household member match
-  if (otherUserMatches.length > 0) {
-    const best = otherUserMatches[0];
+    if ((existing?.count ?? 0) > 0) return;
 
-    if (!best) return null;
+    const storeRows = DEFAULT_AISLES.map((aisle, index) => ({
+      id: crypto.randomUUID(),
+      householdId,
+      userId,
+      name: aisle.name,
+      color: aisle.color,
+      icon: "ShoppingBagIcon",
+      sortOrder: index,
+    }));
 
-    return {
-      preference: best.item,
-      score: best.score ?? 1,
-      isExactMatch: false,
-      isCurrentUser: false,
-    };
-  }
+    await trx.insert(stores).values(storeRows);
 
-  return null;
+    const prefRows: Array<{
+      householdId: string;
+      userId: string;
+      normalizedName: string;
+      storeId: string;
+    }> = [];
+    const seen = new Set<string>();
+
+    DEFAULT_AISLES.forEach((aisle, index) => {
+      const storeId = storeRows[index]!.id;
+
+      for (const ingredient of aisle.ingredients) {
+        const normalizedName = normalizeIngredientName(ingredient);
+
+        if (!normalizedName || seen.has(normalizedName)) continue;
+        seen.add(normalizedName);
+        prefRows.push({ householdId, userId, normalizedName, storeId });
+      }
+    });
+
+    if (prefRows.length > 0) {
+      await trx.insert(ingredientStorePreferences).values(prefRows);
+    }
+  });
 }

@@ -7,7 +7,7 @@ import type {
   GroceryUpdateDto,
 } from "@norish/shared/contracts/dto/groceries";
 import { db } from "@norish/db/drizzle";
-import { groceries, householdUsers, recipeIngredients, recipes } from "@norish/db/schema";
+import { groceries, recipeIngredients, recipes } from "@norish/db/schema";
 import {
   GroceryInsertBaseSchema,
   GrocerySelectBaseSchema,
@@ -85,25 +85,37 @@ export async function listGroceriesByUsers(
   return parsed.data;
 }
 
+/**
+ * SHOP-02: list the shopping list for a HOUSEHOLD. Scopes strictly on
+ * `groceries.household_id` — the isolation boundary (HOUSE-06). A member of
+ * household A can never receive household B's items through this query.
+ */
 export async function listGroceriesByHousehold(
   householdId: string,
   options?: { includeDone?: boolean }
 ): Promise<GroceryDto[]> {
-  const members = await db
-    .select({ userId: householdUsers.userId })
-    .from(householdUsers)
-    .where(eq(householdUsers.householdId, householdId));
+  const includeDone = options?.includeDone ?? true;
 
-  const userIds = members.map((m) => m.userId);
+  const rows = await db
+    .select()
+    .from(groceries)
+    .where(
+      includeDone
+        ? eq(groceries.householdId, householdId)
+        : and(eq(groceries.householdId, householdId), eq(groceries.isDone, false))
+    )
+    .orderBy(asc(groceries.sortOrder));
 
-  if (!userIds.length) return [];
+  const parsed = z.array(GrocerySelectBaseSchema).safeParse(rows);
 
-  return listGroceriesByUsers(userIds, options);
+  if (!parsed.success) throw new Error("Failed to parse groceries (household)");
+
+  return parsed.data;
 }
 
 export async function createGroceries(
   items: { id: string; groceries: GroceryInsertDto }[],
-  householdUserIds: string[]
+  householdId: string
 ): Promise<GroceryDto[]> {
   if (!items.length) return [];
 
@@ -140,7 +152,7 @@ export async function createGroceries(
         })
         .where(
           and(
-            inArray(groceries.userId, householdUserIds),
+            eq(groceries.householdId, householdId),
             eq(groceries.isDone, false),
             storeId ? eq(groceries.storeId, storeId) : isNull(groceries.storeId)
           )
@@ -175,7 +187,7 @@ export async function createGroceries(
 export async function createGrocery(
   id: string,
   input: GroceryInsertDto,
-  householdUserIds: string[]
+  householdId: string
 ): Promise<GroceryDto> {
   const parsed = GroceryInsertBaseSchema.safeParse(input);
 
@@ -192,7 +204,7 @@ export async function createGrocery(
       })
       .where(
         and(
-          inArray(groceries.userId, householdUserIds),
+          eq(groceries.householdId, householdId),
           eq(groceries.isDone, false),
           input.storeId ? eq(groceries.storeId, input.storeId) : isNull(groceries.storeId)
         )
@@ -373,6 +385,23 @@ export async function getGroceryOwnerIds(groceryIds: string[]): Promise<Map<stri
 }
 
 /**
+ * SHOP-02 / HOUSE-06: get the owning household id for each grocery id. The
+ * shopping-list isolation gate: a mutation is allowed only if every targeted
+ * grocery's household id equals the caller's active shopping household.
+ * Returns a Map of groceryId -> householdId (missing ids are simply absent).
+ */
+export async function getGroceryHouseholdIds(groceryIds: string[]): Promise<Map<string, string>> {
+  if (groceryIds.length === 0) return new Map();
+
+  const rows = await db
+    .select({ id: groceries.id, householdId: groceries.householdId })
+    .from(groceries)
+    .where(inArray(groceries.id, groceryIds));
+
+  return new Map(rows.map((r) => [r.id, r.householdId]));
+}
+
+/**
  * Reorder groceries within a store
  * Updates sortOrder for multiple groceries in a single transaction
  * Optionally updates storeId for items that moved between stores
@@ -422,17 +451,17 @@ export async function reorderGroceriesInStore(
  * Returns the updated groceries
  */
 export async function markAllDoneInStore(
-  userIds: string[],
+  householdId: string,
   storeId: string | null,
   groceriesToMark?: Array<{ id: string; version: number }>
 ): Promise<GroceryDto[]> {
-  if (userIds.length === 0) return [];
+  if (!householdId) return [];
 
   if (groceriesToMark && groceriesToMark.length === 0) return [];
 
   if (!groceriesToMark) {
     const whereConditions = [
-      inArray(groceries.userId, userIds),
+      eq(groceries.householdId, householdId),
       eq(groceries.isDone, false),
       storeId ? eq(groceries.storeId, storeId) : isNull(groceries.storeId),
     ];
@@ -455,7 +484,7 @@ export async function markAllDoneInStore(
 
     for (const grocery of groceriesToMark) {
       const whereConditions = [
-        inArray(groceries.userId, userIds),
+        eq(groceries.householdId, householdId),
         eq(groceries.id, grocery.id),
         eq(groceries.version, grocery.version),
         eq(groceries.isDone, false),
@@ -486,17 +515,17 @@ export async function markAllDoneInStore(
  * Returns the deleted grocery IDs
  */
 export async function deleteDoneInStore(
-  userIds: string[],
+  householdId: string,
   storeId: string | null,
   groceriesToDelete?: Array<{ id: string; version: number }>
 ): Promise<string[]> {
-  if (userIds.length === 0) return [];
+  if (!householdId) return [];
 
   if (groceriesToDelete && groceriesToDelete.length === 0) return [];
 
   if (!groceriesToDelete) {
     const whereConditions = [
-      inArray(groceries.userId, userIds),
+      eq(groceries.householdId, householdId),
       eq(groceries.isDone, true),
       storeId ? eq(groceries.storeId, storeId) : isNull(groceries.storeId),
     ];
@@ -514,7 +543,7 @@ export async function deleteDoneInStore(
 
     for (const grocery of groceriesToDelete) {
       const whereConditions = [
-        inArray(groceries.userId, userIds),
+        eq(groceries.householdId, householdId),
         eq(groceries.id, grocery.id),
         eq(groceries.version, grocery.version),
         eq(groceries.isDone, true),
@@ -541,7 +570,6 @@ export async function deleteDoneInStore(
 export async function assignGroceryToStore(
   groceryId: string,
   newStoreId: string | null,
-  _householdUserIds: string[],
   version?: number
 ): Promise<GroceryDto | null> {
   const whereConditions = [eq(groceries.id, groceryId)];

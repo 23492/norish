@@ -14,7 +14,7 @@ import {
   DEFAULT_RECIPE_PERMISSION_POLICY,
   ServerConfigKeys,
 } from "@norish/config/zod/server-config";
-import { and, eq, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "@norish/db/drizzle";
 import { households, householdUsers } from "@norish/db/schema";
 import {
@@ -27,6 +27,7 @@ import {
 
 import { appliedOutcome, staleOutcome } from "./mutation-outcomes";
 import { getConfig } from "./server-config";
+import { seedDefaultAislesForHousehold } from "./stores";
 import { getActiveHouseholdId, getUsersByIds, setActiveHouseholdId } from "./users";
 
 /**
@@ -81,7 +82,45 @@ export async function createHousehold(input: HouseholdInsertDto): Promise<Househ
 
   if (!validated.success) throw new Error("Failed to parse created household");
 
+  // SHOP-01: a brand-new household (signup own-household, a new cookbook, or an
+  // OIDC-claimed org household) is born with the built-in default aisles + the
+  // ingredient->aisle mapping, so its shopping list is grouped with zero config.
+  // Idempotent (skips if the household already has stores); failure to seed must
+  // never break household creation.
+  try {
+    await seedDefaultAislesForHousehold(validated.data.id, validated.data.adminUserId);
+  } catch {
+    // best-effort seed; the household is fully usable without it.
+  }
+
   return validated.data;
+}
+
+/**
+ * SHOP-02 / D-25-03: resolve the household that OWNS a user's personal shopping
+ * list — their auto-created OWN household (earliest household they admin; from
+ * signup). Falls back to their earliest membership. Used to scope the shopping
+ * list when the user is in the personal (no active household) view.
+ */
+export async function getOwnHouseholdId(userId: string): Promise<string | null> {
+  const [adminRow] = await db
+    .select({ id: households.id })
+    .from(households)
+    .where(eq(households.adminUserId, userId))
+    .orderBy(asc(households.createdAt))
+    .limit(1);
+
+  if (adminRow?.id) return adminRow.id;
+
+  const [memberRow] = await db
+    .select({ id: households.id })
+    .from(households)
+    .innerJoin(householdUsers, eq(householdUsers.householdId, households.id))
+    .where(eq(householdUsers.userId, userId))
+    .orderBy(asc(households.createdAt))
+    .limit(1);
+
+  return memberRow?.id ?? null;
 }
 
 export async function deleteHousehold(id: string): Promise<void> {

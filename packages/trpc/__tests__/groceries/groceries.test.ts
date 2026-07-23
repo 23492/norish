@@ -21,14 +21,19 @@ import {
   createGroceries,
   deleteGroceryByIds,
   getGroceriesByIds,
+  getGroceryHouseholdIds,
   getGroceryOwnerIds,
   getRecipeInfoForGroceries,
+  listGroceriesByHousehold,
   listGroceriesByUsers,
   updateGroceries,
 } from "../mocks/db";
 import { groceryEmitter } from "../mocks/grocery-emitter";
 import { assertHouseholdAccess } from "../mocks/permissions";
-import { listRecurringGroceriesByUsers } from "../mocks/recurring-groceries";
+import {
+  listRecurringGroceriesByHousehold,
+  listRecurringGroceriesByUsers,
+} from "../mocks/recurring-groceries";
 // Import test utilities
 import {
   createMockAuthedContext,
@@ -40,6 +45,7 @@ import {
 const storesRepository = vi.hoisted(() => ({
   findBestIngredientStorePreference: vi.fn(),
   getStoreOwnerId: vi.fn(),
+  getStoreHouseholdId: vi.fn(),
   normalizeIngredientName: vi.fn((name: string) => name.toLowerCase()),
   upsertIngredientStorePreference: vi.fn(),
 }));
@@ -155,8 +161,8 @@ describe("groceries openapi procedures", () => {
       createMockGrocery({ id: crypto.randomUUID(), name: "Bread" }),
     ];
 
-    listGroceriesByUsers.mockResolvedValue(mockGroceries);
-    listRecurringGroceriesByUsers.mockResolvedValue([{ id: "recurring-1" }]);
+    listGroceriesByHousehold.mockResolvedValue(mockGroceries);
+    listRecurringGroceriesByHousehold.mockResolvedValue([{ id: "recurring-1" }]);
 
     const caller = openApiGroceriesRouter.createCaller({ ...ctx, multiplexer: null } as any);
     const result = await caller.listGroceries();
@@ -167,7 +173,7 @@ describe("groceries openapi procedures", () => {
   it("creates and returns a single grocery for the API endpoint", async () => {
     const storeId = crypto.randomUUID();
 
-    listGroceriesByUsers.mockResolvedValue([]);
+    listGroceriesByHousehold.mockResolvedValue([]);
     createGroceries.mockImplementation(
       async (items: Array<{ id: string; groceries: { name: string | null } }>) =>
         items.map(({ id, groceries }) => createMockGrocery({ id, name: groceries.name }))
@@ -192,14 +198,13 @@ describe("groceries openapi procedures", () => {
 
   it("marks a grocery done and returns the updated grocery", async () => {
     const groceryId = crypto.randomUUID();
-    const ownerIds = new Map([[groceryId, ctx.user.id]]);
+    const householdIds = new Map([[groceryId, ctx.household!.id]]);
     const grocery = createMockGrocery({ id: groceryId, isDone: false, version: 2 });
     const updated = { ...grocery, isDone: true };
 
-    getGroceryOwnerIds.mockResolvedValue(ownerIds);
+    getGroceryHouseholdIds.mockResolvedValue(householdIds);
     getGroceriesByIds.mockResolvedValue([grocery]);
     updateGroceries.mockResolvedValue([updated]);
-    assertHouseholdAccess.mockResolvedValue(undefined);
 
     const caller = openApiGroceriesRouter.createCaller({ ...ctx, multiplexer: null } as any);
     const result = await caller.markGroceryDone({ id: groceryId, version: 2 });
@@ -210,8 +215,7 @@ describe("groceries openapi procedures", () => {
   it("deletes a grocery and reports stale state", async () => {
     const groceryId = crypto.randomUUID();
 
-    getGroceryOwnerIds.mockResolvedValue(new Map([[groceryId, ctx.user.id]]));
-    assertHouseholdAccess.mockResolvedValue(undefined);
+    getGroceryHouseholdIds.mockResolvedValue(new Map([[groceryId, ctx.household!.id]]));
     deleteGroceryByIds.mockResolvedValue({ deletedIds: [], staleIds: [groceryId] });
 
     const caller = openApiGroceriesRouter.createCaller({ ...ctx, multiplexer: null } as any);
@@ -222,14 +226,13 @@ describe("groceries openapi procedures", () => {
 
   it("marks a grocery as undone and returns the updated grocery", async () => {
     const groceryId = crypto.randomUUID();
-    const ownerIds = new Map([[groceryId, ctx.user.id]]);
+    const householdIds = new Map([[groceryId, ctx.household!.id]]);
     const grocery = createMockGrocery({ id: groceryId, isDone: true, version: 4 });
     const updated = { ...grocery, isDone: false };
 
-    getGroceryOwnerIds.mockResolvedValue(ownerIds);
+    getGroceryHouseholdIds.mockResolvedValue(householdIds);
     getGroceriesByIds.mockResolvedValue([grocery]);
     updateGroceries.mockResolvedValue([updated]);
-    assertHouseholdAccess.mockResolvedValue(undefined);
 
     const caller = openApiGroceriesRouter.createCaller({ ...ctx, multiplexer: null } as any);
     const result = await caller.markGroceryUndone({ id: groceryId, version: 4 });
@@ -243,16 +246,15 @@ describe("groceries openapi procedures", () => {
     const grocery = createMockGrocery({ id: groceryId, name: "Milk", storeId: null });
     const updated = { ...grocery, storeId };
 
-    getGroceryOwnerIds.mockResolvedValue(new Map([[groceryId, ctx.user.id]]));
+    getGroceryHouseholdIds.mockResolvedValue(new Map([[groceryId, ctx.household!.id]]));
     getGroceriesByIds.mockResolvedValue([grocery]);
-    storesRepository.getStoreOwnerId.mockResolvedValue(ctx.user.id);
-    assertHouseholdAccess.mockResolvedValue(undefined);
+    storesRepository.getStoreHouseholdId.mockResolvedValue(ctx.household!.id);
     assignGroceryToStore.mockResolvedValue(updated);
 
     const caller = openApiGroceriesRouter.createCaller({ ...ctx, multiplexer: null } as any);
     const result = await caller.assignGroceryToStore({ id: groceryId, version: 2, storeId });
 
-    expect(assignGroceryToStore).toHaveBeenCalledWith(groceryId, storeId, ctx.userIds, 2);
+    expect(assignGroceryToStore).toHaveBeenCalledWith(groceryId, storeId, 2);
     expect(result).toEqual({ grocery: updated, stale: false });
   });
 });
@@ -411,8 +413,7 @@ describe("stale grocery updates", () => {
   it("logs stale grocery row updates as no-ops", async () => {
     const groceryId = crypto.randomUUID();
 
-    getGroceryOwnerIds.mockResolvedValue(new Map([[groceryId, ctx.user.id]]));
-    assertHouseholdAccess.mockResolvedValue(undefined);
+    getGroceryHouseholdIds.mockResolvedValue(new Map([[groceryId, ctx.household!.id]]));
     updateGroceries.mockResolvedValue([]);
 
     const caller = groceriesProcedures.createCaller({ ...ctx, multiplexer: null } as any);

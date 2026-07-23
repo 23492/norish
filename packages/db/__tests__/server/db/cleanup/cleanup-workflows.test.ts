@@ -12,6 +12,7 @@ import {
 import { SERVER_CONFIG } from "@norish/config/env-config-server";
 import {
   groceries,
+  households,
   plannedItems,
   recipeImages,
   recipes,
@@ -30,6 +31,7 @@ const testBase = new RepositoryTestBase("cleanup_workflows");
 
 let db: TestDb;
 let userId: string;
+let householdId: string;
 let recipeId: string;
 let uploadsDir: string;
 let originalUploadsDir: string;
@@ -66,6 +68,15 @@ describe("cleanup workflows", () => {
 
     userId = user.id;
     recipeId = recipe.id;
+
+    // SHOP-02: groceries/recurring are household-scoped. Insert a bare household
+    // directly (no createHousehold seeding) to satisfy the household_id FK.
+    const [hh] = await db
+      .insert(households)
+      .values({ name: "Cleanup HH", adminUserId: userId })
+      .returning({ id: households.id });
+
+    householdId = hh!.id;
     uploadsDir = await fs.mkdtemp(path.join(os.tmpdir(), "norish-cleanup-"));
 
     (SERVER_CONFIG as any).UPLOADS_DIR = uploadsDir;
@@ -199,6 +210,7 @@ describe("cleanup workflows", () => {
     const [recurring] = await db
       .insert(recurringGroceries)
       .values({
+        householdId,
         userId,
         name: "Recurring milk",
         recurrenceRule: "week",
@@ -208,18 +220,21 @@ describe("cleanup workflows", () => {
 
     await db.insert(groceries).values([
       {
+        householdId,
         userId,
         name: "Delete old done",
         isDone: true,
         updatedAt: new Date("2026-02-20T00:00:00Z"),
       },
       {
+        householdId,
         userId,
         name: "Delete cutoff done",
         isDone: true,
         updatedAt: new Date("2026-03-01T00:00:00Z"),
       },
       {
+        householdId,
         userId,
         name: "Keep recurring done",
         isDone: true,
@@ -227,12 +242,14 @@ describe("cleanup workflows", () => {
         updatedAt: new Date("2026-01-15T00:00:00Z"),
       },
       {
+        householdId,
         userId,
         name: "Keep recent done",
         isDone: true,
         updatedAt: new Date("2026-03-02T00:00:00Z"),
       },
       {
+        householdId,
         userId,
         name: "Keep old undone",
         isDone: false,

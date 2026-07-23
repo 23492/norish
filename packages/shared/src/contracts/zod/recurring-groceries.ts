@@ -5,6 +5,7 @@ import { recurringGroceries } from "@norish/db-schema/schema";
 
 export const RecurringGrocerySelectBaseSchema = createSelectSchema(recurringGroceries)
   .omit({
+    householdId: true,
     userId: true,
     createdAt: true,
     updatedAt: true,

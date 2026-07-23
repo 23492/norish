@@ -5,6 +5,7 @@ import { groceries } from "@norish/db-schema/schema";
 
 export const GrocerySelectBaseSchema = createSelectSchema(groceries)
   .omit({
+    householdId: true,
     userId: true,
     recurringGroceryId: true,
     storeId: true,
@@ -21,6 +22,7 @@ export const GrocerySelectBaseSchema = createSelectSchema(groceries)
 
 // Insert schema with explicit fields to avoid drizzle-zod type inference issues
 export const GroceryInsertBaseSchema = z.object({
+  householdId: z.string(),
   userId: z.string(),
   name: z.string().nullable(),
   unit: z.string().nullable(),

@@ -1,11 +1,10 @@
 import { TRPCError } from "@trpc/server";
 
-import { assertHouseholdAccess } from "@norish/auth/permissions";
 import {
   checkStoreNameExistsInHousehold,
   countGroceriesInStore,
   deleteStore,
-  getStoreOwnerId,
+  getStoreHouseholdId,
   reorderStores,
   updateStore,
 } from "@norish/db/repositories/stores";
@@ -17,6 +16,7 @@ import {
   StoreUpdateInputSchema,
 } from "@norish/shared/contracts/zod";
 
+import { resolveShoppingHouseholdId } from "../../helpers";
 import { authedProcedure } from "../../middleware";
 import { router } from "../../trpc";
 import { groceryEmitter } from "../groceries/emitter";
@@ -27,6 +27,29 @@ import {
   listStoresOutputSchema,
   storeIdInputSchema,
 } from "./stores-openapi-types";
+
+/**
+ * SHOP-02 / HOUSE-06: assert the store belongs to the caller's active shopping
+ * household. Returns that household id. Refuses with NOT_FOUND on any mismatch.
+ */
+async function assertStoreInHousehold(
+  ctx: { user: { id: string }; household: { id: string } | null },
+  storeId: string
+): Promise<string> {
+  const householdId = await resolveShoppingHouseholdId(ctx);
+
+  if (!householdId) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Store not found" });
+  }
+
+  const storeHouseholdId = await getStoreHouseholdId(storeId);
+
+  if (!storeHouseholdId || storeHouseholdId !== householdId) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Store not found" });
+  }
+
+  return householdId;
+}
 
 const list = authedProcedure.query(async ({ ctx }) => {
   return listStoresData(ctx);
@@ -80,17 +103,12 @@ export const createStoreProcedure = authedProcedure
 const update = authedProcedure.input(StoreUpdateInputSchema).mutation(async ({ ctx, input }) => {
   log.debug({ userId: ctx.user.id, storeId: input.id }, "Updating store");
 
-  // Check ownership
-  const ownerId = await getStoreOwnerId(input.id);
-
-  if (!ownerId) {
-    throw new TRPCError({ code: "NOT_FOUND", message: "Store not found" });
-  }
-  await assertHouseholdAccess(ctx.user.id, ownerId);
+  // Check ownership (household-scoped)
+  const householdId = await assertStoreInHousehold(ctx, input.id);
 
   // Check for duplicate name if name is being changed
   if (input.name) {
-    const exists = await checkStoreNameExistsInHousehold(input.name, ctx.userIds, input.id);
+    const exists = await checkStoreNameExistsInHousehold(input.name, householdId, input.id);
 
     if (exists) {
       throw new TRPCError({
@@ -131,13 +149,8 @@ const remove = authedProcedure.input(StoreDeleteSchema).mutation(async ({ ctx, i
     "Deleting store"
   );
 
-  // Check ownership
-  const ownerId = await getStoreOwnerId(storeId);
-
-  if (!ownerId) {
-    throw new TRPCError({ code: "NOT_FOUND", message: "Store not found" });
-  }
-  await assertHouseholdAccess(ctx.user.id, ownerId);
+  // Check ownership (household-scoped)
+  await assertStoreInHousehold(ctx, storeId);
 
   deleteStore(storeId, version, deleteGroceries, grocerySnapshot)
     .then(({ deletedGroceryIds, storeDeleted, stale }) => {
@@ -185,6 +198,21 @@ const reorder = authedProcedure.input(StoreReorderSchema).mutation(async ({ ctx,
   log.debug({ userId: ctx.user.id, storeCount: storeUpdates.length }, "Reordering stores");
 
   try {
+    // HOUSE-06: every store being reordered must belong to the caller's household.
+    const householdId = await resolveShoppingHouseholdId(ctx);
+
+    if (!householdId) {
+      return storeUpdates.map((s) => s.id);
+    }
+
+    for (const s of storeUpdates) {
+      const storeHouseholdId = await getStoreHouseholdId(s.id);
+
+      if (!storeHouseholdId || storeHouseholdId !== householdId) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Store not found" });
+      }
+    }
+
     const reorderedStores = await reorderStores(storeUpdates);
 
     if (reorderedStores.length === 0) {
@@ -220,12 +248,7 @@ const reorder = authedProcedure.input(StoreReorderSchema).mutation(async ({ ctx,
 });
 
 const getGroceryCount = authedProcedure.input(storeIdInputSchema).query(async ({ ctx, input }) => {
-  const ownerId = await getStoreOwnerId(input.storeId);
-
-  if (!ownerId) {
-    throw new TRPCError({ code: "NOT_FOUND", message: "Store not found" });
-  }
-  await assertHouseholdAccess(ctx.user.id, ownerId);
+  await assertStoreInHousehold(ctx, input.storeId);
 
   return countGroceriesInStore(input.storeId);
 });

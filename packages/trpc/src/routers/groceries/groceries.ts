@@ -2,11 +2,10 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 import type { GroceryUpdateDto } from "@norish/shared/contracts";
-import { assertHouseholdAccess } from "@norish/auth/permissions";
 import {
   deleteDoneInStore,
   getGroceriesByIds,
-  getGroceryOwnerIds,
+  getGroceryHouseholdIds,
   GroceryCreateSchema,
   GroceryDeleteSchema,
   GrocerySelectBaseSchema,
@@ -18,7 +17,7 @@ import {
   updateGroceries,
 } from "@norish/db";
 import {
-  getStoreOwnerId,
+  getStoreHouseholdId,
   normalizeIngredientName,
   upsertIngredientStorePreference,
 } from "@norish/db/repositories/stores";
@@ -32,6 +31,7 @@ import {
 } from "@norish/shared/contracts/zod";
 import { parseIngredientWithDefaults } from "@norish/shared/lib/helpers";
 
+import { resolveShoppingHouseholdId } from "../../helpers";
 import { authedProcedure } from "../../middleware";
 import { router } from "../../trpc";
 import { groceryEmitter } from "./emitter";
@@ -77,18 +77,21 @@ const update = authedProcedure.input(GroceryUpdateInputSchema).mutation(({ ctx, 
 
   log.debug({ userId: ctx.user.id, groceryId }, "Updating grocery");
 
-  getGroceryOwnerIds([groceryId])
-    .then(async (ownerIds) => {
-      const ownerId = ownerIds.get(groceryId);
+  resolveShoppingHouseholdId(ctx)
+    .then(async (householdId) => {
+      if (!householdId) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Grocery not found" });
+      }
 
-      if (!ownerId) {
+      const householdIds = await getGroceryHouseholdIds([groceryId]);
+      const groceryHouseholdId = householdIds.get(groceryId);
+
+      if (!groceryHouseholdId || groceryHouseholdId !== householdId) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Grocery not found",
         });
       }
-
-      await assertHouseholdAccess(ctx.user.id, ownerId);
 
       const units = await getUnits();
       const parsedIngredient = parseIngredientWithDefaults(raw, units)[0];
@@ -424,28 +427,35 @@ const reorderInStore = authedProcedure
       }
     }
 
-    getGroceryOwnerIds(groceryIds)
-      .then(async (ownerIds) => {
-        if (ownerIds.size !== groceryIds.length) {
+    resolveShoppingHouseholdId(ctx)
+      .then(async (householdId) => {
+        if (!householdId) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Some groceries not found" });
+        }
+
+        const householdIds = await getGroceryHouseholdIds(groceryIds);
+
+        if (householdIds.size !== groceryIds.length) {
           throw new TRPCError({
             code: "NOT_FOUND",
             message: "Some groceries not found",
           });
         }
 
-        // Check household access for all groceries
-        for (const ownerId of ownerIds.values()) {
-          await assertHouseholdAccess(ctx.user.id, ownerId);
+        // HOUSE-06: every grocery must belong to the caller's shopping household.
+        for (const groceryHouseholdId of householdIds.values()) {
+          if (groceryHouseholdId !== householdId) {
+            throw new TRPCError({ code: "NOT_FOUND", message: "Some groceries not found" });
+          }
         }
 
-        // Verify access to any stores being assigned to
+        // Verify any target stores belong to the same household.
         for (const storeId of storeIdsToVerify) {
-          const storeOwnerId = await getStoreOwnerId(storeId);
+          const storeHouseholdId = await getStoreHouseholdId(storeId);
 
-          if (!storeOwnerId) {
+          if (!storeHouseholdId || storeHouseholdId !== householdId) {
             throw new TRPCError({ code: "NOT_FOUND", message: "Store not found" });
           }
-          await assertHouseholdAccess(ctx.user.id, storeOwnerId);
         }
 
         // Perform reorder (and optional store changes)
@@ -483,7 +493,12 @@ const reorderInStore = authedProcedure
               if (update?.storeId && grocery.name) {
                 const normalized = normalizeIngredientName(grocery.name);
 
-                await upsertIngredientStorePreference(ctx.user.id, normalized, update.storeId);
+                await upsertIngredientStorePreference(
+                  householdId,
+                  ctx.user.id,
+                  normalized,
+                  update.storeId
+                );
                 log.debug(
                   { userId: ctx.user.id, normalized, storeId: update.storeId },
                   "Saved ingredient store preference"
@@ -516,7 +531,8 @@ const markAllDone = authedProcedure
 
     log.info({ userId: ctx.user.id, storeId }, "Marking all groceries done in store");
 
-    markAllDoneInStore(ctx.userIds, storeId, groceries)
+    resolveShoppingHouseholdId(ctx)
+      .then((householdId) => (householdId ? markAllDoneInStore(householdId, storeId, groceries) : []))
       .then((updated) => {
         if (updated.length < groceries.length) {
           log.info(
@@ -549,7 +565,8 @@ const deleteDone = authedProcedure
 
     log.info({ userId: ctx.user.id, storeId }, "Deleting done groceries in store");
 
-    deleteDoneInStore(ctx.userIds, storeId, groceries)
+    resolveShoppingHouseholdId(ctx)
+      .then((householdId) => (householdId ? deleteDoneInStore(householdId, storeId, groceries) : []))
       .then((deletedIds) => {
         if (deletedIds.length < groceries.length) {
           log.info(

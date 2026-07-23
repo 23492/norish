@@ -17,14 +17,16 @@ export const StoreColorSchema = z.enum([
 
 export type StoreColor = z.infer<typeof StoreColorSchema>;
 
-// Store select schema
+// Store select schema (householdId is the internal isolation key — not exposed)
 export const StoreSelectBaseSchema = createSelectSchema(stores).omit({
+  householdId: true,
   createdAt: true,
   updatedAt: true,
 });
 
 // Store insert schema (without userId - added server-side)
 export const StoreInsertBaseSchema = z.object({
+  householdId: z.string(),
   userId: z.string(),
   name: z.string().min(1, "Store name is required").max(100),
   color: StoreColorSchema.default("primary"),
@@ -80,11 +82,13 @@ export const StoreReorderSchema = z.object({
 export const IngredientStorePreferenceSelectSchema = createSelectSchema(
   ingredientStorePreferences
 ).omit({
+  householdId: true,
   createdAt: true,
   updatedAt: true,
 });
 
 export const IngredientStorePreferenceInsertSchema = z.object({
+  householdId: z.string(),
   userId: z.string(),
   normalizedName: z.string(),
   storeId: z.uuid(),

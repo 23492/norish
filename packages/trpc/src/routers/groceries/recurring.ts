@@ -2,18 +2,18 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 import type { GroceryInsertDto } from "@norish/shared/contracts";
-import { assertHouseholdAccess } from "@norish/auth/permissions";
 import { createGrocery, updateGrocery } from "@norish/db";
 import {
   createRecurringGrocery,
   deleteRecurringGroceryById,
   getRecurringGroceryById,
-  getRecurringGroceryOwnerId,
+  getRecurringGroceryHouseholdId,
   updateRecurringGrocery,
 } from "@norish/db/repositories/recurring-groceries";
 import { trpcLogger as log } from "@norish/shared-server/logger";
 import { calculateNextOccurrence, getTodayString } from "@norish/shared/lib/recurrence/calculator";
 
+import { resolveShoppingHouseholdId } from "../../helpers";
 import { authedProcedure } from "../../middleware";
 import { router } from "../../trpc";
 import { groceryEmitter } from "./emitter";
@@ -39,8 +39,18 @@ const createRecurring = authedProcedure
       "Creating recurring grocery"
     );
 
+    const householdId = await resolveShoppingHouseholdId(ctx);
+
+    if (!householdId) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "No shopping list household",
+      });
+    }
+
     const recurringData = {
       id: crypto.randomUUID(),
+      householdId,
       userId: ctx.user.id,
       name: input.name,
       amount: input.amount,
@@ -55,6 +65,7 @@ const createRecurring = authedProcedure
     try {
       const created = await createRecurringGrocery(recurringData);
       const groceryData: GroceryInsertDto = {
+        householdId,
         userId: ctx.user.id,
         name: created.name,
         unit: created.unit || null,
@@ -65,7 +76,7 @@ const createRecurring = authedProcedure
         storeId: input.storeId ?? null,
       };
 
-      const grocery = await createGrocery(id, groceryData, ctx.userIds);
+      const grocery = await createGrocery(id, groceryData, householdId);
 
       log.info(
         { userId: ctx.user.id, recurringId: created.id, groceryId: id },
@@ -112,16 +123,23 @@ const updateRecurring = authedProcedure
 
     log.debug({ userId: ctx.user.id, recurringGroceryId, groceryId }, "Updating recurring grocery");
 
-    getRecurringGroceryOwnerId(recurringGroceryId)
-      .then(async (ownerId) => {
-        if (!ownerId) {
+    resolveShoppingHouseholdId(ctx)
+      .then(async (householdId) => {
+        if (!householdId) {
           throw new TRPCError({
             code: "NOT_FOUND",
             message: "Recurring grocery not found",
           });
         }
 
-        await assertHouseholdAccess(ctx.user.id, ownerId);
+        const recurringHouseholdId = await getRecurringGroceryHouseholdId(recurringGroceryId);
+
+        if (!recurringHouseholdId || recurringHouseholdId !== householdId) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Recurring grocery not found",
+          });
+        }
 
         const updated = await updateRecurringGrocery({
           id: recurringGroceryId,
@@ -180,16 +198,23 @@ const deleteRecurring = authedProcedure
 
     log.info({ userId: ctx.user.id, recurringGroceryId, version }, "Deleting recurring grocery");
 
-    getRecurringGroceryOwnerId(recurringGroceryId)
-      .then(async (ownerId) => {
-        if (!ownerId) {
+    resolveShoppingHouseholdId(ctx)
+      .then(async (householdId) => {
+        if (!householdId) {
           throw new TRPCError({
             code: "NOT_FOUND",
             message: "Recurring grocery not found",
           });
         }
 
-        await assertHouseholdAccess(ctx.user.id, ownerId);
+        const recurringHouseholdId = await getRecurringGroceryHouseholdId(recurringGroceryId);
+
+        if (!recurringHouseholdId || recurringHouseholdId !== householdId) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Recurring grocery not found",
+          });
+        }
         const result = await deleteRecurringGroceryById(recurringGroceryId, version);
 
         if (result.stale) {
@@ -238,16 +263,23 @@ const checkRecurring = authedProcedure
       "Checking recurring grocery"
     );
 
-    getRecurringGroceryOwnerId(recurringGroceryId)
-      .then(async (ownerId) => {
-        if (!ownerId) {
+    resolveShoppingHouseholdId(ctx)
+      .then(async (householdId) => {
+        if (!householdId) {
           throw new TRPCError({
             code: "NOT_FOUND",
             message: "Recurring grocery not found",
           });
         }
 
-        await assertHouseholdAccess(ctx.user.id, ownerId);
+        const recurringHouseholdId = await getRecurringGroceryHouseholdId(recurringGroceryId);
+
+        if (!recurringHouseholdId || recurringHouseholdId !== householdId) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Recurring grocery not found",
+          });
+        }
 
         const recurringGrocery = await getRecurringGroceryById(recurringGroceryId);
 

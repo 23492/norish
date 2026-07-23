@@ -5,6 +5,8 @@ import { vi } from "vitest";
 import { z } from "zod";
 
 export const listGroceriesByUsers = vi.fn();
+export const listGroceriesByHousehold = vi.fn();
+export const getGroceryHouseholdIds = vi.fn();
 export const createGroceries = vi.fn();
 export const updateGroceries = vi.fn();
 export const deleteGroceryByIds = vi.fn();
@@ -55,6 +57,8 @@ export function resetDbMocks() {
   isUserServerAdmin.mockReset();
   isUserServerAdmin.mockResolvedValue(false);
   listGroceriesByUsers.mockReset();
+  listGroceriesByHousehold.mockReset();
+  getGroceryHouseholdIds.mockReset();
   createGroceries.mockReset();
   updateGroceries.mockReset();
   deleteGroceryByIds.mockReset();

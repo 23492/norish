@@ -22,7 +22,9 @@ const storesRepository = vi.hoisted(() => ({
   createStore: vi.fn(),
   deleteStore: vi.fn(),
   getStoreOwnerId: vi.fn(),
+  getStoreHouseholdId: vi.fn(),
   listStoresByUserIds: vi.fn(),
+  listStoresByHousehold: vi.fn(),
   reorderStores: vi.fn(),
   updateStore: vi.fn(),
 }));
@@ -64,6 +66,7 @@ describe("stores procedures", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     storesRepository.getStoreOwnerId.mockResolvedValue(ctx.user.id);
+    storesRepository.getStoreHouseholdId.mockResolvedValue(ctx.household!.id);
     assertHouseholdAccess.mockResolvedValue(undefined);
   });
 
@@ -146,7 +149,7 @@ describe("stores procedures", () => {
       },
     ];
 
-    storesRepository.listStoresByUserIds.mockResolvedValue(stores);
+    storesRepository.listStoresByHousehold.mockResolvedValue(stores);
 
     const caller = openApiStoresRouter.createCaller({ ...ctx, multiplexer: null } as any);
     const result = await caller.listStores();

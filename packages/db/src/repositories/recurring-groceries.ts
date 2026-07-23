@@ -61,36 +61,39 @@ export async function listRecurringGroceriesByUser(userId: string): Promise<Recu
   return parsed.data;
 }
 
-export async function listRecurringGroceriesByUsers(
-  userIds: string[]
+/**
+ * SHOP-02: recurring groceries for a HOUSEHOLD (isolation boundary, HOUSE-06).
+ */
+export async function listRecurringGroceriesByHousehold(
+  householdId: string
 ): Promise<RecurringGroceryDto[]> {
-  if (!userIds.length) return [];
+  if (!householdId) return [];
 
   const rows = await db
     .select()
     .from(recurringGroceries)
-    .where(inArray(recurringGroceries.userId, userIds))
+    .where(eq(recurringGroceries.householdId, householdId))
     .orderBy(desc(recurringGroceries.createdAt));
 
   const parsed = z.array(RecurringGrocerySelectBaseSchema).safeParse(rows);
 
-  if (!parsed.success) throw new Error("Failed to parse recurring groceries (users)");
+  if (!parsed.success) throw new Error("Failed to parse recurring groceries (household)");
 
   return parsed.data;
 }
 
 export async function listDueRecurringGroceries(
-  userIds: string[],
+  householdId: string,
   dueDate: string // YYYY-MM-DD
 ): Promise<RecurringGroceryDto[]> {
-  if (!userIds.length) return [];
+  if (!householdId) return [];
 
   const rows = await db
     .select()
     .from(recurringGroceries)
     .where(
       and(
-        inArray(recurringGroceries.userId, userIds),
+        eq(recurringGroceries.householdId, householdId),
         lte(recurringGroceries.nextPlannedFor, dueDate)
       )
     );
@@ -309,4 +312,20 @@ export async function getRecurringGroceryOwnerId(
     .limit(1);
 
   return row?.userId ?? null;
+}
+
+/**
+ * SHOP-02 / HOUSE-06: the owning household id for a recurring grocery (isolation
+ * gate). Returns null if the row does not exist.
+ */
+export async function getRecurringGroceryHouseholdId(
+  recurringGroceryId: string
+): Promise<string | null> {
+  const [row] = await db
+    .select({ householdId: recurringGroceries.householdId })
+    .from(recurringGroceries)
+    .where(eq(recurringGroceries.id, recurringGroceryId))
+    .limit(1);
+
+  return row?.householdId ?? null;
 }

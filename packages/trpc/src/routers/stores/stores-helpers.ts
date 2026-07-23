@@ -4,15 +4,17 @@ import { TRPCError } from "@trpc/server";
 import {
   checkStoreNameExistsInHousehold,
   createStore,
-  listStoresByUserIds,
+  listStoresByHousehold,
 } from "@norish/db/repositories/stores";
 import { trpcLogger as log } from "@norish/shared-server/logger";
 import { StoreCreateSchema } from "@norish/shared/contracts/zod";
 
+import { resolveShoppingHouseholdId } from "../../helpers";
 import { storeEmitter } from "./emitter";
 
 export type StoreProcedureContext = {
   user: { id: string };
+  household: { id: string } | null;
   userIds: string[];
   householdKey: string;
 };
@@ -20,7 +22,11 @@ export type StoreProcedureContext = {
 export async function listStoresData(ctx: StoreProcedureContext) {
   log.debug({ userId: ctx.user.id }, "Listing stores");
 
-  const stores = await listStoresByUserIds(ctx.userIds);
+  const householdId = await resolveShoppingHouseholdId(ctx);
+
+  if (!householdId) return [];
+
+  const stores = await listStoresByHousehold(householdId);
 
   log.debug({ userId: ctx.user.id, storeCount: stores.length }, "Stores listed");
 
@@ -35,7 +41,13 @@ export async function createStoreData(
 
   log.info({ userId: ctx.user.id, storeName: input.name }, "Creating store");
 
-  const exists = await checkStoreNameExistsInHousehold(input.name, ctx.userIds);
+  const householdId = await resolveShoppingHouseholdId(ctx);
+
+  if (!householdId) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "No shopping list household" });
+  }
+
+  const exists = await checkStoreNameExistsInHousehold(input.name, householdId);
 
   if (exists) {
     throw new TRPCError({
@@ -45,6 +57,7 @@ export async function createStoreData(
   }
 
   const storeData = {
+    householdId,
     userId: ctx.user.id,
     name: input.name,
     color: input.color ?? "primary",

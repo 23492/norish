@@ -2,35 +2,36 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 import type { GroceryDto, GroceryUpdateDto } from "@norish/shared/contracts";
-import { assertHouseholdAccess } from "@norish/auth/permissions";
 import {
   assignGroceryToStore,
   createGroceries,
   deleteGroceryByIds,
   getGroceriesByIds,
-  getGroceryOwnerIds,
+  getGroceryHouseholdIds,
   getRecipeInfoForGroceries,
   GroceryCreateSchema,
   GroceryDeleteSchema,
   GroceryToggleSchema,
   GroceryUpdateBaseSchema,
-  listGroceriesByUsers,
+  listGroceriesByHousehold,
   updateGroceries,
 } from "@norish/db";
-import { listRecurringGroceriesByUsers } from "@norish/db/repositories/recurring-groceries";
+import { listRecurringGroceriesByHousehold } from "@norish/db/repositories/recurring-groceries";
 import {
   findBestIngredientStorePreference,
-  getStoreOwnerId,
+  getStoreHouseholdId,
   normalizeIngredientName,
   upsertIngredientStorePreference,
 } from "@norish/db/repositories/stores";
 import { trpcLogger as log } from "@norish/shared-server/logger";
 import { AssignGroceryToStoreInputSchema } from "@norish/shared/contracts/zod";
 
+import { resolveShoppingHouseholdId } from "../../helpers";
 import { groceryEmitter } from "./emitter";
 
 export type GroceryProcedureContext = {
   user: { id: string };
+  household: { id: string } | null;
   userIds: string[];
   householdKey: string;
 };
@@ -51,12 +52,41 @@ function normalizeGroceryName(name: string | null): string {
   return (name ?? "").toLowerCase().trim();
 }
 
+/**
+ * SHOP-02 / HOUSE-06: assert every targeted grocery belongs to the caller's
+ * active shopping household. Refuses with NOT_FOUND (not FORBIDDEN) on any
+ * mismatch or missing row, so the boundary never confirms a resource exists in
+ * another household.
+ */
+async function assertGroceriesInHousehold(
+  groceryIds: string[],
+  householdId: string
+): Promise<void> {
+  const householdIds = await getGroceryHouseholdIds(groceryIds);
+
+  if (householdIds.size !== groceryIds.length) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Some groceries not found" });
+  }
+
+  for (const ownerHouseholdId of householdIds.values()) {
+    if (ownerHouseholdId !== householdId) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Some groceries not found" });
+    }
+  }
+}
+
 export async function listGroceriesData(ctx: GroceryProcedureContext) {
   log.debug({ userId: ctx.user.id }, "Listing groceries");
 
+  const householdId = await resolveShoppingHouseholdId(ctx);
+
+  if (!householdId) {
+    return { groceries: [], recurringGroceries: [], recipeMap: {} };
+  }
+
   const [groceries, recurringGroceries] = await Promise.all([
-    listGroceriesByUsers(ctx.userIds),
-    listRecurringGroceriesByUsers(ctx.userIds),
+    listGroceriesByHousehold(householdId),
+    listRecurringGroceriesByHousehold(householdId),
   ]);
 
   const recipeIngredientIds = groceries
@@ -87,7 +117,13 @@ export async function createGroceriesData(
   ctx: GroceryProcedureContext,
   input: Array<z.infer<typeof GroceryCreateSchema>>
 ) {
-  const existingGroceries = await listGroceriesByUsers(ctx.userIds, { includeDone: false });
+  const householdId = await resolveShoppingHouseholdId(ctx);
+
+  if (!householdId) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "No shopping list household" });
+  }
+
+  const existingGroceries = await listGroceriesByHousehold(householdId, { includeDone: false });
   const existingByKey = new Map<string, GroceryMergeCandidate>();
 
   for (const grocery of existingGroceries) {
@@ -107,6 +143,7 @@ export async function createGroceriesData(
   const groceriesToCreate: Array<{
     id: string;
     groceries: {
+      householdId: string;
       userId: string;
       name: string | null;
       unit: string | null;
@@ -145,7 +182,7 @@ export async function createGroceriesData(
     let storeId: string | null = grocery.storeId ?? null;
 
     if (!storeId && grocery.name) {
-      const match = await findBestIngredientStorePreference(ctx.user.id, ctx.userIds, grocery.name);
+      const match = await findBestIngredientStorePreference(householdId, grocery.name);
 
       storeId = match?.preference.storeId ?? null;
     }
@@ -153,6 +190,7 @@ export async function createGroceriesData(
     groceriesToCreate.push({
       id,
       groceries: {
+        householdId,
         userId: ctx.user.id,
         name: grocery.name,
         unit: grocery.unit,
@@ -196,7 +234,7 @@ export async function createGroceriesData(
   let createdGroceries: GroceryDto[] = [];
 
   if (groceriesToCreate.length > 0) {
-    createdGroceries = await createGroceries(groceriesToCreate, ctx.userIds);
+    createdGroceries = await createGroceries(groceriesToCreate, householdId);
     log.info({ userId: ctx.user.id, count: createdGroceries.length }, "Groceries created");
 
     if (createdGroceries.length > 0) {
@@ -234,15 +272,13 @@ export async function toggleGroceriesData(
 
   log.debug({ userId: ctx.user.id, count: groceryIds.length, isDone }, "Toggling groceries");
 
-  const ownerIds = await getGroceryOwnerIds(groceryIds);
+  const householdId = await resolveShoppingHouseholdId(ctx);
 
-  if (ownerIds.size !== groceryIds.length) {
-    throw new TRPCError({ code: "NOT_FOUND", message: "Some groceries not found" });
+  if (!householdId) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Groceries not found" });
   }
 
-  for (const ownerId of ownerIds.values()) {
-    await assertHouseholdAccess(ctx.user.id, ownerId);
-  }
+  await assertGroceriesInHousehold(groceryIds, householdId);
 
   const existingGroceries = await getGroceriesByIds(groceryIds);
 
@@ -296,15 +332,13 @@ export async function deleteGroceriesData(
 
   log.info({ userId: ctx.user.id, count: groceryIds.length }, "Deleting groceries");
 
-  const ownerIds = await getGroceryOwnerIds(groceryIds);
+  const householdId = await resolveShoppingHouseholdId(ctx);
 
-  if (ownerIds.size !== groceryIds.length) {
+  if (!householdId) {
     throw new TRPCError({ code: "NOT_FOUND", message: "Some groceries not found" });
   }
 
-  for (const ownerId of ownerIds.values()) {
-    await assertHouseholdAccess(ctx.user.id, ownerId);
-  }
+  await assertGroceriesInHousehold(groceryIds, householdId);
 
   const result = await deleteGroceryByIds(input.groceries);
 
@@ -331,23 +365,26 @@ export async function assignGroceryToStoreData(
 
   log.debug({ userId: ctx.user.id, groceryId, storeId }, "Assigning grocery to store");
 
-  const [ownerIds, storeOwnerId] = await Promise.all([
-    getGroceryOwnerIds([groceryId]),
-    storeId ? getStoreOwnerId(storeId) : Promise.resolve(null),
-  ]);
-  const ownerId = ownerIds.get(groceryId);
+  const householdId = await resolveShoppingHouseholdId(ctx);
 
-  if (!ownerId) {
+  if (!householdId) {
     throw new TRPCError({ code: "NOT_FOUND", message: "Grocery not found" });
   }
 
-  await assertHouseholdAccess(ctx.user.id, ownerId);
+  const [groceryHouseholdIds, storeHouseholdId] = await Promise.all([
+    getGroceryHouseholdIds([groceryId]),
+    storeId ? getStoreHouseholdId(storeId) : Promise.resolve(null),
+  ]);
+  const groceryHouseholdId = groceryHouseholdIds.get(groceryId);
+
+  if (!groceryHouseholdId || groceryHouseholdId !== householdId) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Grocery not found" });
+  }
 
   if (storeId) {
-    if (!storeOwnerId) {
+    if (!storeHouseholdId || storeHouseholdId !== householdId) {
       throw new TRPCError({ code: "NOT_FOUND", message: "Store not found" });
     }
-    await assertHouseholdAccess(ctx.user.id, storeOwnerId);
   }
 
   const [grocery] = await getGroceriesByIds([groceryId]);
@@ -356,7 +393,7 @@ export async function assignGroceryToStoreData(
     throw new TRPCError({ code: "NOT_FOUND", message: "Grocery not found" });
   }
 
-  const updated = await assignGroceryToStore(groceryId, storeId, ctx.userIds, version);
+  const updated = await assignGroceryToStore(groceryId, storeId, version);
 
   if (!updated) {
     log.info(
@@ -372,7 +409,7 @@ export async function assignGroceryToStoreData(
   if (savePreference && storeId && grocery.name) {
     const normalized = normalizeIngredientName(grocery.name);
 
-    await upsertIngredientStorePreference(ctx.user.id, normalized, storeId);
+    await upsertIngredientStorePreference(householdId, ctx.user.id, normalized, storeId);
     log.debug({ userId: ctx.user.id, normalized, storeId }, "Saved ingredient store preference");
   }
 

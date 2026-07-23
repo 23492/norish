@@ -281,6 +281,13 @@
       "when": 1784669066649,
       "tag": "0039_root_iso_no_everyone_view",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1784840343406,
+      "tag": "0040_shopping_list_household",
+      "breakpoints": true
     }
   ]
 }

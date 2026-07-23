@@ -1,12 +1,17 @@
 import { date, index, integer, numeric, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 import { users } from "./auth";
+import { households } from "./households";
 import { versionColumn } from "./shared";
 
 export const recurringGroceries = pgTable(
   "recurring_groceries",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    // SHOP-02: recurring groceries are HOUSEHOLD-scoped. `user_id` is added-by/audit only.
+    householdId: uuid("household_id")
+      .notNull()
+      .references(() => households.id, { onDelete: "cascade" }),
     userId: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
@@ -31,6 +36,7 @@ export const recurringGroceries = pgTable(
     ...versionColumn,
   },
   (t) => [
+    index("idx_recurring_groceries_household_id").on(t.householdId),
     index("idx_recurring_groceries_user_id").on(t.userId),
     index("idx_recurring_groceries_next_date").on(t.nextPlannedFor),
   ]

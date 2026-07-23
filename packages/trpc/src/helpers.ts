@@ -6,8 +6,27 @@ import type { RealtimeEventEnvelope } from "@norish/shared/contracts/realtime-en
 import { trpcLogger as log } from "@norish/shared-server/logger";
 import { assertEventEnvelope, unwrapPayload } from "@norish/shared/lib/operation-helpers";
 
+import { getOwnHouseholdId } from "@norish/db/repositories/households";
+
 import type { TypedEmitter } from "./emitter";
 import { authedProcedure } from "./middleware";
+
+/**
+ * SHOP-02 / D-25-03: resolve the household that owns the caller's shopping list.
+ * When an active household is selected, that IS the shopping household (its
+ * members share one list). In the personal (no active household) view, the list
+ * lives in the user's OWN household (their signup household). This is the single
+ * isolation scope for the grocery/store/recurring surface (HOUSE-06): every
+ * read/write filters on it, so a member of household A can never touch B's list.
+ */
+export async function resolveShoppingHouseholdId(ctx: {
+  user: { id: string };
+  household: { id: string } | null;
+}): Promise<string | null> {
+  if (ctx.household?.id) return ctx.household.id;
+
+  return getOwnHouseholdId(ctx.user.id);
+}
 
 type AuthedSubscriptionProcedure = TRPCSubscriptionProcedure<{
   input: void;

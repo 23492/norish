@@ -11,6 +11,7 @@ import {
   createRecurringGrocery,
   deleteRecurringGroceryById,
   getRecurringGroceryById,
+  getRecurringGroceryHouseholdId,
   getRecurringGroceryOwnerId,
   updateRecurringGrocery,
 } from "../mocks/recurring-groceries";
@@ -48,6 +49,7 @@ describe("recurring groceries procedures", () => {
     vi.clearAllMocks();
     ctx = createMockAuthedContext(mockUser, mockHousehold);
     getRecurringGroceryOwnerId.mockResolvedValue(ctx.user.id);
+    getRecurringGroceryHouseholdId.mockResolvedValue(ctx.household!.id);
     assertHouseholdAccess.mockResolvedValue(undefined);
   });
 

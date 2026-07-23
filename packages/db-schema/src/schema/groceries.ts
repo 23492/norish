@@ -10,6 +10,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { users } from "./auth";
+import { households } from "./households";
 import { recipeIngredients } from "./recipe-ingredients";
 import { recurringGroceries } from "./recurring-groceries";
 import { versionColumn } from "./shared";
@@ -19,6 +20,12 @@ export const groceries = pgTable(
   "groceries",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    // SHOP-02: the shopping list is HOUSEHOLD-scoped. `household_id` is the
+    // ownership/isolation key (a member of household A never sees household B's
+    // list — HOUSE-06). `user_id` is retained as an added-by/audit column only.
+    householdId: uuid("household_id")
+      .notNull()
+      .references(() => households.id, { onDelete: "cascade" }),
     userId: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
@@ -41,6 +48,7 @@ export const groceries = pgTable(
     ...versionColumn,
   },
   (t) => [
+    index("idx_groceries_household_id").on(t.householdId),
     index("idx_groceries_user_id").on(t.userId),
     index("idx_groceries_recipe_ingredient_id").on(t.recipeIngredientId),
     index("idx_groceries_recurring_grocery_id").on(t.recurringGroceryId),
