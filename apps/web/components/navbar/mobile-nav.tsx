@@ -119,10 +119,9 @@ export const MobileNav = () => {
 
           {/* User menu / profile (contains the cookbook switcher). Avatar only on
               mobile — the name/cookbook label is intentionally hidden here; the
-              full name lives inside the menu it opens. */}
-          <div
-            className={`flex h-13 shrink-0 items-center rounded-full px-2 ${cssGlassBackdrop}`}
-          >
+              full name lives inside the menu it opens (Phase 13). A clean circle
+              sized to the nav height, not an avatar floating in an oval pill. */}
+          <div className="flex size-13 shrink-0 items-center justify-center rounded-full">
             <NavbarUserMenu isOpen={userMenuOpen} onOpenChange={setUserMenuOpen} />
           </div>
         </div>
