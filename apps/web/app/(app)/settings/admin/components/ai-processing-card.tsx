@@ -5,15 +5,13 @@ import { SparklesIcon } from "@heroicons/react/24/outline";
 import { Accordion, Card } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
-import AIConfigForm from "./ai-config-form";
 import BulkCategorizationForm from "./bulk-categorization-form";
 import PromptsForm from "./prompts-form";
 import { UnsavedChangesChip } from "./unsaved-changes-chip";
-import VideoProcessingForm from "./video-processing-form";
 
 export default function AIProcessingCard() {
   const t = useTranslations("settings.admin.aiProcessing");
-  const [dirtySections, setDirtySections] = useState({ ai: false, video: false, prompts: false });
+  const [dirtySections, setDirtySections] = useState({ prompts: false });
 
   const updateDirtySection = useCallback(
     (section: keyof typeof dirtySections) => (isDirty: boolean) => {
@@ -35,46 +33,6 @@ export default function AIProcessingCard() {
       <Card.Content>
         <p className="text-muted mb-4 text-base">{t("description")}</p>
         <Accordion allowsMultipleExpanded variant="surface">
-          <Accordion.Item id="ai">
-            <Accordion.Heading>
-              <Accordion.Trigger>
-                <div className="flex flex-col items-start gap-1">
-                  <div className="flex items-center gap-2">
-                    {t("aiConfig.title")}
-                    {dirtySections.ai && <UnsavedChangesChip />}
-                  </div>
-                  <span className="text-muted text-sm">{t("aiConfig.subtitle")}</span>
-                </div>
-                <Accordion.Indicator />
-              </Accordion.Trigger>
-            </Accordion.Heading>
-            <Accordion.Panel>
-              <Accordion.Body>
-                <AIConfigForm onDirtyChange={updateDirtySection("ai")} />
-              </Accordion.Body>
-            </Accordion.Panel>
-          </Accordion.Item>
-
-          <Accordion.Item id="video">
-            <Accordion.Heading>
-              <Accordion.Trigger>
-                <div className="flex flex-col items-start gap-1">
-                  <div className="flex items-center gap-2">
-                    {t("video.title")}
-                    {dirtySections.video && <UnsavedChangesChip />}
-                  </div>
-                  <span className="text-muted text-sm">{t("video.subtitle")}</span>
-                </div>
-                <Accordion.Indicator />
-              </Accordion.Trigger>
-            </Accordion.Heading>
-            <Accordion.Panel>
-              <Accordion.Body>
-                <VideoProcessingForm onDirtyChange={updateDirtySection("video")} />
-              </Accordion.Body>
-            </Accordion.Panel>
-          </Accordion.Item>
-
           <Accordion.Item id="prompts">
             <Accordion.Heading>
               <Accordion.Trigger>
