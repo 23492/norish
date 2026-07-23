@@ -113,7 +113,18 @@
       "placeholder": "https://example.com/your-recipe",
       "failed": "Importeren van recept mislukt",
       "failedWithAI": "Importeren van recept met AI mislukt",
-      "targetCookbook": "Wordt toegevoegd aan {cookbook}"
+      "targetCookbook": "Wordt toegevoegd aan {cookbook}",
+      "bulkLabel": "Recept-URL('s)",
+      "bulkPlaceholder": "Plak een of meer recept-URL's (één per regel)",
+      "detected": "{count, plural, =0 {Geen recept-URL's gevonden} one {# recept-URL gevonden} other {# recept-URL's gevonden}}",
+      "overCap": "boven de limiet van {max}, {truncated} overgeslagen",
+      "bulk": {
+        "queuedCount": "{count, plural, one {# recept in wachtrij} other {# recepten in wachtrij}}",
+        "noneQueued": "Geen nieuwe recepten om te importeren",
+        "duplicateCount": "{count} al bezig",
+        "existsCount": "{count} al in dit kookboek",
+        "skippedCount": "{count} overgeslagen (limiet {max})"
+      }
     },
     "paste": {
       "title": "Importeren vanuit klembord",
@@ -149,6 +160,10 @@
     },
     "menu": {
       "description": "Importeer via een URL, scan een foto of begin vanaf nul."
+    },
+    "progress": {
+      "fetching": "Ophalen…",
+      "saving": "Opslaan…"
     }
   },
   "formatting": {

@@ -1,8 +1,13 @@
 import { createContext, useCallback, useContext, useMemo } from "react";
 
-import type { FullRecipeInsertDTO, FullRecipeUpdateDTO } from "@norish/shared/contracts";
+import type {
+  FullRecipeInsertDTO,
+  FullRecipeUpdateDTO,
+  RecipeImportStage,
+} from "@norish/shared/contracts";
 
 import type {
+  BulkImportResult,
   FavoritesMutationResult,
   FavoritesQueryResult,
   RatingsSubscriptionCallbacks,
@@ -32,6 +37,7 @@ export type SharedRecipesContextValue = {
   isFetchingMore: boolean;
   hasMore: boolean;
   pendingRecipeIds: Set<string>;
+  importStages: Map<string, RecipeImportStage>;
   autoTaggingRecipeIds: Set<string>;
   favoriteIds: string[];
   isFavorite: (recipeId: string) => boolean;
@@ -43,6 +49,7 @@ export type SharedRecipesContextValue = {
   loadMore: () => void;
   importRecipe: (url: string) => void;
   importRecipeWithAI: (url: string) => void;
+  importRecipesFromUrls: (urls: string[], forceAI?: boolean) => Promise<BulkImportResult>;
   createRecipe: (input: FullRecipeInsertDTO) => void;
   updateRecipe: (id: string, input: FullRecipeUpdateDTO) => void;
   deleteRecipe: (id: string, version: number) => void;
@@ -68,6 +75,7 @@ type CreateRecipesContextOptions = {
     RecipesMutationsResult,
     | "importRecipe"
     | "importRecipeWithAI"
+    | "importRecipesFromUrls"
     | "createRecipe"
     | "updateRecipe"
     | "deleteRecipe"
@@ -117,6 +125,7 @@ export function createRecipesContext({
       error,
       hasMore,
       pendingRecipeIds,
+      importStages,
       autoTaggingRecipeIds,
       loadMore,
       invalidate,
@@ -125,6 +134,7 @@ export function createRecipesContext({
     const {
       importRecipe: importRecipeMutation,
       importRecipeWithAI: importRecipeWithAIMutation,
+      importRecipesFromUrls,
       createRecipe,
       updateRecipe,
       deleteRecipe,
@@ -204,6 +214,7 @@ export function createRecipesContext({
         isFetchingMore: isValidating && !isLoading,
         hasMore,
         pendingRecipeIds,
+        importStages,
         autoTaggingRecipeIds,
         hasAppliedFilters,
         clearFilters,
@@ -211,6 +222,7 @@ export function createRecipesContext({
         loadMore,
         importRecipe,
         importRecipeWithAI,
+        importRecipesFromUrls,
         createRecipe: wrappedCreateRecipe,
         updateRecipe: wrappedUpdateRecipe,
         deleteRecipe,
@@ -231,6 +243,7 @@ export function createRecipesContext({
         error,
         hasMore,
         pendingRecipeIds,
+        importStages,
         autoTaggingRecipeIds,
         hasAppliedFilters,
         clearFilters,
@@ -238,6 +251,7 @@ export function createRecipesContext({
         loadMore,
         importRecipe,
         importRecipeWithAI,
+        importRecipesFromUrls,
         wrappedCreateRecipe,
         wrappedUpdateRecipe,
         deleteRecipe,

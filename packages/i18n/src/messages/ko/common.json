@@ -113,7 +113,18 @@
       "placeholder": "https://example.com/your-recipe",
       "failed": "레시피를 가져오지 못했습니다.",
       "failedWithAI": "AI를 사용하여 레시피를 가져오지 못했습니다.",
-      "targetCookbook": "Adds to {cookbook}"
+      "targetCookbook": "Adds to {cookbook}",
+      "bulkLabel": "레시피 URL",
+      "bulkPlaceholder": "하나 이상의 레시피 URL을 붙여넣기 (한 줄에 하나씩)",
+      "detected": "{count, plural, =0 {감지된 레시피 URL 없음} other {레시피 URL # 개 감지됨}}",
+      "overCap": "최대 {max}개 초과, {truncated}개 건너뜀",
+      "bulk": {
+        "queuedCount": "{count, plural, other {레시피 # 개 대기 중}}",
+        "noneQueued": "가져올 새 레시피 없음",
+        "duplicateCount": "{count}개 이미 진행 중",
+        "existsCount": "{count}개 이미 이 요리책에 있음",
+        "skippedCount": "{count}개 건너뜀 (최대 {max})"
+      }
     },
     "paste": {
       "title": "붙여넣기로 가져오기",
@@ -149,6 +160,10 @@
     },
     "menu": {
       "description": "URL에서 가져오거나 사진을 스캔하거나 처음부터 시작하세요."
+    },
+    "progress": {
+      "fetching": "가져오는 중…",
+      "saving": "저장 중…"
     }
   },
   "formatting": {

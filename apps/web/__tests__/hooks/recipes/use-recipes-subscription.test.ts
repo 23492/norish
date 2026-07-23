@@ -57,6 +57,13 @@ vi.mock("@/app/providers/trpc-provider", () => ({
           return { enabled: true };
         }),
       },
+      onImportProgress: {
+        subscriptionOptions: vi.fn((_, options) => {
+          subscriptionCallbacks.onImportProgress = options?.onData;
+
+          return { enabled: true };
+        }),
+      },
       onImported: {
         subscriptionOptions: vi.fn((_, options) => {
           subscriptionCallbacks.onImported = options?.onData;

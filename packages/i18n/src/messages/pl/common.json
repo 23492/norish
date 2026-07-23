@@ -70,8 +70,14 @@
     "sortByDate": "Data",
     "clearFilters": "Wyczyść filtry"
   },
-  "time": { "minutes": "min", "hours": "godz" },
-  "validation": { "required": "To pole jest wymagane", "invalidUrl": "Podaj prawidłowy URL" },
+  "time": {
+    "minutes": "min",
+    "hours": "godz"
+  },
+  "validation": {
+    "required": "To pole jest wymagane",
+    "invalidUrl": "Podaj prawidłowy URL"
+  },
   "errors": {
     "operationFailed": "Operacja nie powiodła się",
     "nameCannotBeEmpty": "Nazwa nie może być pusta",
@@ -92,7 +98,9 @@
     "offlineBanner": "Jesteś offline, wyświetlane są dane z pamięci podręcznej",
     "serverUnreachableBanner": "Nie można połączyć się z serwerem Norish, wyświetlane są dane z pamięci podręcznej"
   },
-  "language": { "title": "Język" },
+  "language": {
+    "title": "Język"
+  },
   "notFound": {
     "code": "404",
     "title": "Nie znaleziono strony",
@@ -105,7 +113,18 @@
       "placeholder": "https://przykład.pl/przepis",
       "failed": "Nie udało się zaimportować przepisu",
       "failedWithAI": "Nie udało się zaimportować przepisu z AI",
-      "targetCookbook": "Adds to {cookbook}"
+      "targetCookbook": "Adds to {cookbook}",
+      "bulkLabel": "Adres(y) URL przepisu",
+      "bulkPlaceholder": "Wklej jeden lub więcej adresów URL przepisów (po jednym w wierszu)",
+      "detected": "{count, plural, =0 {Nie wykryto adresów URL przepisów} one {# wykryty adres URL przepisu} other {# wykrytych adresów URL przepisów}}",
+      "overCap": "powyżej limitu {max}, pominięto {truncated}",
+      "bulk": {
+        "queuedCount": "{count, plural, one {# przepis w kolejce} other {# przepisów w kolejce}}",
+        "noneQueued": "Brak nowych przepisów do zaimportowania",
+        "duplicateCount": "{count} już w trakcie",
+        "existsCount": "{count} już w tej książce kucharskiej",
+        "skippedCount": "pominięto {count} (limit {max})"
+      }
     },
     "paste": {
       "title": "Importuj przez wklejenie",
@@ -141,6 +160,10 @@
     },
     "menu": {
       "description": "Importuj z URL, zeskanuj zdjęcie lub zacznij od zera."
+    },
+    "progress": {
+      "fetching": "Pobieranie…",
+      "saving": "Zapisywanie…"
     }
   },
   "formatting": {
@@ -150,7 +173,9 @@
     "recipeLink": "Wpisz **/nazwa przepisu** aby linkować przepis",
     "helpAriaLabel": "Pomoc formatowania"
   },
-  "tagInput": { "placeholder": "Wpisuj tagi oddzielone spacjami..." },
+  "tagInput": {
+    "placeholder": "Wpisuj tagi oddzielone spacjami..."
+  },
   "recurrence": {
     "title": "Powtarzaj",
     "frequency": "Częstotliwość",
@@ -190,7 +215,9 @@
       "6": "Sobota"
     }
   },
-  "badges": { "new": "Nowe" },
+  "badges": {
+    "new": "Nowe"
+  },
   "timer": {
     "done": "Gotowe",
     "done_action": "Gotowe",

@@ -113,7 +113,18 @@
       "placeholder": "https://eksempel.dk/din-opskrift",
       "failed": "Kunne ikke importere opskrift",
       "failedWithAI": "Kunne ikke importere opskrift med AI",
-      "targetCookbook": "Adds to {cookbook}"
+      "targetCookbook": "Adds to {cookbook}",
+      "bulkLabel": "Opskrift-URL('er)",
+      "bulkPlaceholder": "Indsæt en eller flere opskrift-URL'er (én pr. linje)",
+      "detected": "{count, plural, =0 {Ingen opskrift-URL'er fundet} one {# opskrift-URL fundet} other {# opskrift-URL'er fundet}}",
+      "overCap": "over grænsen på {max}, {truncated} sprunget over",
+      "bulk": {
+        "queuedCount": "{count, plural, one {# opskrift i kø} other {# opskrifter i kø}}",
+        "noneQueued": "Ingen nye opskrifter at importere",
+        "duplicateCount": "{count} er allerede i gang",
+        "existsCount": "{count} allerede i denne kogebog",
+        "skippedCount": "{count} sprunget over (grænse {max})"
+      }
     },
     "paste": {
       "title": "Importer fra indsætning",
@@ -149,6 +160,10 @@
     },
     "menu": {
       "description": "Importer fra en URL, scan et billede eller start fra bunden."
+    },
+    "progress": {
+      "fetching": "Henter…",
+      "saving": "Gemmer…"
     }
   },
   "formatting": {

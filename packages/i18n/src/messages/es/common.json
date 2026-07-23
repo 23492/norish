@@ -108,7 +108,18 @@
       "placeholder": "https://ejemplo.com/tu-receta",
       "failed": "No se ha podido importar la receta",
       "failedWithAI": "No se ha podido importar la receta con IA",
-      "targetCookbook": "Adds to {cookbook}"
+      "targetCookbook": "Adds to {cookbook}",
+      "bulkLabel": "URL de receta",
+      "bulkPlaceholder": "Pega una o más URL de recetas (una por línea)",
+      "detected": "{count, plural, =0 {No se detectaron URL de recetas} one {# URL de receta detectada} other {# URL de recetas detectadas}}",
+      "overCap": "por encima del límite de {max}, {truncated} omitidas",
+      "bulk": {
+        "queuedCount": "{count, plural, one {# receta en cola} other {# recetas en cola}}",
+        "noneQueued": "No hay recetas nuevas para importar",
+        "duplicateCount": "{count} ya en proceso",
+        "existsCount": "{count} ya en este recetario",
+        "skippedCount": "{count} omitidas (límite {max})"
+      }
     },
     "paste": {
       "title": "Importar pegando el texto",
@@ -144,6 +155,10 @@
     },
     "menu": {
       "description": "Importa desde una URL, escanea una foto o empieza desde cero."
+    },
+    "progress": {
+      "fetching": "Obteniendo…",
+      "saving": "Guardando…"
     }
   },
   "formatting": {

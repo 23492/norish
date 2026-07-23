@@ -28,6 +28,7 @@ export function createUseRecipesSubscription(
       invalidate,
       replaceOldestOptimisticPendingRecipe,
       removePendingRecipe,
+      setImportStage,
       addAutoTaggingRecipe,
       removeAutoTaggingRecipe,
       addAllergyDetectionRecipe,
@@ -130,6 +131,18 @@ export function createUseRecipesSubscription(
         trpc.recipes.onImportStarted.subscriptionOptions(undefined, {
           onData: ({ payload }: any) => {
             replaceOldestOptimisticPendingRecipe(payload.recipeId);
+          },
+        })
+      )
+    );
+
+    useSubscription(
+      asSubscriptionOptions(
+        trpc.recipes.onImportProgress.subscriptionOptions(undefined, {
+          onData: ({ payload }: any) => {
+            // IMPORT-UX-01: reflect the honest stage of a running import. The event is
+            // cookbook-scoped server-side, so we only ever receive our own cookbook's.
+            setImportStage(payload.recipeId, payload.stage);
           },
         })
       )

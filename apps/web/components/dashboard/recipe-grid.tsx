@@ -33,6 +33,7 @@ export default function RecipeGrid() {
     hasMore: _hasMore,
     loadMore,
     pendingRecipeIds,
+    importStages,
     hasAppliedFilters,
     clearFilters,
     filterKey,
@@ -74,10 +75,11 @@ export default function RecipeGrid() {
     const pendingSkeletons = Array.from(pendingRecipeIds).map((id) => ({
       id,
       isLoading: true,
+      stage: importStages.get(id),
     }));
 
     return [...pendingSkeletons, ...recipes];
-  }, [pendingRecipeIds, recipes]);
+  }, [pendingRecipeIds, importStages, recipes]);
 
   // Calculate row count for virtualization
   const rowCount = useMemo(() => {
@@ -159,7 +161,13 @@ export default function RecipeGrid() {
   const renderItem = useCallback(
     (item: (typeof displayData)[number]) => {
       if ("isLoading" in item && item.isLoading) {
-        return <RecipeCardSkeleton key={`skeleton-${item.id}`} variant={viewMode} />;
+        return (
+          <RecipeCardSkeleton
+            key={`skeleton-${item.id}`}
+            stage={"stage" in item ? item.stage : undefined}
+            variant={viewMode}
+          />
+        );
       }
 
       const recipe = item as RecipeDashboardDTO;

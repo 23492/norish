@@ -108,7 +108,18 @@
       "placeholder": "https://example.com/your-recipe",
       "failed": "Не удалось импортировать рецепт",
       "failedWithAI": "Не удалось импортировать рецепт с помощью ИИ",
-      "targetCookbook": "Adds to {cookbook}"
+      "targetCookbook": "Adds to {cookbook}",
+      "bulkLabel": "URL рецепта(ов)",
+      "bulkPlaceholder": "Вставьте один или несколько URL рецептов (по одному в строке)",
+      "detected": "{count, plural, =0 {URL рецептов не найдены} one {Найден # URL рецепта} other {Найдено # URL рецептов}}",
+      "overCap": "сверх лимита {max}, пропущено {truncated}",
+      "bulk": {
+        "queuedCount": "{count, plural, one {# рецепт в очереди} other {# рецептов в очереди}}",
+        "noneQueued": "Нет новых рецептов для импорта",
+        "duplicateCount": "{count} уже импортируется",
+        "existsCount": "{count} уже в этой книге рецептов",
+        "skippedCount": "пропущено {count} (лимит {max})"
+      }
     },
     "paste": {
       "title": "Импорт из текста",
@@ -144,6 +155,10 @@
     },
     "menu": {
       "description": "Импортируйте по URL, отсканируйте фото или начните с нуля."
+    },
+    "progress": {
+      "fetching": "Загрузка…",
+      "saving": "Сохранение…"
     }
   },
   "formatting": {

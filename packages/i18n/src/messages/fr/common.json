@@ -113,7 +113,18 @@
       "placeholder": "https://example.com/votre-recette",
       "failed": "Échec de l'importation de la recette",
       "failedWithAI": "Échec de l'importation de la recette avec l'IA",
-      "targetCookbook": "Adds to {cookbook}"
+      "targetCookbook": "Adds to {cookbook}",
+      "bulkLabel": "URL de recette",
+      "bulkPlaceholder": "Collez une ou plusieurs URL de recettes (une par ligne)",
+      "detected": "{count, plural, =0 {Aucune URL de recette détectée} one {# URL de recette détectée} other {# URL de recettes détectées}}",
+      "overCap": "au-delà de la limite de {max}, {truncated} ignorées",
+      "bulk": {
+        "queuedCount": "{count, plural, one {# recette en file d'attente} other {# recettes en file d'attente}}",
+        "noneQueued": "Aucune nouvelle recette à importer",
+        "duplicateCount": "{count} déjà en cours d'import",
+        "existsCount": "{count} déjà dans ce livre de recettes",
+        "skippedCount": "{count} ignorées (limite {max})"
+      }
     },
     "paste": {
       "title": "Importer depuis le presse papier",
@@ -149,6 +160,10 @@
     },
     "menu": {
       "description": "Importer depuis une URL, scanner une photo ou partir de zero."
+    },
+    "progress": {
+      "fetching": "Récupération…",
+      "saving": "Enregistrement…"
     }
   },
   "formatting": {

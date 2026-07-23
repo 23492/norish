@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useHouseholdContext } from "@/context/household-context";
 import { usePermissionsContext } from "@/context/permissions-context";
 import { useRecipesContext } from "@/context/recipes-context";
 import { showSafeErrorToast } from "@/lib/ui/safe-error-toast";
 import { ArrowDownTrayIcon, BookOpenIcon, SparklesIcon } from "@heroicons/react/16/solid";
-import { Button, Input, Label, Modal, TextField } from "@heroui/react";
+import { Button, Label, Modal, TextArea, TextField, toast } from "@heroui/react";
 import { useTranslations } from "next-intl";
+
+import type { BulkImportResult } from "@norish/shared-react/hooks/recipes/dashboard";
+import { MAX_BULK_IMPORT_URLS, parseBulkImportUrls } from "@norish/shared/lib/helpers";
 
 interface ImportRecipeModalProps {
   isOpen: boolean;
@@ -18,10 +21,16 @@ export default function ImportRecipeModal({ isOpen, onOpenChange }: ImportRecipe
   const tErrors = useTranslations("common.errors");
   const tActions = useTranslations("common.actions");
   const tCookbook = useTranslations("navbar.cookbook");
-  const { importRecipe, importRecipeWithAI } = useRecipesContext();
+  const { importRecipe, importRecipeWithAI, importRecipesFromUrls } = useRecipesContext();
   const { households, activeHouseholdId } = useHouseholdContext();
   const { isAIEnabled } = usePermissionsContext();
   const [importUrl, setImportUrl] = useState("");
+
+  // BULK-01: the same input accepts one URL or many (newline / comma separated, or a
+  // pasted blog index). Parse+dedup client-side with the SAME helper the server enforces,
+  // so the detected count preview matches what would actually be enqueued.
+  const parsed = useMemo(() => parseBulkImportUrls(importUrl), [importUrl]);
+  const hasUrls = parsed.urls.length > 0;
 
   // The backend assigns the import to the user's ACTIVE cookbook (02-02); show
   // which cookbook that is so the destination is never a surprise.
@@ -64,39 +73,55 @@ export default function ImportRecipeModal({ isOpen, onOpenChange }: ImportRecipe
       isCancelled = true;
     };
   }, [isOpen]);
-  async function handleImportFromUrl() {
-    if (importUrl.trim() === "") return;
-    try {
-      await importRecipe(importUrl);
-      onOpenChange(false);
-      setImportUrl("");
-    } catch (e) {
-      onOpenChange(false);
-      setImportUrl("");
-      showSafeErrorToast({
-        title: t("failed"),
-        description: tErrors("technicalDetails"),
-        color: "danger",
-        error: e,
-        context: "import-recipe-modal:import",
-      });
-    }
+
+  function summarizeBulk(result: BulkImportResult, truncated: number) {
+    const queued = result.items.filter((item) => item.status === "queued").length;
+    const duplicate = result.items.filter((item) => item.status === "duplicate").length;
+    const exists = result.items.filter((item) => item.status === "exists").length;
+
+    const parts: string[] = [];
+
+    if (duplicate > 0) parts.push(t("bulk.duplicateCount", { count: duplicate }));
+    if (exists > 0) parts.push(t("bulk.existsCount", { count: exists }));
+    if (truncated > 0) parts.push(t("bulk.skippedCount", { count: truncated, max: MAX_BULK_IMPORT_URLS }));
+
+    toast(queued > 0 ? t("bulk.queuedCount", { count: queued }) : t("bulk.noneQueued"), {
+      description: parts.length > 0 ? parts.join(" · ") : undefined,
+      variant: queued > 0 ? "default" : "warning",
+    });
   }
-  async function handleAIImport() {
-    if (importUrl.trim() === "") return;
+
+  async function submitImport(forceAI: boolean) {
+    if (!hasUrls) return;
+
     try {
-      await importRecipeWithAI(importUrl);
+      if (parsed.urls.length === 1) {
+        // Single URL: keep the existing optimistic single-import path unchanged.
+        const [url] = parsed.urls;
+
+        if (forceAI) {
+          await importRecipeWithAI(url!);
+        } else {
+          await importRecipe(url!);
+        }
+      } else {
+        // Many URLs: fan out over the bulk queue path and report per-item outcomes.
+        const result = await importRecipesFromUrls(parsed.urls, forceAI || undefined);
+
+        summarizeBulk(result, parsed.truncated);
+      }
+
       onOpenChange(false);
       setImportUrl("");
     } catch (e) {
       onOpenChange(false);
       setImportUrl("");
       showSafeErrorToast({
-        title: t("failedWithAI"),
+        title: forceAI ? t("failedWithAI") : t("failed"),
         description: tErrors("technicalDetails"),
         color: "danger",
         error: e,
-        context: "import-recipe-modal:import-ai",
+        context: forceAI ? "import-recipe-modal:import-ai" : "import-recipe-modal:import",
       });
     }
   }
@@ -111,10 +136,16 @@ export default function ImportRecipeModal({ isOpen, onOpenChange }: ImportRecipe
                 <Modal.CloseTrigger />
                 <Modal.Header className="flex flex-col gap-1">{t("title")}</Modal.Header>
                 <Modal.Body>
-                  <TextField fullWidth type="url" value={importUrl} onChange={setImportUrl}>
-                    <Label>{t("label")}</Label>
-                    <Input fullWidth placeholder={t("placeholder")} variant="secondary" />
+                  <TextField fullWidth value={importUrl} variant="secondary" onChange={setImportUrl}>
+                    <Label>{t("bulkLabel")}</Label>
+                    <TextArea fullWidth placeholder={t("bulkPlaceholder")} rows={5} />
                   </TextField>
+                  <p className="text-muted text-xs">
+                    {t("detected", { count: parsed.urls.length })}
+                    {parsed.truncated > 0
+                      ? ` · ${t("overCap", { max: MAX_BULK_IMPORT_URLS, truncated: parsed.truncated })}`
+                      : ""}
+                  </p>
                   <p className="text-muted flex items-center gap-1.5 text-sm">
                     <BookOpenIcon className="size-4 shrink-0" />
                     <span>{t("targetCookbook", { cookbook: activeCookbookName })}</span>
@@ -122,12 +153,20 @@ export default function ImportRecipeModal({ isOpen, onOpenChange }: ImportRecipe
                 </Modal.Body>
                 <Modal.Footer>
                   {isAIEnabled && (
-                    <Button variant="secondary" onPress={handleAIImport}>
+                    <Button
+                      isDisabled={!hasUrls}
+                      variant="secondary"
+                      onPress={() => submitImport(true)}
+                    >
                       {<SparklesIcon className="h-4 w-4" />}
                       {tActions("aiImport")}
                     </Button>
                   )}
-                  <Button variant="primary" onPress={handleImportFromUrl}>
+                  <Button
+                    isDisabled={!hasUrls}
+                    variant="primary"
+                    onPress={() => submitImport(false)}
+                  >
                     {<ArrowDownTrayIcon className="h-4 w-4" />}
                     {tActions("import")}
                   </Button>

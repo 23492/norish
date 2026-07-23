@@ -113,7 +113,18 @@
       "placeholder": "https://example.com/your-recipe",
       "failed": "Failed to import recipe",
       "failedWithAI": "Failed to import recipe with AI",
-      "targetCookbook": "Adds to {cookbook}"
+      "targetCookbook": "Adds to {cookbook}",
+      "bulkLabel": "Recipe URL(s)",
+      "bulkPlaceholder": "Paste one or more recipe URLs (one per line)",
+      "detected": "{count, plural, =0 {No recipe URLs detected} one {# recipe URL detected} other {# recipe URLs detected}}",
+      "overCap": "over the limit of {max}, {truncated} skipped",
+      "bulk": {
+        "queuedCount": "{count, plural, one {# recipe queued} other {# recipes queued}}",
+        "noneQueued": "No new recipes to import",
+        "duplicateCount": "{count} already importing",
+        "existsCount": "{count} already in this cookbook",
+        "skippedCount": "{count} skipped (limit {max})"
+      }
     },
     "paste": {
       "title": "Import from paste",
@@ -149,6 +160,10 @@
     },
     "menu": {
       "description": "Import from a URL, scan a photo, or start from scratch."
+    },
+    "progress": {
+      "fetching": "Fetching…",
+      "saving": "Saving…"
     }
   },
   "formatting": {

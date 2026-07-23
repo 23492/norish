@@ -2,7 +2,12 @@ import type { InfiniteData, QueryKey } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 
-import type { RecipeCategory, RecipeDashboardDTO, SearchField } from "@norish/shared/contracts";
+import type {
+  RecipeCategory,
+  RecipeDashboardDTO,
+  RecipeImportStage,
+  SearchField,
+} from "@norish/shared/contracts";
 
 import type { CreateRecipeHooksOptions } from "../types";
 import type { RecipesCacheHelpers } from "./use-recipes-cache";
@@ -34,6 +39,7 @@ export type RecipesQueryResult = {
   error: unknown;
   queryKey: QueryKey;
   pendingRecipeIds: Set<string>;
+  importStages: Map<string, RecipeImportStage>;
   autoTaggingRecipeIds: Set<string>;
   allergyDetectionRecipeIds: Set<string>;
   loadMore: () => void;
@@ -53,7 +59,10 @@ export type RecipesQueryResult = {
 };
 
 export interface RecipesQueryDependencies {
-  usePendingRecipesQuery: () => { pendingRecipeIds: Set<string> };
+  usePendingRecipesQuery: () => {
+    pendingRecipeIds: Set<string>;
+    importStages: Map<string, RecipeImportStage>;
+  };
   useAutoTaggingQuery: () => { autoTaggingRecipeIds: Set<string> };
   useAllergyDetectionQuery: () => { allergyDetectionRecipeIds: Set<string> };
   useRecipesCacheHelpers: () => RecipesCacheHelpers;
@@ -84,7 +93,7 @@ export function createUseRecipesQuery(
       maxCookingTime,
     } = filters;
 
-    const { pendingRecipeIds } = usePendingRecipesQuery();
+    const { pendingRecipeIds, importStages } = usePendingRecipesQuery();
     const { autoTaggingRecipeIds } = useAutoTaggingQuery();
     const { allergyDetectionRecipeIds } = useAllergyDetectionQuery();
 
@@ -169,6 +178,7 @@ export function createUseRecipesQuery(
       error,
       queryKey,
       pendingRecipeIds,
+      importStages,
       autoTaggingRecipeIds,
       allergyDetectionRecipeIds,
       loadMore,

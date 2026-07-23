@@ -15,7 +15,9 @@ import type {
   FullRecipeInsertDTO,
   FullRecipeUpdateDTO,
   RecipeDashboardDTO,
+  RecipeImportStage,
 } from "@norish/shared/contracts";
+import type { BulkImportResult } from "@norish/shared-react/hooks/recipes/dashboard";
 import { createScopedMessageTranslator } from "@norish/i18n";
 import { createRecipesContext } from "@norish/shared-react/contexts";
 
@@ -26,6 +28,7 @@ type Ctx = {
   isFetchingMore: boolean;
   hasMore: boolean;
   pendingRecipeIds: Set<string>;
+  importStages: Map<string, RecipeImportStage>;
   autoTaggingRecipeIds: Set<string>;
   favoriteIds: string[];
   isFavorite: (recipeId: string) => boolean;
@@ -37,6 +40,7 @@ type Ctx = {
   loadMore: () => void;
   importRecipe: (url: string) => void;
   importRecipeWithAI: (url: string) => void;
+  importRecipesFromUrls: (urls: string[], forceAI?: boolean) => Promise<BulkImportResult>;
   createRecipe: (input: FullRecipeInsertDTO) => void;
   updateRecipe: (id: string, input: FullRecipeUpdateDTO) => void;
   deleteRecipe: (id: string, version: number) => void;

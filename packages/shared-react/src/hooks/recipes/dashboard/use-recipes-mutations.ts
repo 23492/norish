@@ -246,9 +246,21 @@ function createOptimisticDashboardRecipe(recipe: FullRecipeDTO): RecipeDashboard
   };
 }
 
+export type BulkImportItemStatus = "queued" | "exists" | "duplicate";
+
+export type BulkImportResultItem = {
+  url: string;
+  recipeId: string;
+  status: BulkImportItemStatus;
+  existingRecipeId?: string;
+};
+
+export type BulkImportResult = { items: BulkImportResultItem[] };
+
 export type RecipesMutationsResult = {
   importRecipe: (url: string) => void;
   importRecipeWithAI: (url: string) => void;
+  importRecipesFromUrls: (urls: string[], forceAI?: boolean) => Promise<BulkImportResult>;
   importRecipeFromImages: (files: File[]) => void;
   importRecipeFromPaste: (text: string) => void;
   importRecipeFromPasteWithAI: (text: string) => void;
@@ -317,6 +329,24 @@ export function createUseRecipesMutations(
             variables.forceAI ? "importFromUrlWithAI" : "importFromUrl",
             context
           );
+        },
+      })
+    );
+    // BULK-01: the queued items come back with real recipe ids, so we register a pending
+    // skeleton per queued URL here (no optimistic ids to reconcile). exists/duplicate items
+    // never became jobs, so they get no skeleton — the caller surfaces them as a summary.
+    const bulkImportMutation = useMutation(
+      trpc.recipes.importFromUrls.mutationOptions({
+        onSuccess: (result: BulkImportResult) => {
+          for (const item of result.items) {
+            if (item.status === "queued") {
+              addPendingRecipe(item.recipeId);
+            }
+          }
+        },
+        onError: (error) => {
+          onError?.(error, "importFromUrls");
+          invalidate();
         },
       })
     );
@@ -538,6 +568,13 @@ export function createUseRecipesMutations(
       importMutation.mutate({ url, forceAI: true });
     };
 
+    const importRecipesFromUrls = (
+      urls: string[],
+      forceAI?: boolean
+    ): Promise<BulkImportResult> => {
+      return bulkImportMutation.mutateAsync({ urls, forceAI });
+    };
+
     const createRecipe = (input: FullRecipeInsertDTO): void => {
       createMutation.mutate(input, {
         onError: (error, _variables, context) => {
@@ -639,6 +676,7 @@ export function createUseRecipesMutations(
     return {
       importRecipe,
       importRecipeWithAI,
+      importRecipesFromUrls,
       importRecipeFromImages,
       importRecipeFromPaste,
       importRecipeFromPasteWithAI,

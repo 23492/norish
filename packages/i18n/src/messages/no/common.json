@@ -112,7 +112,18 @@
       "label": "Oppskrift-URL",
       "placeholder": "https://eksempel.no/din-oppskrift",
       "failed": "Kunne ikke importere oppskrift",
-      "failedWithAI": "Kunne ikke importere oppskrift med AI"
+      "failedWithAI": "Kunne ikke importere oppskrift med AI",
+      "bulkLabel": "Oppskrift-URL(er)",
+      "bulkPlaceholder": "Lim inn én eller flere oppskrift-URL-er (én per linje)",
+      "detected": "{count, plural, =0 {Ingen oppskrift-URL-er funnet} one {# oppskrift-URL funnet} other {# oppskrift-URL-er funnet}}",
+      "overCap": "over grensen på {max}, {truncated} hoppet over",
+      "bulk": {
+        "queuedCount": "{count, plural, one {# oppskrift i kø} other {# oppskrifter i kø}}",
+        "noneQueued": "Ingen nye oppskrifter å importere",
+        "duplicateCount": "{count} allerede i gang",
+        "existsCount": "{count} allerede i denne kokeboken",
+        "skippedCount": "{count} hoppet over (grense {max})"
+      }
     },
     "paste": {
       "title": "Importer fra liming",
@@ -148,6 +159,10 @@
     },
     "menu": {
       "description": "Importer fra en URL, skann et bilde eller start fra bunnen av."
+    },
+    "progress": {
+      "fetching": "Henter…",
+      "saving": "Lagrer…"
     }
   },
   "formatting": {

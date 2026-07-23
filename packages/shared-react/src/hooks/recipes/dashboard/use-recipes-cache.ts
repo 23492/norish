@@ -2,11 +2,24 @@ import type { InfiniteData } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import type { PendingRecipeDTO, RecipeDashboardDTO } from "@norish/shared/contracts";
+import type {
+  PendingRecipeDTO,
+  RecipeDashboardDTO,
+  RecipeImportStage,
+} from "@norish/shared/contracts";
 
 import type { CreateRecipeHooksOptions } from "../types";
 
 export const OPTIMISTIC_PENDING_RECIPE_PREFIX = "optimistic-pending-recipe:";
+
+/**
+ * IMPORT-UX-01 — client-only cache of the current honest stage per pending import,
+ * fed by the cookbook-scoped `importProgress` realtime event. Keyed by recipe id; an entry
+ * is cleared once the import lands (`imported` / `failed` / `created`).
+ */
+export const IMPORT_STAGES_QUERY_KEY = ["recipes", "importStages"] as const;
+
+export type ImportStagesMap = Record<string, RecipeImportStage>;
 
 function isOptimisticPendingRecipeId(recipeId: string): boolean {
   return recipeId.startsWith(OPTIMISTIC_PENDING_RECIPE_PREFIX);
@@ -27,6 +40,8 @@ export type RecipesCacheHelpers = {
   replacePendingRecipe: (fromId: string, toId: string) => void;
   replaceOldestOptimisticPendingRecipe: (recipeId: string) => void;
   removePendingRecipe: (id: string) => void;
+  setImportStage: (id: string, stage: RecipeImportStage) => void;
+  clearImportStage: (id: string) => void;
   addAutoTaggingRecipe: (id: string) => void;
   removeAutoTaggingRecipe: (id: string) => void;
   addAllergyDetectionRecipe: (id: string) => void;
@@ -122,6 +137,31 @@ export function createUseRecipesCacheHelpers({ useTRPC }: CreateRecipeHooksOptio
       [queryClient, pendingKey]
     );
 
+    const clearImportStage = useCallback(
+      (recipeId: string) => {
+        queryClient.setQueryData<ImportStagesMap>(IMPORT_STAGES_QUERY_KEY, (prev) => {
+          if (!prev || !(recipeId in prev)) return prev;
+
+          const next = { ...prev };
+
+          delete next[recipeId];
+
+          return next;
+        });
+      },
+      [queryClient]
+    );
+
+    const setImportStage = useCallback(
+      (recipeId: string, stage: RecipeImportStage) => {
+        queryClient.setQueryData<ImportStagesMap>(IMPORT_STAGES_QUERY_KEY, (prev) => ({
+          ...(prev ?? {}),
+          [recipeId]: stage,
+        }));
+      },
+      [queryClient]
+    );
+
     const removePendingRecipe = useCallback(
       (recipeId: string) => {
         queryClient.setQueryData<PendingRecipeDTO[]>(pendingKey, (prev) => {
@@ -129,8 +169,10 @@ export function createUseRecipesCacheHelpers({ useTRPC }: CreateRecipeHooksOptio
 
           return arr.filter((p) => p.recipeId !== recipeId);
         });
+        // The import has landed (or been abandoned); drop any lingering progress stage.
+        clearImportStage(recipeId);
       },
-      [queryClient, pendingKey]
+      [queryClient, pendingKey, clearImportStage]
     );
 
     const addAutoTaggingRecipe = useCallback(
@@ -188,6 +230,8 @@ export function createUseRecipesCacheHelpers({ useTRPC }: CreateRecipeHooksOptio
       replacePendingRecipe,
       replaceOldestOptimisticPendingRecipe,
       removePendingRecipe,
+      setImportStage,
+      clearImportStage,
       addAutoTaggingRecipe,
       removeAutoTaggingRecipe,
       addAllergyDetectionRecipe,

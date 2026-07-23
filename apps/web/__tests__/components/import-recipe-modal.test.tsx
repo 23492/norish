@@ -60,6 +60,9 @@ vi.mock("@heroui/react", () => ({
     );
   },
   Label: ({ children }: any) => <span>{children}</span>,
+  TextArea: ({ value, onChange, placeholder }: any) => (
+    <textarea placeholder={placeholder} value={value} onChange={onChange} />
+  ),
   Input: ({ value, onChange, label, placeholder, type }: any) => (
     <input
       aria-label={label}
