@@ -292,5 +292,11 @@
     "swipeSteps": "Przesuń, aby nawigować kroki",
     "swipeIngredients": "Przesuń w lewo, aby zobaczyć składniki",
     "swipeBackToSteps": "Przesuń w prawo, aby wrócić do kroków"
+  },
+  "move": {
+    "title": "Przenieś przepis",
+    "description": "Ten przepis jest w {cookbook}. Wybierz, dokąd go przenieść.",
+    "openLabel": "Przenieś z {cookbook}",
+    "movedToast": "Przenoszenie przepisu do {cookbook}"
   }
 }

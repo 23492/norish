@@ -23,7 +23,10 @@
     "personalDescription": "Je eigen recepten",
     "active": "Actief",
     "members": "{count, plural, one {# lid} other {# leden}}",
-    "manage": "Kookboek aanmaken of lid worden"
+    "manage": "Kookboek aanmaken of lid worden",
+    "title": "Jouw kookboeken",
+    "subtitle": "Wissel tussen je kookboeken om hun recepten te bekijken.",
+    "open": "Recepten bekijken"
   },
   "theme": {
     "title": "Thema",
@@ -35,7 +38,8 @@
   "nav": {
     "home": "Recepten",
     "calendar": "Kalender",
-    "groceries": "Boodschappen"
+    "groceries": "Boodschappen",
+    "cookbooks": "Kookboeken"
   },
   "mobile": {
     "searchPlaceholder": "Zoek recepten...",

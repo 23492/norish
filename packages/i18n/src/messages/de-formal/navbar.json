@@ -13,7 +13,9 @@
       "description": "Verwalten Sie Ihr Konto"
     },
     "logout": "Abmelden",
-    "version": { "updateAvailable": "v{version} verfügbar" }
+    "version": {
+      "updateAvailable": "v{version} verfügbar"
+    }
   },
   "cookbook": {
     "label": "Cookbook",
@@ -21,7 +23,10 @@
     "personalDescription": "Your private recipes",
     "active": "Active",
     "members": "{count, plural, one {# member} other {# members}}",
-    "manage": "Create or join a cookbook"
+    "manage": "Create or join a cookbook",
+    "title": "Ihre Kochbücher",
+    "subtitle": "Wechseln Sie zwischen Ihren Kochbüchern, um deren Rezepte zu durchsuchen.",
+    "open": "Rezepte ansehen"
   },
   "theme": {
     "title": "Design",
@@ -33,7 +38,8 @@
   "nav": {
     "home": "Rezepte",
     "calendar": "Kalender",
-    "groceries": "Einkaufsliste"
+    "groceries": "Einkaufsliste",
+    "cookbooks": "Kochbücher"
   },
   "mobile": {
     "searchPlaceholder": "Rezepte durchsuchen...",

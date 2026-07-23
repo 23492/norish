@@ -40,6 +40,7 @@ type Ctx = {
   createRecipe: (input: FullRecipeInsertDTO) => void;
   updateRecipe: (id: string, input: FullRecipeUpdateDTO) => void;
   deleteRecipe: (id: string, version: number) => void;
+  moveRecipe: (id: string, destinationHouseholdId: string | null, version: number) => void;
   invalidate: () => void;
   openRecipe: (id: string) => void;
 };

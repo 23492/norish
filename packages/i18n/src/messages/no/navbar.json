@@ -27,7 +27,8 @@
   "nav": {
     "home": "Oppskrifter",
     "calendar": "Kalender",
-    "groceries": "Handleliste"
+    "groceries": "Handleliste",
+    "cookbooks": "Kokebøker"
   },
   "mobile": {
     "searchPlaceholder": "Søk oppskrifter...",
@@ -46,5 +47,10 @@
     "skipped": "{count} hoppet over",
     "errors": "{count} feil",
     "ofTotal": "{current} av {total}"
+  },
+  "cookbook": {
+    "title": "Kokebøkene dine",
+    "subtitle": "Bytt mellom kokebøkene dine for å bla gjennom oppskriftene deres.",
+    "open": "Se oppskrifter"
   }
 }

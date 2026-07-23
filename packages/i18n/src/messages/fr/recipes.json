@@ -292,5 +292,11 @@
     "swipeSteps": "Glissez pour naviguer entre les étapes",
     "swipeIngredients": "Glissez à gauche pour les ingrédients",
     "swipeBackToSteps": "Glissez à droite pour les étapes"
+  },
+  "move": {
+    "title": "Déplacer la recette",
+    "description": "Cette recette est dans {cookbook}. Choisissez où la déplacer.",
+    "openLabel": "Déplacer depuis {cookbook}",
+    "movedToast": "Déplacement de la recette vers {cookbook}"
   }
 }

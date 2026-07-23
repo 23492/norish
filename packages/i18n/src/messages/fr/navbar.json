@@ -23,7 +23,10 @@
     "personalDescription": "Your private recipes",
     "active": "Active",
     "members": "{count, plural, one {# member} other {# members}}",
-    "manage": "Create or join a cookbook"
+    "manage": "Create or join a cookbook",
+    "title": "Vos carnets de recettes",
+    "subtitle": "Basculez entre vos carnets de recettes pour parcourir leurs recettes.",
+    "open": "Voir les recettes"
   },
   "theme": {
     "title": "Thème",
@@ -35,7 +38,8 @@
   "nav": {
     "home": "Recettes",
     "calendar": "Calendrier",
-    "groceries": "Courses"
+    "groceries": "Courses",
+    "cookbooks": "Carnets de recettes"
   },
   "mobile": {
     "searchPlaceholder": "Rechercher des recettes…",

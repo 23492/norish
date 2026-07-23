@@ -292,5 +292,11 @@
     "swipeSteps": "스와이프하여 단계를 탐색하세요",
     "swipeIngredients": "왼쪽으로 스와이프하여 재료 보기",
     "swipeBackToSteps": "오른쪽으로 스와이프하여 단계 보기"
+  },
+  "move": {
+    "title": "레시피 이동",
+    "description": "이 레시피는 {cookbook}에 있습니다. 이동할 위치를 선택하세요.",
+    "openLabel": "{cookbook}에서 이동",
+    "movedToast": "{cookbook}(으)로 레시피 이동 중"
   }
 }

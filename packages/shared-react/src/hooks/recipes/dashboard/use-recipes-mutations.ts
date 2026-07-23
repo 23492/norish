@@ -255,6 +255,7 @@ export type RecipesMutationsResult = {
   createRecipe: (input: FullRecipeInsertDTO) => void;
   updateRecipe: (id: string, input: FullRecipeUpdateDTO) => void;
   deleteRecipe: (id: string, version: number) => void;
+  moveRecipe: (id: string, destinationHouseholdId: string | null, version: number) => void;
   convertMeasurements: (recipeId: string, system: MeasurementSystem, version: number) => void;
 };
 
@@ -480,6 +481,24 @@ export function createUseRecipesMutations(
       })
     );
     const convertMutation = useMutation(trpc.recipes.convertMeasurements.mutationOptions());
+    // CKBK-MOVE-01: moving a recipe changes its cookbook server-side. The
+    // destination `created` / source `deleted` realtime events refresh other
+    // members; invalidate here so the ACTOR's own list + detail reflect the move
+    // regardless of which cookbook is currently active.
+    const moveMutation = useMutation(
+      trpc.recipes.move.mutationOptions({
+        onSuccess: (_result, variables) => {
+          invalidate();
+          queryClient.invalidateQueries({
+            queryKey: trpc.recipes.get.queryKey({ id: variables.id }),
+          });
+        },
+        onError: (error) => {
+          onError?.(error, "move");
+          invalidate();
+        },
+      })
+    );
 
     const restoreDeletedRecipe = (context: DeleteMutationContext | undefined): void => {
       if (!context) {
@@ -570,6 +589,14 @@ export function createUseRecipesMutations(
       deleteMutation.mutate({ id, version });
     };
 
+    const moveRecipe = (
+      id: string,
+      destinationHouseholdId: string | null,
+      version: number
+    ): void => {
+      moveMutation.mutate({ id, destinationHouseholdId, version });
+    };
+
     const convertMeasurements = (
       recipeId: string,
       targetSystem: MeasurementSystem,
@@ -618,6 +645,7 @@ export function createUseRecipesMutations(
       createRecipe,
       updateRecipe,
       deleteRecipe,
+      moveRecipe,
       convertMeasurements,
     };
   };

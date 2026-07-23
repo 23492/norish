@@ -50,6 +50,8 @@ type RecipeSummaryLike = RecipeMediaLike & {
 type ReadonlyRecipeSummaryProps = {
   recipe: RecipeSummaryLike;
   actions?: React.ReactNode;
+  /** The owning-cookbook chip (CKBK-MOVE-01) — rendered under the title. */
+  cookbook?: React.ReactNode;
   allergies?: string[];
   allergySet?: Set<string>;
   timeVariant?: "desktop" | "mobile";
@@ -118,6 +120,7 @@ export function ReadonlyRecipeMedia({
 export function ReadonlyRecipeSummary({
   recipe,
   actions,
+  cookbook,
   allergies = [],
   allergySet = new Set<string>(),
   timeVariant = "desktop",
@@ -147,6 +150,8 @@ export function ReadonlyRecipeSummary({
 
         {actions ? <div className="shrink-0">{actions}</div> : null}
       </div>
+
+      {cookbook ? <div className="flex">{cookbook}</div> : null}
 
       {recipe.description && (
         <div className="text-base leading-relaxed">

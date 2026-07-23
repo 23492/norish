@@ -23,7 +23,10 @@
     "personalDescription": "Your private recipes",
     "active": "Active",
     "members": "{count, plural, one {# member} other {# members}}",
-    "manage": "Create or join a cookbook"
+    "manage": "Create or join a cookbook",
+    "title": "Ваши кулинарные книги",
+    "subtitle": "Переключайтесь между кулинарными книгами, чтобы просматривать их рецепты.",
+    "open": "Смотреть рецепты"
   },
   "theme": {
     "title": "Тема",
@@ -35,7 +38,8 @@
   "nav": {
     "home": "Рецепты",
     "calendar": "Календарь",
-    "groceries": "Список покупок"
+    "groceries": "Список покупок",
+    "cookbooks": "Кулинарные книги"
   },
   "mobile": {
     "searchPlaceholder": "Поиск рецептов...",

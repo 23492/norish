@@ -124,6 +124,9 @@ vi.mock("@/app/(app)/recipes/[id]/components/wake-lock-toggle", () => ({
 vi.mock("@/components/recipes/author-chip", () => ({
   default: () => <div>author-chip</div>,
 }));
+vi.mock("@/components/recipes/cookbook-chip", () => ({
+  default: () => <div>cookbook-chip</div>,
+}));
 
 describe("recipe pages favorite visibility", () => {
   it("keeps tap interactions enabled on desktop when favorites are hidden", () => {

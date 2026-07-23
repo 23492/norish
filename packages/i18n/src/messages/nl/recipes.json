@@ -292,5 +292,11 @@
     "swipeSteps": "Veeg om door stappen te navigeren",
     "swipeIngredients": "Veeg links voor ingrediënten",
     "swipeBackToSteps": "Veeg rechts voor stappen"
+  },
+  "move": {
+    "title": "Recept verplaatsen",
+    "description": "Dit recept staat in {cookbook}. Kies waarheen je het verplaatst.",
+    "openLabel": "Verplaatsen uit {cookbook}",
+    "movedToast": "Recept wordt verplaatst naar {cookbook}"
   }
 }

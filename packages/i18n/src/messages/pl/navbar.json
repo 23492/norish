@@ -23,7 +23,10 @@
     "personalDescription": "Your private recipes",
     "active": "Active",
     "members": "{count, plural, one {# member} other {# members}}",
-    "manage": "Create or join a cookbook"
+    "manage": "Create or join a cookbook",
+    "title": "Twoje książki kucharskie",
+    "subtitle": "Przełączaj się między książkami kucharskimi, aby przeglądać ich przepisy.",
+    "open": "Zobacz przepisy"
   },
   "theme": {
     "title": "Motyw",
@@ -35,7 +38,8 @@
   "nav": {
     "home": "Przepisy",
     "calendar": "Kalendarz",
-    "groceries": "Zakupy"
+    "groceries": "Zakupy",
+    "cookbooks": "Książki kucharskie"
   },
   "mobile": {
     "searchPlaceholder": "Szukaj przepisów...",

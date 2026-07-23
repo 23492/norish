@@ -292,5 +292,11 @@
     "swipeSteps": "Swipe to navigate steps",
     "swipeIngredients": "Swipe left for ingredients",
     "swipeBackToSteps": "Swipe right for steps"
+  },
+  "move": {
+    "title": "Move recipe",
+    "description": "This recipe is in {cookbook}. Choose where to move it.",
+    "openLabel": "Move from {cookbook}",
+    "movedToast": "Moving recipe to {cookbook}"
   }
 }

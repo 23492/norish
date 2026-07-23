@@ -5,7 +5,12 @@ import NextLink from "next/link";
 import { usePathname } from "next/navigation";
 import NavbarUserMenu from "@/components/navbar/navbar-user-menu";
 import { useAutoHide } from "@/hooks/auto-hide";
-import { CalendarDaysIcon, ClipboardDocumentListIcon, HomeIcon } from "@heroicons/react/20/solid";
+import {
+  BookOpenIcon,
+  CalendarDaysIcon,
+  ClipboardDocumentListIcon,
+  HomeIcon,
+} from "@heroicons/react/20/solid";
 import { AnimatePresence, motion } from "motion/react";
 import { useTranslations } from "next-intl";
 
@@ -13,10 +18,11 @@ import { cssGlassBackdrop } from "@norish/web/config/css-tokens";
 import { siteConfig } from "@norish/web/config/site";
 
 // Map hrefs to translation keys (same as navbar.tsx)
-const navLabelKeys: Record<string, "home" | "calendar" | "groceries"> = {
+const navLabelKeys: Record<string, "home" | "calendar" | "groceries" | "cookbooks"> = {
   "/": "home",
   "/groceries": "groceries",
   "/calendar": "calendar",
+  "/cookbooks": "cookbooks",
 };
 
 export const MobileNav = () => {
@@ -88,7 +94,9 @@ export const MobileNav = () => {
                     ? HomeIcon
                     : item.href.startsWith("/calendar")
                       ? CalendarDaysIcon
-                      : ClipboardDocumentListIcon;
+                      : item.href.startsWith("/cookbooks")
+                        ? BookOpenIcon
+                        : ClipboardDocumentListIcon;
 
                 return (
                   <li key={item.href}>

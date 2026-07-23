@@ -23,7 +23,10 @@
     "personalDescription": "Your private recipes",
     "active": "Active",
     "members": "{count, plural, one {# member} other {# members}}",
-    "manage": "Create or join a cookbook"
+    "manage": "Create or join a cookbook",
+    "title": "Your cookbooks",
+    "subtitle": "Switch between your cookbooks to browse their recipes.",
+    "open": "View recipes"
   },
   "theme": {
     "title": "Theme",
@@ -35,7 +38,8 @@
   "nav": {
     "home": "Recipes",
     "calendar": "Calendar",
-    "groceries": "Groceries"
+    "groceries": "Groceries",
+    "cookbooks": "Cookbooks"
   },
   "mobile": {
     "searchPlaceholder": "Search recipes...",

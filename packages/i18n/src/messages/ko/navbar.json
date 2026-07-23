@@ -23,7 +23,10 @@
     "personalDescription": "Your private recipes",
     "active": "Active",
     "members": "{count, plural, one {# member} other {# members}}",
-    "manage": "Create or join a cookbook"
+    "manage": "Create or join a cookbook",
+    "title": "내 요리책",
+    "subtitle": "요리책을 전환하여 각 요리책의 레시피를 살펴보세요.",
+    "open": "레시피 보기"
   },
   "theme": {
     "title": "테마",
@@ -35,7 +38,8 @@
   "nav": {
     "home": "레시피",
     "calendar": "달력",
-    "groceries": "장보기"
+    "groceries": "장보기",
+    "cookbooks": "요리책"
   },
   "mobile": {
     "searchPlaceholder": "레시피 검색...",

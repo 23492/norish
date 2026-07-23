@@ -8,6 +8,7 @@ import StepsList from "@/app/(app)/recipes/[id]/components/steps-list";
 import SystemConvertMenu from "@/app/(app)/recipes/[id]/components/system-convert-menu";
 import AmountDisplayToggle from "@/components/recipes/amount-display-toggle";
 import AuthorChip from "@/components/recipes/author-chip";
+import CookbookChip from "@/components/recipes/cookbook-chip";
 import {
   ReadonlyRecipeMedia,
   ReadonlyRecipeNotes,
@@ -127,6 +128,7 @@ export default function RecipePageMobile() {
           <ReadonlyRecipeSummary
             allergies={allergies}
             allergySet={allergySet}
+            cookbook={<CookbookChip recipe={recipe} />}
             recipe={recipe}
             timeVariant="mobile"
           />

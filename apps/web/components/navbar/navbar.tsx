@@ -12,10 +12,11 @@ import { useTranslations } from "next-intl";
 import { siteConfig } from "@norish/web/config/site";
 
 // Map hrefs to translation keys
-const navLabelKeys: Record<string, "home" | "calendar" | "groceries"> = {
+const navLabelKeys: Record<string, "home" | "calendar" | "groceries" | "cookbooks"> = {
   "/": "home",
   "/groceries": "groceries",
   "/calendar": "calendar",
+  "/cookbooks": "cookbooks",
 };
 
 export const Navbar = () => {

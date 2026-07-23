@@ -23,7 +23,10 @@
     "personalDescription": "Your private recipes",
     "active": "Active",
     "members": "{count, plural, one {# member} other {# members}}",
-    "manage": "Create or join a cookbook"
+    "manage": "Create or join a cookbook",
+    "title": "I tuoi ricettari",
+    "subtitle": "Passa da un ricettario all'altro per sfogliare le loro ricette.",
+    "open": "Vedi ricette"
   },
   "theme": {
     "title": "Tema",
@@ -35,7 +38,8 @@
   "nav": {
     "home": "Ricette",
     "calendar": "Calendario",
-    "groceries": "Spesa"
+    "groceries": "Spesa",
+    "cookbooks": "Ricettari"
   },
   "mobile": {
     "searchPlaceholder": "Cerca ricette...",

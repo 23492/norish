@@ -61,12 +61,13 @@ describe("MobileNav bottom bar", () => {
     expect(screen.queryByText(new RegExp(USER_NAME, "i"))).not.toBeInTheDocument();
   });
 
-  it("still renders the three primary nav items", () => {
+  it("still renders the primary nav items", () => {
     render(<MobileNav />);
 
-    // siteConfig.navItems -> translation keys home/groceries/calendar (mocked 1:1).
+    // siteConfig.navItems -> translation keys home/groceries/calendar/cookbooks (mocked 1:1).
     expect(screen.getByText("home")).toBeInTheDocument();
     expect(screen.getByText("groceries")).toBeInTheDocument();
     expect(screen.getByText("calendar")).toBeInTheDocument();
+    expect(screen.getByText("cookbooks")).toBeInTheDocument();
   });
 });

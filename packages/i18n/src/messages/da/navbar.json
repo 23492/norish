@@ -23,7 +23,10 @@
     "personalDescription": "Your private recipes",
     "active": "Active",
     "members": "{count, plural, one {# member} other {# members}}",
-    "manage": "Create or join a cookbook"
+    "manage": "Create or join a cookbook",
+    "title": "Dine kogebøger",
+    "subtitle": "Skift mellem dine kogebøger for at gennemse deres opskrifter.",
+    "open": "Se opskrifter"
   },
   "theme": {
     "title": "Tema",
@@ -35,7 +38,8 @@
   "nav": {
     "home": "Opskrifter",
     "calendar": "Kalender",
-    "groceries": "Indkøbsliste"
+    "groceries": "Indkøbsliste",
+    "cookbooks": "Kogebøger"
   },
   "mobile": {
     "searchPlaceholder": "Søg opskrifter...",
