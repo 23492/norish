@@ -5,15 +5,32 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { XMarkIcon } from "@heroicons/react/16/solid";
 import { Carousel } from "@/components/ui/carousel";
+import VideoPlayer from "@/components/shared/video-player";
 import { Button, Modal, Tooltip } from "@heroui/react";
 
 import { FallbackPlaceholder, useImageErrors } from "./fallback-image";
 
+/** A still image. `type` is optional so image-only callers can pass `{ src, alt }`. */
+export type LightboxImage = {
+  type?: "image";
+  src: string;
+  alt?: string;
+};
+
+/** A video slide — rendered through the shared VideoPlayer, not next/image. */
+export type LightboxVideo = {
+  type: "video";
+  src: string;
+  alt?: string;
+  poster?: string | null;
+  duration?: number | null;
+};
+
+/** Discriminated media union so the lightbox can carry a mixed image+video set. */
+export type LightboxMedia = LightboxImage | LightboxVideo;
+
 export interface ImageLightboxProps {
-  images: {
-    src: string;
-    alt?: string;
-  }[];
+  images: LightboxMedia[];
   initialIndex?: number;
   isOpen: boolean;
   backdropClassName?: string;
@@ -27,6 +44,57 @@ function getSafeIndex(index: number, count: number) {
 }
 
 const TAP_MOVEMENT_THRESHOLD = 8;
+
+function LightboxSlide({
+  media,
+  altFallback,
+  hasError,
+  onError,
+}: {
+  media: LightboxMedia;
+  altFallback: string;
+  hasError: boolean;
+  onError: () => void;
+}) {
+  if (media.type === "video") {
+    return (
+      <div
+        className="flex w-full max-w-3xl items-center justify-center"
+        data-lightbox-interactive
+      >
+        <VideoPlayer
+          className="max-h-[68dvh] w-full rounded-2xl sm:rounded-3xl"
+          duration={media.duration}
+          poster={media.poster || undefined}
+          src={media.src}
+        />
+      </div>
+    );
+  }
+
+  if (hasError) {
+    return (
+      <FallbackPlaceholder
+        className="h-64 w-full rounded-2xl bg-white/10 sm:rounded-3xl"
+        data-lightbox-interactive
+      />
+    );
+  }
+
+  return (
+    <Image
+      unoptimized
+      alt={media.alt || altFallback}
+      className="max-h-[68dvh] w-auto max-w-full rounded-2xl object-contain select-none sm:rounded-3xl"
+      data-lightbox-interactive
+      draggable={false}
+      height={760}
+      sizes="(min-width: 1280px) 1120px, 92vw"
+      src={media.src}
+      onError={onError}
+    />
+  );
+}
 
 export default function ImageLightbox({
   images,
@@ -45,7 +113,7 @@ export default function ImageLightbox({
     () => getSafeIndex(initialIndex, images.length),
     [images.length, initialIndex]
   );
-  const currentImage = images[getSafeIndex(currentIndex, images.length)];
+  const currentMedia = images[getSafeIndex(currentIndex, images.length)];
   const showNavigation = images.length > 1;
 
   useEffect(() => {
@@ -77,7 +145,7 @@ export default function ImageLightbox({
     };
   }, [api]);
 
-  if (!isOpen || images.length === 0 || !currentImage) return null;
+  if (!isOpen || images.length === 0 || !currentMedia) return null;
 
   const handleBackdropPointerDown = (event: React.PointerEvent<HTMLElement>) => {
     pointerStartRef.current = {
@@ -167,30 +235,17 @@ export default function ImageLightbox({
               >
                 <div className="w-full">
                   <Carousel.Content className="items-center">
-                    {images.map((image, index) => (
+                    {images.map((media, index) => (
                       <Carousel.Item
-                        key={`${image.src}-${index}`}
+                        key={`${media.src}-${index}`}
                         className="flex items-center justify-center"
                       >
-                        {hasError(image.src) ? (
-                          <FallbackPlaceholder
-                            className="h-64 w-full rounded-2xl bg-white/10 sm:rounded-3xl"
-                            data-lightbox-interactive
-                          />
-                        ) : (
-                          <Image
-                            unoptimized
-                            alt={image.alt || `Image ${index + 1}`}
-                            className="max-h-[68dvh] w-auto max-w-full rounded-2xl object-contain select-none sm:rounded-3xl"
-                            data-lightbox-interactive
-                            draggable={false}
-                            height={760}
-                            sizes="(min-width: 1280px) 1120px, 92vw"
-                            src={image.src}
-                            width={1120}
-                            onError={() => handleImageError(image.src)}
-                          />
-                        )}
+                        <LightboxSlide
+                          altFallback={`Image ${index + 1}`}
+                          hasError={media.type !== "video" && hasError(media.src)}
+                          media={media}
+                          onError={() => handleImageError(media.src)}
+                        />
                       </Carousel.Item>
                     ))}
                   </Carousel.Content>
@@ -208,38 +263,26 @@ export default function ImageLightbox({
                   data-lightbox-interactive
                   scrollShadowSize={24}
                 >
-                  {images.map((image, index) => (
+                  {images.map((media, index) => (
                     <Carousel.Thumbnail
-                      key={`${image.src}-thumbnail-${index}`}
-                      alt={image.alt || `Image ${index + 1}`}
+                      key={`${media.src}-thumbnail-${index}`}
+                      alt={media.alt || `Image ${index + 1}`}
                       index={index}
-                      src={image.src}
+                      src={media.type === "video" ? (media.poster ?? undefined) : media.src}
+                      type={media.type ?? "image"}
                     />
                   ))}
                 </Carousel.Thumbnails>
               </Carousel>
             ) : (
-              /* Single image — no carousel needed */
-              <div className="flex items-center justify-center">
-                {hasError(currentImage.src) ? (
-                  <FallbackPlaceholder
-                    className="h-64 w-full max-w-5xl rounded-2xl bg-white/10 sm:rounded-3xl"
-                    data-lightbox-interactive
-                  />
-                ) : (
-                  <Image
-                    unoptimized
-                    alt={currentImage.alt || "Image"}
-                    className="max-h-[68dvh] w-auto max-w-full rounded-2xl object-contain select-none sm:rounded-3xl"
-                    data-lightbox-interactive
-                    draggable={false}
-                    height={760}
-                    sizes="(min-width: 1280px) 1120px, 92vw"
-                    src={currentImage.src}
-                    width={1120}
-                    onError={() => handleImageError(currentImage.src)}
-                  />
-                )}
+              /* Single media item — no carousel needed */
+              <div className="flex w-full items-center justify-center">
+                <LightboxSlide
+                  altFallback="Image"
+                  hasError={currentMedia.type !== "video" && hasError(currentMedia.src)}
+                  media={currentMedia}
+                  onError={() => handleImageError(currentMedia.src)}
+                />
               </div>
             )}
           </div>

@@ -23,6 +23,7 @@ import type { ComponentPropsWithoutRef, KeyboardEvent, ReactNode } from "react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import NextImage from "next/image";
 import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
+import { PlayIcon } from "@heroicons/react/16/solid";
 import { Button } from "@heroui/react";
 import useEmblaCarousel from "embla-carousel-react";
 
@@ -306,18 +307,21 @@ function CarouselThumbnails({
 }
 
 interface CarouselThumbnailProps {
-  src: string;
+  /** Thumbnail image URL. Optional so a video with no poster can still render. */
+  src?: string;
   alt?: string;
   index: number;
   className?: string;
+  /** Media kind — video thumbnails get a play badge over the poster. */
+  type?: "image" | "video";
 }
 
-function CarouselThumbnail({ src, alt, index, className }: CarouselThumbnailProps) {
+function CarouselThumbnail({ src, alt, index, className, type = "image" }: CarouselThumbnailProps) {
   const { selectedIndex, scrollTo } = useCarousel();
 
   return (
     <button
-      aria-label={alt || `Go to image ${index + 1}`}
+      aria-label={alt || `Go to ${type === "video" ? "video" : "image"} ${index + 1}`}
       className={cx(
         "relative size-16 shrink-0 overflow-hidden rounded-lg opacity-60 transition-opacity",
         "data-[selected=true]:opacity-100 data-[selected=true]:ring-2 data-[selected=true]:ring-white",
@@ -327,14 +331,23 @@ function CarouselThumbnail({ src, alt, index, className }: CarouselThumbnailProp
       type="button"
       onClick={() => scrollTo(index)}
     >
-      <NextImage
-        fill
-        unoptimized
-        alt={alt || `Image ${index + 1}`}
-        className="object-cover"
-        sizes="64px"
-        src={src}
-      />
+      {src ? (
+        <NextImage
+          fill
+          unoptimized
+          alt={alt || `Image ${index + 1}`}
+          className="object-cover"
+          sizes="64px"
+          src={src}
+        />
+      ) : (
+        <span className="bg-surface-tertiary absolute inset-0" />
+      )}
+      {type === "video" && (
+        <span className="absolute inset-0 flex items-center justify-center bg-black/30">
+          <PlayIcon className="size-5 text-white drop-shadow" />
+        </span>
+      )}
     </button>
   );
 }

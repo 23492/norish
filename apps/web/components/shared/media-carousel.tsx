@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import NextImage from "next/image";
 import { FallbackPlaceholder, useImageErrors } from "@/components/shared/fallback-image";
-import ImageLightbox from "@/components/shared/image-lightbox";
+import ImageLightbox, { type LightboxMedia } from "@/components/shared/image-lightbox";
 import VideoPlayer from "@/components/shared/video-player";
 import { Carousel, useCarousel } from "@/components/ui/carousel";
 import { useTranslations } from "next-intl";
@@ -76,6 +76,29 @@ export function buildMediaItems(recipe: RecipeMedia): MediaItem[] {
     });
   }
   return items;
+}
+
+/**
+ * Maps the full sorted media set to the lightbox's discriminated media type,
+ * preserving order and KEEPING videos. Exported so the mapping is unit-testable
+ * (MEDIA-UX-01: the lightbox must no longer drop non-image media).
+ */
+export function buildLightboxMedia(items: MediaItem[]): LightboxMedia[] {
+  return items.map((item) =>
+    item.type === "video"
+      ? {
+          type: "video" as const,
+          src: item.src,
+          alt: `Recipe media ${item.id ?? ""}`,
+          poster: item.thumbnail ?? null,
+          duration: item.duration ?? null,
+        }
+      : {
+          type: "image" as const,
+          src: item.src,
+          alt: `Recipe media ${item.id ?? ""}`,
+        }
+  );
 }
 export interface MediaCarouselProps {
   items: MediaItem[];
@@ -192,15 +215,8 @@ export default function MediaCarousel({
     });
   }, [items]);
 
-  // Extract images for lightbox
-  const lightboxImages = useMemo(() => {
-    return sortedItems
-      .filter((item) => item.type === "image")
-      .map((item) => ({
-        src: item.src,
-        alt: `Recipe media ${item.id || ""}`,
-      }));
-  }, [sortedItems]);
+  // Full media set for the lightbox (images AND videos), order preserved.
+  const lightboxMedia = useMemo(() => buildLightboxMedia(sortedItems), [sortedItems]);
 
   useEffect(() => {
     if (sortedItems.length !== 1) return;
@@ -214,17 +230,14 @@ export default function MediaCarousel({
   }, [onActiveItemChange, onActiveVideoControlsVisibilityChange, sortedItems]);
 
   const openLightboxForItem = useCallback(
-    (item: MediaItem, itemIndex: number) => {
-      if (item.type !== "image") return;
-
-      const imgIndex = lightboxImages.findIndex((img) => img.src === item.src);
-      if (imgIndex !== -1) {
-        setLightboxIndex(imgIndex);
-        setLightboxOpen(true);
-      }
+    (_item: MediaItem, itemIndex: number) => {
+      // The lightbox carries the full media set 1:1 with sortedItems, so the
+      // slide index IS the lightbox index — videos are no longer dropped.
+      setLightboxIndex(itemIndex);
+      setLightboxOpen(true);
       onImageClick?.(itemIndex);
     },
-    [lightboxImages, onImageClick]
+    [onImageClick]
   );
 
   const aspectRatioClass = {
@@ -297,7 +310,7 @@ export default function MediaCarousel({
           )}
         </div>
         <ImageLightbox
-          images={lightboxImages}
+          images={lightboxMedia}
           initialIndex={lightboxIndex}
           isOpen={lightboxOpen}
           onClose={() => setLightboxOpen(false)}
@@ -325,7 +338,7 @@ export default function MediaCarousel({
       </Carousel>
 
       <ImageLightbox
-        images={lightboxImages}
+        images={lightboxMedia}
         initialIndex={lightboxIndex}
         isOpen={lightboxOpen}
         onClose={() => setLightboxOpen(false)}
