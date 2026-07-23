@@ -1691,6 +1691,95 @@ export async function getRandomRecipeCandidates(
   }));
 }
 
+export interface DinnerSuggestionCandidate {
+  id: string;
+  name: string;
+  image: string | null;
+  tags: string[];
+  householdAverageRating: number | null;
+  householdRatingCount: number;
+  lastRatedAt: Date | null;
+}
+
+/**
+ * DINNER-01 candidate set for the "what's for dinner" suggester. Scoped per
+ * cookbook via the SAME `buildViewPolicyCondition` the recipe list uses, so the
+ * HOUSE-06 boundary is inherited here — a viewer NEVER sees another cookbook's
+ * recipes as a candidate, including under the live `view: "everyone"` policy
+ * (which the active-cookbook branch clamps to the active cookbook). Returns each
+ * accessible recipe with its OWN tags (for the season signal) plus the
+ * household-scoped ratings aggregate + last-rated timestamp (for the recency
+ * signal). The pure ranking lives in
+ * `@norish/shared-server/recipes/dinner-suggester`.
+ */
+export async function getDinnerSuggestionCandidates(
+  ctx: RecipeListContext,
+  limit: number = 200
+): Promise<DinnerSuggestionCandidate[]> {
+  const whereConditions: any[] = [];
+
+  const policyCondition = await buildViewPolicyCondition(ctx);
+
+  if (policyCondition) {
+    whereConditions.push(policyCondition);
+  }
+
+  const whereClause = whereConditions.length ? and(...whereConditions) : undefined;
+
+  const rows = await db.query.recipes.findMany({
+    columns: { id: true, name: true, image: true },
+    with: {
+      recipeTags: {
+        with: { tag: { columns: { name: true } } },
+        orderBy: (rt, { asc }) => [asc(rt.order)],
+      },
+    },
+    where: whereClause,
+    limit,
+  });
+
+  if (rows.length === 0) return [];
+
+  const recipeIds = rows.map((r) => r.id);
+  const householdUserIds = ctx.householdUserIds ?? [ctx.userId];
+
+  const { recipeRatings } = await import("../schema/recipe-ratings");
+
+  const ratingAggregates = await db
+    .select({
+      recipeId: recipeRatings.recipeId,
+      avgRating: sql<number>`avg(${recipeRatings.rating})::float`,
+      ratingCount: sql<number>`count(*)::int`,
+      lastRatedAt: sql<string>`max(${recipeRatings.updatedAt})`,
+    })
+    .from(recipeRatings)
+    .where(
+      and(
+        inArray(recipeRatings.recipeId, recipeIds),
+        inArray(recipeRatings.userId, householdUserIds)
+      )
+    )
+    .groupBy(recipeRatings.recipeId);
+
+  const ratingMap = new Map(ratingAggregates.map((r) => [r.recipeId, r]));
+
+  return rows.map((r) => {
+    const agg = ratingMap.get(r.id);
+
+    return {
+      id: r.id,
+      name: r.name,
+      image: r.image,
+      tags: (r.recipeTags ?? []).flatMap((rt: { tag?: { name?: string } | null }) =>
+        rt.tag && typeof rt.tag.name === "string" ? [rt.tag.name] : []
+      ),
+      householdAverageRating: agg?.avgRating ?? null,
+      householdRatingCount: agg?.ratingCount ?? 0,
+      lastRatedAt: agg?.lastRatedAt ? new Date(agg.lastRatedAt) : null,
+    };
+  });
+}
+
 export async function searchRecipesByName(
   ctx: RecipeListContext,
   query: string,

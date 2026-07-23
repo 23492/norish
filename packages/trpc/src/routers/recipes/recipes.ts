@@ -14,6 +14,7 @@ import {
   dashboardRecipe,
   deleteRecipeById,
   FullRecipeInsertSchema,
+  getDinnerSuggestionCandidates,
   getRandomRecipeCandidates,
   getRecipeFull,
   listRecipes,
@@ -44,6 +45,7 @@ import {
 import { getQueues } from "@norish/queue/registry";
 import { trpcLogger as log } from "@norish/shared-server/logger";
 import { deleteRecipeImagesDir } from "@norish/shared-server/media/storage";
+import { selectDinnerSuggestions } from "@norish/shared-server/recipes/dinner-suggester";
 import { selectWeightedRandomRecipe } from "@norish/shared-server/recipes/randomizer";
 import { FilterMode, RecipeCategory, SortOrder } from "@norish/shared/contracts";
 import { FullRecipeSchema, RecipeListResultSchema } from "@norish/shared/contracts/zod";
@@ -61,6 +63,7 @@ import {
 } from "./helpers";
 import {
   randomRecipeInputSchema,
+  dinnerSuggestionInputSchema,
   recipeAutocompleteInputSchema,
   recipeIdInputSchema,
   recipeImportBulkInputSchema,
@@ -701,6 +704,40 @@ const getRandomRecipe = authedProcedure
     return { id: selected.id, name: selected.name, image: selected.image };
   });
 
+// DINNER-01: "what's for dinner" suggestion. The candidate set comes from
+// getDinnerSuggestionCandidates, which reuses buildViewPolicyCondition wholesale
+// — so the per-cookbook boundary is INHERITED (a viewer never gets another
+// cookbook's recipe as a candidate, including under live `view: "everyone"`).
+// The ranking (season from the recipe's own tags + recent household ratings) is
+// a pure, deterministic function of (candidates, now). The rater avatars/stars/
+// thought-bubble the UI shows come from the ALREADY-gated ratings.getRaters
+// procedure (RATE-01) — this procedure never fetches rater names itself.
+const dinnerSuggestion = authedProcedure
+  .input(dinnerSuggestionInputSchema)
+  .query(async ({ ctx, input }) => {
+    const listCtx: RecipeListContext = {
+      userId: ctx.user.id,
+      householdUserIds: ctx.householdUserIds,
+      activeHouseholdId: ctx.household?.id ?? null,
+      memberHouseholdIds: ctx.memberHouseholdIds,
+      isServerAdmin: ctx.isServerAdmin,
+    };
+
+    const candidates = await getDinnerSuggestionCandidates(listCtx);
+
+    const suggestions = selectDinnerSuggestions(candidates, {
+      now: new Date(),
+      count: input.count,
+    });
+
+    log.debug(
+      { userId: ctx.user.id, candidateCount: candidates.length, returned: suggestions.length },
+      "Dinner suggestion"
+    );
+
+    return { suggestions };
+  });
+
 const importFromImagesProcedure = authedProcedure
   .input(formDataInputSchema)
   .mutation(async ({ ctx, input }) => {
@@ -1074,4 +1111,5 @@ export const recipesProcedures = router({
   autocomplete,
   updateCategories,
   getRandomRecipe,
+  dinnerSuggestion,
 });

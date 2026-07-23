@@ -11,6 +11,13 @@ export const randomRecipeInputSchema = z.object({
   category: z.enum(["Breakfast", "Lunch", "Dinner", "Snack"]).optional(),
 });
 
+// DINNER-01: how many "what's for dinner" suggestions to return (headline +
+// alternates). The candidate set is per-cookbook scoped in the repo; this only
+// bounds how many ranked picks come back.
+export const dinnerSuggestionInputSchema = z.object({
+  count: z.number().int().min(1).max(10).optional().default(3),
+});
+
 export const recipeImportPasteInputSchema = z.object({
   text: z
     .string()

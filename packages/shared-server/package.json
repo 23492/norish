@@ -11,6 +11,7 @@
     "./media/storage": "./src/media/storage.ts",
     "./media/avatar-cleanup": "./src/media/avatar-cleanup.ts",
     "./recipes/randomizer": "./src/recipes/randomizer.ts",
+    "./recipes/dinner-suggester": "./src/recipes/dinner-suggester.ts",
     "./config/defaults": "./src/config/defaults.ts",
     "./archive/parser": "./src/archive/parser.ts",
     "./archive/mealie-parser": "./src/archive/mealie-parser.ts",
