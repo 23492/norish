@@ -23,6 +23,7 @@ import { dateKey, eachDayOfInterval } from "@norish/shared/lib/helpers";
 
 import type { PlannedItemDisplay } from "./types";
 import { usePrependAnchorRestore } from "../use-prepend-anchor-restore";
+import { filterVisibleDays } from "../visible-days";
 import { TimelineDaySection } from "./timeline-day-section";
 import { TimelineDragOverlay } from "./timeline-drag-overlay";
 import { TimelineScrollToToday } from "./timeline-scroll-to-today";
@@ -60,10 +61,14 @@ export function MobileTimeline({ onAddItem, onNoteClick, onRecipeClick }: Mobile
     moveItem,
   } = useCalendarContext();
 
-  // Generate all days in range from context
+  // Today tracking — resolved before allDays so empty past days can be dropped.
+  const today = useMemo(() => startOfDay(new Date()), []);
+  const todayKey = useMemo(() => dateKey(today), [today]);
+
+  // Generate all days in range from context, hiding empty past days.
   const allDays = useMemo(
-    () => eachDayOfInterval(dateRange.start, dateRange.end),
-    [dateRange.start, dateRange.end]
+    () => filterVisibleDays(eachDayOfInterval(dateRange.start, dateRange.end), calendarData, todayKey),
+    [dateRange.start, dateRange.end, calendarData, todayKey]
   );
   const dayKeys = useMemo(() => allDays.map((d) => dateKey(d)), [allDays]);
   const { captureAnchor, restoreAnchor, shouldAdjustScrollForSizeChange } = usePrependAnchorRestore(
@@ -80,9 +85,6 @@ export function MobileTimeline({ onAddItem, onNoteClick, onRecipeClick }: Mobile
     [locale]
   );
 
-  // Today tracking
-  const today = useMemo(() => startOfDay(new Date()), []);
-  const todayKey = useMemo(() => dateKey(today), [today]);
   const todayIndex = useMemo(
     () => allDays.findIndex((d) => dateKey(d) === todayKey),
     [allDays, todayKey]

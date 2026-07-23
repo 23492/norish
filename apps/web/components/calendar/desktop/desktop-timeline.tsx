@@ -23,6 +23,7 @@ import type { Slot } from "@norish/shared/contracts";
 import { dateKey, eachDayOfInterval } from "@norish/shared/lib/helpers";
 
 import { usePrependAnchorRestore } from "../use-prepend-anchor-restore";
+import { filterVisibleDays } from "../visible-days";
 import { DesktopDayCard } from "./desktop-day-card";
 import { DesktopDragOverlay } from "./desktop-drag-overlay";
 import { DesktopScrollToToday } from "./desktop-scroll-to-today";
@@ -61,9 +62,18 @@ export function DesktopTimeline({ onAddItem, onNoteClick, onRecipeClick }: Deskt
   const { width = 1024, height: _windowHeight } = useWindowSize();
   const columnCount = width >= 1024 ? 3 : 2;
 
-  // Generate all days in range from context, padded to fill complete rows
+  // Today tracking — resolved before allDays so empty past days can be dropped.
+  const today = useMemo(() => startOfDay(new Date()), []);
+  const todayKey = useMemo(() => dateKey(today), [today]);
+
+  // Generate all days in range from context, hiding empty past days, then
+  // padding to fill complete rows.
   const allDays = useMemo(() => {
-    const days = eachDayOfInterval(dateRange.start, dateRange.end);
+    const days = filterVisibleDays(
+      eachDayOfInterval(dateRange.start, dateRange.end),
+      calendarData,
+      todayKey
+    );
     // Pad to complete rows to prevent grid shifting
     const remainder = days.length % columnCount;
 
@@ -84,7 +94,7 @@ export function DesktopTimeline({ onAddItem, onNoteClick, onRecipeClick }: Deskt
     }
 
     return days;
-  }, [dateRange.start, dateRange.end, columnCount]);
+  }, [dateRange.start, dateRange.end, columnCount, calendarData, todayKey]);
 
   // Group days into rows based on column count
   const rows = useMemo(() => {
@@ -114,9 +124,6 @@ export function DesktopTimeline({ onAddItem, onNoteClick, onRecipeClick }: Deskt
     [locale]
   );
 
-  // Today tracking
-  const today = useMemo(() => startOfDay(new Date()), []);
-  const todayKey = useMemo(() => dateKey(today), [today]);
   const todayRowIndex = useMemo(() => {
     const dayIndex = allDays.findIndex((d) => dateKey(d) === todayKey);
 
