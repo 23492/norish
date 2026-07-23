@@ -21,6 +21,19 @@
       "list": "목록"
     }
   },
+  "dinner": {
+    "title": "오늘 저녁 뭐 먹지?",
+    "anotherIdea": "다른 추천",
+    "seasonalPick": "{season} 추천",
+    "openRecipe": "{name} 열기",
+    "raterThought": "{name}님이 평가했어요",
+    "seasons": {
+      "spring": "봄",
+      "summer": "여름",
+      "autumn": "가을",
+      "winter": "겨울"
+    }
+  },
   "empty": {
     "title": "아직 레시피가 없어요",
     "description": "위의 검색 필드에 레시피 URL을 붙여넣어 보세요.",

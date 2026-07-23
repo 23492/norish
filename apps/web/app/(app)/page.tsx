@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import CreateRecipeButton from "@/components/dashboard/create-recipe-button";
+import DinnerSuggestion from "@/components/dashboard/dinner-suggestion";
 import FloatingRecipeChip from "@/components/dashboard/floating-recipe-chip";
 import RecipeGrid from "@/components/dashboard/recipe-grid";
 import RecipeViewModeToggle from "@/components/dashboard/recipe-view-mode-toggle";
@@ -20,6 +21,8 @@ export default async function Home() {
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col gap-8">
       <TodaysMeals />
+
+      <DinnerSuggestion />
 
       <section
         aria-labelledby="recipe-library-heading"

@@ -21,6 +21,19 @@
       "list": "Liste"
     }
   },
+  "dinner": {
+    "title": "Hvad skal vi have til aftensmad?",
+    "anotherIdea": "Andet forslag",
+    "seasonalPick": "{season}-valg",
+    "openRecipe": "Åbn {name}",
+    "raterThought": "{name} bedømte denne",
+    "seasons": {
+      "spring": "Forår",
+      "summer": "Sommer",
+      "autumn": "Efterår",
+      "winter": "Vinter"
+    }
+  },
   "empty": {
     "title": "Din opskriftsamling venter",
     "description": "Indsæt en opskrift-URL i søgefeltet ovenfor, og lad magien ske.",

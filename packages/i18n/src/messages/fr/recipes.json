@@ -21,6 +21,19 @@
       "list": "Liste"
     }
   },
+  "dinner": {
+    "title": "Qu'est-ce qu'on mange ce soir ?",
+    "anotherIdea": "Autre idée",
+    "seasonalPick": "Choix de {season}",
+    "openRecipe": "Ouvrir {name}",
+    "raterThought": "{name} a noté cette recette",
+    "seasons": {
+      "spring": "Printemps",
+      "summer": "Été",
+      "autumn": "Automne",
+      "winter": "Hiver"
+    }
+  },
   "empty": {
     "title": "Votre collection de recettes vous attend",
     "description": "Collez une URL de recette dans le champ de recherche ci-dessus et laissez opérer la magie.",

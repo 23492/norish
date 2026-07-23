@@ -21,6 +21,19 @@
       "list": "Liste"
     }
   },
+  "dinner": {
+    "title": "Was gibt es zum Abendessen?",
+    "anotherIdea": "Anderer Vorschlag",
+    "seasonalPick": "{season}-Auswahl",
+    "openRecipe": "{name} öffnen",
+    "raterThought": "{name} hat dies bewertet",
+    "seasons": {
+      "spring": "Frühling",
+      "summer": "Sommer",
+      "autumn": "Herbst",
+      "winter": "Winter"
+    }
+  },
   "empty": {
     "title": "Ihre Rezeptsammlung wartet",
     "description": "Fügen Sie eine Rezept-URL in das Suchfeld oben ein und schauen Sie, wie die Magie passiert.",

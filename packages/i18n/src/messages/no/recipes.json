@@ -21,6 +21,19 @@
       "list": "Liste"
     }
   },
+  "dinner": {
+    "title": "Hva skal vi ha til middag?",
+    "anotherIdea": "Annet forslag",
+    "seasonalPick": "{season}-valg",
+    "openRecipe": "Åpne {name}",
+    "raterThought": "{name} vurderte denne",
+    "seasons": {
+      "spring": "Vår",
+      "summer": "Sommer",
+      "autumn": "Høst",
+      "winter": "Vinter"
+    }
+  },
   "empty": {
     "title": "Oppskriftsamlingen din venter",
     "description": "Lim inn en oppskrift-URL i søkefeltet ovenfor, og la magien skje.",

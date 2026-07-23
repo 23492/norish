@@ -1,4 +1,5 @@
 import type { CreateRecipeHooksOptions } from "../types";
+import { createUseDinnerSuggestion } from "./use-dinner-suggestion";
 import { createUseFavoritesMutation } from "./use-favorites-mutation";
 import { createUseFavoritesQuery } from "./use-favorites-query";
 import { createUsePendingRecipesQuery } from "./use-pending-recipes-query";
@@ -17,6 +18,7 @@ export type {
   RecipesQueryDependencies,
 } from "./use-recipes-query";
 export type { RandomRecipeResult } from "./use-random-recipe";
+export type { DinnerSuggestion, DinnerSuggestionResult } from "./use-dinner-suggestion";
 export type {
   RecipesMutationsResult,
   RecipesMutationErrorHandler,
@@ -41,6 +43,7 @@ export {
   createUseFavoritesMutation,
   createUseRatingsSubscription,
   createUseRandomRecipe,
+  createUseDinnerSuggestion,
 };
 
 export function createDashboardRecipeHooks(
@@ -76,5 +79,6 @@ export function createDashboardRecipeHooks(
     useRatingsSubscription: createUseRatingsSubscription(options),
     useRecipeAutocomplete: createUseRecipeAutocomplete(options),
     useRandomRecipe: createUseRandomRecipe(options),
+    useDinnerSuggestion: createUseDinnerSuggestion(options),
   };
 }

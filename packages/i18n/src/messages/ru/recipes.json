@@ -21,6 +21,19 @@
       "list": "Список"
     }
   },
+  "dinner": {
+    "title": "Что на ужин?",
+    "anotherIdea": "Другой вариант",
+    "seasonalPick": "Сезонный выбор: {season}",
+    "openRecipe": "Открыть {name}",
+    "raterThought": "{name} оценил(а) этот рецепт",
+    "seasons": {
+      "spring": "Весна",
+      "summer": "Лето",
+      "autumn": "Осень",
+      "winter": "Зима"
+    }
+  },
   "empty": {
     "title": "Ваша коллекция рецептов ждёт",
     "description": "Вставьте URL рецепта в поле поиска выше — и магия начнётся.",

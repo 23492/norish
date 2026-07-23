@@ -47,3 +47,8 @@ export {
 } from "@norish/shared-react/hooks";
 
 export { useRandomRecipe, type RandomRecipeResult } from "./use-random-recipe";
+export {
+  useDinnerSuggestion,
+  type DinnerSuggestion,
+  type DinnerSuggestionResult,
+} from "./use-dinner-suggestion";

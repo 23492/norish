@@ -21,6 +21,19 @@
       "list": "Lista"
     }
   },
+  "dinner": {
+    "title": "Co na kolację?",
+    "anotherIdea": "Inna propozycja",
+    "seasonalPick": "Sezon: {season}",
+    "openRecipe": "Otwórz {name}",
+    "raterThought": "{name} ocenił(a) ten przepis",
+    "seasons": {
+      "spring": "Wiosna",
+      "summer": "Lato",
+      "autumn": "Jesień",
+      "winter": "Zima"
+    }
+  },
   "empty": {
     "title": "Twoja kolekcja przepisów czeka",
     "description": "Wklej URL przepisu w pole wyszukiwania powyżej i obserwuj magię.",

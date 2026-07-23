@@ -21,6 +21,19 @@
       "list": "List"
     }
   },
+  "dinner": {
+    "title": "What's for dinner?",
+    "anotherIdea": "Another idea",
+    "seasonalPick": "{season} pick",
+    "openRecipe": "Open {name}",
+    "raterThought": "{name} rated this",
+    "seasons": {
+      "spring": "Spring",
+      "summer": "Summer",
+      "autumn": "Autumn",
+      "winter": "Winter"
+    }
+  },
   "empty": {
     "title": "Your recipe collection awaits",
     "description": "Paste a recipe URL in the search field above and watch the magic happen.",

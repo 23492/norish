@@ -21,6 +21,19 @@
       "list": "Lijst"
     }
   },
+  "dinner": {
+    "title": "Wat eten we vanavond?",
+    "anotherIdea": "Ander idee",
+    "seasonalPick": "{season}-keuze",
+    "openRecipe": "Open {name}",
+    "raterThought": "{name} beoordeelde dit",
+    "seasons": {
+      "spring": "Lente",
+      "summer": "Zomer",
+      "autumn": "Herfst",
+      "winter": "Winter"
+    }
+  },
   "empty": {
     "title": "Begin je collectie met recepten",
     "description": "Plak een link in het zoekveld en zie de magie gebeuren.",
