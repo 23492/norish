@@ -17,8 +17,11 @@ import {
   getRandomRecipeCandidates,
   getRecipeFull,
   listRecipes,
+  MOVE_DESTINATION_URL_CONFLICT,
+  moveRecipeToHousehold,
   RecipeConvertInputSchema,
   RecipeDeleteInputSchema,
+  RecipeMoveInputSchema,
   RecipeGetInputSchema,
   RecipeImportInputSchema,
   RecipeListInputSchema,
@@ -50,7 +53,12 @@ import { emitByPolicy, resolveRecipeRealtimeScope } from "../../helpers";
 import { authedProcedure } from "../../middleware";
 import { router } from "../../trpc";
 import { recipeEmitter } from "./emitter";
-import { assertRecipeAccess, findRecipeForViewer, handleRecipeError } from "./helpers";
+import {
+  assertRecipeAccess,
+  assertRecipeMoveAllowed,
+  findRecipeForViewer,
+  handleRecipeError,
+} from "./helpers";
 import {
   randomRecipeInputSchema,
   recipeAutocompleteInputSchema,
@@ -335,6 +343,69 @@ const deleteProcedure = authedProcedure
 
     return { success: true };
   });
+
+const move = authedProcedure.input(RecipeMoveInputSchema).mutation(async ({ ctx, input }) => {
+  const { id, destinationHouseholdId, version } = input;
+
+  log.info(
+    { userId: ctx.user.id, recipeId: id, destinationHouseholdId },
+    "Moving recipe to cookbook"
+  );
+
+  // SECURITY (CKBK-MOVE-01 / HOUSE-06 / POLICY-01): edit rights on the SOURCE
+  // cookbook AND membership of / ownership for the DESTINATION.
+  await assertRecipeMoveAllowed(ctx, id, destinationHouseholdId);
+
+  // Resolve the SOURCE realtime scope BEFORE the move — while the recipe still
+  // lives in its old cookbook — so the "removed" signal keys on the cookbook it
+  // is leaving (AGENTS.md realtime rule / Phase 22 D-22-02).
+  const sourceScope = await resolveRecipeRealtimeScope(id, {
+    userId: ctx.user.id,
+    householdKey: ctx.householdKey,
+  });
+
+  let result;
+
+  try {
+    result = await moveRecipeToHousehold(id, destinationHouseholdId, version);
+  } catch (err) {
+    if (err instanceof Error && err.message === MOVE_DESTINATION_URL_CONFLICT) {
+      throw new TRPCError({
+        code: "CONFLICT",
+        message: "A recipe with this URL already exists in the destination cookbook",
+      });
+    }
+
+    throw err;
+  }
+
+  if (result.stale) {
+    log.info({ userId: ctx.user.id, recipeId: id, version }, "Ignoring stale recipe move");
+
+    return { success: true, stale: true };
+  }
+
+  // Tell the SOURCE cookbook to drop the now-stale card. Id-only: no recipe DTO
+  // is pushed to the cookbook it left (Success Criterion 4).
+  emitByPolicy(recipeEmitter, sourceScope.viewPolicy, sourceScope.ctx, "deleted", { id });
+
+  // Tell the DESTINATION cookbook it gained the recipe — resolve the scope AGAIN,
+  // now that the row lives in the destination, so it keys on the recipe's own
+  // (new) cookbook and never broadcasts.
+  const destScope = await resolveRecipeRealtimeScope(id, {
+    userId: ctx.user.id,
+    householdKey: ctx.householdKey,
+  });
+  const dashboardDto = await dashboardRecipe(id);
+
+  if (dashboardDto) {
+    emitByPolicy(recipeEmitter, destScope.viewPolicy, destScope.ctx, "created", {
+      recipe: dashboardDto,
+    });
+  }
+
+  return { success: true };
+});
 
 export const importFromUrlProcedure = authedProcedure
   .meta({
@@ -930,6 +1001,7 @@ export const recipesProcedures = router({
   create: createRecipeProcedure,
   update,
   delete: deleteProcedure,
+  move,
   importFromUrl: importFromUrlProcedure,
   importFromImages: importFromImagesProcedure,
   importFromPaste: importFromPasteProcedure,

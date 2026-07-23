@@ -158,6 +158,16 @@ export const RecipeUpdateInputSchema = z.object({
   data: FullRecipeUpdateSchema,
 });
 
+// CKBK-MOVE-01: move a recipe to another cookbook (or to Personal when the
+// destination is null). Authorization (POLICY-01 edit on the source + membership
+// of / ownership for the destination) is enforced server-side; see
+// assertRecipeMoveAllowed in the recipes router helpers.
+export const RecipeMoveInputSchema = z.object({
+  id: z.uuid(),
+  destinationHouseholdId: z.uuid().nullable(),
+  version: z.number().int().positive(),
+});
+
 export const SetRecipeVisibilityInputSchema = z.object({
   recipeId: z.uuid(),
   visibility: RecipeVisibilitySchema,

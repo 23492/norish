@@ -156,6 +156,72 @@ export async function getRecipeOwnerAndHousehold(
   return { userId: row.userId ?? null, householdId: row.householdId ?? null };
 }
 
+/**
+ * Thrown when a move would violate `uq_recipes_url_household` — the destination
+ * cookbook already holds a recipe with this URL. The router maps it to a CONFLICT.
+ */
+export const MOVE_DESTINATION_URL_CONFLICT = "DESTINATION_URL_CONFLICT" as const;
+
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "23505"
+  );
+}
+
+/**
+ * Move a recipe to another cookbook (CKBK-MOVE-01).
+ *
+ * Writes ONLY `recipes.household_id` (a null destination = Personal). The owner
+ * (`recipes.userId`) is deliberately UNCHANGED — ownership is identity, the
+ * cookbook is location (Phase 2 D-01/D-09), so the move never orphans the recipe
+ * and the owner keeps edit rights in the destination. Version-guarded like the
+ * other recipe mutations (returns a stale outcome on a version mismatch).
+ *
+ * Authorization is the CALLER's responsibility (assertRecipeMoveAllowed in the
+ * router) — this repo only performs the write and surfaces the URL-uniqueness
+ * collision (moving a URL-bearing recipe into a cookbook that already has that
+ * URL) as MOVE_DESTINATION_URL_CONFLICT. A null destination never collides
+ * (Postgres treats NULLs as distinct, matching Phase 2 D-13).
+ */
+export async function moveRecipeToHousehold(
+  id: string,
+  destinationHouseholdId: string | null,
+  version?: number
+): Promise<MutationOutcome<void>> {
+  const whereConditions = [eq(recipes.id, id)];
+
+  if (version) {
+    whereConditions.push(eq(recipes.version, version));
+  }
+
+  try {
+    const [row] = await db
+      .update(recipes)
+      .set({
+        householdId: destinationHouseholdId,
+        updatedAt: new Date(),
+        version: sql`${recipes.version} + 1`,
+      })
+      .where(and(...whereConditions))
+      .returning({ id: recipes.id });
+
+    if (!row && version) {
+      return staleOutcome();
+    }
+
+    return appliedOutcome(undefined);
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      throw new Error(MOVE_DESTINATION_URL_CONFLICT);
+    }
+
+    throw error;
+  }
+}
+
 export async function getRecipeByUrl(url: string): Promise<FullRecipeDTO | null> {
   const rows = await db.query.recipes.findFirst({
     where: eq(recipes.url, url),

@@ -82,6 +82,72 @@ export async function assertRecipeAccess(
   }
 }
 
+/**
+ * Authorize a move-recipe-between-cookbooks request (CKBK-MOVE-01).
+ *
+ * SECURITY (HOUSE-06 / POLICY-01) — a move must be allowed on BOTH ends:
+ * - SOURCE: the actor must have POLICY-01 EDIT rights on the recipe in its OWN
+ *   cookbook (`assertRecipeAccess(edit)` — owner, or the source cookbook admin
+ *   when edit=household/everyone). This also guarantees the actor can SEE it: a
+ *   non-member fails the edit gate before any move happens ("you cannot move
+ *   what you cannot see").
+ * - DESTINATION: a household destination requires MEMBERSHIP
+ *   (`ctx.memberHouseholdIds`) — membership is the right to add (Phase 2: any
+ *   member creates in a cookbook). A Personal destination (null) requires the
+ *   actor to be the recipe OWNER — Personal is the owner's own owner-only space.
+ * - Server admin bypasses both (parity with `canAccessResource`).
+ *
+ * A move never widens who may access a recipe beyond the destination's existing
+ * members, and can never target a cookbook the actor is not authorised on.
+ *
+ * Returns the resolved source household + owner for the caller's realtime scoping.
+ */
+export async function assertRecipeMoveAllowed(
+  ctx: Pick<RecipeUserContext, "user" | "memberHouseholdIds" | "isServerAdmin">,
+  recipeId: string,
+  destinationHouseholdId: string | null
+): Promise<{ sourceHouseholdId: string | null; ownerId: string | null }> {
+  // SOURCE gate: POLICY-01 edit rights on the recipe's own cookbook.
+  await assertRecipeAccess(ctx, recipeId, "edit");
+
+  const owner = await getRecipeOwnerAndHousehold(recipeId);
+
+  if (owner === null) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Recipe not found" });
+  }
+
+  // No-op: already in the requested cookbook. Reject rather than emit spurious
+  // move events.
+  if (owner.householdId === destinationHouseholdId) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Recipe is already in this cookbook",
+    });
+  }
+
+  if (ctx.isServerAdmin) {
+    return { sourceHouseholdId: owner.householdId, ownerId: owner.userId };
+  }
+
+  // DESTINATION gate.
+  if (destinationHouseholdId === null) {
+    // Personal is the actor's own owner-only space — only the owner may place it there.
+    if (owner.userId !== ctx.user.id) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Only the recipe owner can move it to Personal",
+      });
+    }
+  } else if (!ctx.memberHouseholdIds.includes(destinationHouseholdId)) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "You are not a member of the destination cookbook",
+    });
+  }
+
+  return { sourceHouseholdId: owner.householdId, ownerId: owner.userId };
+}
+
 export async function findRecipeForViewer(
   ctx: Pick<RecipeUserContext, "user" | "memberHouseholdIds" | "isServerAdmin">,
   recipeId: string
