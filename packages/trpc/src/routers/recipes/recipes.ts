@@ -63,6 +63,8 @@ import {
   randomRecipeInputSchema,
   recipeAutocompleteInputSchema,
   recipeIdInputSchema,
+  recipeImportBulkInputSchema,
+  recipeImportBulkOutputSchema,
   recipeImportPasteInputSchema,
   recipeImportPasteOutputSchema,
 } from "./recipes-openapi-types";
@@ -447,6 +449,63 @@ export const importFromUrlProcedure = authedProcedure
     }
 
     return recipeId;
+  });
+
+export const importFromUrlsProcedure = authedProcedure
+  .meta({
+    openapi: {
+      method: "POST",
+      path: "/recipes/import/urls",
+      protect: true,
+      tags: ["Recipe Imports"],
+      summary: "Queue a bulk recipe import from many URLs",
+      errorResponses: {
+        401: "Missing or invalid API credentials",
+      },
+    },
+  })
+  .input(recipeImportBulkInputSchema)
+  .output(recipeImportBulkOutputSchema)
+  .mutation(async ({ ctx, input }) => {
+    const { urls, forceAI } = input;
+    const queues = getQueues();
+
+    log.info(
+      { userId: ctx.user.id, count: urls.length, householdId: ctx.household?.id ?? null },
+      "Processing bulk recipe import request"
+    );
+
+    // BULK-01: fan out over the EXISTING single-import job path — one job per URL, each
+    // carrying the active cookbook (householdId). addImportJob does the SAME per-cookbook
+    // dedup + job-id scoping the single path uses (Phase 22.1), so two cookbooks importing
+    // the same URL never collide and dedup stays within the ACTOR's cookbook only. Partial
+    // failure is normal: we report each URL's enqueue outcome instead of one aggregate error.
+    const items = await Promise.all(
+      urls.map(async (url) => {
+        const recipeId = randomUUID();
+        const result = await addImportJob(queues.recipeImport, {
+          url,
+          recipeId,
+          userId: ctx.user.id,
+          householdKey: ctx.householdKey,
+          householdUserIds: ctx.householdUserIds,
+          householdId: ctx.household?.id ?? null,
+          forceAI,
+        });
+
+        if (result.status === "exists") {
+          return { url, recipeId, status: "exists" as const, existingRecipeId: result.existingRecipeId };
+        }
+
+        if (result.status === "duplicate") {
+          return { url, recipeId, status: "duplicate" as const };
+        }
+
+        return { url, recipeId, status: "queued" as const };
+      })
+    );
+
+    return { items };
   });
 
 const reserveId = authedProcedure.query(() => {
@@ -1003,6 +1062,7 @@ export const recipesProcedures = router({
   delete: deleteProcedure,
   move,
   importFromUrl: importFromUrlProcedure,
+  importFromUrls: importFromUrlsProcedure,
   importFromImages: importFromImagesProcedure,
   importFromPaste: importFromPasteProcedure,
   convertMeasurements,

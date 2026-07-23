@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { MAX_RECIPE_PASTE_CHARS } from "@norish/shared/contracts/uploads";
+import { MAX_BULK_IMPORT_URLS } from "@norish/shared/lib/helpers";
 
 export const recipeAutocompleteInputSchema = z.object({
   query: z.string().min(1).max(100),
@@ -38,3 +39,35 @@ export const recipeImportPasteOutputSchema = z.object({
 });
 
 export const recipeIdInputSchema = z.object({ recipeId: z.uuid() });
+
+// BULK-01: many URLs in one submission, fanned out over the SAME single-import queue path
+// (one job per URL, each carrying the active cookbook). The cap is enforced here too, so
+// the limit holds even for direct API callers, not just the UI.
+export const recipeImportBulkInputSchema = z.object({
+  urls: z
+    .array(z.url())
+    .min(1)
+    .max(MAX_BULK_IMPORT_URLS)
+    .describe(
+      `Up to ${MAX_BULK_IMPORT_URLS} recipe URLs. Each is enqueued as an independent import ` +
+        "job against the active cookbook, with per-item outcome reporting."
+    ),
+  forceAI: z.boolean().optional(),
+});
+
+export const recipeImportBulkOutputSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        url: z.string(),
+        recipeId: z.uuid(),
+        status: z.enum(["queued", "exists", "duplicate"]),
+        existingRecipeId: z.string().optional(),
+      })
+    )
+    .describe(
+      "Per-URL enqueue outcome in source order: queued (accepted), exists (already in this " +
+        "cookbook), or duplicate (already importing). Import success/failure then arrives " +
+        "per item over the realtime bus."
+    ),
+});

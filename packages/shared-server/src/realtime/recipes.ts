@@ -4,6 +4,7 @@ import type {
   ArchiveProgressPayload,
   FullRecipeDTO,
   RecipeDashboardDTO,
+  RecipeImportStage,
 } from "@norish/shared/contracts";
 import type { RecipeShareLifecycleEventDto } from "@norish/shared/contracts/dto/recipe-shares";
 import { createTypedEmitter } from "@norish/shared-server/redis/pubsub";
@@ -11,6 +12,7 @@ import { createTypedEmitter } from "@norish/shared-server/redis/pubsub";
 export type RecipeSubscriptionEvents = {
   created: { recipe: RecipeDashboardDTO };
   importStarted: { recipeId: string; url: string };
+  importProgress: { recipeId: string; url?: string; stage: RecipeImportStage };
   imported: {
     recipe: RecipeDashboardDTO;
     pendingRecipeId?: string;

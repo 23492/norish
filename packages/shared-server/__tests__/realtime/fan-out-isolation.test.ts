@@ -57,7 +57,14 @@ const { emitByPolicy, resolveHouseholdRealtimeScope, resolveRecipeRealtimeScope 
 type RecipeEvents = Record<string, unknown>;
 
 /** The recipe-bearing events an outsider must never receive (22-AUDIT). */
-const RECIPE_EVENTS = ["importStarted", "imported", "updated", "created", "converted"] as const;
+const RECIPE_EVENTS = [
+  "importStarted",
+  "importProgress",
+  "imported",
+  "updated",
+  "created",
+  "converted",
+] as const;
 
 const DTO_PAYLOAD = { recipe: { id: RECIPE_IN_A, name: "Cookbook A secret" } };
 

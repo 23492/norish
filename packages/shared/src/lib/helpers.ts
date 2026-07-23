@@ -190,6 +190,69 @@ export function dateKey(d: Date): string {
  * Normalize URL for consistent deduplication.
  * Removes trailing slashes, normalizes protocol, and strips tracking params.
  */
+/**
+ * BULK-01 — cap on a single bulk-import submission (decision D-24-01). Chosen to keep the
+ * dashboard responsive (at most this many pending skeleton cards + realtime streams at
+ * once) and to bound one user's queue fan-out so a bulk run cannot starve the shared
+ * import queue for other users.
+ */
+export const MAX_BULK_IMPORT_URLS = 25;
+
+/** Candidate http(s) URLs embedded anywhere in free text (blog-index paste friendly). */
+const BULK_IMPORT_URL_TOKEN_RE = /https?:\/\/[^\s,;"'<>()[\]]+/gi;
+
+/** Trailing punctuation that commonly rides along when URLs are pasted from prose. */
+const BULK_IMPORT_TRAILING_PUNCTUATION_RE = /[.,;:!?)\]}'"]+$/;
+
+export interface ParsedBulkImport {
+  /** Valid, deduped URLs in first-seen order, capped at `MAX_BULK_IMPORT_URLS`. */
+  urls: string[];
+  /** How many valid unique URLs were dropped by the cap. */
+  truncated: number;
+}
+
+/**
+ * Parse a single bulk-import submission into a bounded, deduped URL list.
+ *
+ * Accepts either an explicit newline / comma / whitespace-separated list OR a paste that
+ * happens to contain URLs (e.g. a copied blog index). We only ever EXTRACT http(s) URLs
+ * from the text — we never fetch a page to crawl it, so there is no server-side crawl and
+ * therefore no per-domain rate-limiting concern: every URL becomes one ordinary queue job,
+ * bounded by the existing worker concurrency. Dedup uses the same `normalizeUrl` the import
+ * job-id/dedup path uses, so the client preview matches what the server would enqueue.
+ */
+export function parseBulkImportUrls(text: string): ParsedBulkImport {
+  const candidates = text.match(BULK_IMPORT_URL_TOKEN_RE) ?? [];
+  const seen = new Set<string>();
+  const urls: string[] = [];
+  let overCap = 0;
+
+  for (const raw of candidates) {
+    const cleaned = raw.replace(BULK_IMPORT_TRAILING_PUNCTUATION_RE, "").trim();
+
+    if (!httpUrlSchema.safeParse(cleaned).success) {
+      continue;
+    }
+
+    const key = normalizeUrl(cleaned);
+
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+
+    if (urls.length >= MAX_BULK_IMPORT_URLS) {
+      overCap += 1;
+      continue;
+    }
+
+    urls.push(cleaned);
+  }
+
+  return { urls, truncated: overCap };
+}
+
 export function normalizeUrl(url: string): string {
   try {
     const parsed = new URL(url);

@@ -36,6 +36,7 @@ import {
 } from "../config";
 import { withTimeout } from "../helpers";
 import { createLazyWorker, stopLazyWorker } from "../lazy-worker-manager";
+import { emitImportProgress } from "./progress";
 
 const log = createLogger("worker:recipe-import");
 
@@ -112,6 +113,10 @@ async function processImportJob(job: Job<RecipeImportJobData>): Promise<void> {
     log.debug("Auto-tag allergies disabled, skipping allergy detection");
   }
 
+  // IMPORT-UX-01: honest, cookbook-scoped progress. Reuse the scope resolved above
+  // (keyed on the import's target cookbook) — never a fresh server-wide/broadcast scope.
+  emitImportProgress({ viewPolicy, ctx }, { recipeId, url, stage: "fetching" });
+
   // Parse and create recipe
   const userTokens = await getDecryptedTokensByUserId(userId);
   const parseResult = await withTimeout(
@@ -131,6 +136,8 @@ async function processImportJob(job: Job<RecipeImportJobData>): Promise<void> {
   if (!parseResult.recipe) {
     throw new Error("Failed to parse recipe from URL");
   }
+
+  emitImportProgress({ viewPolicy, ctx }, { recipeId, url, stage: "saving" });
 
   const createdId = await createRecipeWithRefs(recipeId, userId, householdId, parseResult.recipe);
 

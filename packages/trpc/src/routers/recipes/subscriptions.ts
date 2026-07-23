@@ -8,6 +8,11 @@ const onImportStarted = createEnvelopeAwareSubscription(
   "importStarted",
   "recipe import started"
 );
+const onImportProgress = createEnvelopeAwareSubscription(
+  recipeEmitter,
+  "importProgress",
+  "recipe import progress"
+);
 const onImported = createEnvelopeAwareSubscription(recipeEmitter, "imported", "recipe imported");
 const onUpdated = createEnvelopeAwareSubscription(recipeEmitter, "updated", "recipe updated");
 const onDeleted = createEnvelopeAwareSubscription(recipeEmitter, "deleted", "recipe deleted");
@@ -87,6 +92,7 @@ const onRecipeBatchCreated = createEnvelopeAwareSubscription(
 export const recipesSubscriptions = router({
   onCreated,
   onImportStarted,
+  onImportProgress,
   onImported,
   onUpdated,
   onDeleted,
