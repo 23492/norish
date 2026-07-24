@@ -4,6 +4,7 @@ export * from "@norish/db/repositories/recurring-groceries";
 export * from "@norish/db/repositories/stores";
 export * from "@norish/db/repositories/households";
 export * from "@norish/db/repositories/ingredients";
+export * from "@norish/db/repositories/cook-projection";
 export * from "@norish/db/repositories/steps";
 export * from "@norish/db/repositories/tags";
 export * from "@norish/db/repositories/api-keys";
