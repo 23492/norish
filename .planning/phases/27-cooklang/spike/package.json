@@ -1,0 +1,13 @@
+{
+  "name": "cooklang-spike",
+  "private": true,
+  "type": "module",
+  "description": "SPIKE — Phase 27 COOK-01. NOT wired into the norish package graph. Standalone node project so it cannot affect pnpm typecheck.",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@cooklang/cooklang": "^0.18.7",
+    "vitest": "^2.1.9"
+  }
+}
