@@ -27,6 +27,12 @@ export default defineConfig({
     "libheif-js",
     "yt-dlp-wrap",
     "ffmpeg-static",
+    // Phase 27 (COOK-01): ships a `.wasm` binary. It is reachable from the server
+    // entry via `@norish/shared-server/cooklang/*` (which is `noExternal`, so its
+    // own deps would otherwise be pulled in), and rolldown cannot inline a
+    // `.wasm` — it fails with "stream did not contain valid UTF-8". Node 22 loads
+    // it natively from node_modules at runtime, with no flag.
+    "@cooklang/cooklang",
     "bullmq",
     "ioredis",
     // --- Frameworks ---
