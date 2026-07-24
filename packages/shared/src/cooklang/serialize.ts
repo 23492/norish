@@ -1,15 +1,15 @@
 import type { UnitsMap } from "@norish/config/zod/server-config";
+import type {
+  LinkOutcome,
+  SerializeResult,
+  StructuredIngredientRef,
+  StructuredRecipe,
+  StructuredStep,
+  StructuredTimerRef,
+} from "./types";
 
 import { formatTokenAmount, normalizeIngredientLinkName } from "../lib/ingredient-token";
 import { normalizeUnit } from "../lib/unit-localization";
-import {
-  type LinkOutcome,
-  type SerializeResult,
-  type StructuredIngredientRef,
-  type StructuredRecipe,
-  type StructuredStep,
-  type StructuredTimerRef,
-} from "./types";
 
 /**
  * PURE serializer: a norish structured recipe -> a `.cook` string (D-3/D-4).
@@ -81,7 +81,13 @@ export function formatCooklangTimer(timer: StructuredTimerRef): string {
 }
 
 function quoteYaml(value: string): string {
-  // servings "4" etc. — quote to keep the value a string and avoid YAML surprises
+  // A plain number MUST stay unquoted: Cooklang types `servings` as a number and
+  // reports `Unsupported value for key: 'servings' — expected 'number' but got
+  // 'string'` for `servings: "4"`. (Found by running the REAL parser over the
+  // spike's output; the spike quoted every digit-leading value.)
+  if (/^-?\d+(?:\.\d+)?$/.test(value)) return value;
+
+  // Everything else that could confuse YAML ("15 min", "a: b") is quoted.
   return /[:#]/.test(value) || /^\d/.test(value) ? `"${value.replace(/"/g, '\\"')}"` : value;
 }
 

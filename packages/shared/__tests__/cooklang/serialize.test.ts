@@ -45,8 +45,18 @@ describe("structuredToCooklang — document shape", () => {
 
     expect(cook.startsWith("---\n")).toBe(true);
     expect(cook).toContain("title: Spaghetti Bolognese");
-    expect(cook).toContain('servings: "4"');
     expect(cook).toContain("norish.system: metric");
+  });
+
+  it("emits numeric metadata UNQUOTED so the parser reports no diagnostic", () => {
+    // Cooklang types `servings` as a number; `servings: "4"` produces
+    // `Unsupported value for key: 'servings'`. Quoting is reserved for values
+    // that would otherwise confuse YAML.
+    const cook = structuredToCooklang(recipeOf("cookies"));
+
+    expect(cook).toContain("\nservings: 24\n");
+    expect(cook).toContain('time.prep: "15 min"');
+    expect(cook).not.toContain('servings: "24"');
   });
 });
 
