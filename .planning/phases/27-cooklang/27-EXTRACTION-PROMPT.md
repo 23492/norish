@@ -9,6 +9,34 @@
 
 ---
 
+## ⚠️ REVISION (2026-07-24) — hardened & validated against LIVE DeepSeek
+
+The fragment below was the FIRST DRAFT. It has since been built into a skill-creator
+skill and **run end-to-end against live `deepseek-v4-pro`** (Camoufox-fallback scrape
+→ prompt → DeepSeek → `structuredToCooklang` → real WASM reparse). The live runs
+exposed two failure modes a careful stand-in never showed, so the canonical prompt
+now lives in **`extraction-skill/assets/linkage-fragment.txt`** and adds:
+
+1. **Name = a word in the step's own text (the anchor rule).** Live DeepSeek first
+   used the whole ingredient-list line as `name` (`"100g plain flour"`,
+   `"oil or melted butter, for frying"`); those never appear in the prose, so nothing
+   anchored and every token was appended. This is now the strongest rule in the
+   fragment (rule A) with a COMMON MISTAKES block.
+2. **A step lists only what its own text names — never carry ingredients forward.**
+   DeepSeek dumped every ingredient-so-far into each later step (the "serve" step
+   relisted all 11). Rule B forbids this explicitly.
+   Two smaller rules were added after later live runs: **units as written (do not
+   convert `2 tbsp`→`30 ml`)** and **`# Heading` steps for recipe sub-sections**.
+
+**Result after 3 iterations:** live DeepSeek scores **6/6 fixtures, 38/38 assertions**
+on the failure-mode eval suite, and both real E2E targets (Dutch LeukeRecepten
+bolognese + BBC pancakes) round-trip to a fully-anchored `.cook` (0 appended,
+confidence = trusted). Harness + evals: `extraction-skill/` + `e2e-harness/`.
+One serializer requirement confirmed: parse the `.cook` **without** a scale arg or the
+canonical `%unit` IDs (D-8) get normalized (`gram`→`g`).
+
+---
+
 ## Where it slots in
 
 Three prompt builders exist (roadmap Phase 7 note; confirmed in

@@ -1,0 +1,81 @@
+{
+  "skill_name": "cooklang-recipe-extraction",
+  "notes": "Each eval is implemented as a runnable fixture + assertions in ../../e2e-harness/src/fixtures.ts and graded by ../../e2e-harness/src/evaluate.ts. Run: `cd ../../e2e-harness && npm run evals` (Claude stand-in) or `npm run evals -- --live` (real DeepSeek). Assertions: schema-valid; serializes to a .cook that reparses with the real WASM parser; per-step inline amounts correct (name-tolerant, amount+step strict); expected D-7 confidence bucket.",
+  "evals": [
+    {
+      "id": 1,
+      "name": "pancakes-best-case",
+      "prompt": "Extract this recipe into per-step-linked JSON for norish: Basic Pancakes — 200 g flour, 300 ml milk, 2 eggs, salt, 15 g butter. 1) Whisk flour, milk, eggs and a pinch of salt into a batter. 2) Heat a little butter in a pan. 3) Cook 2 minutes per side.",
+      "expected_output": "Every ingredient named once with one clear amount; salt bare (null); butter on step 2; a 2-minute timer on step 3. Confidence: trusted.",
+      "failure_modes": ["to-taste (salt)"],
+      "assertions": [
+        "output valid against the per-step extraction schema",
+        "serialized .cook reparses with the real WASM parser",
+        "all expected inline per-step amounts round-trip (flour 200 g, milk 300 ml, eggs 2, butter 15 g)",
+        "salt renders bare with no amount",
+        "0 appended links; confidence = trusted"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "bolognese-multistep-garnish",
+      "prompt": "Extract Spaghetti Bolognese for norish with per-step ingredient linkage. Onion and garlic are chopped in step 1 and fried in step 2; parmesan is a garnish on the serve step; salt is to taste; the sauce simmers 30 minutes.",
+      "expected_output": "onion/garlic carry their amount only on the chop step and are name-only when fried; parmesan anchored in the serve step; salt bare; 30-min timer on the simmer step. Confidence: trusted.",
+      "failure_modes": ["multi-step ingredient", "garnish", "to-taste"],
+      "assertions": [
+        "multi-step ingredients (onion, garlic) carry their amount in exactly one step",
+        "parmesan garnish anchored inline in the serving step",
+        "salt bare; 30-minute timer present",
+        "0 appended links; confidence = trusted"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "guacamole-substring-collision",
+      "prompt": "Extract Guacamole for norish. The ingredient list has 'lime' and 'tomato' but the steps say 'lime juice' and 'chopped tomato'; salt is to taste; cilantro is a 10 g garnish.",
+      "expected_output": "lime anchors inside 'lime juice', tomato inside 'chopped tomato' (substring matching), amounts correct; salt bare. Confidence: trusted.",
+      "failure_modes": ["substring / name collision", "to-taste"],
+      "assertions": [
+        "lime and tomato anchor inline despite the prose using a longer phrase",
+        "all inline amounts correct (avocados 3, lime 1, red onion 0.5, tomato 1, cilantro 10 g)",
+        "salt bare; 0 appended links; confidence = trusted"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "cookies-brown-sugar-and-sections",
+      "prompt": "Extract Chocolate Chip Cookies for norish with a 'Dough' section and a 'Bake' section. The list has both 'sugar' and 'brown sugar' (a substring collision).",
+      "expected_output": "sugar and brown sugar both linked with the right amount via longest-name-first matching; two == section == headings; 12-minute bake timer. Confidence: trusted.",
+      "failure_modes": ["substring collision (sugar/brown sugar)", "sections"],
+      "assertions": [
+        "sugar 100 g and brown sugar 150 g both linked correctly (no mis-tokenization)",
+        "section headings Dough and Bake present in the .cook",
+        "12-minute timer on the bake step; 0 appended; confidence = trusted"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "thai-curry-split-amount",
+      "prompt": "Extract Thai Green Curry for norish. 400 ml coconut milk is used 'a little' in step 1 and 'the rest' in step 2 — the text never says how much of each.",
+      "expected_output": "full 400 ml on the main use, bare coconut milk ref on the other; no double-count. Correctly flagged LOW confidence because the split is invented (irreducible from the source).",
+      "failure_modes": ["amount split across steps (irreducible)", "multi-step"],
+      "assertions": [
+        "coconut milk carries its amount in exactly one step (no double count)",
+        "all other inline amounts correct",
+        "confidence = LOW (known split-amount flagged, not hidden)"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "andijviestamppot-dutch",
+      "prompt": "Extraheer dit Nederlandse recept voor norish met koppeling per stap: Andijviestamppot met spekjes — 1 kg aardappelen, 300 g andijvie, 150 g spekblokjes, 1 ui, 100 ml melk, zout, peper.",
+      "expected_output": "Dutch step text preserved; aardappelen and ui are multi-step (amount on first mention only); zout and peper bare; 20-minute kook timer. Confidence: trusted.",
+      "failure_modes": ["Dutch language", "multi-step (aardappelen, ui)", "to-taste (zout, peper)"],
+      "assertions": [
+        "Dutch ingredient names anchor inline; unicode/prose preserved",
+        "aardappelen and ui carry their amount in exactly one step",
+        "zout and peper bare; 0 appended; confidence = trusted"
+      ]
+    }
+  ]
+}

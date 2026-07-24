@@ -1,0 +1,22 @@
+{
+  "name": "cooklang-e2e-harness",
+  "private": true,
+  "type": "module",
+  "description": "SPIKE — Phase 27 COOK-01. Standalone E2E harness for the Cooklang extraction prompt. NOT part of the pnpm workspace graph, so it cannot affect `pnpm typecheck`. Mirrors the serializer spike's isolation approach.",
+  "scripts": {
+    "evals": "node --experimental-wasm-modules --env-file-if-exists=.env --import tsx src/run-evals.ts",
+    "e2e": "node --experimental-wasm-modules --env-file-if-exists=.env --import tsx src/run-e2e.ts",
+    "test": "NODE_OPTIONS=--experimental-wasm-modules vitest run"
+  },
+  "dependencies": {
+    "@ai-sdk/deepseek": "^2.0.32",
+    "@cooklang/cooklang": "^0.18.7",
+    "ai": "^6.0.174",
+    "cheerio": "^1.0.0",
+    "zod": "4.4.2"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "vitest": "^2.1.9"
+  }
+}
