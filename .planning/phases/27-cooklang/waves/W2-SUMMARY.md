@@ -8,7 +8,8 @@
 > The renderer is untouched: no web or mobile component, page, hook or renderer changed.
 
 **Commits:** `9f548b96` (task 1) → `5e915523` (task 2) → `0f74fb3a` (task 3) →
-`3b0d42fc` (task 4) → `f4280a55` (task 5) → `a896dae1` (server-bundle fix).
+`3b0d42fc` (task 4) → `f4280a55` (task 5) → `a896dae1` (server-bundle fix) →
+`a746f00d` (post-review isolation hardening).
 Base `8d541fb4`.
 
 **THE NEVER-BROKEN GUARANTEE HOLDS.** At the end of W2 there is still no producer of
@@ -167,6 +168,27 @@ contains none of these edits.
 
 After each revert the suite returned GREEN (22/22, 5/5, 11/11 respectively).
 
+### Follow-up: two boundaries the first pass left UNPINNED (fixed after review)
+
+An independent adversarial verifier returned FAIL on the isolation SUITE (not on the
+production code — there was no live vulnerability). `cook-tokens-isolation.test.ts` seeded
+`householdId: "cookbook-a"` on EVERY fixture, so the personal-recipe (`household_id IS NULL`)
+branch of `findRecipeForViewer` was never executed; `getEditable` was asserted through
+`assertRecipeAccess` standalone, so the PROCEDURE's own ordering was unpinned; and the
+`a recipe with no .cook is unaffected` case seeded `view: "household"` with no `everyone`
+sibling (an AGENTS.md violation). The suite is now driven through the real
+`recipesProcedures` caller and covers `householdId: null` (denied stranger AND permitted
+owner), `userId: null`, and both policy values everywhere.
+
+| # | The exact weakening | Result |
+|---|---|---|
+| **NEW-2** | `helpers.ts` `findRecipeForViewer`: `if (recipe.userId)` → `if (recipe.userId && recipe.householdId)` — a REAL leak: a stranger receives another user's PERSONAL recipe including `cookSource`/`cookTokens` | **RED — 6 failed / 29 passed (35).** `denies a STRANGER and leaks neither the .cook nor a token` (×2), `denies a member of an unrelated cookbook` (×2), `does NOT even PARSE a personal recipe's .cook for a denied stranger` (×2) — each under both `household` and `everyone` |
+| **NEW-1** | `recipes.ts` `getEditableProcedure`: hoisted `await withCookTokens(recipe)` ABOVE `assertRecipeAccess(..., "edit")` (gate retained, so no disclosure — only the ordering invariant is violated) | **RED — 6 failed / 45 passed** across `cook-tokens-isolation` + `recipes.test.ts` (the isolation file alone: 6 failed / 29 passed of 35; `recipes.test.ts` stayed fully GREEN, which is exactly the blind spot). `FORBIDs a view-but-not-edit viewer` (×2), `FORBIDs a member of an unrelated cookbook` (×2), `FORBIDs a stranger on a PERSONAL recipe` (×2) |
+
+Both weakenings were reverted BYTE-IDENTICAL (`git diff -- packages/trpc/src` empty, md5 back
+to the committed value) and the suite returned GREEN at 35/35 (file) and 335/335 (package).
+Neither was committed. **No production code was changed** — the fix is entirely in the test.
+
 ## Gates / evidence — baseline `main@8d541fb4` vs post-plan
 
 **The baseline was re-measured this session with Docker working**, and it differs from
@@ -179,7 +201,7 @@ has exactly ONE pre-existing failure.
 |---|---|---|
 | `pnpm typecheck` | 17/17 EXIT 0 | **17/17 EXIT 0** |
 | `@norish/db` | 116 passed / **1 failed** (19 files) | **164 passed / 1 failed** (23 files) — same single failure |
-| `@norish/trpc` | 294 passed (30 files) | **322 passed** (32 files) |
+| `@norish/trpc` | 294 passed (30 files) | **335 passed** (32 files) |
 | `@norish/shared` | 284 passed | **295 passed** |
 | `@norish/shared-server` | 254 passed | **275 passed** |
 | `@norish/queue` | 88 passed | **88 passed** |
@@ -195,10 +217,15 @@ has exactly ONE pre-existing failure.
 | `pnpm --filter @norish/web build:server` | EXIT 0 | **EXIT 0** (see deviation 1) |
 | `pnpm i18n:check` | EXIT 1, pre-existing `no`-locale gap | **byte-identical to baseline** (`diff` empty) |
 
-**Net-new tests: +139.** New files: `0041-cook-source` (11), `cook-projection` (22),
+**Net-new tests: +121.** New files: `0041-cook-source` (11), `cook-projection` (22),
 `cook-write-path` (10), `cook-projection.isolation` (5), `build-payload` (14),
-`attach-tokens` (7), `cook-tokens-isolation` (22), `convert-measurements-toggle` (6), plus
-11 contract assertions and extensions.
+`attach-tokens` (7), `cook-tokens-isolation` (**35**), `convert-measurements-toggle` (6),
+plus 11 contract assertions and extensions.
+
+> **Count correction.** This line originally read "+139", which did not match its own
+> itemization (11+22+10+5+14+7+22+6+11 = **108**). The true figure at the time of the
+> first pass was **+108**; the follow-up above added **13** more to
+> `cook-tokens-isolation` (22 → 35), giving **+121**.
 
 **The one red, PRE-EXISTING and unrelated:**
 `__tests__/server/db/cleanup/cleanup-workflows.test.ts > reconciles recipe media references
@@ -206,10 +233,17 @@ has exactly ONE pre-existing failure.
 the untouched tree at `8d541fb4`.
 
 **Isolation suites, all green:** `@norish/db` isolation 25/25 (shopping-list,
-dinner-suggester, households, cook-projection), `@norish/trpc` isolation 33/33 (incl.
-`router-fan-out-isolation` and the new `cook-tokens-isolation`), `@norish/shared-server`
-fan-out 27/27, `@norish/queue` isolation 11/11, `permissions-integration` 23/23,
-`move-permissions` 13/13.
+dinner-suggester, households, cook-projection), `@norish/trpc` isolation 46/46 (incl.
+`router-fan-out-isolation`, `tags-isolation` and `cook-tokens-isolation` at 35),
+`@norish/shared-server` fan-out 27/27, `@norish/queue` isolation 11/11,
+`permissions-integration` 23/23, `move-permissions` 13/13.
+
+`cook-tokens-isolation` now PINS both boundaries that the first pass left unenforced:
+the **personal-recipe** branch (`householdId: null` — denied stranger AND permitted owner,
+plus the `userId: null` orphan branch), and the **ordering** invariant at
+`getEditableProcedure`, which is driven through the real `recipesProcedures` caller so that
+`withCookTokens` sitting below `assertRecipeAccess` is an asserted property of the call site
+rather than of a helper it happens to call.
 
 **No existing assertion was edited or weakened.** `recipes.test.ts` and
 `ingredient-unit-normalization.test.ts` pass unchanged, which is the real gate on the
