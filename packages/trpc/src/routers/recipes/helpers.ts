@@ -4,6 +4,7 @@ import type { FullRecipeDTO } from "@norish/shared/contracts";
 import { TRPCError } from "@trpc/server";
 import { canAccessResource, resolveRecipeCookbookPolicy } from "@norish/auth/permissions";
 import { getRecipeFull, getRecipeOwnerAndHousehold } from "@norish/db";
+import { withCookTokens } from "@norish/shared-server/cooklang/attach-tokens";
 import { trpcLogger as log } from "@norish/shared-server/logger";
 
 import { emitByPolicy } from "../../helpers";
@@ -209,5 +210,9 @@ export async function findRecipeForViewer(
     }
   }
 
-  return recipe;
+  // HOUSE-06: `withCookTokens` MUST stay below the `canView` guard above. It is a
+  // pure projection with no authorization of its own, so its POSITION is the
+  // boundary — an unauthorized viewer must not even cause a parse, let alone
+  // receive the `.cook`.
+  return withCookTokens(recipe);
 }

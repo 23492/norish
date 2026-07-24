@@ -43,6 +43,7 @@ import {
   preparePasteImport,
 } from "@norish/queue";
 import { getQueues } from "@norish/queue/registry";
+import { withCookTokens } from "@norish/shared-server/cooklang/attach-tokens";
 import { trpcLogger as log } from "@norish/shared-server/logger";
 import { deleteRecipeImagesDir } from "@norish/shared-server/media/storage";
 import { selectDinnerSuggestions } from "@norish/shared-server/recipes/dinner-suggester";
@@ -184,7 +185,8 @@ export const getEditableProcedure = authedProcedure
 
     await assertRecipeAccess(ctx, input.id, "edit");
 
-    return recipe;
+    // HOUSE-06: strictly AFTER the edit gate above — see `withCookTokens`.
+    return withCookTokens(recipe);
   });
 
 export const createRecipeProcedure = authedProcedure
