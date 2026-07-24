@@ -1,3 +1,13 @@
+import {
+  formatTokenAmount,
+  normalizeIngredientLinkName,
+} from "@norish/shared/lib/ingredient-token";
+
+// Moved down into @norish/shared (Phase 27 W1, D-27-W1-04) so the Cooklang
+// serializer can reuse it; re-exported here so every existing consumer of
+// `@norish/shared-react/text/ingredient-links` is unaffected.
+export { normalizeIngredientLinkName };
+
 export type IngredientLinkSource = {
   ingredientName: string;
   systemUsed: string;
@@ -18,10 +28,6 @@ export type IngredientLinkCandidate = {
 
 const SINGLE_WORD_STOP_CHARS = /[\s@{}\[\](),;:!?.]/;
 const MARKDOWN_LABEL_ESCAPE = /[\\\[\]]/g;
-
-export function normalizeIngredientLinkName(name: string): string {
-  return name.trim().replace(/\s+/g, " ").toLowerCase();
-}
 
 export function getIngredientLinkCandidateKey(input: {
   ingredientName: string;
@@ -240,15 +246,4 @@ function formatIngredientLinkLabel(name: string, amountLabel?: string): string {
   if (!amount) return name;
 
   return `${name} (${amount})`;
-}
-
-function formatTokenAmount(amount: number | string | null | undefined): string {
-  if (amount == null || amount === "") return "";
-
-  const numberAmount = typeof amount === "string" ? Number(amount) : amount;
-
-  if (!Number.isFinite(numberAmount)) return String(amount).trim();
-  if (Number.isInteger(numberAmount)) return String(numberAmount);
-
-  return String(numberAmount).replace(/\.?0+$/, "");
 }

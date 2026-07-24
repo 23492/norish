@@ -12,7 +12,8 @@
     "./contracts/dto/*": "./src/contracts/dto/*.d.ts",
     "./contracts/*": "./src/contracts/*.ts",
     "./lib/*": "./src/lib/*.ts",
-    "./units": "./src/units/index.ts"
+    "./units": "./src/units/index.ts",
+    "./cooklang": "./src/cooklang/index.ts"
   },
   "scripts": {
     "build": "rm -rf dist && pnpm exec tsc -p tsconfig.json --noCheck",
