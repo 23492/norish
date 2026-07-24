@@ -12,19 +12,50 @@ Legend for each decision: **CHOICE** — one-line **rationale**.
 
 ---
 
-## D-1 — Storage model → **ADDITIVE DUAL-STORE**
-Add a nullable `cook_source` (`.cook` text) alongside the existing `steps` /
-`recipe_ingredients`, which **stay authoritative**. *Rationale:* shopping-list FKs
-(`groceries.recipe_ingredient_id`) and search read the structured tables; a
-`.cook` replacement would break them and is irreversible — additive is a superset
-that reverts cleanly.
+> ## ⚠️ REVERSAL — FULL-NATIVE (Kiran, 2026-07-24, this session)
+> Kiran chose **FULL NATIVE Cooklang, NO bandaids**. `.cook` is the SINGLE SOURCE
+> OF TRUTH; the old hand-authored `steps`/`recipe_ingredients` STOP being
+> authoritative and demote to a **derived projection**; the heuristic
+> `SmartInstruction`/`applyIngredientLinkMarkup` layer is **DELETED** (not a
+> fallback); metric↔US becomes a **deterministic OSS converter** replacing the AI
+> `unit-converter.ts`. This **supersedes D-1 B, D-2's dual-authored rows, D-6's
+> heuristic fallback, and D-7's dual renderer** as recorded below. Full plan:
+> **`27-PLAN.md`**. The individual entries below are annotated with their reversal.
 
-## D-2 — Dual metric/US → **SINGLE unit system inside the `.cook`**
-The `.cook` carries ONE unit system (recorded in metadata `norish.system`); the
-structured `recipe_ingredients` keep BOTH metric + US rows as today. *Rationale:*
-Cooklang is inherently single-system; duplicating both systems into Cooklang is
-non-idiomatic and lossy, and the structured tables already hold both — the `.cook`
-is a per-system view, not the unit source of truth.
+---
+
+## D-1 — Storage model → ~~ADDITIVE DUAL-STORE~~ → **REPLACED: `.cook` IS SOURCE OF TRUTH** (2026-07-24)
+~~Add a nullable `cook_source` alongside the still-authoritative structured
+tables.~~ **REVERSED to FULL-NATIVE:** `recipes.cook_source` (`.cook`) is the ONLY
+authored representation; `steps`/`recipe_ingredients` demote to a **derived,
+materialized projection** regenerated from the `.cook` on every write
+(`deriveProjectionTx`, same transaction). *Why the reversal:* shopping-list FKs and
+search still need structured rows, so those tables **persist as a projection** (a
+cache with one owner, NOT authored) rather than being dropped — the FK is kept safe
+by UPSERT-stable derivation on natural key `(recipe_id, system_used, ingredient_id)`
+(preserves `recipe_ingredients.id` → grocery FKs survive edits). The safe
+expand→migrate→contract phasing to REACH this end state is correct migration
+engineering, not a bandaid.
+
+## D-2 — Dual metric/US → ~~SINGLE `.cook` + BOTH authored rows~~ → **REPLACED: ONE native `.cook` + DETERMINISTIC conversion** (2026-07-24)
+~~The `.cook` carries one system; structured rows keep BOTH metric + US as today.~~
+**REVERSED:** the `.cook` carries ONE **native** system (`recipes.system_used`,
+`norish.system` frontmatter); the **other system is DERIVED deterministically** by an
+OSS converter at derive-time, not stored as parallel *authored* rows. The projection
+still materializes both systems (for search/shopping), but from the single source, not
+from an AI round-trip. *Rationale:* single source of truth; kills the AI
+`unit-converter.ts` pass (cost/latency/reproducibility win).
+
+## UNITS — **OSS CONVERTER `convert` (MIT) + USDA density glue** (NEW, 2026-07-24)
+Metric↔US uses **`convert`** (npm, v7, MIT, TS-native, maintained) for all
+same-dimension conversions (fully off-the-shelf). **Volume↔weight is NOT off-the-shelf**
+— no maintained JS lib ships an ingredient-density dataset — so it is **converter +
+a config-as-code density table** distilled from **USDA FoodData Central** (public
+domain / CC0). Unknown-density ingredients are **flag-and-preserved, never fabricated**.
+This REPLACES the AI `unit-converter.ts` + `unit-conversion` prompt + `conversion.schema.ts`
+(all deleted). *Rationale:* deterministic beats an AI round-trip; the only lost
+capability is the AI's occasional density *guess*, deliberately replaced by
+flag-and-preserve.
 
 ## D-3 — Who produces the structure → **AI emits structured JSON w/ per-step refs → PURE serializer emits `.cook`**
 The model returns structured JSON where each step lists its ingredient refs +
@@ -40,20 +71,28 @@ contribution constraint. *Rationale:* #470 no longer gates us; keeping it
 fork-local removes the coordination dependency and lets the fork ship. (Prototype
 vendored those helpers inline only because the spike is a standalone project.)
 
-## D-6 — Backfill → **AI RE-LINKING PASS + improved built-in extraction prompt**
-Existing recipes are re-linked by an AI pass (map each ingredient to the step(s)
-using it, attach amounts); new imports emit well-linked structure via an improved
-extraction prompt (`27-EXTRACTION-PROMPT.md`). *Rationale:* the source lacks
-step↔ingredient linkage, so it must be inferred — the experiment (`27-EXPERIMENT.md`)
-shows AI re-linking is good on the majority but **not lossless**, so it ships
-**behind a confidence gate with fallback** (see D-7).
+## D-6 — Backfill → **AI RE-LINKING PASS** (kept) → but **NO permanent fallback; review queue for the tail** (amended 2026-07-24)
+Existing recipes are re-linked by an AI pass (map each ingredient to the step(s),
+attach amounts) → serializer → `.cook`; new imports emit well-linked structure via
+the improved extraction prompt (`27-EXTRACTION-PROMPT.md`). **AMENDED:** because the
+old tables lose authority and there is **no permanent heuristic fallback**, every
+recipe MUST end with a **valid best-effort `.cook`**; low-confidence recipes (by the
+`27-EXPERIMENT.md` confidence signals, stored as `cook_confidence`) are **flagged
+`cook_review_needed` and enter a repair queue**, NOT left on a heuristic renderer. A
+one-time deterministic name-match **seed** is allowed as *migration glue*, never as a
+runtime renderer. Runs against a **restored live dump (dry-run) first**, per Phase
+22.4/25 discipline.
 
-## D-7 — Renderer → **PARSER-TOKEN renderer when a trusted `.cook` exists; keep `SmartInstruction` heuristic as fallback**
-Cooking mode walks parser tokens (`recipe.sections[].content[].value.items[]`,
-dereferencing `recipe.ingredients[index]`) to draw authoritative in-step amounts
-when a trusted `.cook` is present; un-migrated / low-confidence recipes keep
-today's `SmartInstruction` name-matching path. *Rationale:* no UX regression, and
-the confidence gate from D-6 decides which path a recipe takes.
+## D-7 — Renderer → ~~parser-token + `SmartInstruction` fallback~~ → **REPLACED: parser-token ONLY; heuristic DELETED** (2026-07-24)
+~~Keep `SmartInstruction` heuristic as a fallback for un-migrated/low-confidence
+recipes.~~ **REVERSED (NO BANDAIDS):** cooking mode + recipe detail render **only**
+from parser tokens (shipped as a plain-JSON `cookTokens` projection in the DTO so
+clients don't run the WASM parser). `applyIngredientLinkMarkup` /
+`createIngredientLinkCandidates` / the `SmartInstruction` markup path are **deleted**
+from the runtime. A **transitional** tokens-else-old-path fork is permitted ONLY
+during the migration window (until the backfill reaches 100% coverage), then removed
+in the contract wave — that transition is expand→contract engineering, not a
+permanent dual renderer.
 
 ## D-8 — Unit vocabulary → **canonical unit ID serialized as the `%unit` literal; `normalizeUnit` on parse**
 Serialize the canonical unit ID (`gram`, `tablespoon`) directly into `@x{qty%unit}`;
@@ -64,9 +103,10 @@ string, so canonical IDs round-trip **verbatim** with zero conversion loss.
 ---
 
 ## Sequencing → **STRAIGHT TO FULL COOKLANG**
-No incremental heuristic-only phase. *Rationale:* the "Cooklang-lite" heuristic
-layer already exists (`applyIngredientLinkMarkup` / `SmartInstruction`) and serves
-as the fallback; there is nothing to gain from an intermediate step.
+No incremental heuristic-only phase. *Rationale:* go directly to the full-native end
+state via safe expand→migrate→contract phasing. (Note: the heuristic layer is no
+longer a *fallback* — it is deleted; a transitional tokens-else-old-path read fork
+holds only until backfill hits 100%, per D-7.)
 
 ## NEW follow-on phase → **INGEST-PIPELINE OVERHAUL (post-Cooklang)**
 A dedicated later phase to overhaul the extraction/import pipeline end-to-end.
@@ -77,18 +117,19 @@ is its own body of work — **recorded here, NOT scoped in Phase 27.** Sketched 
 
 ---
 
-## Full-build wave breakdown (what this spike de-risked)
+## Full-build wave breakdown → SEE `27-PLAN.md` §7
 
-| Wave | Scope | De-risked by this spike |
-|---|---|---|
-| **W1 — Read path** | Add `@cooklang/cooklang`; parser-token cooking-mode renderer (D-7) behind a flag; no writes. | Parser API + token shape **confirmed** (below); renderer walk proven in `extractSteps`. |
-| **W2 — Serializer + write path** | `structuredToCooklang` in `@norish/shared` (D-4); `0041_*` additive `cook_source` migration (D-1); wire into AI + JSON-LD import. | Serializer **built + tested** end-to-end; `%unit` round-trip (D-8) proven; step-separation gotcha found. |
-| **W3 — AI backfill + improved prompt** | AI re-linking pass (D-6) + confidence gate + `27-EXTRACTION-PROMPT.md` slotted into the 3 prompt builders. | Experiment quantified hit/miss/ambiguous + named the confidence signals (`appended`, multi-step, split-amount). |
-| **W4 — Multi-timer cooking mode** (secondary) | Concurrent named timers from Cooklang `timer` tokens. | Timer tokens (`~{n%unit}`) confirmed to round-trip. |
+The additive-spike wave table (W1 read path → W2 serializer+write → W3 backfill →
+W4 timers) is **superseded by the full-native plan**, which adds a units subsystem
+(W0), the derived-projection write path + FK stable-key rewire (W2), extraction
+rewrite (W3), the token renderer + heuristic deletion (W4), backfill + review tool
+(W5) and the contract wave (W6). ~6 waves / ~6–8 plans. The master plan
+(`27-PLAN.md`) is now the authoritative wave breakdown.
 
-**Biggest remaining risk:** the AI re-linking accuracy on messy real recipes
-(split amounts, multi-step ingredients) — mitigated by the D-7 confidence gate +
-heuristic fallback, but the gate's threshold needs tuning against live data in W3.
+**Biggest remaining risk:** the existing-recipe backfill tail **with no permanent
+fallback** — every recipe must end with a renderable best-effort `.cook`; the
+low-confidence tail relies on a **review queue** (D-6 amended), and un-reviewed
+recipes carry best-effort amounts. Gate tuned on a restored-dump dry-run before live.
 
 ---
 
