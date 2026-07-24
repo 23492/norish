@@ -136,6 +136,9 @@ export function createMockFullRecipe(overrides: Partial<FullRecipeDTO> = {}): Fu
     author: { id: "test-user-id", name: "Test User", image: null },
     images: [],
     videos: [],
+    // Phase 27 W1: FullRecipeSchema carries these, defaulted to null and unwired.
+    cookSource: null,
+    cookTokens: null,
     ...overrides,
   };
 }
