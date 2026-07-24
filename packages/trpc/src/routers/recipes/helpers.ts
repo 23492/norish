@@ -10,6 +10,37 @@ import { emitByPolicy } from "../../helpers";
 
 import { recipeEmitter } from "./emitter";
 
+/**
+ * Is `targetSystem` ALREADY fully materialized for this recipe? (D-27-W2-06)
+ *
+ * `recipes.convertMeasurements` short-circuits the (expensive, AI) conversion when
+ * the target system is already present. That predicate used to look at INGREDIENTS
+ * ALONE, which was correct only while both systems' rows could exist solely as the
+ * output of a conversion that also wrote step prose.
+ *
+ * `deriveProjectionTx` breaks that assumption: it materializes BOTH systems'
+ * `recipe_ingredients` from the single `.cook`, but only the NATIVE system's
+ * `steps` — a converter can convert an amount, it cannot rewrite step prose
+ * ("bake at 180 °C" -> "bake at 350 °F"). An ingredients-only predicate would then
+ * short-circuit a recipe with no target-system prose and the user would see
+ * converted ingredients beside un-converted steps.
+ *
+ * "Fully materialized" therefore means BOTH. Every recipe that exists today was
+ * converted by the AI pass and has both, so this changes nothing for them.
+ */
+export function hasTargetSystemProjection(
+  recipe: {
+    recipeIngredients: { systemUsed: string }[];
+    steps: { systemUsed: string }[];
+  },
+  targetSystem: string
+): boolean {
+  return (
+    recipe.recipeIngredients.some((ri) => ri.systemUsed === targetSystem) &&
+    recipe.steps.some((step) => step.systemUsed === targetSystem)
+  );
+}
+
 export type RecipeUserContext = {
   user: { id: string };
   householdUserIds: string[] | null;

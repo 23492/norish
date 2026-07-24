@@ -60,6 +60,7 @@ import {
   assertRecipeMoveAllowed,
   findRecipeForViewer,
   handleRecipeError,
+  hasTargetSystemProjection,
 } from "./helpers";
 import {
   randomRecipeInputSchema,
@@ -577,8 +578,10 @@ const convertMeasurements = authedProcedure
         return recipe;
       })
       .then((recipe) => {
-        // Check if already converted (has ingredients with target system)
-        if (recipe.recipeIngredients.some((ri) => ri.systemUsed === targetSystem)) {
+        // Check if already converted — INGREDIENTS *AND* STEPS (D-27-W2-06).
+        // See `hasTargetSystemProjection` for why ingredients alone is not enough
+        // once `deriveProjectionTx` starts writing both systems' ingredient rows.
+        if (hasTargetSystemProjection(recipe, targetSystem)) {
           return setActiveSystemForRecipe(recipe.id, targetSystem, version).then(async (result) => {
             if (result.stale) {
               log.info(

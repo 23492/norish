@@ -3,6 +3,7 @@ import z from "zod";
 
 import type { RecipePermissionPolicy } from "@norish/config/zod/server-config";
 import type {
+  CookTokensDTO,
   FullRecipeDTO,
   FullRecipeInsertDTO,
   FullRecipeUpdateDTO,
@@ -46,8 +47,10 @@ import {
   FullRecipeUpdateSchema,
   RecipeDashboardSchema,
 } from "../zodSchemas";
+import { deriveProjectionTx } from "./cook-projection";
 import {
   attachIngredientsToRecipeByInputTx,
+  collapseDuplicateIngredientRows,
   getOrCreateManyIngredientsTx,
   getUnitsForNormalization,
 } from "./ingredients";
@@ -846,11 +849,29 @@ export async function dashboardRecipe(id: string): Promise<RecipeDashboardDTO | 
   return parsed.success ? parsed.data : null;
 }
 
+/**
+ * Phase 27 (COOK-01 / W2, D-27-W2-01) — the optional server-authored `.cook`.
+ *
+ * This is a REPOSITORY argument, never a tRPC input (D-27-W2-02): only a
+ * server-side producer (`buildCookPayload`, from W3's extraction/import) can fill
+ * it, so untrusted client text never reaches the WASM parser (T-27-01).
+ *
+ * It is the LAST parameter and optional, so every existing call site keeps
+ * compiling and keeps its exact behaviour. Omitted -- which is every call site
+ * that exists at the end of W2 -- the legacy projection write runs unchanged and
+ * `recipes.cook_source` stays NULL.
+ */
+export interface RecipeCookPayload {
+  cookSource: string;
+  cookTokens: CookTokensDTO;
+}
+
 export async function createRecipeWithRefs(
   recipeId: string,
   userId: string | null | undefined,
   householdId: string | null,
-  input: FullRecipeInsertDTO
+  input: FullRecipeInsertDTO,
+  cook?: RecipeCookPayload
 ): Promise<string | null> {
   const parsed = FullRecipeInsertSchema.safeParse(input);
 
@@ -880,6 +901,9 @@ export async function createRecipeWithRefs(
     carbs: payload.carbs ?? null,
     protein: payload.protein ?? null,
     categories: payload.categories ?? [],
+    // Only written when a server-side producer supplied one; otherwise the column
+    // is not in the insert at all and takes its NULL default (unchanged behaviour).
+    ...(cook ? { cookSource: cook.cookSource } : {}),
   };
 
   const finalRecipeId = await db.transaction(async (tx) => {
@@ -915,25 +939,38 @@ export async function createRecipeWithRefs(
       );
     }
 
-    if (payload.recipeIngredients.length) {
-      await attachIngredientsToRecipeByInputTx(
-        tx,
-        (payload.recipeIngredients as any[]).map((ri) => ({
-          ...ri,
-          recipeId: rid,
-          systemUsed: ri.systemUsed ?? payload.systemUsed,
-        }))
-      );
-    }
+    if (cook) {
+      // The `.cook` is authoritative: ingredients and steps are DERIVED from it in
+      // this same transaction, so the source and its projection commit atomically.
+      await deriveProjectionTx(tx, {
+        // `systemUsed` is optional on the insert schema (the column defaults);
+        // fall back to the same default the column would take.
+        systemUsed: payload.systemUsed ?? "metric",
+        recipeId: rid,
+        cookTokens: cook.cookTokens,
+        units: await getUnitsForNormalization(),
+      });
+    } else {
+      if (payload.recipeIngredients.length) {
+        await attachIngredientsToRecipeByInputTx(
+          tx,
+          (payload.recipeIngredients as any[]).map((ri) => ({
+            ...ri,
+            recipeId: rid,
+            systemUsed: ri.systemUsed ?? payload.systemUsed,
+          }))
+        );
+      }
 
-    if (payload.steps.length) {
-      await createManyRecipeStepsTx(
-        tx,
-        (payload.steps as any[]).map((s) => ({
-          ...s,
-          recipeId: rid,
-        }))
-      );
+      if (payload.steps.length) {
+        await createManyRecipeStepsTx(
+          tx,
+          (payload.steps as any[]).map((s) => ({
+            ...s,
+            recipeId: rid,
+          }))
+        );
+      }
     }
 
     // Insert gallery images if provided
@@ -1049,6 +1086,12 @@ export async function getRecipeFull(id: string): Promise<FullRecipeDTO | null> {
       createdAt: true,
       updatedAt: true,
       version: true,
+      // Phase 27 (W2): the `.cook` rides on the SINGLE-recipe read only. It is
+      // deliberately NOT added to `listRecipes` / `dashboardRecipe` — a blob per row
+      // on a list endpoint is dead weight (§2.8, <risks> R9). `cookTokens` stays
+      // null here: `@norish/db` must never parse (D-27-W2-09); the read-side parse
+      // is `withCookTokens`, called after the access check.
+      cookSource: true,
     },
     with: {
       recipeTags: {
@@ -1148,6 +1191,7 @@ export async function getRecipeFull(id: string): Promise<FullRecipeDTO | null> {
     createdAt: full.createdAt,
     updatedAt: full.updatedAt,
     version: full.version,
+    cookSource: full.cookSource ?? null,
     tags: (full.recipeTags ?? [])
       .map((rt: any) => rt.tag)
       .filter((tag: { name?: string; version?: number } | null | undefined) => tag?.name)
@@ -1246,40 +1290,77 @@ async function syncRecipeIngredientsTx(
   inputs: NonNullable<FullRecipeUpdateDTO["recipeIngredients"]>
 ): Promise<void> {
   const existing = await tx
-    .select({ id: recipeIngredients.id })
+    .select({ id: recipeIngredients.id, ingredientId: recipeIngredients.ingredientId })
     .from(recipeIngredients)
     .where(
       and(eq(recipeIngredients.recipeId, recipeId), eq(recipeIngredients.systemUsed, systemUsed))
     );
-  const existingById = new Map(existing.map((row: { id: string }) => [row.id, row]));
+  // Phase 27 (W2): `0041` makes `(recipe_id, system_used, ingredient_id)` the
+  // IDENTITY of a projection row, so retention is matched on THAT, not on the
+  // surrogate `id` the client echoed back. Two consequences, both wanted:
+  //  - an UPDATE never changes `ingredient_id`, so reordering or swapping two
+  //    ingredient lines can never produce a transient unique violation (a plain
+  //    unique index is not deferrable, so a swap keyed on `id` would 500);
+  //  - a row's id — and therefore its `groceries.recipe_ingredient_id` link —
+  //    follows the INGREDIENT, which is exactly what "this grocery came from the
+  //    flour line" means. Same rule as `deriveProjectionTx`; one identity, two writers.
+  const existingByIngredientId = new Map<string, string>(
+    existing.map((row: { id: string; ingredientId: string }) => [row.ingredientId, row.id])
+  );
   const resolvedInputs = await resolveRecipeIngredientIdsTx(tx, inputs);
   const units = await getUnitsForNormalization();
+  // Collapse duplicates in the PAYLOAD before writing: a user may legitimately list
+  // the same ingredient twice, and a blind insert would now raise (<risks> R4).
+  const collapsed = collapseDuplicateIngredientRows(
+    resolvedInputs.map((ingredient: any, index: number) => ({
+      ...ingredient,
+      recipeId,
+      systemUsed,
+      amount: ingredient.amount ?? null,
+      unit: ingredient.unit ? normalizeUnit(ingredient.unit, units) : null,
+      order: ingredient.order ?? index,
+    }))
+  );
   const retainedIds = new Set<string>();
 
-  for (const [index, ingredient] of resolvedInputs.entries()) {
+  for (const ingredient of collapsed) {
     if (!ingredient.ingredientId) continue;
 
     const values = {
       ingredientId: ingredient.ingredientId,
-      amount: ingredient.amount ?? null,
-      unit: ingredient.unit ? normalizeUnit(ingredient.unit, units) : null,
-      order: ingredient.order ?? index,
+      amount: ingredient.amount,
+      unit: ingredient.unit,
+      order: ingredient.order,
       systemUsed,
     };
+    const existingId = existingByIngredientId.get(ingredient.ingredientId);
 
-    if (ingredient.id && existingById.has(ingredient.id)) {
-      retainedIds.add(ingredient.id);
+    if (existingId) {
+      retainedIds.add(existingId);
       await tx
         .update(recipeIngredients)
         .set({ ...values, version: sql`${recipeIngredients.version} + 1` })
-        .where(eq(recipeIngredients.id, ingredient.id));
+        .where(eq(recipeIngredients.id, existingId));
       continue;
     }
 
-    await tx.insert(recipeIngredients).values({
-      recipeId,
-      ...values,
-    });
+    await tx
+      .insert(recipeIngredients)
+      .values({ recipeId, ...values })
+      .onConflictDoUpdate({
+        target: [
+          recipeIngredients.recipeId,
+          recipeIngredients.systemUsed,
+          recipeIngredients.ingredientId,
+        ],
+        set: {
+          amount: sql`excluded."amount"`,
+          unit: sql`excluded."unit"`,
+          order: sql`excluded."order"`,
+          updatedAt: new Date(),
+          version: sql`${recipeIngredients.version} + 1`,
+        },
+      });
   }
 
   const idsToDelete = existing
@@ -1468,7 +1549,8 @@ export async function updateRecipeWithRefs(
   recipeId: string,
   userId: string,
   input: FullRecipeUpdateDTO,
-  version?: number
+  version?: number,
+  cook?: RecipeCookPayload
 ): Promise<MutationOutcome<void>> {
   const parsed = FullRecipeUpdateSchema.safeParse(input);
 
@@ -1500,6 +1582,9 @@ export async function updateRecipeWithRefs(
     if (payload.carbs !== undefined) updateData.carbs = payload.carbs;
     if (payload.protein !== undefined) updateData.protein = payload.protein;
 
+    // Phase 27 (W2): only a server-side producer can set this; see RecipeCookPayload.
+    if (cook) updateData.cookSource = cook.cookSource;
+
     updateData.updatedAt = new Date();
 
     const whereConditions = [eq(recipes.id, recipeId)];
@@ -1525,6 +1610,33 @@ export async function updateRecipeWithRefs(
         recipeId,
         (payload.tags as { name: string }[]).map((t) => t.name)
       );
+    }
+
+    // Phase 27 (W2): with a server-authored `.cook`, ingredients and steps are a
+    // DERIVED projection of it — the authored-input handlers below are bypassed
+    // entirely and the projection is rebuilt UPSERT-stably in this transaction.
+    if (cook) {
+      const current = await tx.query.recipes.findFirst({
+        where: eq(recipes.id, recipeId),
+        columns: { systemUsed: true },
+      });
+
+      await deriveProjectionTx(tx, {
+        recipeId,
+        systemUsed: (payload.systemUsed ?? current?.systemUsed ?? "metric") as MeasurementSystem,
+        cookTokens: cook.cookTokens,
+        units: await getUnitsForNormalization(),
+      });
+
+      if (payload.images !== undefined) {
+        await syncRecipeImagesTx(tx, recipeId, payload.images);
+      }
+
+      if (payload.videos !== undefined) {
+        await syncRecipeVideosTx(tx, recipeId, payload.videos);
+      }
+
+      return appliedOutcome(undefined);
     }
 
     // Replace ingredients if provided
@@ -2326,5 +2438,13 @@ export async function copyRecipeForSave(
     })),
   };
 
-  return createRecipeWithRefs(newRecipeId, userId, householdId, insert);
+  // SHARE-02 / §2.11: carry the source's `.cook` across, but NEVER its projection
+  // rows — the copy gets a freshly derived projection with brand-new
+  // `recipe_ingredients.id`s, so a grocery FK can never point across two recipes.
+  const cook =
+    source.cookSource && source.cookTokens
+      ? { cookSource: source.cookSource, cookTokens: source.cookTokens }
+      : undefined;
+
+  return createRecipeWithRefs(newRecipeId, userId, householdId, insert, cook);
 }

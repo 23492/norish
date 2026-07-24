@@ -56,6 +56,57 @@ export async function getUnitsForNormalization(): Promise<UnitsMap> {
   return defaultUnits as UnitsMap;
 }
 
+/**
+ * Collapse rows that would collide on `0041`'s natural key
+ * `(recipe_id, system_used, ingredient_id)` (Phase 27, COOK-01 / W2).
+ *
+ * Before `0041` a user could list "egg" twice in one system and both rows saved.
+ * After it, a blind insert of the second row raises a unique violation and a legal
+ * save becomes a 500 (<risks> R4). Collapsing the PAYLOAD is the fix, and it uses
+ * exactly the rule `deriveProjectionTx` uses so both writers agree: SUM when the
+ * (already normalized) units match, otherwise the FIRST occurrence wins and the
+ * later one is dropped rather than silently overwriting a different measure.
+ *
+ * Rows with no `ingredientId` are passed through untouched — they are dropped
+ * later by the callers' own filters, and they can never collide on the key.
+ */
+export function collapseDuplicateIngredientRows<
+  T extends {
+    recipeId?: string | null;
+    systemUsed?: string | null;
+    ingredientId?: string | null;
+    amount?: number | null;
+    unit?: string | null;
+  },
+>(rows: T[]): T[] {
+  const byKey = new Map<string, T>();
+  const collapsed: T[] = [];
+
+  for (const row of rows) {
+    if (!row.ingredientId) {
+      collapsed.push(row);
+      continue;
+    }
+
+    const key = `${row.recipeId ?? ""}::${row.systemUsed ?? ""}::${row.ingredientId}`;
+    const existing = byKey.get(key);
+
+    if (!existing) {
+      const copy = { ...row };
+
+      byKey.set(key, copy);
+      collapsed.push(copy);
+      continue;
+    }
+
+    if (existing.unit === row.unit && existing.amount != null && row.amount != null) {
+      existing.amount += row.amount;
+    }
+  }
+
+  return collapsed;
+}
+
 function ensureNonEmptyName(name?: string): string {
   if (name === undefined || name === null) throw new Error("Ingredient name cannot be empty");
 
@@ -239,10 +290,17 @@ export async function attachIngredientsToRecipeByInputTx(
         systemUsed: (ri.systemUsed as MeasurementSystem) || "metric",
       };
     })
-    .filter(Boolean);
+    // `.filter(Boolean)` does not NARROW in TypeScript, so the nulls stayed in the
+    // static type and only zod caught them at runtime. Narrow properly.
+    .filter((row): row is NonNullable<typeof row> => row !== null);
 
-  // Combine both sets of rows
-  const rows = [...rowsWithExistingIds, ...rowsWithNewIngredients];
+  // Combine both sets of rows, then collapse anything that would collide on
+  // `0041`'s natural key. Postgres also refuses an ON CONFLICT DO UPDATE whose
+  // command touches the same row twice, so this is required, not merely defensive.
+  const rows = collapseDuplicateIngredientRows([
+    ...rowsWithExistingIds,
+    ...rowsWithNewIngredients,
+  ]);
 
   if (!rows.length) return [];
 
@@ -254,10 +312,29 @@ export async function attachIngredientsToRecipeByInputTx(
     throw new Error("Invalid recipeIngredients insert payload");
   }
 
+  // Phase 27 (W2, <risks> R4): this used to be an UNTARGETED `onConflictDoNothing()`.
+  // Once `0041` added the unique natural key, that would silently DROP a legitimate
+  // row and then the `if (!inserted.length) return []` below would early-return an
+  // empty list to a caller that had just saved real data. Target the conflict at the
+  // natural key explicitly and UPDATE on it, so the last writer wins and RETURNING
+  // still yields a row for every input.
   const inserted = await tx
     .insert(recipeIngredients)
     .values(validatedRows.data)
-    .onConflictDoNothing()
+    .onConflictDoUpdate({
+      target: [
+        recipeIngredients.recipeId,
+        recipeIngredients.systemUsed,
+        recipeIngredients.ingredientId,
+      ],
+      set: {
+        amount: sql`excluded."amount"`,
+        unit: sql`excluded."unit"`,
+        order: sql`excluded."order"`,
+        updatedAt: new Date(),
+        version: sql`${recipeIngredients.version} + 1`,
+      },
+    })
     .returning();
 
   if (!inserted.length) return [];
