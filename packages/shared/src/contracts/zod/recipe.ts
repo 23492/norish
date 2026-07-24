@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { measurementSystemEnum, recipeVisibilityEnum, recipes } from "@norish/db-schema/schema";
 
+import { CookTokensSchema } from "./cook-tokens";
 import { RecipeImagesArraySchema, RecipeImageSchema } from "./recipe-images";
 import {
   RecipeIngredientInputBaseSchema,
@@ -63,6 +64,12 @@ export const FullRecipeSchema = RecipeSelectBaseSchema.extend({
   author: AuthorSchema,
   images: RecipeImagesArraySchema.default([]),
   videos: RecipeVideosArraySchema.default([]),
+  // Phase 27 (W1) — Cooklang read model. UNWIRED: no producer sets these yet and
+  // `recipes.cook_source` does not exist until W2's `0041`, so both MUST default to
+  // `null` (a bare `.nullable()` would make the key required and break every
+  // existing `FullRecipeSchema.parse(...)` producer). See D-27-W1-05.
+  cookSource: z.string().nullable().default(null),
+  cookTokens: CookTokensSchema.nullable().default(null),
 });
 
 export const FullRecipeInsertSchema = RecipeInsertBaseSchema.extend({

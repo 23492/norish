@@ -2,6 +2,9 @@ import type { z } from "zod";
 
 import type {
   AuthorSchema,
+  CookStepTokensSchema,
+  CookTokenSchema,
+  CookTokensSchema,
   FullRecipeInsertSchema,
   FullRecipeSchema,
   FullRecipeUpdateSchema,
@@ -18,3 +21,6 @@ export type FullRecipeDTO = z.output<typeof FullRecipeSchema>;
 export type AuthorDTO = z.output<typeof AuthorSchema>;
 export type FullRecipeInsertDTO = z.input<typeof FullRecipeInsertSchema>;
 export type FullRecipeUpdateDTO = z.input<typeof FullRecipeUpdateSchema>;
+export type CookTokenDTO = z.output<typeof CookTokenSchema>;
+export type CookStepTokensDTO = z.output<typeof CookStepTokensSchema>;
+export type CookTokensDTO = z.output<typeof CookTokensSchema>;
