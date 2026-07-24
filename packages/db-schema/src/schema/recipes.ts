@@ -1,4 +1,5 @@
 import {
+  boolean,
   index,
   integer,
   numeric,
@@ -50,6 +51,16 @@ export const recipes = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     categories: recipeCategoryEnum("categories").array().notNull().default([]),
+    // Phase 27 (COOK-01) — the Cooklang source of truth (`0041`, EXPAND).
+    // Nullable during expand: nothing produces a `.cook` before W3 and the
+    // backfill is `0042`; NOT NULL is `0043`/W6. INVARIANT: a non-NULL
+    // `cook_source` always parses cleanly (D-27-W2-04) — a source that does not
+    // is never stored.
+    cookSource: text("cook_source"),
+    // 0..1 backfill confidence, populated by W5's gate. Nullable = never scored.
+    cookConfidence: numeric("cook_confidence", { precision: 4, scale: 3 }),
+    // Set by W5's review queue and by `0041`'s lossy ingredient merge.
+    cookReviewNeeded: boolean("cook_review_needed").notNull().default(false),
     ...versionColumn,
   },
   (t) => [

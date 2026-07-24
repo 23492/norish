@@ -136,9 +136,16 @@ export function createMockFullRecipe(overrides: Partial<FullRecipeDTO> = {}): Fu
     author: { id: "test-user-id", name: "Test User", image: null },
     images: [],
     videos: [],
-    // Phase 27 W1: FullRecipeSchema carries these, defaulted to null and unwired.
+    // Phase 27 W1/W2: FullRecipeSchema carries these. `cookSource` is now a real
+    // `recipes` column (`0041`) surfaced by `getRecipeFull`; `cookTokens` is
+    // attached by `withCookTokens` after the access check. `cookConfidence` /
+    // `cookReviewNeeded` are drizzle-derived keys that `FullRecipeSchema` defaults,
+    // so a parsed procedure output always carries them — the mock has to as well or
+    // every `toEqual` against a procedure result fails.
     cookSource: null,
     cookTokens: null,
+    cookConfidence: null,
+    cookReviewNeeded: false,
     ...overrides,
   };
 }

@@ -1,4 +1,4 @@
-import { index, numeric, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { index, numeric, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 import { ingredients } from "./ingredients";
 import { measurementSystemEnum, recipes } from "./recipes";
@@ -25,5 +25,15 @@ export const recipeIngredients = pgTable(
   (t) => [
     index("idx_recipe_ingredients_recipe_id").on(t.recipeId),
     index("idx_recipe_ingredients_ingredient_id").on(t.ingredientId),
+    // Phase 27 (COOK-01, `0041`) — the NATURAL KEY of the derived projection.
+    // `deriveProjectionTx` UPSERTs on it instead of delete-and-reinsert, so a
+    // `recipe_ingredients.id` survives a recipe edit and every
+    // `groceries.recipe_ingredient_id` FK stays intact (§2.5, the Phase 25 lesson).
+    // `system_used` is NOT NULL, so Postgres NULL-distinctness cannot weaken it.
+    uniqueIndex("uq_recipe_ingredients_recipe_system_ingredient").on(
+      t.recipeId,
+      t.systemUsed,
+      t.ingredientId
+    ),
   ]
 );

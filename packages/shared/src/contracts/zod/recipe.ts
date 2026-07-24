@@ -30,8 +30,21 @@ export const RecipeInsertBaseSchema = createInsertSchema(recipes).omit({
   createdAt: true,
   userId: true, // set from session server-side
   householdId: true, // set from active cookbook server-side
+  // Phase 27 (W2, D-27-W2-02): the `.cook` is NEVER a client input. It reaches the
+  // repository as a server-authored `cook?: { cookSource, cookTokens }` argument
+  // only, so untrusted text can never reach the WASM parser (T-27-01).
+  // `cook_confidence` / `cook_review_needed` are owned by W5's backfill + review
+  // queue, not by a write request.
+  cookSource: true,
+  cookConfidence: true,
+  cookReviewNeeded: true,
 });
-export const RecipeUpdateBaseSchema = createUpdateSchema(recipes);
+export const RecipeUpdateBaseSchema = createUpdateSchema(recipes).omit({
+  // See RecipeInsertBaseSchema — D-27-W2-02. An update input carries no `.cook`.
+  cookSource: true,
+  cookConfidence: true,
+  cookReviewNeeded: true,
+});
 
 export const AuthorSchema = z
   .object({
@@ -48,6 +61,17 @@ export const RecipeDashboardSchema = RecipeSelectBaseSchema.omit({
   carbs: true,
   protein: true,
   visibility: true,
+  // Phase 27 (W2): `RecipeSelectBaseSchema` is `createSelectSchema(recipes)`, so
+  // `0041`'s three new columns would become REQUIRED keys here the moment the
+  // drizzle model gained them — and the recipe LIST (`listRecipes` /
+  // `dashboardRecipe` in packages/db/src/repositories/recipes.ts) would stop
+  // parsing at RUNTIME with no compile error. The list/search/dashboard DTO is
+  // byte-for-byte what it was (§2.8) and a `.cook` blob per row would be dead
+  // weight on a list endpoint anyway (<risks> R9). Regression-pinned by
+  // packages/shared/__tests__/contracts/cook-tokens.test.ts.
+  cookSource: true,
+  cookConfidence: true,
+  cookReviewNeeded: true,
 }).extend({
   tags: z.array(TagSummarySchema).default([]),
   categories: z.array(recipeCategorySchema).default([]),
@@ -64,12 +88,18 @@ export const FullRecipeSchema = RecipeSelectBaseSchema.extend({
   author: AuthorSchema,
   images: RecipeImagesArraySchema.default([]),
   videos: RecipeVideosArraySchema.default([]),
-  // Phase 27 (W1) — Cooklang read model. UNWIRED: no producer sets these yet and
-  // `recipes.cook_source` does not exist until W2's `0041`, so both MUST default to
-  // `null` (a bare `.nullable()` would make the key required and break every
-  // existing `FullRecipeSchema.parse(...)` producer). See D-27-W1-05.
+  // Phase 27 (W1/W2) — Cooklang read model. Every one of these MUST carry an
+  // explicit `.default(...)`: they override the drizzle-derived (and therefore
+  // REQUIRED) keys `RecipeSelectBaseSchema` grew with `0041`, so producers that
+  // do not select the new columns keep parsing. See D-27-W1-05.
+  // `cookSource` is populated by `getRecipeFull`; `cookTokens` is attached
+  // server-side by `withCookTokens`, strictly after the access check (HOUSE-06).
   cookSource: z.string().nullable().default(null),
   cookTokens: CookTokensSchema.nullable().default(null),
+  // `numeric` surfaces from postgres as a string, so coerce — W5's gate writes it,
+  // nothing in W2 does.
+  cookConfidence: z.coerce.number().nullable().default(null),
+  cookReviewNeeded: z.boolean().default(false),
 });
 
 export const FullRecipeInsertSchema = RecipeInsertBaseSchema.extend({
