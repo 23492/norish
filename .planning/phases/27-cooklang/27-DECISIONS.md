@@ -20,7 +20,7 @@ Legend for each decision: **CHOICE** — one-line **rationale**.
 > fallback); metric↔US becomes a **deterministic OSS converter** replacing the AI
 > `unit-converter.ts`. This **supersedes D-1 B, D-2's dual-authored rows, D-6's
 > heuristic fallback, and D-7's dual renderer** as recorded below. Full plan:
-> **`27-PLAN.md`**. The individual entries below are annotated with their reversal.
+> **`27-ARCHITECTURE.md`**. The individual entries below are annotated with their reversal.
 
 ---
 
@@ -117,14 +117,14 @@ is its own body of work — **recorded here, NOT scoped in Phase 27.** Sketched 
 
 ---
 
-## Full-build wave breakdown → SEE `27-PLAN.md` §7
+## Full-build wave breakdown → SEE `27-ARCHITECTURE.md` §7
 
 The additive-spike wave table (W1 read path → W2 serializer+write → W3 backfill →
 W4 timers) is **superseded by the full-native plan**, which adds a units subsystem
 (W0), the derived-projection write path + FK stable-key rewire (W2), extraction
 rewrite (W3), the token renderer + heuristic deletion (W4), backfill + review tool
 (W5) and the contract wave (W6). ~6 waves / ~6–8 plans. The master plan
-(`27-PLAN.md`) is now the authoritative wave breakdown.
+(`27-ARCHITECTURE.md`) is now the authoritative wave breakdown.
 
 **Biggest remaining risk:** the existing-recipe backfill tail **with no permanent
 fallback** — every recipe must end with a renderable best-effort `.cook`; the

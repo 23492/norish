@@ -358,7 +358,7 @@ columns/tables (round-trip through Cooklang metadata only at export, later).
 ---
 
 ## 10. Sub-docs
-- Per-wave detail docs may be added as `27-PLAN-W{n}.md` when a wave is scheduled.
+- Per-wave detail docs may be added as `27-ARCHITECTURE-W{n}.md` when a wave is scheduled.
   This master doc is the contract; waves are executed under the fork's expand→migrate
   →contract discipline with a restored-dump dry-run before every data-mutating step.
 

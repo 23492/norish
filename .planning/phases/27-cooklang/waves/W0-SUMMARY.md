@@ -1,7 +1,7 @@
 # Phase 27 — W0 (Units subsystem) — SUMMARY
 
 > Status: **CODE-COMPLETE**, green gates. Additive, un-wired, safe on `main`.
-> Scope per `27-PLAN.md` §7 (W0) + `27-DECISIONS.md` (UNITS). NO deploy, NO stack,
+> Scope per `27-ARCHITECTURE.md` §7 (W0) + `27-DECISIONS.md` (UNITS). NO deploy, NO stack,
 > NO DB, NO write-path wiring, `unit-converter.ts` NOT deleted (that is W6).
 
 ## What shipped
@@ -24,7 +24,7 @@ Tests: `packages/shared/__tests__/units/convert-measure.test.ts` — **32 tests*
 
 - **`convert@7.0.2`**, **MIT** (confirmed via `npm view` + bundled `LICENSE`).
   TS-native, zero runtime deps, tree-shakeable, deterministic. Exactly the v7-line
-  `convert` package named in `27-PLAN.md` §3.1.
+  `convert` package named in `27-ARCHITECTURE.md` §3.1.
 - Added to `packages/shared/package.json` (`"convert": "7.0.2"`); `pnpm-lock.yaml`
   regenerated (`--lockfile-only`). Verified at build time: `convert` accepts every
   canonical unit ID name we use and **throws on cross-dimension** (`cup`→`g`),

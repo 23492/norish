@@ -3,14 +3,14 @@
 **Gathered:** 2026-07-24
 **Status:** Ready for planning — **this context covers WAVE 1 ONLY**
 **Requirements:** COOK-01 (source: ROADMAP Phase 27)
-**Master plan:** `.planning/phases/27-cooklang/27-PLAN.md` (authoritative; §7 = the wave table)
+**Master plan:** `.planning/phases/27-cooklang/27-ARCHITECTURE.md` (authoritative; §7 = the wave table)
 **Locked decisions:** `.planning/phases/27-cooklang/27-DECISIONS.md`
 
 <domain>
 ## Phase Boundary — and the wave boundary inside it
 
 Phase 27 is **wave-structured**: seven waves (W0–W6) under an expand→migrate→contract
-discipline, sequenced so **the app is never broken between waves** (`27-PLAN.md` §7).
+discipline, sequenced so **the app is never broken between waves** (`27-ARCHITECTURE.md` §7).
 This CONTEXT is scoped to **W1 and nothing else**.
 
 ### Where the phase stands
@@ -22,7 +22,7 @@ This CONTEXT is scoped to **W1 and nothing else**.
 - **W1 — Serializer + parser read-model: THIS CONTEXT / plan `27-01-PLAN.md`.**
 - **W2–W6 — NOT IN SCOPE HERE.** Deferred, *not* dropped (see `<deferred>`).
 
-### W1 deliverable (from `27-PLAN.md` §7, row W1)
+### W1 deliverable (from `27-ARCHITECTURE.md` §7, row W1)
 
 > "Move `structuredToCooklang` into `@norish/shared` (real `formatUnit`); add
 > `@cooklang/cooklang` parse→`cookTokens` server util; add `cookSource`/`cookTokens` to
@@ -115,7 +115,7 @@ Decided from the actual import graph (`node -e` over every workspace `package.js
   consumes (`recipes/randomizer`, `recipes/dinner-suggester` from Phase 26) and is a dependency
   of trpc, queue, auth, api and web. It is the only package that reaches every future consumer.
 - **The parser must not go into `@norish/shared`**: `@norish/shared` is imported by
-  `apps/mobile` (Expo/RN). `27-PLAN.md` §1.3 requires clients to render plain-JSON tokens and
+  `apps/mobile` (Expo/RN). `27-ARCHITECTURE.md` §1.3 requires clients to render plain-JSON tokens and
   **never** run the WASM parser. Putting `@cooklang/cooklang` in `@norish/shared` would drag a
   WASM binary into the React Native bundle. This is why the serializer (pure) and the parser
   (server-only) are deliberately split across two packages.
@@ -290,7 +290,7 @@ model first reaches a scoped procedure.
 <deferred>
 ## Explicitly OUT of W1 scope — deferred, NOT dropped
 
-Every item below is real, planned, and owned by a later wave in `27-PLAN.md` §7. A W1 task
+Every item below is real, planned, and owned by a later wave in `27-ARCHITECTURE.md` §7. A W1 task
 that starts touching one of these has drifted; stop and surface it rather than expanding.
 
 | Deferred item | Owner |
@@ -310,7 +310,7 @@ that starts touching one of these has drifted; stop and surface it rather than e
 </deferred>
 
 <references>
-- `.planning/phases/27-cooklang/27-PLAN.md` — master plan; §1 target architecture, §2 consumer
+- `.planning/phases/27-cooklang/27-ARCHITECTURE.md` — master plan; §1 target architecture, §2 consumer
   blast radius, §3 units, §7 wave table, §8 risks/isolation
 - `.planning/phases/27-cooklang/27-DECISIONS.md` — locked decisions + confirmed parser facts
 - `.planning/phases/27-cooklang/waves/W0-SUMMARY.md` — what W0 delivered (`a4f9c2a5`)
