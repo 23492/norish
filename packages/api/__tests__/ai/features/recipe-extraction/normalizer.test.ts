@@ -3,9 +3,13 @@
  */
 import { describe, expect, it, vi } from "vitest";
 
+import { readFile } from "node:fs/promises";
+
 import type { RecipeExtractionOutput } from "@norish/api/ai/schemas/recipe.schema";
 import type { FullRecipeInsertDTO } from "@norish/shared/contracts/dto/recipe";
+import { recipeExtractionSchema } from "@norish/api/ai/schemas/recipe.schema";
 import {
+  coerceExtractionSteps,
   getExtractionLogContext,
   normalizeExtractionOutput,
   validateExtractionOutput,
@@ -699,5 +703,198 @@ describe("normalizeExtractionOutput - HTML Entity Decoding", () => {
     const result = await normalizeExtractionOutput(output, { recipeId: "recipe-123" });
 
     expect(result?.notes).toBe("Let it rest for 10 minutes – don't skip this step.");
+  });
+});
+
+describe("recipeExtractionSchema.recipeInstructions — the step union (D-27-W3-03)", () => {
+  const objectStep = {
+    text: "Mix the flour and sugar.",
+    ingredients: [
+      { name: "flour", amount: 100, unit: "g" },
+      { name: "sugar", amount: "50", unit: null },
+    ],
+    timers: [{ name: null, amount: 10, unit: "minutes" }],
+  };
+
+  /**
+   * `createValidOutput()` is shaped for `validateExtractionOutput`, not for
+   * `recipeExtractionSchema.parse` — it omits `notes` and sets `categories: null`.
+   * These tests exercise the PARSER, so they need a genuinely schema-valid base.
+   */
+  function withInstructions(metric: unknown[], us: unknown[]): unknown {
+    return {
+      ...createValidOutput(),
+      notes: null,
+      categories: ["Dinner"],
+      recipeInstructions: { metric, us },
+    };
+  }
+
+  it("accepts an ALL-STRINGS recipeInstructions — today's shape, exactly", () => {
+    const parsed = recipeExtractionSchema.parse(
+      withInstructions(["Mix dry ingredients", "Bake"], ["Mix dry ingredients", "Bake"])
+    );
+
+    expect(parsed.recipeInstructions.metric).toEqual(["Mix dry ingredients", "Bake"]);
+  });
+
+  it("accepts an ALL-OBJECTS recipeInstructions", () => {
+    const parsed = recipeExtractionSchema.parse(
+      withInstructions([objectStep, objectStep], [objectStep, objectStep])
+    );
+
+    expect(parsed.recipeInstructions.metric).toHaveLength(2);
+    expect(coerceExtractionSteps(parsed.recipeInstructions.metric)[0]?.ingredients).toHaveLength(2);
+  });
+
+  it("accepts a MIXED recipeInstructions — a real model does this", () => {
+    const parsed = recipeExtractionSchema.parse(
+      withInstructions([objectStep, "Bake for 30 minutes"], ["Mix", objectStep])
+    );
+
+    const steps = coerceExtractionSteps(parsed.recipeInstructions.metric);
+
+    expect(steps.map((step) => step.text)).toEqual([
+      "Mix the flour and sugar.",
+      "Bake for 30 minutes",
+    ]);
+    expect(steps[1]?.ingredients).toEqual([]);
+  });
+
+  it("accepts a step object with ingredients/timers OMITTED and defaults both to []", () => {
+    const parsed = recipeExtractionSchema.parse(
+      withInstructions([{ text: "Just prose." }], [{ text: "Just prose." }])
+    );
+
+    const [step] = coerceExtractionSteps(parsed.recipeInstructions.metric);
+
+    expect(step).toEqual({ text: "Just prose.", ingredients: [], timers: [] });
+  });
+
+  it("returns the SAME validateExtractionOutput details counts for all three shapes", () => {
+    const shapes = [
+      withInstructions(["a", "b"], ["a", "b"]),
+      withInstructions([objectStep, objectStep], [objectStep, objectStep]),
+      withInstructions([objectStep, "b"], ["a", objectStep]),
+    ];
+
+    const details = shapes.map(
+      (shape) =>
+        validateExtractionOutput(recipeExtractionSchema.parse(shape) as RecipeExtractionOutput)
+          .details
+    );
+
+    expect(details[0]).toEqual(details[1]);
+    expect(details[1]).toEqual(details[2]);
+    expect(details[0]?.metricSteps).toBe(2);
+    expect(details[0]?.usSteps).toBe(2);
+  });
+
+  it("has NO .max() anywhere — a cap here would fail the whole import (T-27-01b)", async () => {
+    const source = await readFile(
+      new URL("../../../../src/ai/schemas/recipe.schema.ts", import.meta.url),
+      "utf8"
+    );
+
+    expect(source).not.toContain(".max(");
+  });
+});
+
+describe("coerceExtractionSteps is TOTAL — a bad model response can never fail an import", () => {
+  it("never throws and always returns an array for degenerate input", () => {
+    for (const input of [null, undefined, [], [null], [{}], [42], [[["deep"]]], "nope", 7]) {
+      expect(() => coerceExtractionSteps(input)).not.toThrow();
+      expect(Array.isArray(coerceExtractionSteps(input))).toBe(true);
+    }
+
+    expect(coerceExtractionSteps(null)).toEqual([]);
+    expect(coerceExtractionSteps([null, 42, {}])).toEqual([]);
+  });
+
+  it("maps the string branch onto the internal shape", () => {
+    expect(coerceExtractionSteps(["Mix well."])).toEqual([
+      { text: "Mix well.", ingredients: [], timers: [] },
+    ]);
+  });
+
+  it("drops malformed refs rather than propagating them", () => {
+    const steps = coerceExtractionSteps([
+      {
+        text: "Mix.",
+        ingredients: [{ name: "flour", amount: 1, unit: "g" }, { amount: 2 }, null, { name: "" }],
+        timers: [{ name: null, amount: 5, unit: "min" }, { name: "x" }, { amount: 1, unit: "" }],
+      },
+    ]);
+
+    expect(steps[0]?.ingredients).toEqual([{ name: "flour", amount: 1, unit: "g" }]);
+    expect(steps[0]?.timers).toEqual([{ name: null, amount: 5, unit: "min" }]);
+  });
+});
+
+describe("normalizeExtractionOutput — an all-strings extraction is byte-identical to today", () => {
+  it("produces the same DTO for all-strings and for all-objects with the same text", async () => {
+    const { normalizeRecipeFromJson } = await import("@norish/api/parser/normalize");
+
+    const baseDto = (): FullRecipeInsertDTO =>
+      ({
+        name: "Chocolate Cake",
+        systemUsed: "metric",
+        recipeIngredients: [
+          { ingredientId: null, ingredientName: "flour", amount: 100, unit: "g", order: 0 },
+        ],
+        steps: [{ step: "Mix dry ingredients", order: 1 }],
+        categories: [],
+        tags: [],
+      }) as unknown as FullRecipeInsertDTO;
+
+    vi.mocked(normalizeRecipeFromJson).mockImplementation(async () => baseDto());
+
+    const strings = await normalizeExtractionOutput(
+      {
+        ...createValidOutput(),
+        recipeInstructions: { metric: ["Mix dry ingredients"], us: ["Mix dry ingredients"] },
+      },
+      { recipeId: "recipe-123" }
+    );
+
+    vi.mocked(normalizeRecipeFromJson).mockImplementation(async () => baseDto());
+
+    const objects = await normalizeExtractionOutput(
+      {
+        ...createValidOutput(),
+        recipeInstructions: {
+          metric: [{ text: "Mix dry ingredients", ingredients: [], timers: [] }],
+          us: [{ text: "Mix dry ingredients", ingredients: [], timers: [] }],
+        },
+      } as unknown as RecipeExtractionOutput,
+      { recipeId: "recipe-123" }
+    );
+
+    expect(objects).toEqual(strings);
+    expect(strings?.steps).toEqual([
+      { step: "Mix dry ingredients", order: 1, systemUsed: "metric" },
+      { step: "Mix dry ingredients", order: 1, systemUsed: "us" },
+    ]);
+  });
+
+  it("hands normalizeRecipeFromJson a plain string[] even for object steps (parseSteps is untouched)", async () => {
+    const { normalizeRecipeFromJson } = await import("@norish/api/parser/normalize");
+
+    vi.mocked(normalizeRecipeFromJson).mockResolvedValue(null);
+
+    await normalizeExtractionOutput(
+      {
+        ...createValidOutput(),
+        recipeInstructions: {
+          metric: [{ text: "Mix it", ingredients: [{ name: "flour", amount: 1, unit: "g" }] }],
+          us: ["Mix it"],
+        },
+      } as unknown as RecipeExtractionOutput,
+      { recipeId: "recipe-123" }
+    );
+
+    const [payload] = vi.mocked(normalizeRecipeFromJson).mock.calls.at(-1) ?? [];
+
+    expect((payload as { recipeInstructions: unknown }).recipeInstructions).toEqual(["Mix it"]);
   });
 });
