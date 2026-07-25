@@ -1170,3 +1170,247 @@ untouched, DB stays at **42** · a real `tsc --noEmit` in `packages/shared` **an
 `packages/shared-server/__tests__/cooklang/round-trip-fidelity.test.ts`.
 **Task 5 (the queue isolation suite) is still outstanding and W3 is still NOT
 code-complete.**
+
+---
+---
+
+# Task 5 — the isolation proof for the first real producer (third executor)
+
+> **This section is ADDITIVE. Everything above it stands.**
+>
+> ## STATUS: TASK 5 CODE-COMPLETE. **W3 IS NOW CODE-COMPLETE — 5 of 5 tasks.**
+>
+> The per-cookbook boundary is now proven at the **write and emit end**, not just
+> at the read end W2 covered. `packages/queue/__tests__/recipe-import/cook-source-isolation.test.ts`
+> — **33 tests, all green** — plus the two outstanding adversarial weakenings
+> (**W3-W2** and **W3-W3**), each turned its suite RED and each reverted to a
+> byte-identical tree.
+>
+> **NO REAL LEAK WAS FOUND.** The suite is not vacuous: both weakenings prove it
+> bites, and the `.cook` under test is minted by the real serializer + real WASM
+> parser, so the leak assertions run against real token text.
+
+## Task Commit
+
+5. **Task 5: queue-side `cook_source` isolation at the write and emit end** — `be72cc9b` (test)
+
+Base for this session: `f7bcecb8` (the T-27-01 escaping fix). Tree clean, nothing pushed.
+**One file added, no production file touched** — `git show be72cc9b --stat` lists exactly
+`packages/queue/__tests__/recipe-import/cook-source-isolation.test.ts`.
+
+---
+
+## What the suite actually drives, and what is real
+
+`processImportJob` is module-private, so the REAL processor is captured from the function
+`startRecipeImportWorker` hands to `createLazyWorker` (the route
+`auto-categorization-queue.test.ts` already uses) and invoked with a minimal job. Nothing
+about the worker was changed to make it testable.
+
+**REAL (never mocked):**
+
+- `resolveHouseholdRealtimeScope`, `resolveRecipeRealtimeScope` and `emitByPolicy` from
+  `@norish/shared-server/realtime/policy` — the boundary itself. Only their three data
+  sources are fixtures: `getHouseholdPolicy` (the cookbook policy row),
+  `getRecipeOwnerAndHousehold` (the recipe's owner row) and `getRecipePermissionPolicy`
+  (the server-config row).
+- `buildCookPayload` — the `.cook` under test is MINTED, by the real serializer and the
+  real WASM parser, from a `StructuredRecipe` fixture (`Grandma's Secret Stollen`,
+  `@marzipan{200%gram}`). A harness self-check asserts the mint succeeded and that
+  `cookTokens` really names `marzipan`, so a suite that silently tested `null` would fail.
+- `RecipeDashboardSchema` — the real contract schema, and the thing the list/emit cases pin.
+- `emitImportProgress`, `withTimeout` and the worker's own control flow.
+
+**Recorded, not reached:** the `recipeEmitter` surface — method, target key, event name and
+full payload for every delivery, so an assertion can be made about *who* received *what*.
+
+### The read-side half, and why it is not in this file
+
+The plan's case 2 phrases the personal-import denial as "an unrelated user gets `NOT_FOUND`
+from `recipes.get`". **`@norish/queue` cannot express that**: the real read guard is
+`canAccessResource` in `@norish/auth`, and `tooling/monorepo/scripts/check-workspace-imports.mjs`
+declares `@norish/auth → @norish/queue` a FORBIDDEN edge (queue does not declare it as a
+dependency either). Importing it to satisfy the wording would have turned a green gate red,
+and re-implementing the predicate in the test would have been *mocking the boundary* — the
+one thing the plan forbids.
+
+So the read denial stays where the real guard lives: W2's
+`packages/trpc/__tests__/recipes/cook-tokens-isolation.test.ts` (35 tests), which already
+covers a denied member of an unrelated cookbook, a stranger with no cookbook, the PERSONAL
+branch and the `userId: null` orphan branch, under both policies, asserting on the ABSENCE
+OF THE RECIPE TEXT — and it is re-run green here (trpc isolation 46/46).
+
+What the queue file proves instead is the property a read guard **cannot** provide: an
+unrelated viewer is never *pushed* the recipe. `emitByPolicy` is the only thing standing
+between a minted `.cook` and every open socket, and nobody asked to receive it.
+
+---
+
+## The five cases, and the `everyone` sibling on each
+
+Every case below is inside `for (const view of ["household", "everyone"] as const)`, so
+each has both variants. Counting the harness self-check, **33 tests**.
+
+| # | Case | Named tests (each × 2 policies) |
+|---|---|---|
+| 1 | **Cross-cookbook write** | `writes the cook_source on the imported recipe ONLY — cookbook B's row is byte-identical` (snapshot compared before/after: row id, `updated_at`, `version`, `cook_source`); `hands the write the job's OWN recipe id and cookbook, never another cookbook's` |
+| 1b | **Cross-cookbook emit** | `delivers every import event to cookbook A's channel alone — never B, never broadcast` (all four events: `importStarted`, two `importProgress`, `imported`); `a recipe-bearing event resolved from the RECIPE's own cookbook stops at cookbook A` (the real `resolveRecipeRealtimeScope`, triggered by a member of cookbook B — the scope must key on the RECIPE's cookbook, not the actor's) |
+| 1c | **The dedup-hit emit** | `asks the dedup repository with a cookbook-scoped policy, never the seeded view`; `a dedup HIT on a recipe that HAS a .cook emits it to cookbook A with no cook* key`. **Added beyond the plan** — this is the OTHER place the worker emits a recipe DTO, it emits one it did not create, and the worker's `recipeExistsByUrlForPolicy` call is a DIFFERENT call site from the producer's that `dedup-isolation.test.ts` covers (IMPORT-DEDUP-ISO-01) |
+| 2 | **PERSONAL import (`household_id IS NULL`)** | `stores the .cook for the importing user with household_id IS NULL`; `delivers only to the importer's own user channel — no household channel, no broadcast`; `reaches neither a member of an unrelated cookbook nor a stranger with no cookbook`; `a later recipe-bearing event reaches the OWNER only, never the actor who triggered it` (a stranger triggers it; the scope still keys on the owner) |
+| 3 | **The `userId: null` orphan branch** | `fails closed to the ACTOR's own user channel and never a household channel` (asserts `viewPolicy === "owner"`); `never consults a cookbook policy or the server-wide default for an orphan` (both policy reads asserted NOT called — which is *why* both siblings assert the same thing); `leaks no .cook text even though the orphan row HAS one` |
+| 4 | **The `imported` realtime payload** | "the `imported` payload carries neither cookSource, cookTokens nor any .cook text" — for a recipe whose stored row is asserted, in the same test, to HAVE a `cook_source` |
+| 5 | **The list DTO** | `RecipeDashboardSchema still parses it and exposes no cook* key`; `the list DTO carries no .cook text for a viewer who CAN see the recipe` |
+
+**One deliberate strengthening in the harness.** The `dashboardRecipe` stand-in hands
+`RecipeDashboardSchema` **both** cook columns, which the real repository's `select` does
+not. That makes the `.omit(...)` on `RecipeDashboardSchema` — rather than the repository's
+column list — the thing under test, which is what R3 actually asks for: it is what stops a
+future `select` widening from turning a per-cookbook `.cook` into a socket push.
+
+**The leak assertion is on TEXT, not on a key name.** `expectNoCookAnywhere()` scans the
+serialized record of every delivery for `cookSource`, `cookTokens`, the entire minted
+`.cook` string, and the strings `marzipan` / `@marzipan` / `%gram` / `norish.system`. The
+ingredient name is safe to assert on because the dashboard DTO carries no ingredient list
+at all — only the `.cook` and its tokens name it.
+
+---
+
+## Adversarial weakenings W3-W2 and W3-W3 — RED, then reverted byte-identical
+
+Neither was committed. `git status --porcelain` was clean after each revert (only the new
+untracked test file before it was committed), `md5sum` matched the pre-weakening value on
+both files, and `git log -p f7bcecb8..HEAD` contains neither edit. **`git stash` was not
+used at any point** (the first executor's trap).
+
+### W3-W2 — the parse-cleanly invariant
+
+**The exact edit**, `packages/shared-server/src/cooklang/build-payload.ts`, inside
+`if (!cookTokens)`:
+
+```diff
+-    return null;
++    return { cookSource, cookTokens: [] };
+```
+
+**RED, exactly the two tests the plan predicted:**
+
+| suite | result | test that went RED |
+|---|---|---|
+| `packages/shared-server/__tests__/cooklang/build-payload.test.ts` | **1 failed / 13 passed (14)** | `returns null instead of throwing when the recipe has no steps` |
+| `packages/api/__tests__/ai/features/recipe-extraction/cook-payload.test.ts` | **1 failed / 24 passed (25)** | `returns null with a did-not-parse-cleanly log, and no recipe prose` |
+
+The whole `@norish/shared-server` cooklang tree ran 1 failed / 173 passed. Both suites
+returned green after the revert (174/174 and 25/25).
+
+**Recorded honestly: exactly two tests detect this weakening**, and they reach the branch
+by different routes — the shared-server one through a real step-less source (the parser
+legitimately returns `null`), the api one through a stubbed `parseCookSource`. That is thin
+but not accidental: now that the serializer escapes every metacharacter, a
+diagnostic-producing source is genuinely hard to construct, which is the T-27-01 fix
+working as intended. It is worth knowing that this invariant rests on two assertions.
+
+### W3-W3 — the emit boundary
+
+**The exact edit**, `packages/queue/src/recipe-import/worker.ts`, the `imported` payload of
+the post-create `emitByPolicy`:
+
+```diff
+       toast: parseResult.usedAI ? "imported" : undefined,
++      cookSource: parseResult.cook?.cookSource ?? null,
+     });
+```
+
+**RED — 4 failed / 40 passed** across `pnpm --filter @norish/queue test isolation`:
+
+- "the `imported` payload carries neither cookSource, cookTokens nor any .cook text" — under `view: "household"` **and** under `view: "everyone"`;
+- `reaches neither a member of an unrelated cookbook nor a stranger with no cookbook` (the PERSONAL case) — under both policies.
+
+That the PERSONAL case caught it as well as the cookbook case is the point: the leak
+assertion is not confined to one ownership shape. After the revert: 44/44 green.
+
+---
+
+## Gates (vs the recorded baselines)
+
+| Gate | Baseline (post-`f7bcecb8`) | After task 5 |
+|---|---|---|
+| `pnpm typecheck` | 17/17 EXIT 0 | **17/17 EXIT 0** |
+| real `tsc --noEmit`, `packages/queue` (its own script passes `--noCheck`) | CLEAN | **CLEAN, 0 errors** |
+| `@norish/queue` | 88 passed | **121 passed** (+33, all in the new file) |
+| `@norish/api` | 408 passed | **408 passed** |
+| `@norish/shared-server` | 389 passed | **389 passed** |
+| `@norish/db` (docker) | 178 passed / 0 failed | **178 passed / 0 failed** |
+| `@norish/trpc` | 335 passed | **335 passed** |
+| `@norish/shared` | 295 passed | **295 passed** |
+| `@norish/web` | 424 passed | **424 passed** |
+| `@norish/mobile` | 132 passed | **132 passed** |
+| `@norish/auth` | 133 passed | **133 passed** |
+| lint `@norish/queue` | 0 errors, 85 warnings | **0 errors, 85 warnings** — the new file contributes 0 |
+| `check-workspace-imports.mjs` | EXIT 0 | **EXIT 0** |
+| `pnpm --filter @norish/web build:server` | EXIT 0 | **EXIT 0** |
+| `pnpm i18n:check` | EXIT 1, `no` gap only | **EXIT 1, `no` ONLY (68 keys), 10 locales match, ZERO NEW** |
+| `git diff pnpm-lock.yaml` | — | **EMPTY** |
+
+**Isolation suites, all green:** `@norish/queue` isolation **44** (was 11), `@norish/trpc`
+isolation **46**, `@norish/db` isolation **25**, `@norish/shared-server` full **389** (incl.
+`fan-out-isolation`).
+
+### Additive-safety / never-broken checks
+
+- **The diff is ONE new test file.** No production file, no file under `apps/`, no `*.txt`,
+  no `packages/db/src/migrations/`, no `meta/_journal.json`, no `*_snapshot.json`.
+  **`_journal.json` still has 42 entries, last tag `0041_add_cook_source` — the DB stays at
+  migration 42** and the planned `0042` / `0043` sequence is untouched (D-27-W3-10).
+- **No new `emitByPolicy` / `emitter.*` call site, and no existing emit payload gained a
+  field** — the only edit to an emit payload in this session was weakening W3-W3, which was
+  reverted byte-identical and never committed.
+- No `COOK_LIMITS` value moved; `maxCookMalformedTokens` stays deleted; `serialize.ts` and
+  `findCookSourceDefect` untouched; `@cooklang/cooklang` is still imported in exactly one
+  file (`parse.ts`) — **no third door to the parser**.
+- No `as any`, `@ts-ignore` or `@ts-expect-error` in the diff. The suite uses two narrow
+  casts, both of a `vi.fn()` mock's recorded arguments (the local pattern in
+  `dedup-isolation.test.ts`), and the processor is cast ONCE to the minimal job shape it
+  actually reads so no job fixture needs a cast of its own.
+- No tRPC input schema changed; no `.cook` on any DTO; no `cook_confidence` /
+  `cook_review_needed` write.
+
+## Decisions Made
+
+| # | Decision | Rationale |
+|---|---|---|
+| **D-27-W3-E11** | The read-side `NOT_FOUND` half of the plan's case 2 stays in the **trpc** suite; the queue suite proves the PUSH half instead. | `@norish/auth` (where `canAccessResource` lives) is a FORBIDDEN import edge for `@norish/queue` and is not a declared dependency, so honouring the plan's literal wording would have broken `check-workspace-imports.mjs`, and re-implementing the predicate in the test would have been mocking the boundary. W2's suite already covers the read denial for exactly these ownership shapes under both policies; it is re-run green. Nothing is left unproven — the two halves live where their real implementations live. |
+| **D-27-W3-E12** | The `dashboardRecipe` stand-in feeds `RecipeDashboardSchema` MORE than the repository does (both cook columns). | It moves the thing under test from "the repository happens not to select these columns" to "the DTO contract omits them", which is the R3 regression the plan actually asks for. A stand-in that mirrored the repository exactly would pass even if the `.omit` were deleted. |
+| **D-27-W3-E13** | Two extra cases added for the **dedup-hit** emit path. | It is the second place `processImportJob` emits a recipe DTO, it emits a recipe it did not create, and its `recipeExistsByUrlForPolicy` call is a separate call site from the producer's — the exact shape of IMPORT-DEDUP-ISO-01, now with a `.cook`-bearing recipe on the other side of it. Cheap, and it closes the last emit site in the file. |
+
+## Deviations from Plan
+
+**1. [Scope — clarified, not skipped] The plan's `recipes.get` NOT_FOUND wording could not
+be honoured inside `@norish/queue`.** D-27-W3-E11 above. Called out loudly because a
+verifier reading the plan will look for it in this file and will not find it there.
+
+**2. [Coverage — added] Two tests beyond the plan's five cases** (the dedup-hit emit).
+D-27-W3-E13. No file outside `files_modified` was touched.
+
+**Total deviations:** 1 scope clarification + 1 addition. Nothing was relaxed, no assertion
+was softened, and no production code was changed by this task.
+
+## Issues Encountered
+
+- **The DTO fixtures needed real UUIDs.** `RecipeDashboardSchema` is derived from the
+  drizzle model, so `recipes.id` / `households.id` are `z.uuid()`; the first draft used
+  readable ids (`"cookbook-a"`), `safeParse` failed, `dashboardRecipe` returned `null`, and
+  the worker's `if (dashboardDto)` guard swallowed the `imported` emit — a suite that would
+  have passed its "no cook in the payload" assertion **vacuously, because there was no
+  payload**. Fixed with real UUIDs behind named constants; the emit-count assertion
+  (`expect(imported).toHaveLength(1)`) is what makes that failure mode impossible to
+  reintroduce.
+- **`RecipeDashboardSchema` is not exported from `@norish/shared/contracts`** (that barrel
+  is `export type *`) — it comes from `@norish/shared/contracts/zod`, as
+  `paste-import/worker.ts` already does it.
+- **The hoisted-linker trap did not fire.** `node_modules/@norish/{api,queue}` are still
+  symlinks to `../../packages/{api,queue}` (the previous executor's repair), and
+  `node_modules/@norish/shared-server/src` is a symlink to the workspace source, so the
+  W3-W2 weakening on `build-payload.ts` was live for `@norish/api`'s suite immediately —
+  verified by the inode being identical through both paths before and after the revert.
+- **`pnpm format` was NOT run** (it reformats 112 unrelated files). The new file was
+  formatted with `prettier --write` on that path alone and is prettier-clean.
