@@ -10,6 +10,7 @@ import { getAutoTaggingMode } from "@norish/shared-server/config/server-config-l
 
 import { buildAllergyInstruction } from "./fragments/allergies";
 import { buildLanguageInstruction } from "./fragments/language";
+import { buildLinkageInstruction } from "./fragments/linkage";
 
 export interface RecipeExtractionPromptOptions {
   /**
@@ -185,8 +186,19 @@ export async function buildRecipeExtractionPrompt(
   const allergyInstruction = buildAllergyInstruction(allergies, { strict: strictAllergyDetection });
   const autoTaggingInstruction = await buildAutoTaggingPrompt({ embedded: true });
   const languageInstruction = buildLanguageInstruction(targetLanguage);
+  // D-27-W3-01: appended as code, never as a `recipe-extraction.txt` edit (that template is
+  // served from server config, so editing it is a no-op on an existing install). Positioned
+  // before the content payload so untrusted webpage text never sits between the base prompt
+  // and its rules.
+  const linkageInstruction = buildLinkageInstruction();
 
-  const parts = [basePrompt, allergyInstruction, autoTaggingInstruction, languageInstruction];
+  const parts = [
+    basePrompt,
+    allergyInstruction,
+    autoTaggingInstruction,
+    languageInstruction,
+    linkageInstruction,
+  ];
 
   if (url) {
     parts.push(`URL: ${url}`);
@@ -226,8 +238,11 @@ export async function buildImageExtractionPrompt(
   const allergyInstruction = buildAllergyInstruction(allergies, { strict: false });
   const autoTaggingInstruction = await buildAutoTaggingPrompt({ embedded: true });
   const languageInstruction = buildLanguageInstruction(targetLanguage);
+  // D-27-W3-01: see buildRecipeExtractionPrompt. Placed before the image instruction so the
+  // untrusted images are described only after the linkage rules are stated.
+  const linkageInstruction = buildLinkageInstruction();
 
-  return `${imagePrompt}${allergyInstruction}${autoTaggingInstruction}${languageInstruction}
+  return `${imagePrompt}${allergyInstruction}${autoTaggingInstruction}${languageInstruction}${linkageInstruction}
 
 Categorize the recipe as one or more of: Breakfast, Lunch, Dinner, Snack.
 
@@ -251,6 +266,9 @@ export async function buildVideoExtractionPrompt(
   const allergyInstruction = buildAllergyInstruction(allergies, { strict: false });
   const autoTaggingInstruction = await buildAutoTaggingPrompt({ embedded: true });
   const languageInstruction = buildLanguageInstruction(targetLanguage);
+  // D-27-W3-01: see buildRecipeExtractionPrompt. Positioned before VIDEO TRANSCRIPT so the
+  // untrusted transcript never sits between the base prompt and its rules.
+  const linkageInstruction = buildLinkageInstruction();
 
   const durationMinutes = Math.floor(duration / 60);
   const durationSeconds = (duration % 60).toString().padStart(2, "0");
@@ -260,6 +278,7 @@ export async function buildVideoExtractionPrompt(
     allergyInstruction,
     autoTaggingInstruction,
     languageInstruction,
+    linkageInstruction,
     "",
     `SOURCE: Video transcript (${title})`,
     `URL: ${url}`,

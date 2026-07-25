@@ -3,3 +3,4 @@
  */
 export { buildAllergyInstruction, type AllergyInstructionOptions } from "./allergies";
 export { buildLanguageInstruction, localeToLanguageName } from "./language";
+export { buildLinkageInstruction } from "./linkage";
