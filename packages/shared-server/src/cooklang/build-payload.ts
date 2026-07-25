@@ -6,7 +6,7 @@ import { structuredToCooklang } from "@norish/shared/cooklang";
 
 import { parserLogger as log } from "../logger";
 
-import { checkCookSourceLimits, checkStructuredRecipeLimits } from "./limits";
+import { checkCookSourceLimits, checkStructuredRecipeLimits, findCookSourceDefect } from "./limits";
 import { parseCookSource } from "./parse";
 
 /**
@@ -104,6 +104,29 @@ export function buildCookPayload(recipe: StructuredRecipe, units?: UnitsMap): Co
         ingredientCount,
       },
       "Serialized Cooklang exceeds the input-size cap; keeping the legacy projection"
+    );
+
+    return null;
+  }
+
+  // T-27-01, gate 3 of 3: the serializer escapes every Cooklang metacharacter in
+  // untrusted text, so its output contains exactly the tokens it intended. THIS is
+  // the assertion of that invariant — and the reason parse time is bounded, since
+  // the parser is slow only when it renders diagnostics. Failing here means the
+  // SERIALIZER regressed, so it is an error-level event, not a user-input event.
+  const defect = findCookSourceDefect(cookSource);
+
+  if (defect) {
+    log.error(
+      {
+        module: "cooklang",
+        reason: "not-serializer-shaped",
+        defect: defect.defect,
+        offset: defect.offset,
+        stepCount,
+        ingredientCount,
+      },
+      "Serialized Cooklang is not well-formed serializer output; keeping the legacy projection"
     );
 
     return null;

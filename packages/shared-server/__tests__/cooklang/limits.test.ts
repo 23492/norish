@@ -9,9 +9,15 @@
  * only control available.
  *
  * The contract under test:
- *   - every one of the ten `COOK_LIMITS` keys has a breach case AND an at-the-cap
+ *   - every one of the nine `COOK_LIMITS` keys has a breach case AND an at-the-cap
  *     sibling — a limit with no breach test is a limit that does not exist;
  *   - `maxCookSourceBytes` is measured in UTF-8 BYTES, not code units;
+ *   - `findCookSourceDefect` accepts exactly what the serializer emits and nothing
+ *     else. It replaced a tenth cap (`maxCookMalformedTokens: 8`) that tried to
+ *     PREDICT which tokens the parser would object to and was unsound in BOTH
+ *     directions — `@a{1%}` closes its brace and scored zero (11 s / 150 MB report
+ *     for a 64 KiB source), while `POT_ROAST` scored 12 and was wrongly refused.
+ *     Both refutations are pinned here as regression tests;
  *   - a breach REJECTS (returns `null`), never truncates;
  *   - on a breach the parser is provably NEVER invoked — this file mocks
  *     `@cooklang/cooklang` with a spy that DELEGATES to the real WASM, so the
@@ -49,6 +55,15 @@ vi.mock("@cooklang/cooklang", async () => {
 
       return this.inner.parse(source);
     }
+
+    /** Forwarded, so `parse.ts`'s `extensions = 0` really reaches the real parser. */
+    set extensions(value: number) {
+      this.inner.extensions = value;
+    }
+
+    get extensions(): number {
+      return this.inner.extensions;
+    }
   }
 
   return { ...actual, CooklangParser: SpyingCooklangParser };
@@ -67,8 +82,12 @@ vi.mock("../../src/logger", () => ({
   createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
 }));
 
-const { COOK_LIMITS, checkCookSourceLimits, checkStructuredRecipeLimits, countMalformedCookTokens } =
-  await import("../../src/cooklang/limits");
+const {
+  COOK_LIMITS,
+  checkCookSourceLimits,
+  checkStructuredRecipeLimits,
+  findCookSourceDefect,
+} = await import("../../src/cooklang/limits");
 const { parseCookSource } = await import("../../src/cooklang/parse");
 const { buildCookPayload } = await import("../../src/cooklang/build-payload");
 
@@ -81,6 +100,28 @@ function recipeWith(overrides: Partial<StructuredRecipe>): StructuredRecipe {
     ...overrides,
   };
 }
+
+/**
+ * THE FALSE-POSITIVE REGRESSION FIXTURE. Ordinary US shorthand — `@` for "at",
+ * `#` for "pound", `~` for "about" — in a plain 9-step recipe. The deleted
+ * `maxCookMalformedTokens: 8` scored it 12 and REFUSED it, although the real parser
+ * handles it in 13 ms with an EMPTY report. It must earn a `cook_source`.
+ */
+const POT_ROAST: StructuredRecipe = {
+  name: "Grandma's Pot Roast",
+  systemUsed: "us",
+  steps: [
+    "Preheat the oven @ 325 degrees.",
+    "Season a 3 # chuck roast all over.",
+    "Sear it in a heavy pot ~ 4 minutes per side.",
+    "Add 1 # of carrots and 2 onions, quartered.",
+    "Pour in stock until it comes ~ halfway up the meat.",
+    "Cover and braise @ 325 for 3 - 3 1/2 hours.",
+    "Skim the fat, then reduce ~ 10 minutes.",
+    "Whisk in a slurry (1 tbsp flour + 2 tbsp water) at ~ 50% heat.",
+    "Rest 15 minutes, slice against the grain, serve @ the table.",
+  ].map((text, order) => ({ text, order, ingredients: [] })),
+};
 
 function stepsOf(count: number, ingredientsPerStep = 0): StructuredStep[] {
   return Array.from({ length: count }, (_, index) => ({
@@ -101,7 +142,7 @@ beforeEach(() => {
 });
 
 describe("COOK_LIMITS", () => {
-  it("declares exactly the ten T-27-01 caps at their calibrated values", () => {
+  it("declares exactly the nine T-27-01 caps at their calibrated values", () => {
     expect(COOK_LIMITS).toEqual({
       maxCookSourceBytes: 65_536,
       maxSteps: 200,
@@ -112,9 +153,8 @@ describe("COOK_LIMITS", () => {
       maxRefNameChars: 200,
       maxUnitChars: 40,
       maxRecipeNameChars: 500,
-      maxCookMalformedTokens: 8,
     });
-    expect(Object.keys(COOK_LIMITS)).toHaveLength(10);
+    expect(Object.keys(COOK_LIMITS)).toHaveLength(9);
   });
 });
 
@@ -153,8 +193,8 @@ describe("checkCookSourceLimits — maxCookSourceBytes", () => {
   });
 });
 
-describe("countMalformedCookTokens — maxCookMalformedTokens, the cap that bounds parse TIME", () => {
-  it("counts ZERO for every shape norish's own serializer emits", () => {
+describe("findCookSourceDefect — the gate that bounds parse TIME", () => {
+  it("accepts every shape norish's own serializer emits", () => {
     const source = [
       "---",
       "title: Pancakes",
@@ -167,43 +207,60 @@ describe("countMalformedCookTokens — maxCookMalformedTokens, the cap that boun
       "",
       "Add @salt and @sea salt{} then rest ~{10%minutes}.",
       "",
-      "Bake in the oven ~oven{25%minutes}.",
+      "Bake in the #oven{} for ~oven{25%minutes}.",
+      "",
+      "Preheat the oven \\@ 325, a 3 \\# roast, reduce \\~ 10 minutes.",
       "",
     ].join("\n");
 
-    expect(countMalformedCookTokens(source)).toBe(0);
+    expect(findCookSourceDefect(source)).toBeNull();
   });
 
-  it("counts ZERO for every committed serializer fixture's real `.cook` output", () => {
+  it("accepts every committed serializer fixture's real `.cook` output", () => {
     for (const fixture of fixtures) {
       const cook = structuredToCooklang(fixture.recipe, units);
 
-      expect(countMalformedCookTokens(cook)).toBe(0);
+      expect(findCookSourceDefect(cook), fixture.slug).toBeNull();
       expect(checkCookSourceLimits(cook)).toBeNull();
     }
   });
 
-  it("counts a bare sigil, adjacent sigils and an unterminated brace as malformed", () => {
-    expect(countMalformedCookTokens("Rest ~ a while.")).toBe(1);
-    expect(countMalformedCookTokens("##")).toBe(2);
-    expect(countMalformedCookTokens("@a{1%g")).toBe(1);
-    expect(countMalformedCookTokens("@a{1%g\n}")).toBe(1);
-    expect(countMalformedCookTokens("~{")).toBe(1);
+  it("REJECTS the bypass family the malformed-token COUNT scored as well-formed", () => {
+    // Every one of these closes its brace, so the deleted `countMalformedCookTokens`
+    // scored them ZERO malformed and let a 64 KiB source of them reach the parser
+    // (measured: 11 118 ms, a 150 MB diagnostic report). They are refused now
+    // because none of them is a shape the serializer can emit.
+    for (const source of ["@a{1%}", "~{5}", "~a{5}", "@{2%g}", "#{2}", "@a{%g}", "@a{1%%g}"]) {
+      expect(findCookSourceDefect(source)?.defect, source).toBe("malformed-token");
+    }
+  });
+
+  it("REJECTS a bare sigil, adjacent sigils, an unterminated brace and the WASM-trap shape", () => {
+    for (const source of [
+      "Rest ~ a while.",
+      "##",
+      "@a{1%g",
+      "@a{1%g\n}",
+      "~{",
+      "a ~10 minutes b",
+    ]) {
+      expect(findCookSourceDefect(source), source).not.toBeNull();
+    }
+
     // a well-formed sibling of each, to prove the rule is not "any sigil"
-    expect(countMalformedCookTokens("Rest ~{1%minute} a while.")).toBe(0);
-    expect(countMalformedCookTokens("@a{1%g}")).toBe(0);
-    expect(countMalformedCookTokens("@salt")).toBe(0);
-    expect(countMalformedCookTokens("#bowl")).toBe(0);
+    expect(findCookSourceDefect("Rest ~{1%minute} a while.")).toBeNull();
+    expect(findCookSourceDefect("Rest \\~ a while.")).toBeNull();
+    expect(findCookSourceDefect("@a{1%g}")).toBeNull();
+    expect(findCookSourceDefect("@salt")).toBeNull();
+    expect(findCookSourceDefect("#bowl")).toBeNull();
+    expect(findCookSourceDefect("@sea salt{}")).toBeNull();
   });
 
-  it("breaches maxCookMalformedTokens at 9 malformed tokens", () => {
-    const result = checkCookSourceLimits(`Mix well. ${"~ ".repeat(9)}`);
-
-    expect(result).toEqual({ limit: "maxCookMalformedTokens", measured: 9, allowed: 8 });
-  });
-
-  it("passes at exactly 8 malformed tokens — the boundary is asserted on both sides", () => {
-    expect(checkCookSourceLimits(`Mix well. ${"~ ".repeat(8)}`)).toBeNull();
+  it("REJECTS an unescaped metacharacter in prose and ACCEPTS the escaped form", () => {
+    for (const meta of ["\\", "@", "#", "~", "{", "}", "%", "=", ">", "-"]) {
+      expect(findCookSourceDefect(`Mix a ${meta} b`), `bare ${meta}`).not.toBeNull();
+      expect(findCookSourceDefect(`Mix a \\${meta} b`), `escaped ${meta}`).toBeNull();
+    }
   });
 
   it("REJECTS the pathological families that the BYTE cap alone lets through", () => {
@@ -217,17 +274,56 @@ describe("countMalformedCookTokens — maxCookMalformedTokens, the cap that boun
       `${"~~ ".repeat(2_048)}${"z".repeat(59_392)}`,
       "@a{".repeat(21_845),
       "@{~}%#|>[]".repeat(6_553),
+      // THE VERIFIER'S EXACT BYPASS: 16 step texts of 3 996 chars, each under
+      // `maxStepTextChars`, of `@a{1%} `. 63 966 bytes, under the byte cap, ZERO
+      // malformed by the deleted counter, 11 118 ms and a 150 MB report if parsed.
+      Array.from({ length: 16 }, () => "@a{1%} ".repeat(571).slice(0, 3_996)).join("\n\n"),
+      // the single-huge-line variant of the same
+      "@a{1%} ".repeat(9_362),
     ]) {
       expect(Buffer.byteLength(source, "utf8")).toBeLessThanOrEqual(COOK_LIMITS.maxCookSourceBytes);
-      expect(checkCookSourceLimits(source)?.limit).toBe("maxCookMalformedTokens");
+      expect(checkCookSourceLimits(source)).toBeNull();
+      expect(findCookSourceDefect(source)).not.toBeNull();
     }
   });
 
+  it("does NOT refuse ordinary US shorthand once the serializer has escaped it", () => {
+    // The 536-byte recipe the verifier used to refute "near-zero false positives":
+    // the deleted counter scored it 12 malformed and REFUSED it, although the real
+    // parser handles it in 13 ms with an empty report.
+    const cook = structuredToCooklang(POT_ROAST, units);
+
+    expect(checkStructuredRecipeLimits(POT_ROAST)).toBeNull();
+    expect(checkCookSourceLimits(cook)).toBeNull();
+    expect(findCookSourceDefect(cook)).toBeNull();
+    // and it earns a read model: it reaches the parser and parses cleanly
+    expect(parseCookSource(cook, units)).not.toBeNull();
+  });
+
   it("is total — it never throws on a degenerate string", () => {
-    expect(countMalformedCookTokens("")).toBe(0);
-    expect(countMalformedCookTokens("@")).toBe(1);
-    expect(countMalformedCookTokens("~")).toBe(1);
-    expect(() => countMalformedCookTokens(" \uD800@{")).not.toThrow();
+    expect(findCookSourceDefect("")).toBeNull();
+    expect(findCookSourceDefect("@")?.defect).toBe("malformed-token");
+    expect(findCookSourceDefect("~")?.defect).toBe("malformed-token");
+    expect(findCookSourceDefect("\\")?.defect).toBe("invalid-escape");
+    // only a METACHARACTER is ever escaped, so `\\ ` is not serializer output
+    expect(findCookSourceDefect("Mix a \\ b")?.defect).toBe("invalid-escape");
+    expect(() => findCookSourceDefect(" \uD800@{")).not.toThrow();
+    expect(findCookSourceDefect(null as unknown as string)).toBeNull();
+  });
+
+  it("REJECTS a frontmatter block the serializer could not have written", () => {
+    expect(findCookSourceDefect("---\ntitle: X\n")?.defect).toBe("frontmatter-unterminated");
+    expect(findCookSourceDefect("---\nnot a meta line\n---\n\nstep\n")?.defect).toBe(
+      "frontmatter-line"
+    );
+    expect(findCookSourceDefect("---\ntitle: X\n---\n\nstep\n")).toBeNull();
+  });
+
+  it("REJECTS a section heading the serializer could not have written", () => {
+    expect(findCookSourceDefect("== A = B ==")?.defect).toBe("malformed-heading");
+    expect(findCookSourceDefect("== A @ B ==")?.defect).toBe("malformed-heading");
+    expect(findCookSourceDefect("== A \\= B ==")).toBeNull();
+    expect(findCookSourceDefect("== Dough ==")).toBeNull();
   });
 });
 
@@ -512,17 +608,23 @@ describe("the hostile corpus — adversarial input sized AT the cap", () => {
    * return `null` or a `CookTokensSchema`-valid DTO, never throw, and finish inside
    * 2 000 ms — whether it gets there by REFUSING the source or by parsing it.
    *
-   * `refused` records which of the two the cap regime produces, so the test also
-   * pins WHICH inputs the malformed-token cap is carrying. Every `refused: true`
-   * entry was measured to cost the parser between 4 s and 19 s when allowed through,
-   * so those assertions are the ones with teeth (see limits.ts's measurement table).
+   * `refused` records which of the two the gate regime produces, so the test also
+   * pins WHICH inputs `findCookSourceDefect` is carrying. Every `refused: true`
+   * entry was measured to cost the parser between 4 s and 35 s (or to TRAP the WASM)
+   * when allowed through, so those assertions are the ones with teeth — see the
+   * measurement table in `limits.ts`.
+   *
+   * The families the previous, heuristic gate let through are here explicitly:
+   * brace-closed-but-invalid tokens (`@a{1%}`, `~{5}`, `~a{5}`), the verifier's exact
+   * 16 x 3 996 bypass, its single-huge-line variant, and the >= 16 KiB `~10 minutes`
+   * shape that TRAPS the WASM with `unreachable` rather than merely being slow.
    */
   const corpus: { name: string; source: string; refused: boolean }[] = [
     { name: "unbalanced opening braces", source: atCap("@a{"), refused: true },
-    { name: "unbalanced closing braces", source: atCap("}"), refused: false },
+    { name: "unbalanced closing braces", source: atCap("}"), refused: true },
     { name: "nested ingredient tokens", source: atCap("@a{@b{@c{"), refused: true },
     { name: "dense timer sigils", source: atCap("~"), refused: true },
-    { name: "dense unit sigils", source: atCap("%"), refused: false },
+    { name: "dense unit sigils", source: atCap("%"), refused: true },
     { name: "dense ingredient sigils", source: atCap("@"), refused: true },
     { name: "dense cookware sigils", source: atCap("#"), refused: true },
     {
@@ -541,14 +643,42 @@ describe("the hostile corpus — adversarial input sized AT the cap", () => {
       refused: false,
     },
     { name: "deeply repeated section headings", source: atCap("== h ==\n"), refused: false },
-    { name: "deeply repeated legacy metadata lines", source: atCap(">> a: b\n"), refused: false },
+    { name: "deeply repeated legacy metadata lines", source: atCap(">> a: b\n"), refused: true },
     { name: "well-formed cookware at maximum density", source: atCap("#a "), refused: false },
     { name: "well-formed timers at maximum density", source: atCap("~{1%min} "), refused: false },
+    {
+      name: "well-formed ingredients at maximum density (the worst ACCEPTED shape)",
+      source: atCap("@a{1%g} "),
+      refused: false,
+    },
     { name: "astral-plane characters", source: atCap("\u{1F373}\u{1F9C2}"), refused: false },
     { name: "combining marks", source: atCap("e\u0301\u0302\u0303\u0304"), refused: false },
     { name: "embedded NUL bytes", source: atCap("a\u0000b"), refused: false },
     { name: "lone surrogates", source: atCap("\u{10000}\uD800"), refused: false },
     { name: "mixed sigil soup", source: atCap("@{~}%#|>[]"), refused: true },
+    // ---- the families the DELETED heuristic scored as well-formed ----
+    {
+      name: "brace-closed empty unit @a{1%} (the verifier's 16 x 3 996 bypass)",
+      source: Array.from({ length: 16 }, () => "@a{1%} ".repeat(571).slice(0, 3_996)).join("\n\n"),
+      refused: true,
+    },
+    {
+      name: "brace-closed empty unit @a{1%} on ONE huge line",
+      source: "@a{1%} ".repeat(9_362),
+      refused: true,
+    },
+    { name: "brace-closed unit-less timer ~{5}", source: atCap("~{5} "), refused: true },
+    { name: "brace-closed unit-less named timer ~a{5}", source: atCap("~a{5} "), refused: true },
+    {
+      name: "the WASM-trap shape `~10 minutes` in a 16 KiB line",
+      source: `${"z".repeat(16_384)} ~10 minutes ${"z".repeat(16_384)}`,
+      refused: true,
+    },
+    {
+      name: "escaped prose at maximum density (every metacharacter, ACCEPTED)",
+      source: atCap("\\@\\#\\~\\{\\}\\%\\=\\>\\-\\\\ "),
+      refused: false,
+    },
   ];
 
   it("has at least the twelve required adversarial inputs", () => {

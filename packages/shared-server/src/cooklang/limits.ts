@@ -29,7 +29,8 @@ import type { StructuredRecipe } from "@norish/shared/cooklang";
  *    `maxTotalIngredientRefs: 600` are one to two orders of magnitude above every
  *    fixture and every recipe observed in the Phase 27 spike.
  *
- * WHY A BYTE CAP ALONE IS NOT ENOUGH — `maxCookMalformedTokens` (measured, W3).
+ * WHY A BYTE CAP ALONE IS NOT ENOUGH — and why the second gate is a RECOGNIZER,
+ * not a heuristic count (T-27-01 root-cause fix).
  * A size cap bounds how much text the parser reads; it does NOT bound how long the
  * parser takes. `@cooklang/cooklang@0.18.7` renders a DIAGNOSTIC per malformed token
  * and each diagnostic quotes the whole LINE it sits on, so report construction costs
@@ -38,26 +39,43 @@ import type { StructuredRecipe } from "@norish/shared/cooklang";
  *
  *   | source (64 KiB unless stated)            | parse time | report  |
  *   |------------------------------------------|-----------:|--------:|
+ *   | 16 lines x 3 996 chars of `@a{1%} `      |  11 118 ms |  ~150MB |
  *   | `("#" x 8 + " ")` x 128 + one long word  |  18 387 ms |  ~250MB |
- *   | `("~~ ")` x 2048 + one long word         |  17 462 ms |  ~134MB |
  *   | `"#" x 4096` (4 KiB source!)             |   4 553 ms |   ~17MB |
  *   | `"@" x 65536`                            |   4 281 ms |       - |
- *   | the same bytes rewrapped at 8 192/line   |     131 ms |       - |
+ *   | `~10 minutes` anywhere in a 16 KiB line  |  WASM trap |       - |
  *
  * Lowering `maxCookSourceBytes` cannot fix this: the worst case is NON-MONOTONIC in
- * the cap (a 4 KiB `#` run already costs 4.5 s, and whether the WASM finishes or
- * traps depends on how far its linear memory has grown), so there is no byte cap
- * that is both safe and large enough for a real recipe.
+ * the cap (a 4 KiB `#` run already costs 4.5 s), so there is no byte cap that is both
+ * safe and large enough for a real recipe — the five committed fixtures already
+ * serialize to 225-506 bytes and a plain 9-step recipe to 536.
  *
- * The root cause is malformed TOKENS, not size — and norish AUTHORS every `.cook` it
- * stores (D-3), so its own serializer emits exactly ZERO of them: ingredients are
- * `@name` / `@name{...}`, timers `~{...}` / `~name{...}`, section headings
- * `== Heading ==`, and `sanitizeTokenName` strips `@{}~#%` from every name. Cookware
- * (`#`) is never emitted at all. A malformed token can therefore only arrive from
- * unsanitized step PROSE — i.e. exactly the prompt-injection channel this cap exists
- * for. Capping them at 8 tolerates an incidental stray `~` or `#` in real prose while
- * refusing every pathological family; with it in force the worst surviving
- * adversarial input measures 622 ms, a 3.2x margin under the 2 000 ms budget.
+ * THE FIRST ATTEMPT AT THIS GATE WAS A HEURISTIC AND IT FAILED IN BOTH DIRECTIONS.
+ * `maxCookMalformedTokens: 8` + `countMalformedCookTokens` tried to PREDICT which
+ * tokens the WASM parser would object to, i.e. to reimplement the parser's grammar
+ * with a regex. That is necessarily incomplete AND over-broad, and an adversarial
+ * verifier demonstrated both: `@a{1%}` closes its brace, so the counter scored the
+ * 64 KiB source above as ZERO malformed and let it through (11 s, 150 MB); while an
+ * ordinary 536-byte recipe using US shorthand ("Preheat the oven @ 325", "a 3 #
+ * chuck roast", "reduce ~ 10 minutes") scored 12 and was REFUSED, although the real
+ * parser handles it in 13 ms with an empty report. Predicting a parser is a bandaid.
+ *
+ * WHAT REPLACED IT. norish AUTHORS every `.cook` it stores (D-3), and its serializer
+ * now ESCAPES every Cooklang metacharacter in prose, heading text, token names,
+ * amounts and units (`@norish/shared/cooklang`'s `escapeCookText`). So the invariant
+ * "our `.cook` contains exactly the tokens we intended, and nothing else the parser
+ * can lex" is true BY CONSTRUCTION. `findCookSourceDefect` does not predict the
+ * parser; it ASSERTS that invariant — a strict left-to-right recognizer for the
+ * serializer's own output grammar. Sound in both directions:
+ *   - no bypass: `@a{1%}` (empty unit), `~{5}` / `~a{5}` (no unit), a bare sigil, a
+ *     sigil flood, an unbalanced brace and a bare `~10 minutes` are all rejected,
+ *     because none of them is a shape the serializer can emit;
+ *   - no legitimate refusal: prose reaches this gate already escaped, so
+ *     "Preheat the oven @ 325" arrives as `\@ 325` and passes.
+ * That turns the time bound into a CHECKED precondition: a source that passes both
+ * gates is at most 64 KiB of diagnostic-free, well-formed Cooklang, and the worst
+ * such source measured on this tree is 438 ms (64 KiB of `@a{1%g} `), a 4.5x margin
+ * under the 2 000 ms budget.
  *
  * DELIBERATELY NOT A ZOD `.max()` ON THE EXTRACTION SCHEMA (T-27-01b): a cap there
  * would make an oversize extraction fail the WHOLE import. A cap at the parser door
@@ -82,12 +100,6 @@ export const COOK_LIMITS = {
   maxUnitChars: 40,
   /** Characters of the recipe name. */
   maxRecipeNameChars: 500,
-  /**
-   * Cooklang token starts (`@`, `#`, `~`) in a `.cook` source that are NOT
-   * well-formed. norish's own serializer emits ZERO; see the docblock above for
-   * the measurement that makes this cap, not the byte cap, the real DoS control.
-   */
-  maxCookMalformedTokens: 8,
 } as const;
 
 export type CookLimitBreach = {
@@ -174,82 +186,260 @@ export function checkStructuredRecipeLimits(recipe: StructuredRecipe): CookLimit
   return null;
 }
 
-/** A Cooklang token name may start with any letter or digit. */
-const NAME_START = /[\p{L}\p{N}]/u;
-
-/** Is there a `}` at or after `from` before the next newline? */
-function closesOnSameLine(source: string, from: number): boolean {
-  const close = source.indexOf("}", from);
-
-  if (close < 0) return false;
-
-  const newline = source.indexOf("\n", from);
-
-  return newline < 0 || newline > close;
-}
-
 /**
- * Count the Cooklang token starts in `source` that are NOT well-formed.
- *
- * A token start is `@` (ingredient), `#` (cookware) or `~` (timer). It is
- * well-formed when it is followed either by a name character or by a `{` whose
- * matching `}` appears on the SAME line. Everything else — a bare sigil, two
- * adjacent sigils, an unterminated `{` — is a token the parser emits a diagnostic
- * for, and diagnostics are what make the parser slow (module docblock).
- *
- * Single pass, no backtracking: this runs BEFORE the parser on every source, so it
- * must stay cheap. The scans are bounded by the already-enforced byte cap.
- */
-export function countMalformedCookTokens(source: string): number {
-  let malformed = 0;
-
-  for (let index = 0; index < source.length; index += 1) {
-    const char = source[index];
-
-    if (char !== "@" && char !== "#" && char !== "~") continue;
-
-    const next = source[index + 1] ?? "";
-
-    if (next === "{") {
-      if (!closesOnSameLine(source, index + 2)) malformed += 1;
-      continue;
-    }
-
-    if (!NAME_START.test(next)) {
-      malformed += 1;
-      continue;
-    }
-
-    // A named token: `@flour` is complete, `@flour{200%gram}` must close its brace.
-    let cursor = index + 1;
-
-    while (cursor < source.length && !/[\s{]/.test(source[cursor] ?? "")) cursor += 1;
-
-    if (source[cursor] === "{" && !closesOnSameLine(source, cursor + 1)) malformed += 1;
-  }
-
-  return malformed;
-}
-
-/**
- * Pre-parse gate: is this `.cook` source safe to hand to the WASM parser?
+ * Pre-parse gate 1 of 2: is this `.cook` source small enough to hand to the WASM
+ * parser?
  *
  * `maxCookSourceBytes` is measured with `Buffer.byteLength(src, "utf8")` — the cap
  * is BYTES, not code units, because the parser allocates over the encoded bytes and
  * a string of astral-plane characters carries up to 4x its `.length` in bytes.
- *
- * `maxCookMalformedTokens` is what actually bounds parse TIME; the byte cap alone
- * does not (module docblock). It is checked second because it is the more expensive
- * of the two, and the byte cap bounds the work it has to do.
  *
  * A non-string is not a breach; `parseCookSource`'s own type guard rejects it.
  */
 export function checkCookSourceLimits(cookSource: string): CookLimitBreach | null {
   if (typeof cookSource !== "string") return null;
 
-  const bytesBreach = overLimit("maxCookSourceBytes", Buffer.byteLength(cookSource, "utf8"));
+  return overLimit("maxCookSourceBytes", Buffer.byteLength(cookSource, "utf8"));
+}
 
-  if (bytesBreach) return bytesBreach;
+/** Why a `.cook` source is not something norish's own serializer could have written. */
+export type CookSourceDefectCode =
+  | "frontmatter-unterminated"
+  | "frontmatter-line"
+  | "malformed-heading"
+  | "malformed-token"
+  | "unescaped-metacharacter"
+  | "invalid-escape";
 
-  return overLimit("maxCookMalformedTokens", countMalformedCookTokens(cookSource));
+export type CookSourceDefect = {
+  defect: CookSourceDefectCode;
+  /** Character offset of the defect. A POSITION, never a quotation (T-27-05). */
+  offset: number;
+};
+
+/**
+ * Every character the Cooklang dialect norish writes attaches meaning to. Mirrors
+ * `COOK_METACHARACTERS` in `@norish/shared/cooklang`'s serializer — the escaper and
+ * this recognizer are two halves of one contract, and
+ * `cook-metacharacters.test.ts` proves the set is EXHAUSTIVE by round-tripping
+ * every ASCII punctuation character through the real parser.
+ */
+const COOK_METACHARACTERS = "\\@#~{}%=>-";
+
+/**
+ * A section heading exactly as `serializeWithReport` writes it: `== ` + escaped
+ * heading text + ` ==`, where the text carries no RAW metacharacter.
+ */
+const HEADING_LINE = /^== (?:\\[^\n]|[^\\@#~{}%=>\-\n])* ==$/;
+
+/** A frontmatter line exactly as `buildFrontmatter` writes it: `key: value`. */
+const FRONTMATTER_LINE = /^[A-Za-z][A-Za-z0-9._-]*: .*$/;
+
+/**
+ * A character that may appear RAW in a BARE `@name` token. Mirrors the serializer's
+ * `SINGLE_WORD_STOP` (which is what decides that a name needs no braces) plus the
+ * metacharacters, none of which can survive escaping unbraced.
+ */
+const BARE_NAME_CHAR = /[^\s\\@#~{}%=>\-\[\](),;:!?.]/;
+
+/**
+ * Is `at` the start of an escape pair the serializer could have written? Only a
+ * METACHARACTER is ever escaped (`escapeCookText`), so `\ ` or `\a` is not
+ * serializer output — and requiring that keeps the recognizer's "every raw
+ * metacharacter is a defect" rule exhaustive rather than side-steppable.
+ */
+function isEscapePair(line: string, at: number): boolean {
+  const escaped = line[at + 1];
+
+  return escaped !== undefined && COOK_METACHARACTERS.includes(escaped);
+}
+
+/**
+ * Match a `{amount%unit}` body starting at the `{` in `line`.
+ *
+ * Returns the index just past the closing `}`, or -1. Rejects exactly the shapes
+ * that make the parser emit a diagnostic, which is what makes it slow:
+ * `{1%}` (`Empty quantity unit`), `{%g}` (no amount) and, for a timer, a body with
+ * no `%unit` at all (`Invalid timer quantity`). `{}` IS legal — it is how the
+ * serializer writes a multi-word amount-less ingredient (`@sea salt{}`).
+ */
+function matchTokenBody(line: string, from: number, requireUnit: boolean): number {
+  let index = from + 1;
+  let sawPercent = false;
+  let amountChars = 0;
+  let unitChars = 0;
+
+  for (;;) {
+    const char = line[index];
+
+    if (char === undefined) return -1;
+
+    if (char === "\\") {
+      if (!isEscapePair(line, index)) return -1;
+
+      if (sawPercent) unitChars += 1;
+      else amountChars += 1;
+      index += 2;
+      continue;
+    }
+
+    if (char === "}") {
+      if (sawPercent && (amountChars === 0 || unitChars === 0)) return -1;
+      if (requireUnit && (!sawPercent || amountChars === 0)) return -1;
+
+      return index + 1;
+    }
+
+    if (char === "%") {
+      if (sawPercent) return -1;
+      sawPercent = true;
+      index += 1;
+      continue;
+    }
+
+    if (COOK_METACHARACTERS.includes(char)) return -1;
+
+    if (sawPercent) unitChars += 1;
+    else amountChars += 1;
+    index += 1;
+  }
+}
+
+/**
+ * Match one well-formed Cooklang token starting at the sigil in `line`.
+ *
+ * Returns the index just past the token, or -1. The two forms are unambiguous
+ * because a name can never contain a RAW `{`: scan forward over escape pairs and
+ * ordinary characters, and if the scan reaches a raw `{` this is the BRACED form,
+ * otherwise it is the BARE `@name` / `#name` form (a timer has no bare form — it
+ * always carries a quantity).
+ *
+ * `#` cookware is accepted although norish's serializer never emits it: it is a
+ * well-formed, diagnostic-free, fast token, `toCookTokens` has a branch that keeps
+ * its name readable in the prose, and prose can no longer produce one by accident
+ * now that `#` is escaped. Accepting it costs nothing the time bound depends on.
+ */
+function matchToken(line: string, at: number): number {
+  const sigil = line[at];
+  let index = at + 1;
+
+  for (;;) {
+    const char = line[index];
+
+    if (char === undefined) break;
+
+    if (char === "\\") {
+      if (!isEscapePair(line, index)) break;
+      index += 2;
+      continue;
+    }
+
+    if (char === "{") {
+      // `@{...}` / `#{...}` has no name, and the parser cannot name a component from it
+      if (sigil !== "~" && index === at + 1) return -1;
+
+      return matchTokenBody(line, index, sigil === "~");
+    }
+
+    if (COOK_METACHARACTERS.includes(char)) break;
+
+    index += 1;
+  }
+
+  if (sigil === "~") return -1;
+
+  let bare = at + 1;
+
+  while (bare < line.length && BARE_NAME_CHAR.test(line[bare] ?? "")) bare += 1;
+
+  return bare > at + 1 ? bare : -1;
+}
+
+/** Recognize one body line: a heading, or an alternation of escaped prose and tokens. */
+function findLineDefect(line: string, base: number): CookSourceDefect | null {
+  if (line === "") return null;
+
+  if (line.startsWith("== ")) {
+    return HEADING_LINE.test(line) ? null : { defect: "malformed-heading", offset: base };
+  }
+
+  let index = 0;
+
+  while (index < line.length) {
+    const char = line[index] ?? "";
+
+    if (char === "\\") {
+      if (!isEscapePair(line, index)) return { defect: "invalid-escape", offset: base + index };
+      index += 2;
+      continue;
+    }
+
+    if (char === "@" || char === "#" || char === "~") {
+      const next = matchToken(line, index);
+
+      if (next < 0) return { defect: "malformed-token", offset: base + index };
+
+      index = next;
+      continue;
+    }
+
+    if (COOK_METACHARACTERS.includes(char)) {
+      return { defect: "unescaped-metacharacter", offset: base + index };
+    }
+
+    index += 1;
+  }
+
+  return null;
+}
+
+/**
+ * Pre-parse gate 2 of 2: is this `.cook` source something norish's own serializer
+ * could have written?
+ *
+ * This is an OUTPUT-INTEGRITY ASSERTION, not an input heuristic. norish authors
+ * every `.cook` it stores (D-3) and its serializer escapes every metacharacter in
+ * untrusted text, so a source that fails here did not come from the serializer —
+ * either the serializer regressed or something else wrote the row. Both mean "do
+ * not hand this to native code"; see the module docblock for why the previous
+ * predict-the-parser approach was unsound in both directions.
+ *
+ * Single left-to-right pass, no backtracking, bounded by the already-enforced byte
+ * cap, so it cannot itself become the slow path. Returns `null` when the source is
+ * well-formed. A non-string is not a defect; `parseCookSource`'s type guard owns it.
+ */
+export function findCookSourceDefect(cookSource: string): CookSourceDefect | null {
+  if (typeof cookSource !== "string") return null;
+
+  let cursor = 0;
+
+  if (cookSource.startsWith("---\n")) {
+    const end = cookSource.indexOf("\n---\n", 3);
+
+    if (end < 0) return { defect: "frontmatter-unterminated", offset: 0 };
+
+    let lineStart = 4;
+
+    for (const line of cookSource.slice(4, end + 1).split("\n")) {
+      if (line !== "" && !FRONTMATTER_LINE.test(line)) {
+        return { defect: "frontmatter-line", offset: lineStart };
+      }
+
+      lineStart += line.length + 1;
+    }
+
+    cursor = end + 5;
+  }
+
+  while (cursor < cookSource.length) {
+    const newline = cookSource.indexOf("\n", cursor);
+    const end = newline < 0 ? cookSource.length : newline;
+    const defect = findLineDefect(cookSource.slice(cursor, end), cursor);
+
+    if (defect) return defect;
+
+    cursor = end + 1;
+  }
+
+  return null;
 }

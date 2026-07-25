@@ -16,7 +16,7 @@ import { normalizeUnit } from "@norish/shared/lib/unit-localization";
 
 import { parserLogger as log } from "../logger";
 
-import { checkCookSourceLimits } from "./limits";
+import { checkCookSourceLimits, findCookSourceDefect } from "./limits";
 
 /**
  * Server-only `.cook` -> `cookTokens` read model (Phase 27, W1).
@@ -38,8 +38,26 @@ import { checkCookSourceLimits } from "./limits";
  */
 let parserSingleton: CooklangParser | null = null;
 
+/**
+ * NO DIALECT EXTENSIONS (T-27-01 root-cause fix).
+ *
+ * norish AUTHORS every `.cook` it parses, and it writes only CORE Cooklang:
+ * `@name`, `@name{amount%unit}`, `~{amount%unit}`, `~name{amount%unit}`,
+ * `== Heading ==` and YAML frontmatter. None of that is an extension, so switching
+ * every extension off costs nothing — and it buys round-trip fidelity, which W4
+ * stands on. With the default mask (`3818`) the parser also LEXES PROSE NUMBERS
+ * into `inlineQuantity` items and re-formats them on the way out, so
+ * `Bake at 180°C` came back as `Bake at 180 °C` and `Add 1.50 kg` as `Add 1.5 kg`:
+ * the read model silently rewrote text the user typed. With `0` the same prose
+ * round-trips byte-identically (`round-trip-fidelity.test.ts`).
+ */
+const COOK_PARSER_EXTENSIONS = 0;
+
 function getParser(): CooklangParser {
-  parserSingleton ??= new CooklangParser();
+  if (!parserSingleton) {
+    parserSingleton = new CooklangParser();
+    parserSingleton.extensions = COOK_PARSER_EXTENSIONS;
+  }
 
   return parserSingleton;
 }
@@ -147,6 +165,11 @@ export function toCookTokens(recipe: CooklangRecipe, units?: UnitsMap): CookToke
  *    It is the belt to `buildCookPayload`'s braces: `withCookTokens` (the read
  *    path) calls this too, so a `cook_source` that somehow grew past the cap in
  *    the database can never reach the WASM parser either;
+ *  - the source is not something norish's own serializer could have written
+ *    (`findCookSourceDefect`, T-27-01). That is what actually bounds parse TIME:
+ *    the parser is slow only when it renders diagnostics, and a serializer-shaped
+ *    source has none. Checked before the singleton is touched, for the same
+ *    belt-and-braces reason;
  *  - the input is not a non-blank string;
  *  - the parser throws;
  *  - the source yields no steps;
@@ -170,6 +193,24 @@ export function parseCookSource(cookSource: string, units?: UnitsMap): CookToken
         allowed: breach.allowed,
       },
       "Cooklang source exceeds the input-size cap; refusing to parse"
+    );
+
+    return null;
+  }
+
+  const defect = findCookSourceDefect(cookSource);
+
+  if (defect) {
+    // Counts, codes and an OFFSET only — never the source (T-27-05).
+    log.warn(
+      {
+        module: "cooklang",
+        reason: "not-serializer-shaped",
+        defect: defect.defect,
+        offset: defect.offset,
+        bytes: typeof cookSource === "string" ? Buffer.byteLength(cookSource, "utf8") : 0,
+      },
+      "Cooklang source is not well-formed serializer output; refusing to parse"
     );
 
     return null;

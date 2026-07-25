@@ -16,6 +16,7 @@ export type {
   StructuredTimerRef,
 } from "./types";
 export {
+  escapeCookText,
   formatCooklangIngredient,
   formatCooklangTimer,
   serializeWithReport,

@@ -918,3 +918,255 @@ inside the package.
 
 **Do NOT write `waves/W3-SUMMARY.md` until Task 5 lands.** W3 is not code-complete and
 must not be marked so.
+
+---
+
+## T-27-01 root-cause fix
+
+**Status: the tenth cap is GONE.** An independent adversarial verifier FAILED the
+`maxCookMalformedTokens: 8` mitigation recorded in the T1/T2 section above, and
+refuted both of its load-bearing claims with working repros. This section records
+what replaced it. The T1/T2 record is left intact as history; where it and this
+section disagree, **this section is current**.
+
+### The root cause
+
+`.cook` is a **syntax-bearing format** and `@ # ~ { } % = > -` are its
+metacharacters. `serialize.ts` emitted step prose **verbatim** (`let text =
+step.text`) and `normalizer.ts` passed model output through unsanitized, so
+untrusted, model-shaped text was being **injected** into that syntax — structurally
+identical to SQL or HTML injection. Everything downstream followed from that: the
+WASM parser renders a diagnostic per malformed token, each diagnostic quotes the
+whole line it sits on, and the resulting report crosses the WASM boundary, so
+injected junk buys seconds of CPU and hundreds of megabytes of string.
+
+`countMalformedCookTokens` tried to **predict** which injected prose the parser
+would object to — to reimplement the parser's grammar with a regex — which is
+necessarily **incomplete** and **over-broad**. The verifier demonstrated both:
+
+| refutation | measured |
+|---|---|
+| **(a) no time bound.** 16 step texts of 3 996 chars (under `maxStepTextChars`) of `@a{1%} `, 63 966 bytes. The brace closes, so the counter scored it **0 malformed** and both gates returned `null`. | **11 118 ms**, a **150 MB** diagnostic report (re-measured on this tree; the verifier saw 9 852 ms / 143.7 MB) |
+| **(b) wrong refusals.** A 536-byte, 9-step `Grandma's Pot Roast` in ordinary US shorthand ("Preheat the oven @ 325", "a 3 # chuck roast", "reduce ~ 10 minutes") scored **12 > 8 → REFUSED**. | the real parser handles it in **13 ms with an EMPTY report** |
+
+Predicting a parser is the bandaid. The boundary is the **serializer**.
+
+### The mechanism chosen
+
+**1. Escape by construction (`packages/shared/src/cooklang/serialize.ts`).**
+`escapeCookText` backslash-escapes every Cooklang metacharacter in every piece of
+text norish did not author as a token: step prose, section-heading text, ingredient
+and timer **names**, **amounts** and **units**. Verified against
+`@cooklang/cooklang@0.18.7`: `\X` is a **general** escape — the parser drops the
+backslash and keeps `X` as literal text, in prose, in a heading, in a token name and
+inside a `{amount%unit}` body alike — so the escaping is **losslessly reversible**.
+`sanitizeTokenName`'s old *strip* of `@{}~#%` is gone: stripping silently rewrote the
+name the user typed **and**, because the token replaces that name in the prose, the
+step they read.
+
+`serializeStepLine` was restructured from one mutable string into a sequence of
+`prose` / `token` fragments, because the two halves need opposite treatment (prose
+must be escaped, a token must not). That also fixed a latent corruption: with a
+single mutable string, a ref named `gram` could match the `%gram}` of an
+already-emitted token.
+
+**2. No dialect extensions (`parse.ts`).** The parser singleton now sets
+`extensions = 0`. norish writes only CORE Cooklang, so nothing is lost — and it buys
+round-trip fidelity: with the default mask (`3818`) the parser lexes **prose numbers**
+into `inlineQuantity` items and re-formats them, so `Bake at 180°C` came back as
+`Bake at 180 °C` and `Add 1.50 kg` as `Add 1.5 kg`. The W1 read model was silently
+rewriting text the user typed; W4 renders from that read model.
+
+**3. Frontmatter is quoted, and quoting is decided by the KEY.** Metadata is YAML,
+not Cooklang, so it is quoted rather than escaped. Two defects were closed here:
+a value carrying a **newline** (a model-supplied recipe name) broke out of the
+frontmatter block and injected arbitrary `.cook` body; and YAML forbids raw
+**control characters** even inside quotes. Only `servings` is numeric-typed by
+Cooklang, so only `servings` is emitted raw — deciding from the *value* was itself a
+bug, since a recipe literally titled `1.50` produced `title: 1.50` and the parser
+reported `Unsupported value for key: 'title'`.
+
+**4. `findCookSourceDefect` replaced the tenth cap** (`limits.ts`). It is an
+**output-integrity assertion, not an input heuristic**: a strict, single-pass,
+no-backtracking recognizer for the serializer's own output grammar (frontmatter
+lines, `== heading ==`, and an alternation of escaped prose and well-formed
+`@`/`#`/`~` tokens). It does not predict the parser; it asserts the invariant the
+escaper establishes. Enforced **inside** `buildCookPayload` (error level — a failure
+means the *serializer* regressed) and **inside** `parseCookSource` (warn level), i.e.
+still the same two doors. No third door.
+
+### What happened to `maxCookMalformedTokens`
+
+**DELETED.** `COOK_LIMITS` is back to the nine originally planned caps at their
+planned values; none was weakened, raised, relaxed or removed. `countMalformedCookTokens`
+is deleted with it.
+
+The time bound no longer comes from a signature. It comes from a **checked
+precondition**: a source that passes both gates is at most 64 KiB of *provably
+serializer-shaped* Cooklang, and a serializer-shaped source has **zero** malformed
+tokens, hence zero diagnostics, hence none of the O(malformed x line length) report
+construction that is the only reason the parser is ever slow. Soundness in both
+directions is a test, not a claim (see below).
+
+### The escaping scheme, and its round-trip proof
+
+Escape set: `\ @ # ~ { } % = > -` (the `\` first — one `String.replace` over a
+character class, so inserted backslashes are never re-examined). `--`, `[-`, `-]`,
+`==` and `>>` are all neutralized by escaping their single characters.
+
+One deliberate normalization: **CR/LF in step prose folds to a space.** A newline is
+not a corrupt character, it is a **structural** injection (`\n\n` starts a new step,
+`\n== x ==` a new section), so it cannot be escaped away. Everything else — TAB, NUL,
+CJK, accents, emoji, combining marks — survives byte-identically.
+
+`packages/shared-server/__tests__/cooklang/round-trip-fidelity.test.ts` (45 tests) is
+the proof, running the REAL serializer and the REAL WASM parser:
+
+- **27 named cases** byte-identical, including all three US-shorthand sigils, the
+  `~10 minutes` WASM-trap prose, `180°C`, `1.50 kg`, `1/2`, `50%`, `2-3`, `--`,
+  unbalanced `{` and `}`, a whole token as literal prose, `== Dough ==` as literal
+  prose, `>> servings: 4`, `[- comment -]`, CJK, accents, emoji, combining marks,
+  TAB, NUL and a non-breaking space;
+- **an exhaustive sweep**: every one of the 32 ASCII punctuation characters in 9
+  construct-starting positions (mid-word, space-delimited, line-start, line-end,
+  doubled, alone) — this is what makes the escape set provably **exhaustive** rather
+  than guessed, and it is what will go red if a parser upgrade adds a metacharacter;
+- **every adjacent PAIR** of the 10 metacharacters (100 combinations);
+- prose **around** a real ingredient token, an ingredient **name** carrying `#`/`%`,
+  and a section **heading** carrying `==`/`%`, all byte-identical;
+- the two normalizations asserted rather than hidden, plus proof that a
+  newline-bearing step or recipe **name** cannot inject a step, a section, a token or
+  a frontmatter break;
+- **the one irreducible loss, documented:** an unpaired UTF-16 surrogate becomes
+  U+FFFD crossing into UTF-8 WASM. Nothing at this layer can fix that and no valid
+  text contains one.
+
+**Soundness — "no legitimate refusal":** a generative sweep puts each of 40 hostile
+strings (every metacharacter, sigil runs, `@a{1%}`, `~{5}`, `== h ==`, `>> k: v`,
+`---`, embedded newlines, `180°C`, CJK, emoji, NUL, blank) in turn into step prose, an
+ingredient **name**, an **amount**, a **unit**, a **timer**, a **heading** and the
+**recipe name**, and asserts `findCookSourceDefect` returns `null` and the parser
+returns a read model, in every position.
+
+Two real bugs fell out of that sweep and are fixed: `findNameIndex` **spun forever**
+on a blank ingredient name (`indexOf("", 0)` is always 0, so the loop never
+advanced), and a timer with an empty amount or unit emitted `~{%min}` / `~{5%}`,
+which cost the whole recipe its `cook_source`. A blank-named ingredient ref is now
+**refused** rather than dropped — dropping it would drop an ingredient ROW, because
+`deriveProjectionTx` builds rows from the tokens.
+
+### Hostile-corpus timings (all families, measured on this tree)
+
+The `limits.test.ts` corpus grew from 19 to **25** entries, now including every
+family the heuristic let through. `refused` is asserted per entry, together with a
+**0-invocation parser spy** and an explicit elapsed-time check.
+
+| family | bytes | now | before |
+|---|---:|---|---|
+| **the verifier's exact bypass**: 16 x 3 996 of `@a{1%}` | 63 966 | **refused in 1.3 ms** (`malformed-token`) | 11 118 ms / 150 MB report |
+| the same on ONE 64 KiB line | 65 534 | refused, < 1 ms | seconds |
+| `~{5}` / `~a{5}` floods (brace-closed, unit-less) | 65 532 | refused, 0.3 ms | scored 0 malformed |
+| `~10 minutes` in a 32 KiB line (**the WASM-trap class**) | 32 781 | refused, 7.4 ms | `RuntimeError: unreachable` |
+| `~10 minutes` flood | 65 532 | refused, 0.2 ms | WASM trap |
+| dense `@` / `#` / `~` / `%`, `@a{`, `}`, `@a{@b{@c{`, `##`+long line, `~~`+long line, sigil soup, `>> a: b` | <= 65 536 | all refused, <= 4.2 ms | 4 s - 35 s |
+| ACCEPTED: `@a{1%g} ` x 8 192 — **the worst accepted shape** | 65 536 | **648.8 ms** | — |
+| ACCEPTED: `#a ` x 21 845 | 65 535 | 528.3 ms | — |
+| ACCEPTED: `~{1%min} ` x 7 281 | 65 529 | 102.1 ms | — |
+| ACCEPTED: 64 KiB of escaped prose (every metacharacter) | 65 520 | 5.5 ms | — |
+| ACCEPTED: one 60 000-byte token, astral plane, NUL, lone surrogates, 200 steps x 3 refs | <= 65 536 | <= 30.5 ms | — |
+
+**Worst timing across ALL families: 648.8 ms**, a **3.1x** margin under the 2 000 ms
+budget. The plan's criterion — "a hostile corpus at the caps neither throws nor
+exceeds 2 000 ms" — is satisfied, and satisfied by a checked precondition rather than
+by a signature.
+
+### Recomputed refusal rates (the T3/T4 figures were measured under the broken cap)
+
+Re-derived with the real serializer, the real WASM parser, the real caps and the real
+`buildCookFromExtraction`, over the five committed fixtures:
+
+| gate | rate | note |
+|---|---|---|
+| size-cap (`input-too-large`) | **0/5** | fixtures serialize to 225 / 308 / 437 / 452 / 506 bytes — **unchanged by escaping**, because real recipe prose carries no metacharacters |
+| **`not-serializer-shaped` (the new gate)** | **0/5** | all five accepted |
+| parse-failure (`did-not-parse-cleanly`) | **0/5** | all five round-trip with an EMPTY report |
+| coverage gate (D-27-W3-04) | **0/5** | unchanged |
+
+**The verifier's pot roast now earns a `cook_source`.** 488 bytes, no defect,
+`buildCookPayload` MINTS, 9 token steps. Its `.cook` reads
+`Preheat the oven \@ 325 degrees.` and renders back as `Preheat the oven @ 325 degrees.`
+
+The D-27-W3-07 measurement above is unaffected: it concerns unit conversion, not
+serialization, and `packages/api`'s suite is unchanged at 408 passing.
+
+### Adversarial weakening — RED, then reverted byte-identical
+
+Two weakenings, neither committed. Reverted with `git checkout --`; `md5sum -c`
+matched both source files and the staged patch compared **byte-identical** with
+`cmp` (74 412 bytes before and after). `git stash` was never used.
+
+**W3-W4 — weaken the ESCAPER.** Remove `@` from the escape set:
+`const COOK_METACHARACTERS = /[\\@#~{}%=>-]/g;` becomes `/[\\#~{}%=>-]/g`.
+**14 tests RED**, in `round-trip-fidelity.test.ts` and `limits.test.ts`:
+`US shorthand: at` · `a whole token, as literal prose` · `every metacharacter at
+once` · `an already-escaped-looking sequence` · `survives every ASCII punctuation
+character in every construct-starting position` · `survives every ADJACENT PAIR of
+metacharacters (the two-character constructs)` · `keeps the prose AROUND a real
+ingredient token byte-identical` · `escapeCookText is the exact inverse the parser
+expects (no double-escaping)` · `survives every hostile string as step PROSE` ·
+`... as an ingredient NAME, AMOUNT and UNIT` · `... as a HEADING and as the recipe
+NAME` · `folds CR/LF in step prose to a single space` · `a newline-bearing step
+cannot inject a step, a section or a token` · `does NOT refuse ordinary US shorthand
+once the serializer has escaped it`.
+
+**W3-W5 — weaken the RECOGNIZER.** Insert `if (cookSource) return null;` as the
+second statement of `findCookSourceDefect`, so it accepts everything.
+**25 tests RED**, and — the point — the elapsed-time assertions blew the budget on
+exactly the families the heuristic used to let through: the verifier's bypass at
+**3 915 ms**, dense `@` at **4 414 ms**, dense `~` at **3 638 ms**, `@a{` at 2 107 ms,
+`@a{@b{@c{` at 1 585 ms, plus 8 `findCookSourceDefect` unit tests and 17 corpus
+entries failing their 0-invocation spy assertion.
+
+### Decisions taken, that a later wave must not relitigate blindly
+
+- **`#` cookware tokens are ACCEPTED by the recognizer** although the serializer never
+  emits one. They are well-formed, diagnostic-free and fast; `toCookTokens` has a
+  branch that keeps cookware readable in the prose; and prose can no longer produce
+  one by accident now that `#` is escaped. `parse.test.ts`'s `#oven{}` fixture keeps
+  passing unedited.
+- **`extensions = 0` is a behaviour change to the READ model**, deliberately: prose
+  numbers are no longer lexed into `inlineQuantity`. W4's renderer benefits; nothing
+  regressed (all 174 cooklang tests, 389 shared-server, 408 api pass).
+- **A `#`-leading step is still norish's in-band heading convention** (W2-E5) and is
+  therefore excluded from the prose sweep and covered by its own case.
+- **Escaping does not inflate real recipes**, so no cap needs revisiting. A
+  pathological all-metacharacter step could double in size and breach
+  `maxCookSourceBytes` — which costs only the `.cook`, never the import.
+- **Nothing was added to `normalizer.ts`.** Sanitizing there too would be a second
+  door for the same invariant; the serializer is where the format is written, so the
+  serializer is where the escaping belongs.
+
+### Gates (vs the recorded baselines)
+
+typecheck **17/17** · api **408** · queue **88** · shared-server **389** (334 + 55
+new: 45 in `round-trip-fidelity.test.ts`, 10 in `limits.test.ts`) · db **178 passed /
+0 failed** · trpc **335** · shared **295** · web **424** · mobile **132** · lint
+**0 errors** (warnings at baseline; the one `no-control-regex` error the first draft
+introduced was fixed by replacing the regex with a code-point test, not by disabling
+the rule) · workspace-imports **EXIT 0** · build:server **EXIT 0** · lockfile diff
+**empty** · `pnpm i18n:check` exits 1 on the pre-existing `no` gap only, **zero new
+gaps** · no migration, `packages/db/src/migrations/` and `meta/_journal.json`
+untouched, DB stays at **42** · a real `tsc --noEmit` in `packages/shared` **and** in
+`packages/shared-server` (whose own script passes `--noCheck`), including the
+`__tests__/cooklang` tree: **EXIT 0** · no `as any`, no `@ts-ignore`, no
+`@ts-expect-error` in the diff.
+
+**Files changed:** `packages/shared/src/cooklang/serialize.ts`,
+`packages/shared/src/cooklang/index.ts` (exports `escapeCookText`),
+`packages/shared-server/src/cooklang/limits.ts`,
+`packages/shared-server/src/cooklang/parse.ts`,
+`packages/shared-server/src/cooklang/build-payload.ts`,
+`packages/shared-server/__tests__/cooklang/limits.test.ts`, and the new
+`packages/shared-server/__tests__/cooklang/round-trip-fidelity.test.ts`.
+**Task 5 (the queue isolation suite) is still outstanding and W3 is still NOT
+code-complete.**
