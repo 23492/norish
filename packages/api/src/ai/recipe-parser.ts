@@ -1,7 +1,6 @@
 import { generateText, Output } from "ai";
 
 import type { AIResult } from "@norish/shared-server/ai/types/result";
-import type { FullRecipeInsertDTO } from "@norish/shared/contracts/dto/recipe";
 import { extractSanitizedBody } from "@norish/shared-server/ai/helpers";
 import { getGenerationSettings, getModels } from "@norish/shared-server/ai/providers";
 import {
@@ -10,12 +9,18 @@ import {
   getErrorMessage,
   mapErrorToCode,
 } from "@norish/shared-server/ai/types/result";
-import { getDefaultLocale, isAIEnabled } from "@norish/shared-server/config/server-config-loader";
+import {
+  getDefaultLocale,
+  getUnits,
+  isAIEnabled,
+} from "@norish/shared-server/config/server-config-loader";
 import { aiLogger } from "@norish/shared-server/logger";
 
+import type { ExtractedRecipe } from "./features/recipe-extraction/normalizer";
 import type { RecipeExtractionOutput } from "./schemas/recipe.schema";
 import { extractImageCandidates } from "../parser/parsers";
 import {
+  buildCookFromExtraction,
   getExtractionLogContext,
   normalizeExtractionOutput,
   validateExtractionOutput,
@@ -40,7 +45,7 @@ export async function extractRecipeWithAI(
   url?: string,
   allergies?: string[],
   originalHtml?: string
-): Promise<AIResult<FullRecipeInsertDTO>> {
+): Promise<AIResult<ExtractedRecipe>> {
   // Guard: AI must be enabled
   const aiEnabled = await isAIEnabled();
 
@@ -120,7 +125,10 @@ export async function extractRecipeWithAI(
       "AI recipe extraction completed"
     );
 
-    return aiSuccess(normalized, {
+    // D-27-W3-02: the `.cook` travels ALONGSIDE the DTO, never inside it.
+    const cook = buildCookFromExtraction(jsonLd!, normalized, await getUnits());
+
+    return aiSuccess({ recipe: normalized, cook }, {
       inputTokens: result.usage?.inputTokens ?? 0,
       outputTokens: result.usage?.outputTokens ?? 0,
       totalTokens: result.usage?.totalTokens ?? 0,

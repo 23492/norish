@@ -1,8 +1,9 @@
 import { generateText, Output } from "ai";
 
+import type { ExtractedRecipe } from "@norish/api/ai/features/recipe-extraction/normalizer";
 import type { AIResult } from "@norish/shared-server/ai/types/result";
-import type { FullRecipeInsertDTO } from "@norish/shared/contracts/dto/recipe";
 import {
+  buildCookFromExtraction,
   getExtractionLogContext,
   normalizeExtractionOutput,
   validateExtractionOutput,
@@ -16,7 +17,11 @@ import {
   getErrorMessage,
   mapErrorToCode,
 } from "@norish/shared-server/ai/types/result";
-import { getDefaultLocale, isAIEnabled } from "@norish/shared-server/config/server-config-loader";
+import {
+  getDefaultLocale,
+  getUnits,
+  isAIEnabled,
+} from "@norish/shared-server/config/server-config-loader";
 import { videoLogger } from "@norish/shared-server/logger";
 import { downloadImage } from "@norish/shared-server/media/storage";
 
@@ -37,7 +42,7 @@ export async function extractRecipeFromVideo(
   recipeId: string,
   url: string,
   allergies?: string[]
-): Promise<AIResult<FullRecipeInsertDTO>> {
+): Promise<AIResult<ExtractedRecipe>> {
   // Guard: AI must be enabled
   const aiEnabled = await isAIEnabled();
 
@@ -135,7 +140,10 @@ export async function extractRecipeFromVideo(
       "Video recipe extraction completed"
     );
 
-    return aiSuccess(normalized, {
+    // D-27-W3-02: the `.cook` travels ALONGSIDE the DTO, never inside it.
+    const cook = buildCookFromExtraction(jsonLd!, normalized, await getUnits());
+
+    return aiSuccess({ recipe: normalized, cook }, {
       inputTokens: result.usage?.inputTokens ?? 0,
       outputTokens: result.usage?.outputTokens ?? 0,
       totalTokens: result.usage?.totalTokens ?? 0,

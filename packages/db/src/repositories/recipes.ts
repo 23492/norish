@@ -940,12 +940,31 @@ export async function createRecipeWithRefs(
     }
 
     if (cook) {
-      // The `.cook` is authoritative: ingredients and steps are DERIVED from it in
-      // this same transaction, so the source and its projection commit atomically.
+      // `systemUsed` is optional on the insert schema (the column defaults); fall
+      // back to the same default the column would take.
+      const nativeSystem = payload.systemUsed ?? "metric";
+
+      // D-27-W3-05: `deriveProjectionTx` owns the NATIVE system's steps only — a
+      // converter can convert an amount, it cannot rewrite prose (D-27-W2-05). The
+      // AI already extracted the OPPOSITE system's step prose, so without this the
+      // cook branch would silently drop it and the metric/US toggle would fall back
+      // to an AI conversion call on every new import. No overlap, no second owner.
+      const oppositeSystemSteps = payload.steps.filter(
+        (s) => (s.systemUsed ?? nativeSystem) !== nativeSystem
+      );
+
+      if (oppositeSystemSteps.length) {
+        await createManyRecipeStepsTx(
+          tx,
+          oppositeSystemSteps.map((s) => ({ ...s, recipeId: rid }))
+        );
+      }
+
+      // The `.cook` is authoritative: ingredients and native steps are DERIVED from
+      // it in this same transaction, so the source and its projection commit
+      // atomically.
       await deriveProjectionTx(tx, {
-        // `systemUsed` is optional on the insert schema (the column defaults);
-        // fall back to the same default the column would take.
-        systemUsed: payload.systemUsed ?? "metric",
+        systemUsed: nativeSystem,
         recipeId: rid,
         cookTokens: cook.cookTokens,
         units: await getUnitsForNormalization(),
@@ -1583,7 +1602,16 @@ export async function updateRecipeWithRefs(
     if (payload.protein !== undefined) updateData.protein = payload.protein;
 
     // Phase 27 (W2): only a server-side producer can set this; see RecipeCookPayload.
-    if (cook) updateData.cookSource = cook.cookSource;
+    //
+    // D-27-W3-06: an ordinary, no-`cook` update NULLs any stored `.cook`. The recipe
+    // editor saves through here with no linkage (the client has none and never will,
+    // D-27-W2-01), which rewrites the projection from the client payload — so a
+    // retained `cook_source` would describe the PRE-EDIT recipe while `recipes.get`
+    // kept shipping tokens derived from it. That silent staleness is the one
+    // unacceptable outcome: W4's renderer and W6's `0043 NOT NULL` both stand on
+    // "a non-NULL `cook_source` parses cleanly AND describes its recipe". The recipe
+    // simply returns to the legacy path and W5's backfill re-mints it.
+    updateData.cookSource = cook ? cook.cookSource : null;
 
     updateData.updatedAt = new Date();
 
@@ -1621,9 +1649,30 @@ export async function updateRecipeWithRefs(
         columns: { systemUsed: true },
       });
 
+      const nativeSystem = (payload.systemUsed ??
+        current?.systemUsed ??
+        "metric") as MeasurementSystem;
+
+      // D-27-W3-05: see `createRecipeWithRefs`. `deriveProjectionTx` writes native
+      // steps only, so the opposite system's authored prose is preserved here.
+      if (payload.steps !== undefined) {
+        const oppositeSystemSteps = payload.steps.filter(
+          (s) => (s.systemUsed ?? nativeSystem) !== nativeSystem
+        );
+
+        if (oppositeSystemSteps.length) {
+          await syncRecipeStepsTx(
+            tx,
+            recipeId,
+            nativeSystem === "metric" ? "us" : "metric",
+            oppositeSystemSteps
+          );
+        }
+      }
+
       await deriveProjectionTx(tx, {
         recipeId,
-        systemUsed: (payload.systemUsed ?? current?.systemUsed ?? "metric") as MeasurementSystem,
+        systemUsed: nativeSystem,
         cookTokens: cook.cookTokens,
         units: await getUnitsForNormalization(),
       });

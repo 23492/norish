@@ -23,7 +23,7 @@ import {
   updateRecipeWithRefs,
 } from "@norish/db";
 import { db } from "@norish/db/drizzle";
-import { recipeIngredients, recipes, steps } from "@norish/db/schema";
+import { groceries, recipeIngredients, recipes, steps } from "@norish/db/schema";
 
 import { getTestDb } from "../../../helpers/db-test-helpers";
 import { RepositoryTestBase } from "../../../helpers/repository-test-base";
@@ -384,6 +384,301 @@ describe("W2 write path — the optional server-authored `cook` argument", () =>
 
       expect(await cookSourceOf(copyId)).toBeNull();
       expect(await ingredientRows(copyId)).toHaveLength(2);
+    });
+  });
+
+  // ------------------------------------------------------------------------
+  // W3 — the first REAL producer (D-27-W3-04 / -05 / -06)
+  // ------------------------------------------------------------------------
+
+  async function stepRows(recipeId: string) {
+    return getTestDb()
+      .select({
+        id: steps.id,
+        step: steps.step,
+        order: steps.order,
+        systemUsed: steps.systemUsed,
+      })
+      .from(steps)
+      .where(eq(steps.recipeId, recipeId));
+  }
+
+  describe("D-27-W3-04 — the COVERAGE GATE keeps the projection from losing rows", () => {
+    /**
+     * `buildCookFromExtraction` returns `null` when the model failed to reference
+     * every flat ingredient (proven in
+     * `packages/api/__tests__/ai/features/recipe-extraction/cook-payload.test.ts`,
+     * which owns that function). What is proven HERE is the consequence the gate
+     * exists for: the refusal reaches the repository as NO `cook` argument, and the
+     * user keeps every ingredient row.
+     */
+    const ELEVEN = [
+      "onion",
+      "garlic",
+      "olive oil",
+      "minced beef",
+      "chopped tomatoes",
+      "tomato paste",
+      "salt",
+      "spaghetti",
+      "parmesan",
+      "basil",
+      "pepper",
+    ];
+
+    it("a refused mint (8 of 11 covered) writes ALL 11 rows and leaves cook_source NULL", async () => {
+      const recipeId = crypto.randomUUID();
+
+      await createRecipeWithRefs(
+        recipeId,
+        userId,
+        householdId,
+        insertPayload({
+          recipeIngredients: ELEVEN.map((name, order) => ({
+            ingredientId: null,
+            ingredientName: name,
+            amount: 1,
+            unit: null,
+            systemUsed: "metric",
+            order,
+          })),
+        } as never),
+        // The gate refused, so the worker passes `undefined` — this IS the contract.
+        undefined
+      );
+
+      expect(await cookSourceOf(recipeId)).toBeNull();
+
+      const rows = await ingredientRows(recipeId);
+
+      expect(rows).toHaveLength(11);
+      expect(rows.every((r) => r.systemUsed === "metric")).toBe(true);
+    });
+
+    it("the sibling case (all covered) stores cook_source and derives both systems", async () => {
+      const recipeId = crypto.randomUUID();
+
+      await createRecipeWithRefs(recipeId, userId, householdId, insertPayload(), {
+        cookSource: COOK_SOURCE,
+        cookTokens: COOK_TOKENS,
+      });
+
+      expect(await cookSourceOf(recipeId)).toBe(COOK_SOURCE);
+
+      const rows = await ingredientRows(recipeId);
+
+      expect(rows.filter((r) => r.systemUsed === "metric")).toHaveLength(3);
+      expect(rows.filter((r) => r.systemUsed === "us").length).toBeGreaterThan(0);
+    });
+
+    it("a repeated ingredient still collapses to ONE row — no fourth dedup rule (g)", async () => {
+      const recipeId = crypto.randomUUID();
+      const repeatedTokens: CookTokensDTO = [
+        {
+          order: 0,
+          section: null,
+          tokens: [
+            { type: "text", value: "Add " },
+            { type: "ingredient", name: "flour", amount: 100, unit: "gram" },
+          ],
+        },
+        {
+          order: 1,
+          section: null,
+          tokens: [
+            { type: "text", value: "Then add the rest of the " },
+            { type: "ingredient", name: "flour", amount: 100, unit: "gram" },
+          ],
+        },
+      ];
+
+      await createRecipeWithRefs(recipeId, userId, householdId, insertPayload(), {
+        cookSource: COOK_SOURCE,
+        cookTokens: repeatedTokens,
+      });
+
+      const metricRows = (await ingredientRows(recipeId)).filter((r) => r.systemUsed === "metric");
+
+      expect(metricRows).toHaveLength(1);
+    });
+  });
+
+  describe("D-27-W3-05 — the opposite system's STEP prose survives a cook create", () => {
+    function dualSystemPayload() {
+      return insertPayload({
+        steps: [
+          { step: "Whisk the flour and milk into a batter.", systemUsed: "metric", order: 0 },
+          { step: "Fry in butter until golden.", systemUsed: "metric", order: 1 },
+          { step: "Whisk the flour and milk into a batter.", systemUsed: "us", order: 0 },
+          {
+            step: "Fry in butter until golden, about 2 minutes a side.",
+            systemUsed: "us",
+            order: 1,
+          },
+        ],
+      } as never);
+    }
+
+    it("keeps the AI's US steps AND derives the native metric steps from the .cook", async () => {
+      const recipeId = crypto.randomUUID();
+
+      await createRecipeWithRefs(recipeId, userId, householdId, dualSystemPayload(), {
+        cookSource: COOK_SOURCE,
+        cookTokens: COOK_TOKENS,
+      });
+
+      const rows = await stepRows(recipeId);
+      const us = rows.filter((r) => r.systemUsed === "us");
+      const metric = rows.filter((r) => r.systemUsed === "metric");
+
+      // US prose: written by the ordinary step writer, NOT by deriveProjectionTx.
+      expect(us).toHaveLength(2);
+      expect(us.map((r) => r.step)).toContain(
+        "Fry in butter until golden, about 2 minutes a side."
+      );
+
+      // Metric prose: DERIVED from the `.cook`, so it carries the projected text.
+      expect(metric).toHaveLength(2);
+      expect(metric.some((r) => r.step.includes("Whisk the flour"))).toBe(true);
+    });
+
+    it("leaves convertMeasurements able to short-circuit (D-27-W2-06)", async () => {
+      const recipeId = crypto.randomUUID();
+
+      await createRecipeWithRefs(recipeId, userId, householdId, dualSystemPayload(), {
+        cookSource: COOK_SOURCE,
+        cookTokens: COOK_TOKENS,
+      });
+
+      const full = await getRecipeFull(recipeId);
+
+      // `hasTargetSystemProjection` (packages/trpc/src/routers/recipes/helpers.ts)
+      // requires BOTH target-system ingredients and target-system steps. Asserted
+      // here on the DB rows, because `@norish/db` cannot import `@norish/trpc`.
+      // Without D-27-W3-05 the second half of this predicate would be FALSE and
+      // every new import would pay for an AI conversion on the first toggle.
+      expect(full!.recipeIngredients.some((ri) => ri.systemUsed === "us")).toBe(true);
+      expect(full!.steps.some((s) => s.systemUsed === "us")).toBe(true);
+    });
+
+    it("writes no opposite-system steps when the payload has none", async () => {
+      const recipeId = crypto.randomUUID();
+
+      await createRecipeWithRefs(recipeId, userId, householdId, insertPayload(), {
+        cookSource: COOK_SOURCE,
+        cookTokens: COOK_TOKENS,
+      });
+
+      const rows = await stepRows(recipeId);
+
+      expect(rows.filter((r) => r.systemUsed === "us")).toHaveLength(0);
+      expect(rows.filter((r) => r.systemUsed === "metric")).toHaveLength(2);
+    });
+  });
+
+  describe("D-27-W3-06 — an ordinary update NULLs a stale cook_source", () => {
+    it("import with a .cook, then update with NO cook, leaves cook_source NULL", async () => {
+      const recipeId = crypto.randomUUID();
+
+      await createRecipeWithRefs(recipeId, userId, householdId, insertPayload(), {
+        cookSource: COOK_SOURCE,
+        cookTokens: COOK_TOKENS,
+      });
+
+      expect(await cookSourceOf(recipeId)).toBe(COOK_SOURCE);
+
+      await updateRecipeWithRefs(recipeId, userId, {
+        name: "Edited by hand",
+        systemUsed: "metric",
+        recipeIngredients: [
+          { ingredientId: null, ingredientName: "flour", amount: 250, unit: "gram", order: 0 },
+        ],
+      } as never);
+
+      // The invariant W4's renderer and W6's `0043` stand on: a non-NULL
+      // cook_source always DESCRIBES the recipe it is attached to.
+      expect(await cookSourceOf(recipeId)).toBeNull();
+
+      const full = await getRecipeFull(recipeId);
+
+      expect(full?.cookSource ?? null).toBeNull();
+    });
+
+    it("an update WITH a cook stores the NEW one (the sibling)", async () => {
+      const recipeId = crypto.randomUUID();
+
+      await createRecipeWithRefs(recipeId, userId, householdId, insertPayload(), {
+        cookSource: COOK_SOURCE,
+        cookTokens: COOK_TOKENS,
+      });
+
+      const nextSource = COOK_SOURCE.replace("Cooked Pancakes", "Cooked Pancakes v2");
+
+      await updateRecipeWithRefs(
+        recipeId,
+        userId,
+        { name: "Cooked Pancakes v2", systemUsed: "metric" } as never,
+        undefined,
+        { cookSource: nextSource, cookTokens: COOK_TOKENS }
+      );
+
+      expect(await cookSourceOf(recipeId)).toBe(nextSource);
+    });
+  });
+
+  describe("R4 — the shopping list keeps its 'from recipe X' link (the Phase 25 lesson)", () => {
+    it("re-deriving with an updated cook preserves recipe_ingredients.id and the FK", async () => {
+      const recipeId = crypto.randomUUID();
+
+      await createRecipeWithRefs(recipeId, userId, householdId, insertPayload(), {
+        cookSource: COOK_SOURCE,
+        cookTokens: COOK_TOKENS,
+      });
+
+      const before = (await ingredientRows(recipeId)).filter((r) => r.systemUsed === "metric");
+      const anchor = before[0]!;
+
+      const [grocery] = await getTestDb()
+        .insert(groceries)
+        .values({
+          householdId,
+          userId,
+          recipeIngredientId: anchor.id,
+          name: "flour",
+          amount: "200",
+          unit: "gram",
+        })
+        .returning({ id: groceries.id });
+
+      // A re-derive with a CHANGED amount on the same ingredient.
+      const updatedTokens: CookTokensDTO = COOK_TOKENS.map((step) => ({
+        ...step,
+        tokens: step.tokens.map((token) =>
+          token.type === "ingredient" && token.name === "flour" ? { ...token, amount: 250 } : token
+        ),
+      })) as CookTokensDTO;
+
+      await updateRecipeWithRefs(
+        recipeId,
+        userId,
+        { name: "Cooked Pancakes", systemUsed: "metric" } as never,
+        undefined,
+        { cookSource: COOK_SOURCE, cookTokens: updatedTokens }
+      );
+
+      const after = (await ingredientRows(recipeId)).filter((r) => r.systemUsed === "metric");
+      const sameRow = after.find((r) => r.id === anchor.id);
+
+      // UPSERT-stable on the natural key: the id survives, so the grocery FK does.
+      expect(sameRow).toBeDefined();
+      expect(Number(sameRow!.amount)).toBe(250);
+
+      const [groceryAfter] = await getTestDb()
+        .select({ recipeIngredientId: groceries.recipeIngredientId })
+        .from(groceries)
+        .where(eq(groceries.id, grocery!.id));
+
+      expect(groceryAfter?.recipeIngredientId).toBe(anchor.id);
     });
   });
 });

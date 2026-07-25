@@ -1,4 +1,4 @@
-import type { FullRecipeInsertDTO } from "@norish/shared/contracts/dto/recipe";
+import type { ExtractedRecipe } from "@norish/api/ai/features/recipe-extraction/normalizer";
 import { videoLogger as log } from "@norish/shared-server/logger";
 
 import type { VideoProcessorContext } from "../types";
@@ -11,7 +11,7 @@ import { InstagramProcessor } from "./instagram";
 export class FacebookProcessor extends InstagramProcessor {
   override readonly name = "FacebookProcessor";
 
-  override async process(context: VideoProcessorContext): Promise<FullRecipeInsertDTO> {
+  override async process(context: VideoProcessorContext): Promise<ExtractedRecipe> {
     log.info({ url: context.url }, "Processing Facebook post (using Instagram logic)");
 
     return super.process(context);

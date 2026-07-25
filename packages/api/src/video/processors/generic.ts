@@ -1,4 +1,4 @@
-import type { FullRecipeInsertDTO } from "@norish/shared/contracts/dto/recipe";
+import type { ExtractedRecipe } from "@norish/api/ai/features/recipe-extraction/normalizer";
 import { transcribeAudio } from "@norish/api/ai/transcriber";
 import { extractRecipeFromVideo } from "@norish/api/video/normalizer";
 import { videoLogger as log } from "@norish/shared-server/logger";
@@ -13,7 +13,7 @@ import { BaseVideoProcessor } from "../base-processor";
 export class GenericVideoProcessor extends BaseVideoProcessor {
   readonly name = "GenericVideoProcessor";
 
-  async process(context: VideoProcessorContext): Promise<FullRecipeInsertDTO> {
+  async process(context: VideoProcessorContext): Promise<ExtractedRecipe> {
     const { url, recipeId, allergies, tokens } = context;
 
     let audioPath: string | null = null;

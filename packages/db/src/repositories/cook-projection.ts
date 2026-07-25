@@ -141,6 +141,25 @@ export function computeCookProjection(params: {
         continue;
       }
 
+      // A BARE mention alongside a quantified one is NOT a conflict — it is the same
+      // ingredient named twice with the amount stated once, which is exactly what the
+      // extraction prompt asks the model for ("amount on the first add, name-only
+      // wherever it is mentioned again"). Adopt the only measure present.
+      //
+      // WHY THIS BRANCH EXISTS (found by W3's D-27-W3-07 measurement, `curry`
+      // fixture): without it, a `.cook` whose BARE mention comes first kept
+      // `amount: null` and silently discarded the amount the recipe DOES state — in
+      // BOTH systems, because `derived` is built from `native`. That is an amount the
+      // legacy projection writes today, so keeping the null would break the
+      // never-broken guarantee the moment W3 switched a producer on. This is not the
+      // "two incompatible measures" case the fall-through below guards; there is only
+      // one measure here.
+      if (existing.amount === null && token.amount !== null) {
+        existing.amount = token.amount;
+        existing.unit = unit;
+        continue;
+      }
+
       // The same ingredient named twice. Cooklang's recipe-level ingredient list is
       // deduped, but a `.cook` can still carry two refs with different units.
       if (existing.unit === unit && existing.amount !== null && token.amount !== null) {
@@ -148,7 +167,10 @@ export function computeCookProjection(params: {
         continue;
       }
 
-      if (existing.unit !== unit) {
+      // Only a genuine measure-vs-measure disagreement is worth flagging. A trailing
+      // bare mention (`amount === null`) carries no unit to disagree with, and
+      // flagging it would fill W5's signal with noise from the prompt's own rule.
+      if (existing.unit !== unit && token.amount !== null) {
         flagged.push({ ingredient: existing.name, reason: "mixed-units" });
       }
 

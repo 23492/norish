@@ -10,6 +10,19 @@ import { checkCookSourceLimits, checkStructuredRecipeLimits } from "./limits";
 import { parseCookSource } from "./parse";
 
 /**
+ * A minted `.cook` and the tokens it parses back to.
+ *
+ * `buildCookPayload`'s return type, named so consumers that cannot import
+ * `@norish/api` (notably `@norish/queue`) can still name the value they carry
+ * (D-27-W3-02). Structurally identical to `@norish/db`'s `RecipeCookPayload`,
+ * which is what it is ultimately handed to.
+ */
+export interface CookPayload {
+  cookSource: string;
+  cookTokens: CookTokensDTO;
+}
+
+/**
  * The ONLY place norish mints a `.cook` (Phase 27, COOK-01 / W2).
  *
  * Serialize a structured recipe, then IMMEDIATELY parse the result back with the
@@ -32,10 +45,7 @@ import { parseCookSource } from "./parse";
  * The log carries counts and a reason but NEVER the recipe text: recipe prose is
  * per-cookbook data and must not land in a shared log stream (T-27-05).
  */
-export function buildCookPayload(
-  recipe: StructuredRecipe,
-  units?: UnitsMap
-): { cookSource: string; cookTokens: CookTokensDTO } | null {
+export function buildCookPayload(recipe: StructuredRecipe, units?: UnitsMap): CookPayload | null {
   const stepCount = recipe.steps?.length ?? 0;
   const ingredientCount = (recipe.steps ?? []).reduce(
     (total, step) => total + (step.ingredients?.length ?? 0),

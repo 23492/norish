@@ -1,4 +1,4 @@
-import type { FullRecipeInsertDTO } from "@norish/shared/contracts/dto/recipe";
+import type { ExtractedRecipe } from "@norish/api/ai/features/recipe-extraction/normalizer";
 import type { SiteAuthTokenDecryptedDto } from "@norish/shared/contracts/dto/site-auth-tokens";
 import { cleanupFile } from "@norish/api/video/cleanup";
 import {
@@ -28,7 +28,7 @@ export interface SavedVideo {
 export abstract class BaseVideoProcessor implements VideoProcessor {
   abstract readonly name: string;
 
-  abstract process(context: VideoProcessorContext): Promise<FullRecipeInsertDTO>;
+  abstract process(context: VideoProcessorContext): Promise<ExtractedRecipe>;
 
   /**
    * Get video metadata from URL.
@@ -121,13 +121,15 @@ export abstract class BaseVideoProcessor implements VideoProcessor {
    * Add saved video to recipe if available.
    */
   protected addVideoToRecipe(
-    recipe: FullRecipeInsertDTO,
+    extracted: ExtractedRecipe,
     savedVideo: SavedVideo | null
-  ): FullRecipeInsertDTO {
+  ): ExtractedRecipe {
     if (savedVideo) {
-      recipe.videos = [{ video: savedVideo.video, duration: savedVideo.duration ?? 0, order: 0 }];
+      extracted.recipe.videos = [
+        { video: savedVideo.video, duration: savedVideo.duration ?? 0, order: 0 },
+      ];
     }
 
-    return recipe;
+    return extracted;
   }
 }

@@ -1,5 +1,5 @@
+import type { ExtractedRecipe } from "@norish/api/ai/features/recipe-extraction/normalizer";
 import type { VideoMetadata } from "@norish/api/video/types";
-import type { FullRecipeInsertDTO } from "@norish/shared/contracts/dto/recipe";
 import { extractRecipeWithAI } from "@norish/api/ai/recipe-parser";
 import { fetchViaPlaywright } from "@norish/api/parser/fetch";
 import { videoLogger as log } from "@norish/shared-server/logger";
@@ -99,7 +99,7 @@ export async function processInstagramImagePost(
   recipeId: string,
   metadata: VideoMetadata,
   allergies?: string[]
-): Promise<FullRecipeInsertDTO> {
+): Promise<ExtractedRecipe> {
   let description = metadata.description?.trim() || "";
 
   log.info({ url }, "Processing Instagram image post");
@@ -137,7 +137,8 @@ export async function processInstagramImagePost(
     throw new Error("Instagram image posts are only supported if the caption contains a recipe");
   }
 
-  const recipe = result.data;
+  const extracted = result.data;
+  const recipe = extracted.recipe;
 
   if (metadata.thumbnail) {
     try {
@@ -156,5 +157,5 @@ export async function processInstagramImagePost(
     "Successfully extracted recipe from Instagram image post"
   );
 
-  return recipe;
+  return extracted;
 }

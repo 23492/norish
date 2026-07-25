@@ -2,7 +2,6 @@ import { generateText, Output } from "ai";
 
 import type { ImageImportFile } from "@norish/queue/contracts/job-types";
 import type { AIResult } from "@norish/shared-server/ai/types/result";
-import type { FullRecipeInsertDTO } from "@norish/shared/contracts/dto/recipe";
 import { getGenerationSettings, getModels } from "@norish/shared-server/ai/providers";
 import {
   aiError,
@@ -10,11 +9,17 @@ import {
   getErrorMessage,
   mapErrorToCode,
 } from "@norish/shared-server/ai/types/result";
-import { getDefaultLocale, isAIEnabled } from "@norish/shared-server/config/server-config-loader";
+import {
+  getDefaultLocale,
+  getUnits,
+  isAIEnabled,
+} from "@norish/shared-server/config/server-config-loader";
 import { aiLogger } from "@norish/shared-server/logger";
 
+import type { ExtractedRecipe } from "./features/recipe-extraction/normalizer";
 import type { RecipeExtractionOutput } from "./schemas/recipe.schema";
 import {
+  buildCookFromExtraction,
   getExtractionLogContext,
   normalizeExtractionOutput,
   validateExtractionOutput,
@@ -57,7 +62,7 @@ export async function extractRecipeFromImages(
   recipeId: string,
   files: ImageImportFile[],
   allergies?: string[]
-): Promise<AIResult<FullRecipeInsertDTO>> {
+): Promise<AIResult<ExtractedRecipe>> {
   // Guard: AI must be enabled
   const aiEnabled = await isAIEnabled();
 
@@ -135,7 +140,10 @@ export async function extractRecipeFromImages(
       "AI image recipe extraction completed"
     );
 
-    return aiSuccess(normalized, {
+    // D-27-W3-02: the `.cook` travels ALONGSIDE the DTO, never inside it.
+    const cook = buildCookFromExtraction(jsonLd!, normalized, await getUnits());
+
+    return aiSuccess({ recipe: normalized, cook }, {
       inputTokens: result.usage?.inputTokens ?? 0,
       outputTokens: result.usage?.outputTokens ?? 0,
       totalTokens: result.usage?.totalTokens ?? 0,

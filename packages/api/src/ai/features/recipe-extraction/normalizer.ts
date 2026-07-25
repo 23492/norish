@@ -8,12 +8,28 @@
 import { decode } from "html-entities";
 
 import type { RecipeExtractionOutput } from "@norish/api/ai/schemas/recipe.schema";
-import type { FullRecipeInsertDTO, RecipeCategory } from "@norish/shared/contracts/dto/recipe";
+import type { UnitsMap } from "@norish/config/zod/server-config";
+import type { CookPayload } from "@norish/shared-server/cooklang/build-payload";
+import type {
+  FullRecipeInsertDTO,
+  MeasurementSystem,
+  RecipeCategory,
+} from "@norish/shared/contracts/dto/recipe";
+import type {
+  StructuredIngredientRef,
+  StructuredRecipe,
+  StructuredStep,
+  StructuredTimerRef,
+} from "@norish/shared/cooklang";
 import { normalizeRecipeFromJson } from "@norish/api/parser/normalize";
 import { matchCategory } from "@norish/shared-server/ai/utils/category-matcher";
 import { getUnits } from "@norish/shared-server/config/server-config-loader";
+import { buildCookPayload } from "@norish/shared-server/cooklang/build-payload";
 import { aiLogger } from "@norish/shared-server/logger";
 import { parseIngredientWithDefaults } from "@norish/shared/lib/helpers";
+import { normalizeIngredientLinkName } from "@norish/shared/lib/ingredient-token";
+
+export type { CookPayload };
 
 /** One per-step ingredient reference, as the model emits it (D-27-W3-03). */
 export interface ExtractionIngredientRef {
@@ -288,6 +304,193 @@ export async function normalizeExtractionOutput(
   }
 
   return normalized;
+}
+
+/**
+ * The extraction channel's payload: the DTO plus the optional server-authored
+ * `.cook` (D-27-W3-02).
+ *
+ * The pair is EXPLICIT and travels ALONGSIDE the DTO, never inside it.
+ * `FullRecipeInsertDTO` *is* a tRPC input type (`recipes.create`, paste-import's
+ * `FullRecipeInsertSchema.safeParse`), so hanging a `cook` key on it — even
+ * optionally — would leave a `.cook` one `.extend()` away from being
+ * client-supplied, and untrusted text one step away from the WASM parser
+ * (D-27-W2-01/02). `cook` is a SERVER-SIDE argument only.
+ */
+export interface ExtractedRecipe {
+  recipe: FullRecipeInsertDTO;
+  cook: CookPayload | null;
+}
+
+/**
+ * Split a normalized name into comparison words.
+ *
+ * Punctuation is dropped so `"oil or melted butter, for frying"` yields a clean
+ * `butter` token, and digits are kept so `"100 g plain flour"` keeps its shape.
+ */
+function linkWords(name: string): string[] {
+  return normalizeIngredientLinkName(name)
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean);
+}
+
+/** Does `haystack` contain `needle` as a contiguous run of whole words? */
+function containsWholeWordRun(haystack: string[], needle: string[]): boolean {
+  if (needle.length === 0 || needle.length > haystack.length) return false;
+
+  for (let start = 0; start <= haystack.length - needle.length; start += 1) {
+    if (needle.every((word, offset) => haystack[start + offset] === word)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/** Does `words` begin with `prefix` on a whole-word boundary? */
+function startsWithWholeWords(words: string[], prefix: string[]): boolean {
+  if (prefix.length === 0 || prefix.length > words.length) return false;
+
+  return prefix.every((word, index) => words[index] === word);
+}
+
+/**
+ * Is this flat `recipeIngredient` entry accounted for by this per-step ref?
+ *
+ * Matching is LOOSE ON PURPOSE, in exactly two directions, because the two lists
+ * are written differently by design:
+ *
+ * 1. The flat entry is a whole line (`"100 g plain flour"`) while the ref is the
+ *    word from the step's sentence (`"flour"`), so a ref that appears in the flat
+ *    line as a whole-word run counts.
+ * 2. The ref may carry trailing qualifiers the flat entry omits
+ *    (`"salt to taste"` for flat `"salt"`), so a ref that STARTS WITH the flat
+ *    entry counts.
+ *
+ * Direction 2 is a PREFIX rule, not a substring one, and that is the load-bearing
+ * detail: flat `"sugar"` must NOT be considered covered by ref `"brown sugar"`.
+ * "brown sugar" is a different ingredient from "sugar" — W1's serializer sorts
+ * longest-name-first precisely so the two do not collide — and treating the longer
+ * name as covering the shorter one would let the projection drop the plain sugar
+ * row. A strict-equality rule, at the other extreme, would refuse every real
+ * recipe and quietly disable this wave.
+ */
+function refCoversFlatIngredient(flatWords: string[], refWords: string[]): boolean {
+  return (
+    containsWholeWordRun(flatWords, refWords) || startsWithWholeWords(refWords, flatWords)
+  );
+}
+
+function toStructuredIngredientRef(ref: ExtractionIngredientRef): StructuredIngredientRef {
+  return { name: ref.name, amount: ref.amount, unit: ref.unit };
+}
+
+function toStructuredTimerRef(ref: ExtractionTimerRef): StructuredTimerRef {
+  return { name: ref.name, amount: ref.amount, unit: ref.unit };
+}
+
+/**
+ * Mint the `.cook` for an AI extraction — the ONLY new minting call site in W3.
+ *
+ * It goes through `buildCookPayload`, which is one of the two and only two doors
+ * to the WASM parser (T-27-01): the size caps and the parse-cleanly self-check are
+ * applied there, not here. There is deliberately no other path.
+ *
+ * FOUR WAYS THIS RETURNS `null`, and every one of them is FREE for the user
+ * (no `cook` argument, legacy projection written in full, import succeeds):
+ *
+ * 1. no step carries linkage — a string-shaped extraction (D-27-W3-03). The
+ *    ORDINARY case for a model that ignored the new shape, so it logs at DEBUG.
+ * 2. THE COVERAGE GATE (D-27-W3-04): a flat `recipeIngredient` entry that no step
+ *    references. With a `cook`, `deriveProjectionTx` OWNS `recipe_ingredients` and
+ *    builds them from the per-step refs, so an unreferenced flat ingredient would
+ *    be SILENTLY DELETED from the recipe and from everything the shopping list can
+ *    add. Refusing costs nothing (W5's backfill revisits every `cook_source IS
+ *    NULL` recipe); losing an ingredient costs a lot. Logged at ERROR with COUNTS
+ *    ONLY — an ingredient name is per-cookbook data (T-27-05).
+ * 3. a size cap breach, and 4. output that does not parse with an empty report —
+ *    both decided and logged inside `buildCookPayload`.
+ *
+ * Extra refs BEYOND the flat list are not a failure: the serializer already
+ * tolerates them, and they cannot lose a row.
+ *
+ * @param output - The raw dual-system extraction output.
+ * @param normalized - The DTO `normalizeExtractionOutput` produced from it.
+ * @param units - The server's unit vocabulary, for canonical `%unit` emission.
+ * @returns The minted payload, or `null` when the recipe earns no `.cook`.
+ */
+export function buildCookFromExtraction(
+  output: RecipeExtractionOutput,
+  normalized: FullRecipeInsertDTO,
+  units: UnitsMap
+): CookPayload | null {
+  // D-2: one `.cook` carries ONE unit system, and it is the recipe's NATIVE one —
+  // the system `parseIngredients` inferred while normalizing.
+  const systemUsed: MeasurementSystem = normalized.systemUsed ?? "metric";
+  const steps = coerceExtractionSteps(output.recipeInstructions?.[systemUsed]);
+  const flatIngredients = output.recipeIngredient?.[systemUsed] ?? [];
+
+  const refCount = steps.reduce((total, step) => total + step.ingredients.length, 0);
+
+  if (refCount === 0) {
+    aiLogger.debug(
+      {
+        module: "cooklang",
+        reason: "no-step-linkage",
+        stepCount: steps.length,
+        flatCount: flatIngredients.length,
+      },
+      "Extraction carried no per-step ingredient linkage; keeping the legacy projection"
+    );
+
+    return null;
+  }
+
+  const refWordLists = steps.flatMap((step) => step.ingredients.map((ref) => linkWords(ref.name)));
+
+  const missingCount = flatIngredients.filter((flat) => {
+    const flatWords = linkWords(flat);
+
+    if (flatWords.length === 0) return false;
+
+    return !refWordLists.some((refWords) => refCoversFlatIngredient(flatWords, refWords));
+  }).length;
+
+  if (missingCount > 0) {
+    aiLogger.error(
+      {
+        module: "cooklang",
+        reason: "incomplete-ingredient-coverage",
+        flatCount: flatIngredients.length,
+        missingCount,
+        stepCount: steps.length,
+        refCount,
+      },
+      "Extraction did not reference every ingredient; keeping the legacy projection"
+    );
+
+    return null;
+  }
+
+  const structuredSteps: StructuredStep[] = steps.map((step, index) => ({
+    text: step.text,
+    order: index + 1,
+    ingredients: step.ingredients.map(toStructuredIngredientRef),
+    timers: step.timers.map(toStructuredTimerRef),
+  }));
+
+  const structured: StructuredRecipe = {
+    name: normalized.name,
+    servings: normalized.servings ?? null,
+    prepMinutes: normalized.prepMinutes ?? null,
+    cookMinutes: normalized.cookMinutes ?? null,
+    totalMinutes: normalized.totalMinutes ?? null,
+    source: normalized.url ?? null,
+    systemUsed,
+    steps: structuredSteps,
+  };
+
+  return buildCookPayload(structured, units);
 }
 
 /**

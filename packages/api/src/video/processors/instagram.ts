@@ -1,4 +1,4 @@
-import type { FullRecipeInsertDTO } from "@norish/shared/contracts/dto/recipe";
+import type { ExtractedRecipe } from "@norish/api/ai/features/recipe-extraction/normalizer";
 import type { SiteAuthTokenDecryptedDto } from "@norish/shared/contracts/dto/site-auth-tokens";
 import { extractRecipeWithAI } from "@norish/api/ai/recipe-parser";
 import { transcribeAudio } from "@norish/api/ai/transcriber";
@@ -70,7 +70,7 @@ function extractCaptionFromHtml(html: string): string {
 export class InstagramProcessor extends BaseVideoProcessor {
   readonly name: string = "InstagramProcessor";
 
-  async process(context: VideoProcessorContext): Promise<FullRecipeInsertDTO> {
+  async process(context: VideoProcessorContext): Promise<ExtractedRecipe> {
     const { url, recipeId, allergies, tokens } = context;
 
     log.info({ url }, "Processing Instagram post");
@@ -94,7 +94,7 @@ export class InstagramProcessor extends BaseVideoProcessor {
     metadata: VideoMetadata,
     allergies?: string[],
     tokens?: SiteAuthTokenDecryptedDto[]
-  ): Promise<FullRecipeInsertDTO> {
+  ): Promise<ExtractedRecipe> {
     log.info({ url }, "Detected Instagram image post");
 
     let description = metadata.description?.trim() || "";
@@ -129,7 +129,8 @@ export class InstagramProcessor extends BaseVideoProcessor {
       throw new Error("Instagram image posts are only supported if the caption contains a recipe");
     }
 
-    const recipe = result.data;
+    const extracted = result.data;
+    const recipe = extracted.recipe;
 
     // Download thumbnail as recipe image
     if (metadata.thumbnail) {
@@ -148,7 +149,7 @@ export class InstagramProcessor extends BaseVideoProcessor {
       "Successfully extracted recipe from Instagram image post"
     );
 
-    return recipe;
+    return extracted;
   }
 
   /**
@@ -161,7 +162,7 @@ export class InstagramProcessor extends BaseVideoProcessor {
     metadata: VideoMetadata,
     allergies?: string[],
     tokens?: SiteAuthTokenDecryptedDto[]
-  ): Promise<FullRecipeInsertDTO> {
+  ): Promise<ExtractedRecipe> {
     let audioPath: string | null = null;
     let videoPath: string | null = null;
 

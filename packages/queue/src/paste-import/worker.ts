@@ -12,6 +12,7 @@ import type {
   PasteImportJobResult,
   StructuredPasteImportRecipe,
 } from "@norish/queue/contracts/job-types";
+import type { CookPayload } from "@norish/shared-server/cooklang/build-payload";
 import type { FullRecipeInsertDTO } from "@norish/shared/contracts";
 import { createRecipeWithRefs, dashboardRecipe, getAllergiesForUsers } from "@norish/db";
 import { getAverageRating, rateRecipe } from "@norish/db/repositories/ratings";
@@ -46,6 +47,8 @@ function escapeHtml(text: string): string {
 interface ParseResult {
   recipe: FullRecipeInsertDTO;
   usedAI: boolean;
+  /** The server-authored `.cook`, when the extraction earned one (D-27-W3-02). */
+  cook: CookPayload | null;
 }
 
 async function parseFromPastedText(
@@ -72,8 +75,8 @@ async function parseFromPastedText(
     const html = `<html><body><main><h1>Pasted recipe</h1><p>${escapeHtml(trimmed)}</p></main></body></html>`;
     const ai = await extractRecipeWithAI(html, recipeId, undefined, allergies);
 
-    if (ai.success && hasRecipeNameIngredientsAndSteps(ai.data)) {
-      return { recipe: ai.data, usedAI: true };
+    if (ai.success && hasRecipeNameIngredientsAndSteps(ai.data.recipe)) {
+      return { recipe: ai.data.recipe, usedAI: true, cook: ai.data.cook };
     }
 
     throw new Error("Could not parse pasted recipe.");
@@ -86,8 +89,8 @@ async function parseFromPastedText(
   const html = `<html><body><main><h1>Pasted recipe</h1><p>${escapeHtml(trimmed)}</p></main></body></html>`;
   const ai = await extractRecipeWithAI(html, recipeId, undefined, allergies);
 
-  if (ai.success && hasRecipeNameIngredientsAndSteps(ai.data)) {
-    return { recipe: ai.data, usedAI: true };
+  if (ai.success && hasRecipeNameIngredientsAndSteps(ai.data.recipe)) {
+    return { recipe: ai.data.recipe, usedAI: true, cook: ai.data.cook };
   }
 
   throw new Error("Could not parse pasted recipe.");
@@ -222,7 +225,13 @@ export async function processPasteImportJob(
     }
 
     const parseResult = await parseFromPastedText(text, recipeId, allergyNames, forceAI);
-    const createdId = await createRecipeWithRefs(recipeId, userId, householdId, parseResult.recipe);
+    const createdId = await createRecipeWithRefs(
+      recipeId,
+      userId,
+      householdId,
+      parseResult.recipe,
+      parseResult.cook ?? undefined
+    );
 
     if (!createdId) {
       throw new Error("Failed to save imported recipe");

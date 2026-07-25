@@ -58,39 +58,43 @@ describe("processImageImportJob", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
+    // W3 / D-27-W3-02: the extractor returns `{ recipe, cook }`, not a bare DTO.
     extractRecipeFromImages.mockResolvedValue({
       success: true,
       data: {
-        id: "recipe-123",
-        name: "Extracted Recipe",
-        description: null,
-        notes: null,
-        url: null,
-        image: null,
-        servings: 2,
-        prepMinutes: null,
-        cookMinutes: null,
-        totalMinutes: null,
-        calories: null,
-        fat: null,
-        carbs: null,
-        protein: null,
-        systemUsed: "metric",
-        recipeIngredients: [
-          {
-            ingredientId: null,
-            ingredientName: "Flour",
-            amount: 1,
-            unit: "cup",
-            systemUsed: "metric",
-            order: 0,
-          },
-        ],
-        steps: [{ step: "Mix", order: 1, systemUsed: "metric" }],
-        tags: [],
-        categories: [],
-        images: [],
-        videos: [],
+        cook: null,
+        recipe: {
+          id: "recipe-123",
+          name: "Extracted Recipe",
+          description: null,
+          notes: null,
+          url: null,
+          image: null,
+          servings: 2,
+          prepMinutes: null,
+          cookMinutes: null,
+          totalMinutes: null,
+          calories: null,
+          fat: null,
+          carbs: null,
+          protein: null,
+          systemUsed: "metric",
+          recipeIngredients: [
+            {
+              ingredientId: null,
+              ingredientName: "Flour",
+              amount: 1,
+              unit: "cup",
+              systemUsed: "metric",
+              order: 0,
+            },
+          ],
+          steps: [{ step: "Mix", order: 1, systemUsed: "metric" }],
+          tags: [],
+          categories: [],
+          images: [],
+          videos: [],
+        },
       },
     });
     createRecipeWithRefs.mockResolvedValue("recipe-123");
@@ -130,7 +134,10 @@ describe("processImageImportJob", () => {
       "recipe-123",
       "user-1",
       "household-1",
-      expect.objectContaining({ id: "recipe-123", name: "Extracted Recipe" })
+      expect.objectContaining({ id: "recipe-123", name: "Extracted Recipe" }),
+      // W3: `cook` is passed as `undefined` when the extraction earned no `.cook`,
+      // which keeps the legacy projection write byte-for-byte as it was.
+      undefined
     );
     expect(saveImageBytes).toHaveBeenCalledWith(expect.any(Buffer), "recipe-123");
     expect(addRecipeImages).toHaveBeenCalledWith("recipe-123", [

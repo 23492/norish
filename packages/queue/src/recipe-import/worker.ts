@@ -139,7 +139,15 @@ async function processImportJob(job: Job<RecipeImportJobData>): Promise<void> {
 
   emitImportProgress({ viewPolicy, ctx }, { recipeId, url, stage: "saving" });
 
-  const createdId = await createRecipeWithRefs(recipeId, userId, householdId, parseResult.recipe);
+  // W3: `parseResult.cook` is non-null only when the AI extraction earned a `.cook`
+  // (D-27-W3-04). `undefined` keeps the legacy projection write, exactly as before.
+  const createdId = await createRecipeWithRefs(
+    recipeId,
+    userId,
+    householdId,
+    parseResult.recipe,
+    parseResult.cook ?? undefined
+  );
 
   if (!createdId) {
     throw new Error("Failed to save imported recipe");

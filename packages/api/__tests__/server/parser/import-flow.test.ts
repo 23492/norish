@@ -145,8 +145,14 @@ describe("parseRecipeFromUrl import flow", () => {
     });
     mockAdaptRecipeScrapersResponse.mockResolvedValue(structuredRecipe);
     mockTryLegacyStructuredRecipeParsing.mockResolvedValue(null);
-    mockProcessVideoRecipe.mockResolvedValue(structuredRecipe);
-    mockExtractRecipeWithAI.mockResolvedValue({ success: true, data: aiRecipe });
+    // W3 / D-27-W3-02: the AI producers return `{ recipe, cook }`, not a bare DTO.
+    // `cook: null` is the ordinary case (no linkage earned) and keeps every
+    // expectation below about ingredient/step behaviour exactly as it was.
+    mockProcessVideoRecipe.mockResolvedValue({ recipe: structuredRecipe, cook: null });
+    mockExtractRecipeWithAI.mockResolvedValue({
+      success: true,
+      data: { recipe: aiRecipe, cook: null },
+    });
   });
 
   it("uses the existing video pipeline for video imports", { timeout: 15000 }, async () => {
@@ -156,7 +162,7 @@ describe("parseRecipeFromUrl import flow", () => {
     const { parseRecipeFromUrl } = await import("@norish/api/parser");
     const result = await parseRecipeFromUrl("https://example.com/video", "recipe-1", ["dairy"]);
 
-    expect(result).toEqual({ recipe: structuredRecipe, usedAI: true });
+    expect(result).toEqual({ recipe: structuredRecipe, usedAI: true, cook: null });
     expect(mockProcessVideoRecipe).toHaveBeenCalledWith(
       "https://example.com/video",
       "recipe-1",
@@ -172,7 +178,7 @@ describe("parseRecipeFromUrl import flow", () => {
     const { parseRecipeFromUrl } = await import("@norish/api/parser");
     const result = await parseRecipeFromUrl("https://example.com/recipe", "recipe-1", [], true);
 
-    expect(result).toEqual({ recipe: aiRecipe, usedAI: true });
+    expect(result).toEqual({ recipe: aiRecipe, usedAI: true, cook: null });
     expect(mockCallRecipeScrapersParser).not.toHaveBeenCalled();
     expect(mockExtractRecipeWithAI).toHaveBeenCalled();
   });
@@ -183,7 +189,7 @@ describe("parseRecipeFromUrl import flow", () => {
     const { parseRecipeFromUrl } = await import("@norish/api/parser");
     const result = await parseRecipeFromUrl("https://example.com/recipe", "recipe-1");
 
-    expect(result).toEqual({ recipe: aiRecipe, usedAI: true });
+    expect(result).toEqual({ recipe: aiRecipe, usedAI: true, cook: null });
     expect(mockCallRecipeScrapersParser).not.toHaveBeenCalled();
   });
 
@@ -191,7 +197,7 @@ describe("parseRecipeFromUrl import flow", () => {
     const { parseRecipeFromUrl } = await import("@norish/api/parser");
     const result = await parseRecipeFromUrl("https://example.com/recipe", "recipe-1");
 
-    expect(result).toEqual({ recipe: structuredRecipe, usedAI: false });
+    expect(result).toEqual({ recipe: structuredRecipe, usedAI: false, cook: null });
     expect(mockCallRecipeScrapersParser).toHaveBeenCalled();
     expect(mockGetContentIndicators).not.toHaveBeenCalled();
     expect(mockExtractRecipeWithAI).not.toHaveBeenCalled();
@@ -203,7 +209,7 @@ describe("parseRecipeFromUrl import flow", () => {
     const { parseRecipeFromUrl } = await import("@norish/api/parser");
     const result = await parseRecipeFromUrl("https://example.com/recipe", "recipe-1");
 
-    expect(result).toEqual({ recipe: aiRecipe, usedAI: true });
+    expect(result).toEqual({ recipe: aiRecipe, usedAI: true, cook: null });
     expect(mockGetContentIndicators).toHaveBeenCalled();
   });
 
@@ -218,7 +224,7 @@ describe("parseRecipeFromUrl import flow", () => {
     const { parseRecipeFromUrl } = await import("@norish/api/parser");
     const result = await parseRecipeFromUrl("https://example.com/recipe", "recipe-1");
 
-    expect(result).toEqual({ recipe: aiRecipe, usedAI: true });
+    expect(result).toEqual({ recipe: aiRecipe, usedAI: true, cook: null });
     expect(mockExtractRecipeWithAI).toHaveBeenCalled();
   });
 
@@ -264,7 +270,7 @@ describe("parseRecipeFromUrl import flow", () => {
     const { parseRecipeFromUrl } = await import("@norish/api/parser");
     const result = await parseRecipeFromUrl("https://example.com/recipe", "recipe-1");
 
-    expect(result).toEqual({ recipe: structuredRecipe, usedAI: false });
+    expect(result).toEqual({ recipe: structuredRecipe, usedAI: false, cook: null });
     expect(mockTryLegacyStructuredRecipeParsing).toHaveBeenCalled();
     expect(mockCallRecipeScrapersParser).not.toHaveBeenCalled();
   });

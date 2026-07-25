@@ -1,4 +1,4 @@
-import type { FullRecipeInsertDTO } from "@norish/shared/contracts/dto/recipe";
+import type { ExtractedRecipe } from "@norish/api/ai/features/recipe-extraction/normalizer";
 import type { SiteAuthTokenDecryptedDto } from "@norish/shared/contracts/dto/site-auth-tokens";
 
 export interface VideoMetadata {
@@ -34,8 +34,11 @@ export interface VideoProcessor {
 
   /**
    * Process a video URL and extract recipe data.
+   *
+   * D-27-W3-02: returns the DTO paired with the optional server-authored `.cook`,
+   * so the linkage the model produced survives all the way to the write path.
    */
-  process(context: VideoProcessorContext): Promise<FullRecipeInsertDTO>;
+  process(context: VideoProcessorContext): Promise<ExtractedRecipe>;
 }
 
 /**

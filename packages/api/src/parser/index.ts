@@ -1,3 +1,7 @@
+import type {
+  CookPayload,
+  ExtractedRecipe,
+} from "@norish/api/ai/features/recipe-extraction/normalizer";
 import type { SiteAuthTokenDecryptedDto } from "@norish/shared/contracts/dto/site-auth-tokens";
 import { extractRecipeWithAI } from "@norish/api/ai/recipe-parser";
 import { isVideoUrl } from "@norish/api/helpers";
@@ -25,6 +29,16 @@ export interface ParseRecipeResult {
   recipe: FullRecipeInsertDTO;
   /** Whether AI was used for extraction (affects auto-tagging) */
   usedAI: boolean;
+  /**
+   * The server-authored `.cook`, when the extraction earned one (D-27-W3-02).
+   *
+   * `null` for every non-AI branch: JSON-LD, the python scraper, the legacy
+   * parser and structured paste all give a flat step list with NO linkage, and the
+   * only way to invent linkage from those is the heuristic name-matcher that D-6 /
+   * D-7 ban from every runtime path (D-27-W3-08). Those recipes are W5 backfill
+   * territory. One code path, one shape, no special case.
+   */
+  cook: CookPayload | null;
 }
 
 interface StructuredParserFailure {
@@ -57,7 +71,7 @@ async function tryExtractWithAI(
   allergies: string[] | undefined,
   requireAI: boolean,
   originalHtml?: string
-): Promise<FullRecipeInsertDTO | null> {
+): Promise<ExtractedRecipe | null> {
   const enabled = await isAIEnabled();
 
   if (!enabled) {
@@ -88,7 +102,7 @@ async function extractWithAIPreference(
   url: string,
   allergies: string[] | undefined,
   requireAI: boolean
-): Promise<FullRecipeInsertDTO | null> {
+): Promise<ExtractedRecipe | null> {
   const jsonLdNodes = extractRecipeNodesFromJsonLd(html);
 
   if (jsonLdNodes.length > 0) {
@@ -197,9 +211,9 @@ async function tryHandleVideoUrl(
 
   try {
     const { processVideoRecipe } = await import("@norish/api/video/processor");
-    const recipe = await processVideoRecipe(url, recipeId, allergies, tokens);
+    const extracted = await processVideoRecipe(url, recipeId, allergies, tokens);
 
-    return { recipe, usedAI: true };
+    return { recipe: extracted.recipe, usedAI: true, cook: extracted.cook };
   } catch (error: unknown) {
     log.error({ err: error }, "Video processing failed");
     throw error;
@@ -224,16 +238,17 @@ export async function parseRecipeFromUrl(
   const useAIOnly = Boolean(forceAI || (await shouldAlwaysUseAI()));
 
   if (useAIOnly) {
-    const recipe = await extractWithAIPreference(html, recipeId, url, allergies, true);
+    const extracted = await extractWithAIPreference(html, recipeId, url, allergies, true);
 
-    if (!recipe) throw new Error("AI extraction failed");
+    if (!extracted) throw new Error("AI extraction failed");
 
-    return { recipe, usedAI: true };
+    return { recipe: extracted.recipe, usedAI: true, cook: extracted.cook };
   }
 
   const structured = await tryStructuredParser(url, html, recipeId);
 
-  if (structured.recipe) return { recipe: structured.recipe, usedAI: false };
+  // D-27-W3-08: the structured paths produce NO linkage, so no `.cook`.
+  if (structured.recipe) return { recipe: structured.recipe, usedAI: false, cook: null };
 
   const aiEnabled = await isAIEnabled();
 
@@ -247,9 +262,9 @@ export async function parseRecipeFromUrl(
       "Structured parsing failed, attempting AI fallback"
     );
 
-    const recipe = await extractWithAIPreference(html, recipeId, url, allergies, false);
+    const extracted = await extractWithAIPreference(html, recipeId, url, allergies, false);
 
-    if (recipe) return { recipe, usedAI: true };
+    if (extracted) return { recipe: extracted.recipe, usedAI: true, cook: extracted.cook };
   }
 
   if (structured.failure) {

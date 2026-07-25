@@ -75,10 +75,16 @@ export async function processImageImportJob(job: Job<ImageImportJobData>): Promi
     );
   }
 
-  const parsedRecipe = result.data;
+  const { recipe: parsedRecipe, cook } = result.data;
 
-  // Save the recipe
-  const createdId = await createRecipeWithRefs(recipeId, userId, householdId, parsedRecipe);
+  // Save the recipe (W3: `cook` is non-null only when the extraction earned one)
+  const createdId = await createRecipeWithRefs(
+    recipeId,
+    userId,
+    householdId,
+    parsedRecipe,
+    cook ?? undefined
+  );
 
   if (!createdId) {
     throw new Error("Failed to save imported recipe");

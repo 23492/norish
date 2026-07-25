@@ -1,4 +1,4 @@
-import type { FullRecipeInsertDTO } from "@norish/shared/contracts/dto/recipe";
+import type { ExtractedRecipe } from "@norish/api/ai/features/recipe-extraction/normalizer";
 import type { SiteAuthTokenDecryptedDto } from "@norish/shared/contracts/dto/site-auth-tokens";
 import { isVideoParsingEnabled } from "@norish/shared-server/config/server-config-loader";
 import { videoLogger as log } from "@norish/shared-server/logger";
@@ -35,7 +35,7 @@ export async function processVideoRecipe(
   recipeId: string,
   allergies?: string[],
   tokens?: SiteAuthTokenDecryptedDto[]
-): Promise<FullRecipeInsertDTO> {
+): Promise<ExtractedRecipe> {
   const videoEnabled = await isVideoParsingEnabled();
 
   if (!videoEnabled) {

@@ -559,6 +559,117 @@ describe("deriveProjectionTx (COOK-01 / W2)", () => {
     });
   });
 
+  describe("a SPLIT-amount ingredient keeps its amount (found by W3's D-27-W3-07 measurement)", () => {
+    /**
+     * The extraction prompt tells the model to state an amount once and mention the
+     * ingredient by name elsewhere. When the BARE mention comes FIRST, the collapse
+     * used to keep `amount: null` and discard the stated amount — silently, and in
+     * BOTH systems, because `derived` is built from `native`. The legacy projection
+     * writes that amount today, so this is a never-broken defect, not a nicety.
+     */
+    const bareThenQuantified: CookTokensDTO = [
+      {
+        order: 0,
+        section: null,
+        tokens: [
+          { type: "text", value: "Fry the paste in a little " },
+          { type: "ingredient", name: "coconut milk", amount: null, unit: null },
+        ],
+      },
+      {
+        order: 1,
+        section: null,
+        tokens: [
+          { type: "text", value: "Pour in the rest of the " },
+          { type: "ingredient", name: "coconut milk", amount: 400, unit: "milliliter" },
+        ],
+      },
+    ];
+
+    it("adopts the only measure present when the bare mention comes first", () => {
+      const projection = computeCookProjection({
+        systemUsed: "metric",
+        cookTokens: bareThenQuantified,
+        units,
+      });
+
+      expect(projection.native).toHaveLength(1);
+      expect(projection.native[0]?.amount).toBe(400);
+      expect(projection.native[0]?.unit).toBe("milliliter");
+
+      // The derived system inherits a real amount too, instead of a bare row.
+      expect(projection.derived[0]?.amount).not.toBeNull();
+    });
+
+    it("does not flag a trailing bare mention as mixed-units", () => {
+      const projection = computeCookProjection({
+        systemUsed: "metric",
+        cookTokens: [bareThenQuantified[1]!, bareThenQuantified[0]!],
+        units,
+      });
+
+      expect(projection.native[0]?.amount).toBe(400);
+      expect(projection.flagged.filter((f) => f.reason === "mixed-units")).toHaveLength(0);
+    });
+
+    it("still refuses to guess between two GENUINELY incompatible measures", () => {
+      const projection = computeCookProjection({
+        systemUsed: "metric",
+        cookTokens: [
+          {
+            order: 0,
+            section: null,
+            tokens: [
+              { type: "text", value: "Add " },
+              { type: "ingredient", name: "flour", amount: 200, unit: "gram" },
+            ],
+          },
+          {
+            order: 1,
+            section: null,
+            tokens: [
+              { type: "text", value: "Add " },
+              { type: "ingredient", name: "flour", amount: 1, unit: "cup" },
+            ],
+          },
+        ],
+        units,
+      });
+
+      // First occurrence still wins, and the disagreement is still flagged.
+      expect(projection.native[0]?.amount).toBe(200);
+      expect(projection.native[0]?.unit).toBe("gram");
+      expect(projection.flagged.some((f) => f.reason === "mixed-units")).toBe(true);
+    });
+
+    it("still SUMS two same-unit quantified refs", () => {
+      const projection = computeCookProjection({
+        systemUsed: "metric",
+        cookTokens: [
+          {
+            order: 0,
+            section: null,
+            tokens: [
+              { type: "text", value: "Add " },
+              { type: "ingredient", name: "flour", amount: 100, unit: "gram" },
+            ],
+          },
+          {
+            order: 1,
+            section: null,
+            tokens: [
+              { type: "text", value: "Add " },
+              { type: "ingredient", name: "flour", amount: 150, unit: "gram" },
+            ],
+          },
+        ],
+        units,
+      });
+
+      expect(projection.native[0]?.amount).toBe(250);
+    });
+  });
+
   it("issues no statement that could reach another recipe (no ctx, no household)", async () => {
     // Structural proof: the function signature takes neither a user nor a household.
     expect(deriveProjectionTx.length).toBe(2);

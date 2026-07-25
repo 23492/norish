@@ -1,13 +1,33 @@
 import type { AIResult } from "@norish/shared-server/ai/types/result";
+import type { CookPayload } from "@norish/shared-server/cooklang/build-payload";
 import type { RecipeCategory, Slot } from "@norish/shared/contracts";
 import type { FullRecipeInsertDTO } from "@norish/shared/contracts/dto/recipe";
 import type { SiteAuthTokenDecryptedDto } from "@norish/shared/contracts/dto/site-auth-tokens";
 
 import type { ImageImportFile } from "./contracts/job-types";
 
+/**
+ * The extraction channel's payload, mirrored structurally from
+ * `@norish/api`'s `ExtractedRecipe` (D-27-W3-02).
+ *
+ * Mirrored rather than imported: `@norish/queue` must not depend on
+ * `@norish/api` (the dependency runs the other way, and the handlers are
+ * registered at runtime through `registerQueueApiHandlers`). `CookPayload` comes
+ * from `@norish/shared-server`, which both packages already depend on, so the
+ * two shapes cannot silently drift — the registration in
+ * `packages/api/src/startup/register-queue-api-handlers.ts` is checked against
+ * this interface.
+ */
+export interface QueueExtractedRecipe {
+  recipe: FullRecipeInsertDTO;
+  cook: CookPayload | null;
+}
+
 export interface QueueParseRecipeResult {
   recipe: FullRecipeInsertDTO;
   usedAI: boolean;
+  /** The server-authored `.cook`, when the extraction earned one. */
+  cook: CookPayload | null;
 }
 
 export interface QueueNutritionEstimate {
@@ -44,7 +64,7 @@ export interface QueueApiHandlers {
     url?: string,
     allergies?: string[],
     originalHtml?: string
-  ): Promise<AIResult<FullRecipeInsertDTO>>;
+  ): Promise<AIResult<QueueExtractedRecipe>>;
   parseRecipeFromUrl(
     url: string,
     recipeId: string,
@@ -56,7 +76,7 @@ export interface QueueApiHandlers {
     recipeId: string,
     files: ImageImportFile[],
     allergies?: string[]
-  ): Promise<AIResult<FullRecipeInsertDTO>>;
+  ): Promise<AIResult<QueueExtractedRecipe>>;
   estimateNutritionFromIngredients(
     recipeName: string,
     servings: number,
