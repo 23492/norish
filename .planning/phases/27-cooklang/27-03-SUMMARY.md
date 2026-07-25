@@ -11,6 +11,9 @@ requires:
     provides: cook_source column, deriveProjectionTx, the optional `cook` repository argument, buildCookPayload
 provides:
   - "@norish/shared-server/cooklang/limits — TEN input caps enforced inside buildCookPayload and parseCookSource (T-27-01 DISCHARGED)"
+  - "buildLinkageInstruction — the linkage prompt fragment appended by all three extraction builders as CODE, never a .txt edit (D-27-W3-01)"
+  - "buildCookFromExtraction — the first .cook PRODUCER; a newly AI-extracted recipe can now have a non-NULL recipes.cook_source"
+  - "ExtractedRecipe { recipe, cook } + CookPayload — the server-side channel from the three AI extractors to createRecipeWithRefs(..., cook)"
   - "countMalformedCookTokens — the cap that actually bounds parse TIME, discovered by measurement"
   - "recipeExtractionSchema.recipeInstructions accepts a per-step OBJECT or a plain STRING (D-27-W3-03)"
   - "coerceExtractionSteps — total, never-throwing coercion of either step branch"
@@ -46,6 +49,11 @@ completed: 2026-07-25
 ---
 
 # Phase 27 Plan 03: Extraction native + T-27-01 input limits — PARTIAL SUMMARY
+
+> **TWO EXECUTORS WROTE THIS FILE. The record below covers Tasks 1–2; the
+> "Tasks 3–4" section at the BOTTOM covers Tasks 3–4 and carries the
+> D-27-W3-07 measurement, the refusal rates and the Task 5 handoff.
+> As of the second session: 4 of 5 tasks landed, W3 is still NOT code-complete.**
 
 **T-27-01 is DISCHARGED with a tenth cap the plan did not anticipate: measurement proved the
 planned 64 KiB byte cap does NOT bound parse time (adversarial input measured up to 18.8 s
@@ -437,3 +445,476 @@ But the wave's purpose (a first non-NULL `cook_source`) is unmet.
 ---
 *Phase: 27-cooklang, plan 03 — PARTIAL (2/5 tasks)*
 *Completed: 2026-07-25*
+
+---
+---
+
+# Tasks 3–4 — the producer exists (second executor)
+
+> **This section is ADDITIVE. The T1/T2 record above is the T-27-01 evidence and is
+> unchanged.**
+>
+> ## STATUS: TASKS 3 AND 4 CODE-COMPLETE. **W3 IS STILL NOT CODE-COMPLETE — Task 5 is outstanding.**
+>
+> **A `.cook` producer now exists.** `buildCookFromExtraction` mints from per-step
+> linkage, and `ExtractedRecipe { recipe, cook }` carries it from the three AI
+> extractors into `createRecipeWithRefs(..., cook)`. **A newly AI-extracted recipe
+> can now get a non-NULL `recipes.cook_source`** — the first time that is true in
+> this codebase. Nothing else changed: a string-shaped extraction, a JSON-LD
+> import, the python scraper, structured paste and the manual editor all pass no
+> `cook` and behave exactly as before.
+>
+> Not done: **Task 5** (queue-side `cook-source-isolation.test.ts` + weakenings
+> W3-W2 and W3-W3).
+
+## Task Commits
+
+3. **Task 3: the linkage prompt fragment, appended by all three builders** — `527a852d` (feat)
+4. **Task 4: mint the `.cook` and thread it to the write path** — `49f03139` (feat)
+
+Base for this session: `ca1a06a8` (the PARTIAL summary above). Tree clean, nothing pushed.
+
+---
+
+## Task 3 — the fragment (D-27-W3-01)
+
+`packages/api/src/ai/prompts/fragments/linkage.ts` exports `buildLinkageInstruction()`,
+appended by `buildRecipeExtractionPrompt`, `buildImageExtractionPrompt` and
+`buildVideoExtractionPrompt` exactly like `buildAllergyInstruction` /
+`buildLanguageInstruction`, and re-exported from `fragments/index.ts`.
+
+- The text is ported **in substance verbatim** from
+  `extraction-skill/assets/linkage-fragment.txt`, including the `✗`/`✓` COMMON
+  MISTAKES block and the WORKED EXAMPLE. Thirteen named assertions, one per rule,
+  in `packages/api/__tests__/ai/prompts/linkage-instruction.test.ts`.
+- **Two additions, and only two**, as the plan specified: a `SHAPE:` sentence telling
+  the model a step may be an object OR a plain string (D-27-W3-03), and rule 4
+  upgraded to a hard full-coverage requirement on `recipeIngredient` (D-27-W3-04).
+  Rule 4's original sentence is retained verbatim and the requirement is added to
+  it, so nothing was dropped.
+- **The no-op trap is proven closed:** one test per builder asserts the fragment is
+  present *while `loadPrompt` is mocked to return an unrelated base prompt*
+  (`"Zqx base template placeholder…"`), so the instruction demonstrably does not
+  come from the server-config template.
+- **Ordering is asserted for all three builders:** the fragment's index is less than
+  the index of `WEBPAGE TEXT:`, `VIDEO TRANSCRIPT:` and `Analyze the provided images`
+  respectively, so untrusted content never sits between the base prompt and its
+  rules (T-27-08).
+- **No `.txt` file is touched.** `git show 527a852d --stat` lists 4 files, none `.txt`.
+  Confirming the prior executor's warning: the two `recipe-extraction.txt` paths are
+  hardlinked in this tree, so an accidental edit would have been doubly invisible.
+- A negative assertion keeps norish internals out of the model's context: the
+  fragment contains no `cook_source`, no `.cook`, no `buildCookPayload`.
+
+---
+
+## Task 4 — the switch-on
+
+### (a) `buildCookFromExtraction`
+
+In `packages/api/src/ai/features/recipe-extraction/normalizer.ts`. Picks the NATIVE
+system's step array and flat list (D-2), coerces via the existing
+`coerceExtractionSteps`, then **four refusals, each of which costs the user nothing**:
+
+| # | Refusal | Log level | `reason` |
+|---|---|---|---|
+| 1 | no step carries linkage (string-shaped extraction) | **debug** | `no-step-linkage` |
+| 2 | a flat ingredient no step references (D-27-W3-04) | **error** | `incomplete-ingredient-coverage` |
+| 3 | a size-cap breach — decided inside `buildCookPayload` | **error** | `input-too-large` |
+| 4 | output that does not parse with an EMPTY report | **error** | `did-not-parse-cleanly` |
+
+Every log carries counts only. Asserted by scanning the serialized logger payload
+for the fixture's recipe name, step prose and each missing ingredient name — all
+absent (T-27-05).
+
+**The coverage matcher is loose in exactly two directions and no more:**
+1. the ref appears in the flat line as a contiguous run of whole words
+   (`"100 g plain flour"` ⊇ `"flour"`);
+2. the ref **STARTS WITH** the flat entry (`"salt to taste"` covers `"salt"`).
+
+Direction 2 is a **prefix** rule, not a substring rule, and that is load-bearing:
+flat `"sugar"` must NOT be covered by ref `"brown sugar"` alone, because they are
+different ingredients (W1's serializer sorts longest-name-first precisely so they do
+not collide) and treating the longer as covering the shorter would let the projection
+drop the plain-sugar row. All three cases are asserted, plus `"flourish"` is not
+covered by `"flour"`.
+
+### (b)–(d) The `ExtractedRecipe` channel
+
+`ExtractedRecipe { recipe, cook }` — an explicit pair travelling ALONGSIDE the DTO,
+never inside it. `CookPayload` is now a named export on
+`@norish/shared-server/cooklang/build-payload` (the plan's outstanding item #3),
+which is how `@norish/queue` names it without importing `@norish/api`.
+
+Threaded: the three extractors → the whole video processor chain → `ParseRecipeResult`
+/ `QueueParseRecipeResult` → `createRecipeWithRefs(..., cook ?? undefined)` in
+`recipe-import`, `image-import` and `paste-import`. `createStructuredRecipe` passes
+nothing. The python-scraper / JSON-LD / legacy branches set `cook: null` (D-27-W3-08).
+
+### (e)/(f) The repository
+
+- **D-27-W3-05:** the `cook` branch of both `createRecipeWithRefs` and
+  `updateRecipeWithRefs` writes the opposite system's authored step prose (via the
+  existing `createManyRecipeStepsTx` / `syncRecipeStepsTx`) **before**
+  `deriveProjectionTx` runs. No overlap — `deriveProjectionTx` owns native steps only.
+- **D-27-W3-06:** `updateData.cookSource = cook ? cook.cookSource : null`, so an
+  ordinary no-`cook` update NULLs a stale `.cook`.
+- **(g) No fourth dedup rule.** Asserted: a `.cook` naming the same ingredient in two
+  steps writes ONE row.
+
+---
+
+## THE DEFECT TASK 4 FOUND AND FIXED AT THE ROOT
+
+**`computeCookProjection` silently dropped the AMOUNT of a split-amount ingredient.**
+
+Found by the D-27-W3-07 measurement (it is exactly what the measurement was for).
+The `curry` fixture mentions coconut milk bare in step 0 and quantified
+(`400 milliliter`) in step 1. The collapse rule was "first occurrence wins", so the
+bare mention won and the row was written with `amount: null, unit: null` — **in BOTH
+systems**, because `derived` is built from `native`.
+
+On a real import that is an amount the legacy path writes today and the cook path
+would not: a **never-broken violation**, dormant only because nothing produced a
+`.cook` before this task.
+
+Fixed at the root in `packages/db/src/repositories/cook-projection.ts`: when the
+existing row carries no amount and the new token does, adopt the only measure
+present. This is not the "two incompatible measures" case the fall-through guards —
+there is only one measure. Also narrowed the `mixed-units` flag to genuine
+measure-vs-measure disagreement, so a trailing bare mention (which the prompt's own
+rule 1 *asks for*) no longer fills W5's confidence signal with noise.
+
+Four new tests in `cook-projection.test.ts`: the bare-then-quantified case, the
+reverse order, that two genuinely incompatible measures are still refused and still
+flagged, and that two same-unit refs still SUM. `coconut milk` went from
+`null null` to `1.690701 cup`.
+
+**This is outside `files_modified` and is recorded as a deviation below.**
+
+---
+
+## D-27-W3-07 MEASUREMENT — the director's decision item
+
+Measured with the real serializer, the real WASM parser and the real
+`computeCookProjection`, over the five committed fixtures
+(`packages/shared/__tests__/cooklang/fixtures.ts`), each given an AI-style US flat
+ingredient list that reuses the metric refs' ingredient WORDS so the comparison
+isolates units rather than naming.
+
+**HARD assertion, passing for all five: same ingredient names, same count. NO
+ingredient is lost.** 35 ingredients across 5 recipes, 35 derived.
+
+### VERDICT: YES — the derived US output IS worse than the AI's. 18 of 35 differ.
+
+| fixture | ingredients | differences | detail (`AI` → `derived`) |
+|---|---:|---:|---|
+| pancakes | 5 | 3 | flour `1.667 cup` → `7.054792 ounce`; milk `1.25 cup` → `1.268026 cup`; butter `1 tablespoon` → `0.529109 ounce` |
+| bolognese | 9 | 4 | minced beef `1 pound` → `1.102311 pound`; chopped tomatoes `14 ounce` → `14.109585 ounce`; spaghetti `14 ounce` → `14.109585 ounce`; parmesan `0.5 cup` → `1.763698 ounce` |
+| guacamole | 6 | 1 | cilantro `0.333 cup` → `0.35274 ounce` |
+| cookies | 8 | 5 | butter `0.5 cup` → `4.056506 ounce`; sugar `0.5 cup` → `3.527396 ounce`; brown sugar `0.75 cup` → `5.291094 ounce`; flour `2 cup` → `8.81849 ounce`; chocolate chips `1.25 cup` → `7.054792 ounce` |
+| curry | 7 | 5 | coconut milk `1.667 cup` → `1.690701 cup`; chicken `1 pound` → `1.102311 pound`; bamboo shoots `7 ounce` → `7.054792 ounce`; Thai basil `0.5 cup` → `0.529109 ounce`; rice `1.5 cup` → `10.582189 ounce` |
+
+**Three distinct axes of degradation, in priority order:**
+
+1. **UNIT CATEGORY — the serious one. Every dry good the model measures in `cup`
+   becomes `ounce`.** 11 of the 18 differences. `2 cup flour` → `8.81849 ounce`;
+   `1.25 cup chocolate chips` → `7.054792 ounce`. Numerically defensible, but no US
+   home cook measures flour by the ounce, and this is precisely the
+   `kilogram` / `fl oz` / `pint` vocabulary gap W2-SUMMARY flagged as "still open".
+   **`fl oz` and `pint` are never produced at all.**
+2. **PRECISION — cosmetic but user-visible on every single converted row.** The
+   derived values are unrounded 6-decimal conversions: `1 pound` → `1.102311 pound`,
+   `14 ounce` → `14.109585 ounce`, `1.25 cup` → `1.268026 cup`. A recipe reading
+   "14.109585 ounce spaghetti" is worse than one reading "14 oz", even where the unit
+   is right. **There is no rounding step in `deriveConversion`'s output path.**
+3. Volume→volume conversion does work (`milliliter` → `cup`), so the gap is
+   specifically mass↔volume vocabulary, not the converter itself.
+
+### RECOMMENDATION TO THE DIRECTOR
+
+**D-27-W3-07 (keep dual-system extraction; defer single-system to W5) is CONFIRMED by
+measurement, not assumed.** Switching to single-system extraction today would ship
+visibly worse US output on 18 of 35 ingredients.
+
+**Both the W0 unit-vocabulary work AND a rounding/presentation rule should land before
+W5 enables single-system extraction.** The vocabulary alone is not sufficient — axis 2
+would survive it.
+
+---
+
+## Refusal rates observed
+
+- **Coverage gate on the five fixtures: 0/5 refused.** All five mint a `.cook` when
+  the flat list and the per-step refs use the same ingredient words.
+- **Parse-failure (`did-not-parse-cleanly`) rate: 0/5.** All five round-trip with an
+  EMPTY diagnostic report, as W1/W2 established.
+- **Size-cap (`input-too-large`) rate: 0/5**, unchanged from the T1/T2 record.
+- **Synthetic 8-of-11 coverage case: refuses as designed**, with
+  `flatCount: 11, missingCount: 3` and no names.
+- **A MEASURED REFUSAL DRIVER FOR W5 — singular/plural.** A model that writes
+  `"2 eggs"` in `recipeIngredient` and `"egg"` in a step's refs earns **no `.cook`**.
+  Found because my own first fixture did exactly that. Nothing is lost when it
+  happens (legacy projection, successful import), and I deliberately did **not** add
+  morphological matching: an `-s` rule is English-specific in an app whose own
+  extraction fragment uses Dutch examples (`gehakt`, `tomatenpuree`), so it would
+  behave inconsistently by locale and could newly collide names the way
+  `sugar` / `brown sugar` must not. The rule stays exact in W3 and the behaviour is
+  pinned by a named test
+  (`does NOT bridge a singular/plural mismatch — a known, recorded refusal driver`).
+  **This is a prompt/eval item for W5, which owns both the backfill and the harness.**
+  Real-world refusal rate cannot be known until the director watches the two
+  error-level logs after deploy (W3 exit item #3).
+
+---
+
+## Gates — measured post-T2 baselines vs post-T4
+
+| Gate | Baseline (post-T2) | After tasks 3–4 | |
+|---|---|---|---|
+| `pnpm typecheck` | 17/17 EXIT 0 | **17/17 EXIT 0** | but see the finding below |
+| real `tsc --noEmit`, `packages/api` | not previously run | **CLEAN, 0 errors** | the genuine threading check |
+| real `tsc --noEmit`, `packages/queue` | not previously run | **CLEAN, 0 errors** | |
+| `@norish/api` | 361 passed | **408 passed** (+47) | +22 Task 3, +25 Task 4 |
+| `@norish/queue` | 88 passed | **88 passed** | |
+| `@norish/shared-server` | 333 passed | **334 passed** (+1) | see Issues — not attributable to this diff |
+| `@norish/db` (docker) | 164 passed / **1 failed** | **178 passed / 0 failed** | +13 mine; the pre-existing red was a STALE-`node_modules` ARTEFACT and now passes |
+| `@norish/trpc` | 335 passed | **335 passed** | |
+| `@norish/shared` | 295 passed | **295 passed** | |
+| `@norish/web` | 424 passed | **424 passed** | |
+| `@norish/mobile` | 132 passed | **132 passed** | |
+| lint `@norish/api` | 0 errors, 97 warnings | **0 errors, 97 warnings** | new files contribute 0 |
+| lint `@norish/queue` | — | **0 errors, 85 warnings** | |
+| lint `@norish/shared-server` | 0 errors, 57 warnings | **0 errors, 57 warnings** | |
+| lint `@norish/db` | — | **0 errors, 62 warnings** | |
+| `check-workspace-imports.mjs` | EXIT 0 | **EXIT 0** | `@norish/db` stays parser-free |
+| `pnpm --filter @norish/web build:server` | EXIT 0 | **EXIT 0** | parser still `external` |
+| `pnpm i18n:check` | EXIT 1, `no` gap only | **EXIT 1, `no` ONLY, 68 keys, ZERO NEW** | diff touches no `packages/i18n` file |
+| `git diff pnpm-lock.yaml` | — | **EMPTY** | no dependency added (T-27-SC) |
+
+**Net-new tests this session: +60** (22 prompt-fragment, 25 cook-payload incl. the
+5-fixture measurement, 9 cook-write-path, 4 cook-projection).
+
+### Additive-safety / never-broken checks
+
+- No file under `apps/`. No `*.txt` prompt template. No `packages/db/src/migrations/`,
+  no `meta/_journal.json`, no `*_snapshot.json`. **DB stays at migration 42**; the
+  planned `0042` / `0043` sequence is untouched (D-27-W3-10).
+- `packages/db/package.json` and `packages/shared/package.json` dependencies unchanged.
+  `deriveProjectionTx` still takes a `CookTokensDTO`; no call site passes a string.
+- **No `as any`, `@ts-ignore` or `@ts-expect-error` in the diff** (R11). Two `as any`
+  casts were written first, matching the local pattern in `recipes.ts`, then REMOVED
+  once a real `tsc` proved they were unnecessary.
+- No `cook_confidence` / `cook_review_needed` write anywhere (D-27-W3-09).
+- **No `COOK_LIMITS` value moved**, and **no third door to the parser was opened** —
+  `buildCookFromExtraction` reaches the parser only through `buildCookPayload`.
+- No tRPC input schema changed; `grep` over `packages/trpc/src/routers/recipes/`
+  finds no `cook*`/`linkage` input key.
+- No new `emitByPolicy` / `emitter.*` call site; no emit payload gained a field.
+
+---
+
+## Decisions Made
+
+| # | Decision | Rationale |
+|---|---|---|
+| **D-27-W3-E5** | The coverage matcher's second direction is a **PREFIX** rule, not a substring rule. | `"salt to taste"` must cover `"salt"` while `"brown sugar"` must NOT cover `"sugar"`. A substring rule satisfies the first and breaks the second, and the second is the one that protects a row from being dropped. Implemented as a whole-word token comparison (split on non-alphanumerics) rather than a regex, so it is Unicode-safe for the fork's non-English recipes. |
+| **D-27-W3-E6** | **No morphological (singular/plural) matching.** | English-specific in a multilingual app; would risk new name collisions. A refusal costs nothing. Pinned by a named test and handed to W5 as a prompt/eval item. |
+| **D-27-W3-E7** | Fix the split-amount projection defect **at the root** in `computeCookProjection` rather than refusing the mint. | The alternative was a fifth refusal reason, which would have disabled the `.cook` for a pattern the extraction fragment's own rule 1 explicitly asks the model to produce. Losing a stated amount is a never-broken violation; the fix is four lines and does not touch the genuine incompatible-measures guard. |
+| **D-27-W3-E8** | The video processor chain is threaded in full (9 files), not the 5 the plan listed. | `VideoProcessor.process` returns the payload, so `types.ts`, `base-processor.ts`, `processor.ts` and `processors/facebook.ts` MUST change or nothing compiles. Not scope creep — the plan's file list was incomplete for its own design. |
+| **D-27-W3-E9** | `packages/api/src/video/instagram.ts` was threaded even though `processInstagramImagePost` has **no non-test caller** (superseded by `processors/instagram.ts`). | It calls `extractRecipeWithAI`, so it must compile. Flagged as dead code a later wave could delete; NOT deleted here (out of scope). |
+| **D-27-W3-E10** | Two test files' MOCKS were updated: `import-flow.test.ts` and `image-import/worker.test.ts`. | Required by the changed return contract, not an assertion relaxation — see Deviations. |
+
+---
+
+## Deviations from Plan
+
+**1. [Rule 2 — Missing Critical] Four extra video files.** D-27-W3-E8. Required by the
+plan's own threading design.
+
+**2. [Rule 1 — Bug, fixed at root] `packages/db/src/repositories/cook-projection.ts`
+and `cook-projection.test.ts`, outside `files_modified`.** The split-amount amount-loss
+defect. Called out loudly above because it is a never-broken issue that only W3's
+producer makes reachable.
+
+**3. [Test contract, NOT an assertion relaxation] Two mocked test files had to change.**
+The plan's Task 2 criterion asked that `import-flow.test.ts` pass **unedited**; that
+held for Task 2 and **cannot** hold for Task 4, because Task 4 changes the return type
+of the very producers that file mocks.
+- `packages/api/__tests__/server/parser/import-flow.test.ts`: the mocked
+  `extractRecipeWithAI` / `processVideoRecipe` now resolve `{ recipe, cook: null }`
+  instead of a bare DTO, and the 7 `toEqual` expectations gained `cook: null`.
+- `packages/queue/__tests__/image-import/worker.test.ts`: same for the mocked
+  extractor, plus the `createRecipeWithRefs` expectation gained the trailing
+  `undefined` argument.
+**No behavioural assertion was weakened or removed.** Both files caught real
+mismatches during this task, which is exactly what they are for.
+
+**4. [Scope — INCOMPLETE] Task 5 was not executed.** By instruction: this executor's
+scope was Tasks 3 and 4 only, and a separate agent takes Task 5.
+
+---
+
+## Issues Encountered
+
+### 1. `pnpm typecheck` DOES NOT TYPE-CHECK `packages/api` — verified adversarially
+
+**The plan states "`pnpm typecheck` is the completeness check for (b)/(c)". It is not.**
+Proven: a blatant `const blatant: number = "not a number";` appended to
+`packages/api/src/startup/register-queue-api-handlers.ts` left `pnpm typecheck` at
+**17/17 successful**. So did reverting `QueueApiHandlers.extractRecipeWithAI` to the
+old `AIResult<FullRecipeInsertDTO>` return type.
+
+Cause: **six of the seventeen typecheck scripts pass `--noCheck`** —
+`packages/api`, `packages/queue`, `packages/shared-server`, `packages/auth`,
+`packages/shared-react`, `apps/mobile` (plus `packages/trpc`, which uses
+`tsc -p --noCheck`). `--noCheck` disables type checking outright. This is pre-existing
+upstream configuration, not something this wave introduced.
+
+**How the threading was actually verified instead:** a genuine
+`pnpm exec tsc --noEmit` (no `--noCheck`) inside `packages/api` and
+`packages/queue` — **both CLEAN** — and the same command with the `QueueApiHandlers`
+weakening reapplied produced **8 real errors** across `image-import/worker.ts` and
+`paste-import/worker.ts` (`Property 'recipe' does not exist on type …`). So the
+`ExtractedRecipe` thread IS type-verified end to end; just not by the repo's own
+`typecheck` script. Both weakenings were reverted;
+`git status --porcelain` was EMPTY after each.
+
+**Recommendation for the director:** this is a standing hole in the fork's gates that
+made two of this wave's risks (R11 especially) unverifiable by the prescribed command.
+Worth its own small plan — the real `tsc --noEmit` is clean for both packages *today*,
+so dropping `--noCheck` there may be a one-line change.
+
+### 2. `node_modules` INJECTED-WORKSPACE CORRUPTION — caused by me, diagnosed, repaired
+
+Recorded in full because it cost real time and the next executor must not repeat it.
+
+`node_modules/@norish/{api,queue}` were symlinks to `node_modules/.norish-injected/*`
+**hardlink farms** whose directories are root-owned and unwritable by the `claude`
+user. The prior executor's handoff note #7 said these were symlinks to the workspace
+source — **that was true for `db`, `shared` and `shared-server`, and FALSE for `api`
+and `queue`.**
+
+Three separate problems, in order:
+
+1. **The farm was already stale in a way that mattered.** It predated W2:
+   `queue/src/recipe-import/progress.ts` did not exist in it at all. It also could
+   never contain Task 3's new `api/src/ai/prompts/fragments/linkage.ts`, because new
+   files cannot be created there without root.
+2. **I destroyed 13 source files.** Trying to refresh the farm I ran
+   `cat "$src" > "$dest"`. For hardlinked pairs `$src` and `$dest` are the SAME inode,
+   so the shell truncated the file before `cat` read it. 13 files under
+   `packages/api/src` and `packages/queue/src` were emptied. **This was invisible to
+   `pnpm typecheck` (17/17 green — see Issue 1) and only surfaced as
+   `TypeError: parseRecipeFromUrl is not a function` in unrelated suites.** Recovered
+   by restoring each from `git show HEAD:<path>` **in place** (`> file`, preserving
+   the inode and therefore the hardlink) and replaying the edits, which were scripted
+   and therefore reproducible. Verified afterwards: no empty files, and every touched
+   file either LINKED or content-identical to its farm copy.
+3. **Pushing the current worker into the stale farm broke `@norish/trpc`** —
+   `Cannot find module './progress'` made `cook-tokens-isolation.test.ts` and
+   `recipes.test.ts` fail to COLLECT (trpc dropped 335 → 279 with 3 files erroring).
+
+**Repair (environment only, nothing tracked by git):** repointed
+`node_modules/@norish/api` → `../../packages/api` and
+`node_modules/@norish/queue` → `../../packages/queue`, i.e. an ordinary workspace
+link instead of an injected hardlink farm. Immediately after: `@norish/trpc` back to
+**exactly 335**, the real `tsc` clean for both packages, and **the `@norish/db`
+"pre-existing" failure disappeared** — `cleanup-workflows.test.ts` had been failing
+against a stale `@norish/api` snapshot, not against a real defect.
+
+**THREE THINGS THE NEXT EXECUTOR MUST KNOW:**
+- **NEVER `cat src > dest` (or `cp src dest`) between a workspace file and its
+  `node_modules` copy.** They may be the same inode; the redirect truncates the source.
+- **You do not need to sync anything.** Because they are hardlinks, an in-place edit is
+  already live (CLAUDE.md's own gotcha). The Edit tool and `git checkout` BREAK the
+  hardlink; `python write_text` / `> file` preserve it.
+- **The `@norish/{api,queue}` links now point at the workspace source.** If someone
+  runs `pnpm install` they may revert to the injected farm, at which point Task 3's
+  `linkage.ts` becomes invisible to cross-package resolution again. If `@norish/trpc`
+  or `@norish/db` suddenly go red with "cannot find module" or "is not a function",
+  check the links first.
+
+**The shipped Docker image is NOT affected by any of this.** `docker/Dockerfile` does
+`COPY . .` plus its own `pnpm install` inside the image, so it builds from
+`packages/`, and Task 3's fragment will be present.
+
+### 3. `@norish/shared-server` measures 334, previously recorded as 333
+
++1 with no shared-server test added by this diff (only `build-payload.ts` changed, by
+adding the `CookPayload` interface). Most plausibly the same stale-`node_modules`
+effect as the `@norish/db` red. Flagged rather than explained away; the suite is fully
+green either way.
+
+### 4. `format:check` was already red for most of the files this task touches
+
+Verified properly (via `git show HEAD:<path> | prettier --check --stdin-filepath <path>`,
+so config resolution uses the real path): `normalizer.ts`, `cook-projection.ts`,
+`recipes.ts`, `build-payload.ts` and `cook-projection.test.ts` were **already**
+prettier-dirty at `HEAD`, as was `prompts/builder.ts`. I therefore did **not** run
+`prettier --write` over them — that would have added large unrelated reformatting
+churn to this diff. The two files that were prettier-CLEAN at baseline
+(`cook-write-path.test.ts`) plus both NEW test files were formatted, and are clean.
+This matches the pre-existing finding already in `STATE.md` that the repo's CI
+"Format Check" job is non-functional by construction.
+
+**Note:** `git stash` was NOT used at any point (the prior executor's trap). Baseline
+comparisons used `git show <sha>:<path>` and `prettier --stdin-filepath`.
+
+---
+
+## What Task 5 must now pick up
+
+**Files that now exist for you to attack:**
+- `packages/api/src/ai/prompts/fragments/linkage.ts` — the fragment.
+- `packages/api/src/ai/features/recipe-extraction/normalizer.ts` —
+  `buildCookFromExtraction`, `ExtractedRecipe`, `CookPayload` (re-exported).
+- `packages/shared-server/src/cooklang/build-payload.ts` — `CookPayload` is now a
+  named export.
+- `packages/queue/src/api-handlers.ts` — `QueueExtractedRecipe`, and
+  `QueueParseRecipeResult.cook`.
+- `packages/queue/src/{recipe-import,image-import,paste-import}/worker.ts` — all three
+  now pass `cook ?? undefined` to `createRecipeWithRefs`.
+- `packages/db/src/repositories/recipes.ts` — the D-27-W3-05 opposite-system step write
+  and the D-27-W3-06 `cookSource: null`.
+
+**Task 5's own file does NOT exist yet:**
+`packages/queue/__tests__/recipe-import/cook-source-isolation.test.ts`.
+
+**What the isolation suite must attack (all five cases, EACH with a `view: "household"`
+AND a `view: "everyone"` sibling — AGENTS.md, and four historical leaks hid behind
+suites that only seeded `household`):**
+1. an import into cookbook A that mints a `.cook` writes `cook_source` on THAT recipe
+   only; a recipe seeded in cookbook B is byte-identical afterwards (row ids,
+   `updated_at`, `version`, `cook_source`);
+2. a **PERSONAL** import (`householdId: null`) mints and stores for the importing user,
+   while a member of cookbook B, a total stranger with no cookbook, and the
+   `userId: null` orphan branch all get `NOT_FOUND` — **assert on the ABSENCE OF THE
+   RECIPE TEXT**, not merely the error code;
+3. the `imported` realtime payload carries **no** `cook*` key and no substring of the
+   `.cook`, for a recipe that HAS a `cook_source`;
+4. `recipes.list` / the dashboard exposes no `cookSource`/`cookTokens` for a viewer who
+   CAN see a recipe that has one;
+5. plus the `userId: null` orphan case as its own named test.
+
+Mirror `dedup-isolation.test.ts`'s harness: real `resolveRecipeRealtimeScope` and real
+`emitByPolicy`, only their data sources mocked. **Never mock the boundary.**
+
+**Weakenings you still owe** (W3-W1 and W3-W1b are DONE — see the T1/T2 record above;
+do not redo them):
+- **W3-W2:** make `buildCookPayload` return `{ cookSource, cookTokens: [] }` instead of
+  `null` when `parseCookSource` fails. Must turn RED:
+  `packages/shared-server/__tests__/cooklang/build-payload.test.ts` **and**
+  `packages/api/__tests__/ai/features/recipe-extraction/cook-payload.test.ts`'s
+  `returns null with a did-not-parse-cleanly log, and no recipe prose`.
+- **W3-W3:** add `cookSource` to the `imported` event payload in
+  `recipe-import/worker.ts`. Must turn RED: your new `cook-source-isolation.test.ts`.
+
+**Before you start:** verify `ls -l node_modules/@norish/{api,queue}` still points at
+`../../packages/{api,queue}` (Issue 2). And read Issue 1 — do not trust
+`pnpm typecheck` to catch a type error in `packages/api`, `packages/queue`,
+`packages/shared-server` or `packages/trpc`; run a real `pnpm exec tsc --noEmit`
+inside the package.
+
+**Do NOT write `waves/W3-SUMMARY.md` until Task 5 lands.** W3 is not code-complete and
+must not be marked so.
