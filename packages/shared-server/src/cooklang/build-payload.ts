@@ -6,6 +6,7 @@ import { structuredToCooklang } from "@norish/shared/cooklang";
 
 import { parserLogger as log } from "../logger";
 
+import { checkCookSourceLimits, checkStructuredRecipeLimits } from "./limits";
 import { parseCookSource } from "./parse";
 
 /**
@@ -41,6 +42,27 @@ export function buildCookPayload(
     0
   );
 
+  // T-27-01, gate 1 of 2: refuse an oversize recipe BEFORE serializing it, so the
+  // WASM parser is never reached with something unbounded. REJECT, never truncate.
+  const structuredBreach = checkStructuredRecipeLimits(recipe);
+
+  if (structuredBreach) {
+    log.error(
+      {
+        module: "cooklang",
+        reason: "input-too-large",
+        limit: structuredBreach.limit,
+        measured: structuredBreach.measured,
+        allowed: structuredBreach.allowed,
+        stepCount,
+        ingredientCount,
+      },
+      "Structured recipe exceeds an input-size cap; keeping the legacy projection"
+    );
+
+    return null;
+  }
+
   let cookSource: string;
 
   try {
@@ -49,6 +71,29 @@ export function buildCookPayload(
     log.error(
       { module: "cooklang", stepCount, ingredientCount, reason: "serialize-threw", err },
       "Could not serialize recipe to Cooklang; keeping the legacy projection"
+    );
+
+    return null;
+  }
+
+  // T-27-01, gate 2 of 2: the serialized bytes are what the parser actually sees, and
+  // token syntax makes them larger than any input measurement can predict. Checked
+  // here as well as inside `parseCookSource` so the ERROR-level log (and the null)
+  // are attributable to the minting path rather than the read path.
+  const sourceBreach = checkCookSourceLimits(cookSource);
+
+  if (sourceBreach) {
+    log.error(
+      {
+        module: "cooklang",
+        reason: "input-too-large",
+        limit: sourceBreach.limit,
+        measured: sourceBreach.measured,
+        allowed: sourceBreach.allowed,
+        stepCount,
+        ingredientCount,
+      },
+      "Serialized Cooklang exceeds the input-size cap; keeping the legacy projection"
     );
 
     return null;

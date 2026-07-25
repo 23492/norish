@@ -16,6 +16,8 @@ import { normalizeUnit } from "@norish/shared/lib/unit-localization";
 
 import { parserLogger as log } from "../logger";
 
+import { checkCookSourceLimits } from "./limits";
+
 /**
  * Server-only `.cook` -> `cookTokens` read model (Phase 27, W1).
  *
@@ -140,6 +142,11 @@ export function toCookTokens(recipe: CooklangRecipe, units?: UnitsMap): CookToke
  * read model", and the caller falls back to the legacy render path.
  *
  * `null` is returned when:
+ *  - the source breaches `COOK_LIMITS.maxCookSourceBytes` (T-27-01) — this is the
+ *    FIRST statement, so an oversize source never reaches the parser singleton.
+ *    It is the belt to `buildCookPayload`'s braces: `withCookTokens` (the read
+ *    path) calls this too, so a `cook_source` that somehow grew past the cap in
+ *    the database can never reach the WASM parser either;
  *  - the input is not a non-blank string;
  *  - the parser throws;
  *  - the source yields no steps;
@@ -149,6 +156,25 @@ export function toCookTokens(recipe: CooklangRecipe, units?: UnitsMap): CookToke
  *    than falling back, and the signal is exactly what W5's confidence gate wants.
  */
 export function parseCookSource(cookSource: string, units?: UnitsMap): CookTokensDTO | null {
+  const breach = checkCookSourceLimits(cookSource);
+
+  if (breach) {
+    // REJECT, never truncate: a truncated `.cook` parses cleanly and would store a
+    // source that silently omits steps. Counts only — never the source (T-27-05).
+    log.warn(
+      {
+        module: "cooklang",
+        reason: "input-too-large",
+        limit: breach.limit,
+        measured: breach.measured,
+        allowed: breach.allowed,
+      },
+      "Cooklang source exceeds the input-size cap; refusing to parse"
+    );
+
+    return null;
+  }
+
   if (typeof cookSource !== "string" || cookSource.trim() === "") return null;
 
   let recipe: CooklangRecipe;

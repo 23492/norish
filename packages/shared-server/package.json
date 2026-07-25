@@ -10,6 +10,7 @@
     "./config/server-config-loader": "./src/config/server-config-loader.ts",
     "./media/storage": "./src/media/storage.ts",
     "./media/avatar-cleanup": "./src/media/avatar-cleanup.ts",
+    "./cooklang/limits": "./src/cooklang/limits.ts",
     "./cooklang/parse": "./src/cooklang/parse.ts",
     "./cooklang/build-payload": "./src/cooklang/build-payload.ts",
     "./cooklang/attach-tokens": "./src/cooklang/attach-tokens.ts",
