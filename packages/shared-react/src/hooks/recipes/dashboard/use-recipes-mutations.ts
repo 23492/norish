@@ -143,8 +143,8 @@ function createOptimisticId(): string {
     }
   }
 
-  bytes[6] = (bytes[6] & 0x0f) | 0x40;
-  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  bytes[6] = (bytes[6]! & 0x0f) | 0x40;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
 
   const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0"));
 
@@ -162,6 +162,13 @@ function createOptimisticFullRecipe(input: FullRecipeInsertDTO): FullRecipeDTO |
   return {
     id: input.id,
     userId: null,
+    // Cookbook scoping is decided server-side on create (RecipeInsertBaseSchema
+    // omits householdId/visibility from client input), so the optimistic entry
+    // uses the same "unknown until the server responds" placeholders as userId
+    // above; the real values arrive on mutation success and replace this cache
+    // entry, so the only visible effect of a mismatch is a brief flash.
+    householdId: null,
+    visibility: "private",
     name: input.name,
     description: input.description ?? null,
     notes: input.notes ?? null,
@@ -217,6 +224,10 @@ function createOptimisticFullRecipe(input: FullRecipeInsertDTO): FullRecipeDTO |
       order: toNumber(video.order),
       version: video.version ?? 1,
     })),
+    cookSource: null,
+    cookTokens: null,
+    cookConfidence: null,
+    cookReviewNeeded: false,
     version: 1,
   };
 }
@@ -225,6 +236,7 @@ function createOptimisticDashboardRecipe(recipe: FullRecipeDTO): RecipeDashboard
   return {
     id: recipe.id,
     userId: recipe.userId,
+    householdId: recipe.householdId,
     name: recipe.name,
     description: recipe.description,
     notes: recipe.notes,
@@ -243,6 +255,77 @@ function createOptimisticDashboardRecipe(recipe: FullRecipeDTO): RecipeDashboard
     averageRating: null,
     ratingCount: 0,
     version: recipe.version,
+  };
+}
+
+// The update mutation's `data` payload (FullRecipeUpdateDTO) intentionally allows
+// sub-entities (ingredients/steps/step-images/images/videos) without ids or
+// versions, since a user may add new rows client-side before the save round-trip
+// assigns them. The optimistic cache entry is typed as a full, persisted
+// FullRecipeDTO, so — same as createOptimisticFullRecipe above — any such rows
+// need synthesized ids/versions rather than being passed through partially
+// filled. Without this, the optimistic cache briefly held recipe sub-entities
+// missing required fields whenever an edit added a new ingredient/step/image/
+// video row.
+function toOptimisticRecipeIngredient(
+  ingredient: NonNullable<FullRecipeUpdateDTO["recipeIngredients"]>[number],
+  index: number,
+  fallbackSystemUsed: MeasurementSystem
+) {
+  return {
+    id: ingredient.id ?? createOptimisticId(),
+    ingredientId: ingredient.ingredientId ?? null,
+    ingredientName: ingredient.ingredientName ?? "",
+    amount: toNullableNumber(ingredient.amount),
+    unit: ingredient.unit ?? null,
+    order: toNumber(ingredient.order, index),
+    systemUsed: ingredient.systemUsed ?? fallbackSystemUsed,
+    version: ingredient.version ?? 1,
+  };
+}
+
+function toOptimisticStepImage(
+  image: NonNullable<NonNullable<FullRecipeUpdateDTO["steps"]>[number]["images"]>[number]
+) {
+  return {
+    id: image.id ?? createOptimisticId(),
+    image: image.image,
+    order: toNumber(image.order),
+    version: image.version ?? 1,
+  };
+}
+
+function toOptimisticStep(
+  step: NonNullable<FullRecipeUpdateDTO["steps"]>[number],
+  index: number,
+  fallbackSystemUsed: MeasurementSystem
+) {
+  return {
+    step: step.step,
+    systemUsed: step.systemUsed ?? fallbackSystemUsed,
+    order: toNumber(step.order, index),
+    version: step.version ?? 1,
+    images: (step.images ?? []).map((image) => toOptimisticStepImage(image)),
+  };
+}
+
+function toOptimisticRecipeImage(image: NonNullable<FullRecipeUpdateDTO["images"]>[number]) {
+  return {
+    id: image.id ?? createOptimisticId(),
+    image: image.image,
+    order: toNumber(image.order),
+    version: image.version ?? 1,
+  };
+}
+
+function toOptimisticRecipeVideo(video: NonNullable<FullRecipeUpdateDTO["videos"]>[number]) {
+  return {
+    id: video.id ?? createOptimisticId(),
+    video: video.video,
+    thumbnail: video.thumbnail ?? null,
+    duration: toNullableNumber(video.duration),
+    order: toNumber(video.order),
+    version: video.version ?? 1,
   };
 }
 
@@ -458,11 +541,25 @@ export function createUseRecipesMutations(
             return {
               ...previous,
               ...data,
-              recipeIngredients: data.recipeIngredients ?? previous.recipeIngredients,
-              steps: data.steps ?? previous.steps,
-              tags: data.tags ?? previous.tags,
-              images: data.images ?? previous.images,
-              videos: data.videos ?? previous.videos,
+              recipeIngredients: data.recipeIngredients
+                ? data.recipeIngredients.map((ingredient, index) =>
+                    toOptimisticRecipeIngredient(ingredient, index, previous.systemUsed)
+                  )
+                : previous.recipeIngredients,
+              steps: data.steps
+                ? data.steps.map((step, index) =>
+                    toOptimisticStep(step, index, previous.systemUsed)
+                  )
+                : previous.steps,
+              tags: data.tags
+                ? data.tags.map((tag) => ({ name: tag.name, version: 1 }))
+                : previous.tags,
+              images: data.images
+                ? data.images.map((image) => toOptimisticRecipeImage(image))
+                : previous.images,
+              videos: data.videos
+                ? data.videos.map((video) => toOptimisticRecipeVideo(video))
+                : previous.videos,
             };
           });
 
