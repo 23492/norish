@@ -1,12 +1,13 @@
 // Phase 27 (COOK-01) W1 — `.cook` -> `cookTokens` read model, against the REAL
 // `@cooklang/cooklang` WASM parser (no mock, no stub, no fake).
 
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 
 import type { UnitsMap } from "@norish/config/zod/server-config";
 import defaultUnits from "@norish/config/units.default.json";
 import { parseCookSource } from "@norish/shared-server/cooklang/parse";
 import { CookTokensSchema } from "@norish/shared/contracts/zod";
+import { shutdownCookParsePool } from "../../src/cooklang/pool";
 
 const unitsConfig = defaultUnits as UnitsMap;
 
@@ -29,8 +30,8 @@ const COOK = [
 ].join("\n");
 
 describe("parseCookSource — happy path", () => {
-  it("dereferences ingredient indices into name + amount + canonical unit", () => {
-    const tokens = parseCookSource(COOK, unitsConfig);
+  it("dereferences ingredient indices into name + amount + canonical unit", async () => {
+    const tokens = await parseCookSource(COOK, unitsConfig);
 
     expect(tokens).not.toBeNull();
 
@@ -47,8 +48,8 @@ describe("parseCookSource — happy path", () => {
     ]);
   });
 
-  it("keeps amount-less and unit-less ingredients as nulls", () => {
-    const tokens = parseCookSource(COOK, unitsConfig)!;
+  it("keeps amount-less and unit-less ingredients as nulls", async () => {
+    const tokens = (await parseCookSource(COOK, unitsConfig))!;
     const second = tokens[1]!;
 
     expect(second.tokens).toContainEqual({
@@ -65,15 +66,15 @@ describe("parseCookSource — happy path", () => {
     });
   });
 
-  it("carries `== Heading ==` section names onto every step of that section", () => {
-    const tokens = parseCookSource(COOK, unitsConfig)!;
+  it("carries `== Heading ==` section names onto every step of that section", async () => {
+    const tokens = (await parseCookSource(COOK, unitsConfig))!;
 
     expect(tokens.map((step) => step.section)).toEqual(["Dough", "Dough", "Bake"]);
     expect(tokens.map((step) => step.order)).toEqual([0, 1, 2]);
   });
 
-  it("projects timers, and keeps cookware readable as prose", () => {
-    const tokens = parseCookSource(COOK, unitsConfig)!;
+  it("projects timers, and keeps cookware readable as prose", async () => {
+    const tokens = (await parseCookSource(COOK, unitsConfig))!;
     const bake = tokens[2]!;
 
     expect(bake.tokens).toContainEqual({
@@ -85,15 +86,15 @@ describe("parseCookSource — happy path", () => {
     expect(bake.tokens.map((t) => (t.type === "text" ? t.value : "")).join("")).toContain("oven");
   });
 
-  it("normalizes a raw `%unit` back to its canonical norish unit ID (D-8)", () => {
-    const tokens = parseCookSource("Mix @flour{200%gr} with @oil{2%EL}.\n", unitsConfig)!;
+  it("normalizes a raw `%unit` back to its canonical norish unit ID (D-8)", async () => {
+    const tokens = (await parseCookSource("Mix @flour{200%gr} with @oil{2%EL}.\n", unitsConfig))!;
     const units = tokens[0]!.tokens.flatMap((t) => (t.type === "ingredient" ? [t.unit] : []));
 
     expect(units).toEqual(["gram", "tablespoon"]);
   });
 
-  it("is identity-behaved on units when no units config is supplied", () => {
-    const tokens = parseCookSource("Mix @flour{200%gr}.\n")!;
+  it("is identity-behaved on units when no units config is supplied", async () => {
+    const tokens = (await parseCookSource("Mix @flour{200%gr}.\n"))!;
 
     expect(tokens[0]!.tokens).toContainEqual({
       type: "ingredient",
@@ -105,8 +106,8 @@ describe("parseCookSource — happy path", () => {
 });
 
 describe("parseCookSource — the output is plain JSON that validates against the contract", () => {
-  it("carries NO raw parser index and survives structuredClone", () => {
-    const tokens = parseCookSource(COOK, unitsConfig)!;
+  it("carries NO raw parser index and survives structuredClone", async () => {
+    const tokens = (await parseCookSource(COOK, unitsConfig))!;
     const serialized = JSON.stringify(tokens);
 
     expect(serialized).not.toContain('"index"');
@@ -122,8 +123,8 @@ describe("parseCookSource — the output is plain JSON that validates against th
     }
   });
 
-  it("validates against the CookTokens zod contract (the seam that would silently drift)", () => {
-    const tokens = parseCookSource(COOK, unitsConfig);
+  it("validates against the CookTokens zod contract (the seam that would silently drift)", async () => {
+    const tokens = await parseCookSource(COOK, unitsConfig);
 
     expect(() => CookTokensSchema.parse(tokens)).not.toThrow();
     expect(CookTokensSchema.parse(tokens)).toEqual(tokens);
@@ -131,44 +132,45 @@ describe("parseCookSource — the output is plain JSON that validates against th
 });
 
 describe("parseCookSource — failure mode is part of the contract", () => {
-  it("returns null and NEVER throws on empty, garbage or non-string input", () => {
-    expect(() => parseCookSource("")).not.toThrow();
-    expect(parseCookSource("")).toBeNull();
+  it("returns null and NEVER throws on empty, garbage or non-string input", async () => {
+    await expect(parseCookSource("")).resolves.toBeNull();
 
-    expect(() => parseCookSource("   \n  ")).not.toThrow();
-    expect(parseCookSource("   \n  ")).toBeNull();
+    await expect(parseCookSource("   \n  ")).resolves.toBeNull();
 
-    expect(() => parseCookSource("@@@{{{")).not.toThrow();
-    expect(parseCookSource("@@@{{{")).toBeNull();
+    await expect(parseCookSource("@@@{{{")).resolves.toBeNull();
 
-    expect(() => parseCookSource("~{bad")).not.toThrow();
-    expect(parseCookSource("~{bad")).toBeNull();
+    await expect(parseCookSource("~{bad")).resolves.toBeNull();
 
-    expect(() => parseCookSource(null as never)).not.toThrow();
-    expect(parseCookSource(null as never)).toBeNull();
+    await expect(parseCookSource(null as never)).resolves.toBeNull();
 
-    expect(() => parseCookSource(undefined as never)).not.toThrow();
-    expect(parseCookSource(undefined as never)).toBeNull();
+    await expect(parseCookSource(undefined as never)).resolves.toBeNull();
 
-    expect(() => parseCookSource(42 as never)).not.toThrow();
-    expect(parseCookSource(42 as never)).toBeNull();
+    await expect(parseCookSource(42 as never)).resolves.toBeNull();
   });
 
-  it("returns null for a source that parses but yields no steps", () => {
-    expect(parseCookSource("---\ntitle: Nothing\n---\n")).toBeNull();
+  it("returns null for a source that parses but yields no steps", async () => {
+    expect(await parseCookSource("---\ntitle: Nothing\n---\n")).toBeNull();
   });
 
-  it("returns null when the parser emits a diagnostic (untrustworthy read model)", () => {
+  it("returns null when the parser emits a diagnostic (untrustworthy read model)", async () => {
     // `servings` is typed as a number by Cooklang; a quoted value warns.
-    expect(parseCookSource('---\nservings: "4"\n---\nMix @flour{1%gram}.\n')).toBeNull();
+    expect(await parseCookSource('---\nservings: "4"\n---\nMix @flour{1%gram}.\n')).toBeNull();
   });
 });
 
 describe("parseCookSource — parser reuse", () => {
-  it("returns identical output across calls (module-level parser singleton)", () => {
-    const first = parseCookSource(COOK, unitsConfig);
-    const second = parseCookSource(COOK, unitsConfig);
+  it("returns identical output across calls (module-level parser singleton)", async () => {
+    const first = await parseCookSource(COOK, unitsConfig);
+    const second = await parseCookSource(COOK, unitsConfig);
 
     expect(second).toEqual(first);
   });
+});
+
+/**
+ * R4: vitest will not exit while a child process lives, so every suite that parses
+ * must tear the pool down. A leaked child hangs the whole run.
+ */
+afterAll(() => {
+  shutdownCookParsePool();
 });

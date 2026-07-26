@@ -6,11 +6,21 @@ import type { StructuredRecipe } from "@norish/shared/cooklang";
  * WHY THIS MODULE EXISTS. `@cooklang/cooklang` is a compiled Rust/WASM binary.
  * From W3 onward it is reached by text that a scraped page, an uploaded photo or
  * a video transcript steered a language model into producing — native code on the
- * far side of a prompt-injection surface. The parser is also **synchronous**:
- * once `CooklangParser.parse` is entered it cannot be cancelled, so the only
- * control available is *what and how much is allowed in*. These caps are that
- * control, and they are enforced INSIDE the two and only two doors to the parser
- * (`buildCookPayload` and `parseCookSource`), never at their call sites.
+ * far side of a prompt-injection surface. These caps bound *what and how much is
+ * allowed in*, and they are enforced INSIDE the two and only two doors to the
+ * parser (`buildCookPayload` and `parseCookSource`), never at their call sites.
+ *
+ * THIS MODULE IS DEFENCE IN DEPTH. IT IS NOT THE GUARANTEE (W3B, D-27-W3B-13).
+ * An earlier version of this docblock said the recognizer below "turns the time
+ * bound into a CHECKED precondition". That claim is void — see the section at the
+ * end of this comment — and it is void in a way that matters, because acting on it
+ * is what produced two refuted mitigations. The hard guarantee is a RESOURCE BOUND
+ * on the parse itself (`./pool`: a 1 000 ms `SIGKILL` wall-clock bound and a
+ * 256 MB heap bound, in a pooled child process). The caps and the recognizer here
+ * run FIRST and still earn their place — they stop a known-bad source from costing
+ * a process round trip, they feed W5's confidence signal, and they are why a real
+ * recipe never comes near a bound — but a gap in them now costs one refused or
+ * slow-but-bounded parse, NOT an unbounded one.
  *
  * BEHAVIOUR ON BREACH IS REJECT, NEVER TRUNCATE. A truncated `.cook` can still
  * parse cleanly, which would store a source that silently omits steps and break
@@ -72,10 +82,24 @@ import type { StructuredRecipe } from "@norish/shared/cooklang";
  *     because none of them is a shape the serializer can emit;
  *   - no legitimate refusal: prose reaches this gate already escaped, so
  *     "Preheat the oven @ 325" arrives as `\@ 325` and passes.
- * That turns the time bound into a CHECKED precondition: a source that passes both
- * gates is at most 64 KiB of diagnostic-free, well-formed Cooklang, and the worst
- * such source measured on this tree is 438 ms (64 KiB of `@a{1%g} `), a 4.5x margin
- * under the 2 000 ms budget.
+ *
+ * AND THAT WAS ALSO REFUTED — WHICH IS WHY THE BOUND EXISTS (W3B).
+ * The recognizer was sound about the BODY grammar and unsound about FRONTMATTER:
+ * `FRONTMATTER_LINE` constrained neither the key nor the value, so ARBITRARY YAML
+ * passed both gates. `---\na: ${"[".repeat(65400)}\n---\nstep\n` — 65 417 bytes,
+ * inside every cap, no defect reported — parsed for **24 557 ms / 38 511 ms** with
+ * a 131 218-byte "recursion limit exceeded" report. Balanced 25 000- and
+ * 30 000-deep variants cost 4 838 ms and 8 256 ms: a monotone FAMILY, not a lucky
+ * point.
+ *
+ * So the lesson, recorded here because this is the third place the same mistake
+ * could be made: **A RECOGNIZER FOR A GRAMMAR YOU DO NOT OWN CANNOT BE THE
+ * GUARANTEE.** Each of the three rounds was complete with respect to the
+ * sub-grammar its author knew about. What bounds parse time is `./pool`'s
+ * wall-clock `SIGKILL`, which needs to understand nothing about the input at all.
+ * A source that passes both gates here is at most 64 KiB of what we believe to be
+ * diagnostic-free, well-formed Cooklang — a good bet, and no longer a load-bearing
+ * one.
  *
  * DELIBERATELY NOT A ZOD `.max()` ON THE EXTRACTION SCHEMA (T-27-01b): a cap there
  * would make an oversize extraction fail the WHOLE import. A cap at the parser door

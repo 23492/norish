@@ -1,184 +1,98 @@
 import type { UnitsMap } from "@norish/config/zod/server-config";
-import type {
-  CookStepTokensDTO,
-  CookTokenDTO,
-  CookTokensDTO,
-} from "@norish/shared/contracts/dto/recipe";
-
-import {
-  CooklangParser,
-  getQuantityUnit,
-  getQuantityValue,
-  quantity_display,
-  type CooklangRecipe,
-} from "@cooklang/cooklang";
-import { normalizeUnit } from "@norish/shared/lib/unit-localization";
+import type { CookTokensDTO } from "@norish/shared/contracts/dto/recipe";
 
 import { parserLogger as log } from "../logger";
 
 import { checkCookSourceLimits, findCookSourceDefect } from "./limits";
+import { parseInPool } from "./pool";
 
 /**
- * Server-only `.cook` -> `cookTokens` read model (Phase 27, W1).
+ * Server-only `.cook` -> `cookTokens` read model (Phase 27, W1; bounded in W3B).
  *
  * Lives in `@norish/shared-server` and NOT in `@norish/shared` (D-27-W1-01):
  * `@norish/shared` is bundled by `apps/mobile`, and a WASM binary must never
  * reach the Expo bundle. Clients render the plain-JSON projection this module
  * produces; only the server ever runs the parser.
  *
- * The parser hands back a `CooklangRecipe` CLASS instance whose step items carry
- * only an INDEX into `recipe.ingredients` / `recipe.timers`. This module
- * dereferences every index and projects the result into plain JSON so it can
- * cross superjson/tRPC and satisfy `CookTokensSchema`.
+ * THE PARSER IS NOT IN THIS PROCESS ANY MORE (W3B). It runs in a pooled child
+ * process (`./pool` -> `./parse-worker`), which is also where the index
+ * dereferencing and token projection happen — a `CooklangRecipe` is a class
+ * instance and cannot cross the boundary, so only plain JSON does. That is why
+ * this module no longer imports `@cooklang/cooklang`, and why `parseCookSource`
+ * is `async`.
  */
-
-/**
- * The WASM module is initialised on first construction; reuse one parser for the
- * whole process rather than paying that cost per request.
- */
-let parserSingleton: CooklangParser | null = null;
-
-/**
- * NO DIALECT EXTENSIONS (T-27-01 root-cause fix).
- *
- * norish AUTHORS every `.cook` it parses, and it writes only CORE Cooklang:
- * `@name`, `@name{amount%unit}`, `~{amount%unit}`, `~name{amount%unit}`,
- * `== Heading ==` and YAML frontmatter. None of that is an extension, so switching
- * every extension off costs nothing — and it buys round-trip fidelity, which W4
- * stands on. With the default mask (`3818`) the parser also LEXES PROSE NUMBERS
- * into `inlineQuantity` items and re-formats them on the way out, so
- * `Bake at 180°C` came back as `Bake at 180 °C` and `Add 1.50 kg` as `Add 1.5 kg`:
- * the read model silently rewrote text the user typed. With `0` the same prose
- * round-trips byte-identically (`round-trip-fidelity.test.ts`).
- */
-const COOK_PARSER_EXTENSIONS = 0;
-
-function getParser(): CooklangParser {
-  if (!parserSingleton) {
-    parserSingleton = new CooklangParser();
-    parserSingleton.extensions = COOK_PARSER_EXTENSIONS;
-  }
-
-  return parserSingleton;
-}
-
-/** D-8: `%unit` carries a canonical norish unit ID — re-normalize on the way back in. */
-function canonicalUnit(unit: string | null, units?: UnitsMap): string | null {
-  if (!unit) return null;
-
-  const normalized = units ? normalizeUnit(unit, units) : unit;
-
-  return normalized === "" ? null : normalized;
-}
-
-function textToken(value: string): CookTokenDTO {
-  return { type: "text", value };
-}
-
-/**
- * Project a parsed recipe into the plain-JSON `cookTokens` read model.
- *
- * `order` is a recipe-wide running index over non-text step content, so a client
- * can address a step without knowing about sections; the section heading it
- * belongs to travels with the step as `section`.
- */
-export function toCookTokens(recipe: CooklangRecipe, units?: UnitsMap): CookTokensDTO {
-  const steps: CookStepTokensDTO[] = [];
-  let order = 0;
-
-  for (const section of recipe.sections) {
-    for (const content of section.content) {
-      if (content.type !== "step") continue;
-
-      const tokens: CookTokenDTO[] = [];
-
-      for (const item of content.value.items) {
-        switch (item.type) {
-          case "text": {
-            tokens.push(textToken(item.value));
-            break;
-          }
-          case "ingredient": {
-            const ingredient = recipe.ingredients[item.index];
-
-            if (!ingredient) break;
-
-            tokens.push({
-              type: "ingredient",
-              name: ingredient.name,
-              amount: getQuantityValue(ingredient.quantity),
-              unit: canonicalUnit(getQuantityUnit(ingredient.quantity), units),
-            });
-            break;
-          }
-          case "timer": {
-            const timer = recipe.timers[item.index];
-
-            if (!timer) break;
-
-            tokens.push({
-              type: "timer",
-              name: timer.name ?? null,
-              amount: getQuantityValue(timer.quantity),
-              // a Cooklang TIME unit ("minutes"), not a norish ingredient unit —
-              // deliberately NOT run through `normalizeUnit`, exactly as the
-              // serializer deliberately does not normalize it on the way out.
-              unit: getQuantityUnit(timer.quantity),
-            });
-            break;
-          }
-          case "cookware": {
-            // Cookware has no token type in the W1 read model (W4 owns the
-            // renderer); keep its name in the prose so the step still reads.
-            const cookware = recipe.cookware[item.index];
-
-            if (cookware) tokens.push(textToken(cookware.name));
-            break;
-          }
-          case "inlineQuantity": {
-            const quantity = recipe.inlineQuantities[item.index];
-
-            if (quantity) tokens.push(textToken(quantity_display(quantity)));
-            break;
-          }
-        }
-      }
-
-      steps.push({ order, section: section.name ?? null, tokens });
-      order += 1;
-    }
-  }
-
-  return steps;
-}
 
 /**
  * Parse a `.cook` source into the `cookTokens` read model.
  *
- * FAILURE MODE IS PART OF THE CONTRACT: this returns `null` and NEVER throws
+ * FAILURE MODE IS PART OF THE CONTRACT: this resolves `null` and NEVER rejects
  * into its caller — W2 puts it on a request path. `null` means "no trustworthy
  * read model", and the caller falls back to the legacy render path.
  *
- * `null` is returned when:
+ * ============================================================================
+ * WHAT ACTUALLY GUARANTEES THIS IS SAFE: A RESOURCE BOUND, NOT A RECOGNIZER.
+ * ============================================================================
+ *
+ * THE PREVIOUS VERSION OF THIS DOCBLOCK CLAIMED SOMETHING FALSE, and the claim is
+ * worth recording so it is not made a fourth time. It said a bad `cook_source`
+ * "can never reach the WASM parser", because `buildCookPayload` validates
+ * everything on the way in. That was refuted twice over:
+ *
+ *  1. `findCookSourceDefect` was itself incomplete. Its frontmatter recognizer
+ *     accepted arbitrary YAML, so `---\na: ${"[".repeat(65400)}\n---\nstep\n`
+ *     passed both gates and parsed for **24 557 / 38 511 ms**. The round before
+ *     that had been refuted in the other direction too — it REFUSED an ordinary
+ *     536-byte pot roast the real parser handled in 13 ms. Three rounds of
+ *     "complete the recognizer" each discovered a sub-grammar the last did not
+ *     know about.
+ *  2. "Validated at write" is not airtight for stored rows, whatever the
+ *     recognizer says. `copyRecipeForSave` carried a `cook_source` across without
+ *     re-validating it, W5's backfill will write `cook_source` in bulk, and a row
+ *     can be edited by an operator or restored from a dump. The READ path is a
+ *     request-path door on DB CONTENT.
+ *
+ * SO THE GUARANTEE IS NOW THIS, AND IT DOES NOT DEPEND ON RECOGNIZING ANYTHING:
+ *
+ *     ANYTHING THAT REACHES THE PARSER IS BOUNDED, WHATEVER WROTE IT.
+ *
+ * Every parse runs in a pooled child process under a 1 000 ms wall-clock bound
+ * (`SIGKILL` from the parent) and a 256 MB heap bound (the child's own
+ * `--max-old-space-size`). A bound hit kills and replaces the child and resolves
+ * `null`. See `./pool` for the measurements behind both numbers and for why the
+ * mechanism is a child process rather than a worker thread.
+ *
+ * THE BYTE CAP AND `findCookSourceDefect` STAY, AND THEY ARE STILL CHECKED FIRST
+ * — as DEFENCE IN DEPTH, not as the guarantee. They keep a known-bad source from
+ * costing a process round trip at all, they keep the diagnostics-based confidence
+ * signal W5 wants, and they are why a legitimate recipe never comes near a bound.
+ * The difference that matters: **a future gap in the recognizer now costs one
+ * refused or slow-but-bounded parse, not an unbounded one.** It is a quality
+ * issue, not a security incident. That is the entire point of the W3B pivot.
+ *
+ * `null` is resolved when:
  *  - the source breaches `COOK_LIMITS.maxCookSourceBytes` (T-27-01) — this is the
- *    FIRST statement, so an oversize source never reaches the parser singleton.
- *    It is the belt to `buildCookPayload`'s braces: `withCookTokens` (the read
- *    path) calls this too, so a `cook_source` that somehow grew past the cap in
- *    the database can never reach the WASM parser either;
+ *    FIRST statement, so an oversize source never even reaches the pool;
  *  - the source is not something norish's own serializer could have written
- *    (`findCookSourceDefect`, T-27-01). That is what actually bounds parse TIME:
- *    the parser is slow only when it renders diagnostics, and a serializer-shaped
- *    source has none. Checked before the singleton is touched, for the same
- *    belt-and-braces reason;
+ *    (`findCookSourceDefect`, T-27-01);
  *  - the input is not a non-blank string;
- *  - the parser throws;
+ *  - the parse hit either bound, the child crashed or trapped, no child could be
+ *    spawned, or the pool was saturated (all logged by `./pool`);
+ *  - the parser threw;
  *  - the source yields no steps;
  *  - the parser emitted ANY diagnostic. norish AUTHORS every `.cook` it stores
  *    (D-3), so a diagnostic means our own writer produced something the parser
  *    did not fully understand. Rendering a partially-understood recipe is worse
  *    than falling back, and the signal is exactly what W5's confidence gate wants.
+ *
+ * `scale` is forwarded verbatim to the WASM (D-27-W3B-11). norish does not pass
+ * one today, so behaviour is unchanged; W4's servings scaling can use it without
+ * re-plumbing the process boundary.
  */
-export function parseCookSource(cookSource: string, units?: UnitsMap): CookTokensDTO | null {
+export async function parseCookSource(
+  cookSource: string,
+  units?: UnitsMap,
+  scale?: number
+): Promise<CookTokensDTO | null> {
   const breach = checkCookSourceLimits(cookSource);
 
   if (breach) {
@@ -218,24 +132,7 @@ export function parseCookSource(cookSource: string, units?: UnitsMap): CookToken
 
   if (typeof cookSource !== "string" || cookSource.trim() === "") return null;
 
-  let recipe: CooklangRecipe;
-  let report: string;
-
-  try {
-    [recipe, report] = getParser().parse(cookSource);
-  } catch (err) {
-    log.warn({ module: "cooklang", err }, "Cooklang parse threw");
-
-    return null;
-  }
-
-  if (typeof report === "string" && report.trim() !== "") {
-    log.warn({ module: "cooklang" }, "Cooklang source did not parse cleanly");
-
-    return null;
-  }
-
-  const tokens = toCookTokens(recipe, units);
-
-  return tokens.length > 0 ? tokens : null;
+  // The bounded parse. `parseInPool` never throws and never hangs; it resolves
+  // `null` for every failure mode and logs the reason with counts and a pid.
+  return parseInPool(cookSource, units, scale);
 }

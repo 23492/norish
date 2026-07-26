@@ -126,7 +126,7 @@ export async function extractRecipeWithAI(
     );
 
     // D-27-W3-02: the `.cook` travels ALONGSIDE the DTO, never inside it.
-    const cook = buildCookFromExtraction(jsonLd!, normalized, await getUnits());
+    const cook = await buildCookFromExtraction(jsonLd!, normalized, await getUnits());
 
     return aiSuccess({ recipe: normalized, cook }, {
       inputTokens: result.usage?.inputTokens ?? 0,

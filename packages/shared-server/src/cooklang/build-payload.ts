@@ -45,7 +45,10 @@ export interface CookPayload {
  * The log carries counts and a reason but NEVER the recipe text: recipe prose is
  * per-cookbook data and must not land in a shared log stream (T-27-05).
  */
-export function buildCookPayload(recipe: StructuredRecipe, units?: UnitsMap): CookPayload | null {
+export async function buildCookPayload(
+  recipe: StructuredRecipe,
+  units?: UnitsMap
+): Promise<CookPayload | null> {
   const stepCount = recipe.steps?.length ?? 0;
   const ingredientCount = (recipe.steps ?? []).reduce(
     (total, step) => total + (step.ingredients?.length ?? 0),
@@ -132,7 +135,7 @@ export function buildCookPayload(recipe: StructuredRecipe, units?: UnitsMap): Co
     return null;
   }
 
-  const cookTokens = parseCookSource(cookSource, units);
+  const cookTokens = await parseCookSource(cookSource, units);
 
   if (!cookTokens) {
     // `parseCookSource` returns null when the parser emits ANY diagnostic, when it

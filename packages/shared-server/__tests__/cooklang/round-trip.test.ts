@@ -14,7 +14,7 @@
 // their DOCUMENTED behaviour (see `27-EXPERIMENT.md`), never relaxed.
 import type { CooklangRecipe } from "@cooklang/cooklang";
 import { CooklangParser, getQuantityUnit, getQuantityValue } from "@cooklang/cooklang";
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 
 import type { UnitsMap } from "@norish/config/zod/server-config";
 import defaultUnits from "@norish/config/units.default.json";
@@ -23,6 +23,7 @@ import { serializeWithReport, structuredToCooklang } from "@norish/shared/cookla
 import { formatUnit } from "@norish/shared/lib/unit-localization";
 
 import { fixtures } from "../../../shared/__tests__/cooklang/fixtures";
+import { shutdownCookParsePool } from "../../src/cooklang/pool";
 
 const unitsConfig = defaultUnits as UnitsMap;
 
@@ -80,7 +81,7 @@ function cookOf(slug: string): string {
 
 describe("structuredToCooklang output parses cleanly under the REAL WASM parser", () => {
   for (const fixture of fixtures) {
-    it(`${fixture.slug}: emits valid .cook that the parser accepts`, () => {
+    it(`${fixture.slug}: emits valid .cook that the parser accepts`, async () => {
       const { recipe, report } = parse(structuredToCooklang(fixture.recipe, unitsConfig));
 
       // no diagnostic at all: our own writer must produce a source the parser
@@ -94,7 +95,7 @@ describe("structuredToCooklang output parses cleanly under the REAL WASM parser"
 
 describe("round-trip: per-step ingredient amounts survive structured -> .cook -> parse", () => {
   for (const fixture of fixtures) {
-    it(`${fixture.slug}`, () => {
+    it(`${fixture.slug}`, async () => {
       const parsedSteps = extractSteps(
         parse(structuredToCooklang(fixture.recipe, unitsConfig)).recipe
       );
@@ -121,7 +122,7 @@ describe("round-trip: per-step ingredient amounts survive structured -> .cook ->
 });
 
 describe("D-8 unit vocabulary: canonical IDs are the %unit literal", () => {
-  it("gram/milliliter/tablespoon survive as-is (no localization, no pluralization, no conversion)", () => {
+  it("gram/milliliter/tablespoon survive as-is (no localization, no pluralization, no conversion)", async () => {
     const cook = cookOf("bolognese");
 
     expect(cook).toContain("%gram}");
@@ -136,7 +137,7 @@ describe("D-8 unit vocabulary: canonical IDs are the %unit literal", () => {
     expect(getQuantityValue(beef!.quantity)).toBe(500);
   });
 
-  it("no localized unit label ever entered the .cook", () => {
+  it("no localized unit label ever entered the .cook", async () => {
     for (const fixture of fixtures) {
       const cook = structuredToCooklang(fixture.recipe, unitsConfig);
 
@@ -148,7 +149,7 @@ describe("D-8 unit vocabulary: canonical IDs are the %unit literal", () => {
 });
 
 describe("read side: formatUnit localizes the parsed canonical unit (D-27-W1-03)", () => {
-  it("renders `gram` per locale from the parser's own output", () => {
+  it("renders `gram` per locale from the parser's own output", async () => {
     const { recipe } = parse(cookOf("bolognese"));
     const beef = recipe.ingredients.find((ingredient) => ingredient.name === "minced beef")!;
     const unit = getQuantityUnit(beef.quantity)!;
@@ -160,7 +161,7 @@ describe("read side: formatUnit localizes the parsed canonical unit (D-27-W1-03)
     expect(formatUnit(unit, "de", unitsConfig, amount)).toBe("g");
   });
 
-  it("renders `tablespoon` per locale from the parser's own output", () => {
+  it("renders `tablespoon` per locale from the parser's own output", async () => {
     const { recipe } = parse(cookOf("bolognese"));
     const oil = recipe.ingredients.find((ingredient) => ingredient.name === "olive oil")!;
     const unit = getQuantityUnit(oil.quantity)!;
@@ -173,7 +174,7 @@ describe("read side: formatUnit localizes the parsed canonical unit (D-27-W1-03)
 });
 
 describe("headings map to sections; timers round-trip", () => {
-  it("cookies: `#`-prefixed steps become == sections ==", () => {
+  it("cookies: `#`-prefixed steps become == sections ==", async () => {
     const cook = cookOf("cookies");
 
     expect(cook).toContain("== Dough ==");
@@ -187,14 +188,14 @@ describe("headings map to sections; timers round-trip", () => {
     expect(extractSteps(recipe).some((step) => step.text.includes("Dough"))).toBe(false);
   });
 
-  it("bolognese: the 30-minute timer parses to a timer token", () => {
+  it("bolognese: the 30-minute timer parses to a timer token", async () => {
     const { recipe } = parse(cookOf("bolognese"));
 
     expect(recipe.timers.some((timer) => getQuantityValue(timer.quantity) === 30)).toBe(true);
     expect(recipe.timers.some((timer) => getQuantityUnit(timer.quantity) === "minutes")).toBe(true);
   });
 
-  it("every fixture timer survives the round trip", () => {
+  it("every fixture timer survives the round trip", async () => {
     for (const fixture of fixtures) {
       const expectedTimers = fixture.recipe.steps.flatMap((step) => step.timers ?? []);
       const { recipe } = parse(structuredToCooklang(fixture.recipe, unitsConfig));
@@ -216,7 +217,7 @@ describe("headings map to sections; timers round-trip", () => {
 });
 
 describe("failure-mode surfacing: appended vs inline link report", () => {
-  it("every ingredient ref is accounted for as inline or appended", () => {
+  it("every ingredient ref is accounted for as inline or appended", async () => {
     for (const fixture of fixtures) {
       const { links } = serializeWithReport(fixture.recipe, unitsConfig);
       const refCount = fixture.recipe.steps.reduce((n, step) => n + step.ingredients.length, 0);
@@ -225,7 +226,7 @@ describe("failure-mode surfacing: appended vs inline link report", () => {
     }
   });
 
-  it("all fixture refs resolve inline in this hand-linked set (0 appended)", () => {
+  it("all fixture refs resolve inline in this hand-linked set (0 appended)", async () => {
     // The hand-linking anchored every ref to a word present in the prose, so NONE
     // fall through to `appended`. Real extraction output will not be this clean —
     // the `appended` bucket is W5's confidence-gate signal (27-EXPERIMENT.md).
@@ -240,7 +241,7 @@ describe("failure-mode surfacing: appended vs inline link report", () => {
     }
   });
 
-  it("an unanchored ref is APPENDED and reported, never silently dropped", () => {
+  it("an unanchored ref is APPENDED and reported, never silently dropped", async () => {
     const { cook, links } = serializeWithReport(
       {
         name: "Garnished bolognese",
@@ -265,7 +266,7 @@ describe("failure-mode surfacing: appended vs inline link report", () => {
 });
 
 describe("documented lossy cases (27-EXPERIMENT.md) — asserted, not relaxed", () => {
-  it("curry: a SPLIT amount keeps the total on the main use and a bare token on the note use", () => {
+  it("curry: a SPLIT amount keeps the total on the main use and a bare token on the note use", async () => {
     // coconut milk is 400 ml in total and is used twice. The whole amount is
     // attached to the SECOND (main) use; the first use carries an amount-less
     // token. Cooklang cannot express "a little of the 400 ml", so this is the
@@ -280,7 +281,7 @@ describe("documented lossy cases (27-EXPERIMENT.md) — asserted, not relaxed", 
     expect(mainUse.unit).toBe("milliliter");
   });
 
-  it("cookies: the timer is appended because '12 minutes' is prose, not a token", () => {
+  it("cookies: the timer is appended because '12 minutes' is prose, not a token", async () => {
     // The serializer cannot rewrite prose into a timer token, so it appends one
     // and leaves the sentence intact. Documented in 27-EXPERIMENT.md.
     const cook = cookOf("cookies");
@@ -291,8 +292,8 @@ describe("documented lossy cases (27-EXPERIMENT.md) — asserted, not relaxed", 
 
 describe("the two halves agree: serializer output through parseCookSource", () => {
   for (const fixture of fixtures) {
-    it(`${fixture.slug}: cookTokens carry the same per-step amounts`, () => {
-      const tokens = parseCookSource(
+    it(`${fixture.slug}: cookTokens carry the same per-step amounts`, async () => {
+      const tokens = await parseCookSource(
         structuredToCooklang(fixture.recipe, unitsConfig),
         unitsConfig
       );
@@ -314,4 +315,12 @@ describe("the two halves agree: serializer output through parseCookSource", () =
       });
     });
   }
+});
+
+/**
+ * R4: vitest will not exit while a child process lives, so every suite that parses
+ * must tear the pool down. A leaked child hangs the whole run.
+ */
+afterAll(() => {
+  shutdownCookParsePool();
 });

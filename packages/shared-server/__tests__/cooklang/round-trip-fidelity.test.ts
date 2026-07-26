@@ -18,7 +18,7 @@
  * not a character), and the pre-existing `.trim()` still trims.
  */
 
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 
 import type { UnitsMap } from "@norish/config/zod/server-config";
 import type { CookTokensDTO } from "@norish/shared/contracts/dto/recipe";
@@ -27,6 +27,7 @@ import defaultUnits from "@norish/config/units.default.json";
 import { escapeCookText, structuredToCooklang } from "@norish/shared/cooklang";
 import { findCookSourceDefect } from "@norish/shared-server/cooklang/limits";
 import { parseCookSource } from "@norish/shared-server/cooklang/parse";
+import { shutdownCookParsePool } from "../../src/cooklang/pool";
 
 const units = defaultUnits as UnitsMap;
 
@@ -47,13 +48,20 @@ function renderProse(tokens: CookTokensDTO): string {
     .join("\n\n");
 }
 
-/** The full round trip: one step of prose in, the rendered prose out. */
-function roundTrip(prose: string): string {
+/**
+ * The full round trip: one step of prose in, the rendered prose out.
+ *
+ * `async` since W3B, because the parse now happens in a pooled child process. The
+ * two nested sweeps below run ~290 SEQUENTIAL pooled round trips between them;
+ * they are deliberately NOT parallelized into the pool, which would make the
+ * timing assertions elsewhere racy for no gain.
+ */
+async function roundTrip(prose: string): Promise<string> {
   const cook = structuredToCooklang(recipeOf([stepOf(prose)]), units);
 
   expect(findCookSourceDefect(cook), `defect for ${JSON.stringify(prose)}`).toBeNull();
 
-  const tokens = parseCookSource(cook, units);
+  const tokens = await parseCookSource(cook, units);
 
   expect(tokens, `read model for ${JSON.stringify(prose)}`).not.toBeNull();
 
@@ -118,12 +126,12 @@ const NAMED_CASES: [string, string][] = [
 
 describe("round-trip fidelity — the prose a user typed survives byte-identically", () => {
   for (const [name, prose] of NAMED_CASES) {
-    it(`${name}`, () => {
-      expect(roundTrip(prose)).toBe(prose);
+    it(`${name}`, async () => {
+      expect(await roundTrip(prose)).toBe(prose);
     });
   }
 
-  it("survives every ASCII punctuation character in every construct-starting position", () => {
+  it("survives every ASCII punctuation character in every construct-starting position", async () => {
     const failures: string[] = [];
 
     for (const char of ASCII_PUNCTUATION) {
@@ -140,7 +148,7 @@ describe("round-trip fidelity — the prose a user typed survives byte-identical
         let got: string;
 
         try {
-          got = roundTrip(expected);
+          got = await roundTrip(expected);
         } catch (err) {
           failures.push(`${JSON.stringify(expected)} threw ${String(err).slice(0, 80)}`);
           continue;
@@ -153,14 +161,14 @@ describe("round-trip fidelity — the prose a user typed survives byte-identical
     expect(failures).toEqual([]);
   });
 
-  it("survives every ADJACENT PAIR of metacharacters (the two-character constructs)", () => {
+  it("survives every ADJACENT PAIR of metacharacters (the two-character constructs)", async () => {
     const metacharacters = "\\@#~{}%=>-";
     const failures: string[] = [];
 
     for (const first of metacharacters) {
       for (const second of metacharacters) {
         const prose = `Mix ${first}${second} well`;
-        const got = roundTrip(prose);
+        const got = await roundTrip(prose);
 
         if (got !== prose) failures.push(`${JSON.stringify(prose)} -> ${JSON.stringify(got)}`);
       }
@@ -169,7 +177,7 @@ describe("round-trip fidelity — the prose a user typed survives byte-identical
     expect(failures).toEqual([]);
   });
 
-  it("keeps the prose AROUND a real ingredient token byte-identical", () => {
+  it("keeps the prose AROUND a real ingredient token byte-identical", async () => {
     const cook = structuredToCooklang(
       recipeOf([
         {
@@ -183,7 +191,7 @@ describe("round-trip fidelity — the prose a user typed survives byte-identical
 
     expect(findCookSourceDefect(cook)).toBeNull();
 
-    const tokens = parseCookSource(cook, units)!;
+    const tokens = (await parseCookSource(cook, units))!;
 
     expect(tokens[0]!.tokens).toEqual([
       { type: "text", value: "Whisk the " },
@@ -193,7 +201,7 @@ describe("round-trip fidelity — the prose a user typed survives byte-identical
     expect(renderProse(tokens)).toBe("Whisk the flour @ 100% hydration -- gently {please}.");
   });
 
-  it("round-trips an ingredient NAME that itself carries metacharacters", () => {
+  it("round-trips an ingredient NAME that itself carries metacharacters", async () => {
     // The old serializer STRIPPED `@{}~#%` from a name, which silently rewrote both
     // the ingredient and — because the token replaces the name in the prose — the
     // step the user reads. Escaping keeps both exact.
@@ -213,7 +221,7 @@ describe("round-trip fidelity — the prose a user typed survives byte-identical
 
     expect(findCookSourceDefect(cook)).toBeNull();
 
-    const tokens = parseCookSource(cook, units)!;
+    const tokens = (await parseCookSource(cook, units))!;
 
     expect(tokens[0]!.tokens).toContainEqual({
       type: "ingredient",
@@ -230,7 +238,7 @@ describe("round-trip fidelity — the prose a user typed survives byte-identical
     expect(renderProse(tokens)).toBe("Add the jalapeño #2 and the 70% chocolate.");
   });
 
-  it("a `#`-leading step is norish's HEADING convention, and its text still survives", () => {
+  it("a `#`-leading step is norish's HEADING convention, and its text still survives", async () => {
     // Pre-existing (W2-E5), unrelated to escaping: the `#` marker is consumed and
     // everything after it becomes the section name, byte-identically.
     const cook = structuredToCooklang(
@@ -242,10 +250,10 @@ describe("round-trip fidelity — the prose a user typed survives byte-identical
     );
 
     expect(findCookSourceDefect(cook)).toBeNull();
-    expect(parseCookSource(cook, units)![0]!.section).toBe("XY");
+    expect((await parseCookSource(cook, units))![0]!.section).toBe("XY");
   });
 
-  it("round-trips a section HEADING that carries metacharacters", () => {
+  it("round-trips a section HEADING that carries metacharacters", async () => {
     const cook = structuredToCooklang(
       recipeOf([
         { text: "# Dough == 100% hydration", order: 0, ingredients: [] },
@@ -256,18 +264,18 @@ describe("round-trip fidelity — the prose a user typed survives byte-identical
 
     expect(findCookSourceDefect(cook)).toBeNull();
 
-    const tokens = parseCookSource(cook, units)!;
+    const tokens = (await parseCookSource(cook, units))!;
 
     expect(tokens[0]!.section).toBe("Dough == 100% hydration");
   });
 
-  it("escapeCookText is the exact inverse the parser expects (no double-escaping)", () => {
+  it("escapeCookText is the exact inverse the parser expects (no double-escaping)", async () => {
     expect(escapeCookText("a @ b")).toBe("a \\@ b");
     expect(escapeCookText("a \\ b")).toBe("a \\\\ b");
     expect(escapeCookText("a \\@ b")).toBe("a \\\\\\@ b");
     // idempotent it is NOT, and must not be: escaping twice must still round-trip
-    expect(roundTrip("a \\@ b")).toBe("a \\@ b");
-    expect(roundTrip(escapeCookText("a @ b"))).toBe("a \\@ b");
+    expect(await roundTrip("a \\@ b")).toBe("a \\@ b");
+    expect(await roundTrip(escapeCookText("a @ b"))).toBe("a \\@ b");
   });
 });
 
@@ -323,16 +331,16 @@ describe("soundness: the serializer can NEVER produce a source the recognizer re
     "   ",
   ];
 
-  it("survives every hostile string as step PROSE", () => {
+  it("survives every hostile string as step PROSE", async () => {
     for (const hostile of HOSTILE) {
       const cook = structuredToCooklang(recipeOf([stepOf(`Mix ${hostile} well.`)]), units);
 
       expect(findCookSourceDefect(cook), JSON.stringify(hostile)).toBeNull();
-      expect(parseCookSource(cook, units), JSON.stringify(hostile)).not.toBeNull();
+      expect(await parseCookSource(cook, units), JSON.stringify(hostile)).not.toBeNull();
     }
   });
 
-  it("survives every hostile string as an ingredient NAME, AMOUNT and UNIT", () => {
+  it("survives every hostile string as an ingredient NAME, AMOUNT and UNIT", async () => {
     for (const hostile of HOSTILE) {
       const cases: StructuredStep[] = [
         // a BLANK name is not a name; it is asserted as a REFUSAL below
@@ -371,7 +379,7 @@ describe("soundness: the serializer can NEVER produce a source the recognizer re
     }
   });
 
-  it("REFUSES rather than corrupts when an ingredient ref has a BLANK name", () => {
+  it("REFUSES rather than corrupts when an ingredient ref has a BLANK name", async () => {
     // Not expressible as a token (`@{2%gram}` has no name), and dropping the ref
     // would drop an ingredient ROW because `deriveProjectionTx` builds them from
     // the tokens. So the whole source is refused: legacy projection, import
@@ -384,10 +392,10 @@ describe("soundness: the serializer can NEVER produce a source the recognizer re
     );
 
     expect(findCookSourceDefect(cook)?.defect).toBe("malformed-token");
-    expect(parseCookSource(cook, units)).toBeNull();
+    expect(await parseCookSource(cook, units)).toBeNull();
   });
 
-  it("a CONTROL CHARACTER in a metadata value is folded, because YAML forbids it raw", () => {
+  it("a CONTROL CHARACTER in a metadata value is folded, because YAML forbids it raw", async () => {
     // YAML rejects raw control characters even inside quotes ("control characters
     // are not allowed at position N"), so frontmatter needs its own normalization —
     // step prose keeps a NUL byte-identically, a YAML scalar cannot.
@@ -398,10 +406,10 @@ describe("soundness: the serializer can NEVER produce a source the recognizer re
 
     expect(cook).toContain("title: Roast Beef");
     expect(findCookSourceDefect(cook)).toBeNull();
-    expect(parseCookSource(cook, units)).not.toBeNull();
+    expect(await parseCookSource(cook, units)).not.toBeNull();
   });
 
-  it("a NUMERIC-LOOKING recipe name is still a string in the frontmatter", () => {
+  it("a NUMERIC-LOOKING recipe name is still a string in the frontmatter", async () => {
     // `title: 1.50` unquoted makes YAML read a number and the parser report
     // `Unsupported value for key: 'title'`, which would cost the recipe its
     // `cook_source` for a name the user chose. Only `servings` is numeric-typed.
@@ -413,10 +421,10 @@ describe("soundness: the serializer can NEVER produce a source the recognizer re
     expect(cook).toContain('title: "1.50"');
     expect(cook).toContain("servings: 4");
     expect(findCookSourceDefect(cook)).toBeNull();
-    expect(parseCookSource(cook, units)).not.toBeNull();
+    expect(await parseCookSource(cook, units)).not.toBeNull();
   });
 
-  it("survives every hostile string as a HEADING and as the recipe NAME", () => {
+  it("survives every hostile string as a HEADING and as the recipe NAME", async () => {
     for (const hostile of HOSTILE) {
       const heading = structuredToCooklang(
         recipeOf([
@@ -434,24 +442,24 @@ describe("soundness: the serializer can NEVER produce a source the recognizer re
       );
 
       expect(findCookSourceDefect(named), `name ${JSON.stringify(hostile)}`).toBeNull();
-      expect(parseCookSource(named, units), `name ${JSON.stringify(hostile)}`).not.toBeNull();
+      expect(await parseCookSource(named, units), `name ${JSON.stringify(hostile)}`).not.toBeNull();
     }
   });
 });
 
 describe("round-trip fidelity — the documented, deliberate normalizations", () => {
-  it("folds CR/LF in step prose to a single space (a newline is a structural injection)", () => {
+  it("folds CR/LF in step prose to a single space (a newline is a structural injection)", async () => {
     // Left verbatim, `\n\n` would start a NEW step and `\n== x ==` a new section, so
     // a model could inject `.cook` structure through step prose. Folding is the fix;
     // it is the ONE character class that does not survive byte-identically.
-    expect(roundTrip("Mix\nthen fold")).toBe("Mix then fold");
-    expect(roundTrip("Mix\r\nthen fold")).toBe("Mix then fold");
-    expect(roundTrip("Mix\n\n== Injected ==\n\n@a{1%}")).toBe(
+    expect(await roundTrip("Mix\nthen fold")).toBe("Mix then fold");
+    expect(await roundTrip("Mix\r\nthen fold")).toBe("Mix then fold");
+    expect(await roundTrip("Mix\n\n== Injected ==\n\n@a{1%}")).toBe(
       "Mix  == Injected ==  @a{1%}"
     );
   });
 
-  it("a newline-bearing step cannot inject a step, a section or a token", () => {
+  it("a newline-bearing step cannot inject a step, a section or a token", async () => {
     const cook = structuredToCooklang(
       recipeOf([stepOf("Mix\n\n== Injected ==\n\nSecond step @a{1%} here")]),
       units
@@ -459,14 +467,14 @@ describe("round-trip fidelity — the documented, deliberate normalizations", ()
 
     expect(findCookSourceDefect(cook)).toBeNull();
 
-    const tokens = parseCookSource(cook, units)!;
+    const tokens = (await parseCookSource(cook, units))!;
 
     expect(tokens).toHaveLength(1);
     expect(tokens[0]!.section).toBeNull();
     expect(tokens[0]!.tokens.every((token) => token.type === "text")).toBe(true);
   });
 
-  it("a newline-bearing recipe NAME cannot break out of the YAML frontmatter", () => {
+  it("a newline-bearing recipe NAME cannot break out of the YAML frontmatter", async () => {
     const cook = structuredToCooklang(
       {
         name: "Roast\n---\n\n@a{1%} @b{2%}",
@@ -479,22 +487,30 @@ describe("round-trip fidelity — the documented, deliberate normalizations", ()
     expect(findCookSourceDefect(cook)).toBeNull();
     expect(cook.split("---\n")).toHaveLength(3);
 
-    const tokens = parseCookSource(cook, units)!;
+    const tokens = (await parseCookSource(cook, units))!;
 
     expect(tokens).toHaveLength(1);
     expect(renderProse(tokens)).toBe("Mix it.");
   });
 
-  it("still trims leading and trailing whitespace, exactly as before", () => {
-    expect(roundTrip("  Mix well.  ")).toBe("Mix well.");
+  it("still trims leading and trailing whitespace, exactly as before", async () => {
+    expect(await roundTrip("  Mix well.  ")).toBe("Mix well.");
   });
 
-  it("documents the one irreducible loss: a LONE SURROGATE cannot cross into WASM", () => {
+  it("documents the one irreducible loss: a LONE SURROGATE cannot cross into WASM", async () => {
     // JS strings are UTF-16 and the WASM boundary is UTF-8, so an unpaired surrogate
     // becomes U+FFFD before the parser ever sees it. Nothing at this layer can fix
     // that, and no valid text contains one.
-    expect(roundTrip("Mix a \uD800 b")).toBe("Mix a � b");
+    expect(await roundTrip("Mix a \uD800 b")).toBe("Mix a � b");
     // a properly paired astral character is untouched
-    expect(roundTrip("Mix a \u{1F355} b")).toBe("Mix a \u{1F355} b");
+    expect(await roundTrip("Mix a \u{1F355} b")).toBe("Mix a \u{1F355} b");
   });
+});
+
+/**
+ * R4: vitest will not exit while a child process lives, so every suite that parses
+ * must tear the pool down. A leaked child hangs the whole run.
+ */
+afterAll(() => {
+  shutdownCookParsePool();
 });

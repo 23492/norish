@@ -5,8 +5,14 @@
  *
  * `@cooklang/cooklang` is a compiled Rust/WASM binary reached, from W3 onward, by
  * text a scraped page / uploaded photo / video transcript steered a language model
- * into producing. It is synchronous and uncancellable, so bounding the INPUT is the
- * only control available.
+ * into producing.
+ *
+ * WHAT THIS FILE DOES AND DOES NOT PROVE, SINCE W3B. It covers the INPUT caps and
+ * the recognizer — which are now DEFENCE IN DEPTH, not the guarantee. The parse is
+ * no longer synchronous-and-uncancellable in this process: it runs in a pooled
+ * child process under a wall-clock and a heap bound, and `pool.test.ts` is what
+ * proves THAT. A green run here does not mean the system is bounded; it means the
+ * cheap first layer still refuses what it should and still accepts what it must.
  *
  * The contract under test:
  *   - every one of the nine `COOK_LIMITS` keys has a breach case AND an at-the-cap
@@ -19,14 +25,16 @@
  *     for a 64 KiB source), while `POT_ROAST` scored 12 and was wrongly refused.
  *     Both refutations are pinned here as regression tests;
  *   - a breach REJECTS (returns `null`), never truncates;
- *   - on a breach the parser is provably NEVER invoked — this file mocks
- *     `@cooklang/cooklang` with a spy that DELEGATES to the real WASM, so the
- *     happy-path control still runs the real parser;
+ *   - on a breach THE POOL IS PROVABLY NEVER ASKED, so nothing crosses the process
+ *     boundary at all. Since W3B that is spied on the POOL, not on the WASM class —
+ *     `vi.mock` cannot reach into a child process, and the old spy would have kept
+ *     reporting a reassuring `0` forever (D-27-W3B-12). The mock DELEGATES, so the
+ *     happy-path control still runs the real parser in a real child;
  *   - a hostile corpus sized AT the cap neither throws nor takes longer than 2 s.
  */
 
 import type { StructuredRecipe, StructuredStep } from "@norish/shared/cooklang";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { UnitsMap } from "@norish/config/zod/server-config";
 import defaultUnits from "@norish/config/units.default.json";
@@ -35,38 +43,50 @@ import { CookTokensSchema } from "@norish/shared/contracts/zod";
 import { structuredToCooklang } from "@norish/shared/cooklang";
 
 import { fixtures } from "../../../shared/__tests__/cooklang/fixtures";
+import { shutdownCookParsePool } from "../../src/cooklang/pool";
 
 const units = defaultUnits as UnitsMap;
 
-const parseSpy = vi.fn();
+/**
+ * THE "PARSER NEVER INVOKED" PROOF, RE-POINTED FROM THE WASM TO THE POOL (W3B,
+ * D-27-W3B-12). READ THIS BEFORE CHANGING ANY `poolSpy` ASSERTION BELOW.
+ *
+ * This file used to prove "0 parse calls on a breach" by `vi.mock`-ing
+ * `@cooklang/cooklang` and counting `CooklangParser.parse` calls. Since W3B the
+ * parser runs in a CHILD PROCESS, and `vi.mock` cannot reach into one: the mock
+ * lives in this module graph and the child has its own. Left alone, every
+ * `toHaveBeenCalledTimes(0)` here would have kept passing while proving NOTHING —
+ * the exact vacuous-green pattern that hid four real leaks in Phases 22-22.3.
+ *
+ * So the assertion is re-pointed, and in the process it gets STRONGER: instead of
+ * "that one class was not constructed" it is now "THE POOL WAS NEVER ASKED", i.e.
+ * nothing crossed the process boundary at all. It is also stable under any future
+ * change of isolation mechanism.
+ *
+ * ANTI-VACUITY IS ASSERTED, NOT ASSUMED: the control test below records the spy
+ * count BEFORE and AFTER a real mint and requires it to INCREASE. A spy that is
+ * silently unwired fails that test instead of quietly passing every other one.
+ *
+ * The mock DELEGATES, so every happy path in this file still runs the real WASM in
+ * a real child process. `packages/shared-server/__tests__/cooklang/pool.test.ts`
+ * carries the companion static assertion that `@cooklang/cooklang` is imported by
+ * exactly ONE source file, so this proof cannot be side-stepped by adding a second
+ * importer.
+ */
+const poolSpy = vi.fn();
 
-vi.mock("@cooklang/cooklang", async () => {
-  const actual = await vi.importActual<typeof import("@cooklang/cooklang")>("@cooklang/cooklang");
+vi.mock("../../src/cooklang/pool", async () => {
+  const actual =
+    await vi.importActual<typeof import("../../src/cooklang/pool")>("../../src/cooklang/pool");
 
-  /**
-   * Delegates to the REAL parser, so every happy path in this file still exercises
-   * the real WASM; the spy exists purely to count invocations.
-   */
-  class SpyingCooklangParser {
-    private readonly inner = new actual.CooklangParser();
+  return {
+    ...actual,
+    parseInPool: (...args: Parameters<typeof actual.parseInPool>) => {
+      poolSpy(Buffer.byteLength(args[0] ?? "", "utf8"));
 
-    parse(source: string): ReturnType<InstanceType<typeof actual.CooklangParser>["parse"]> {
-      parseSpy(source);
-
-      return this.inner.parse(source);
-    }
-
-    /** Forwarded, so `parse.ts`'s `extensions = 0` really reaches the real parser. */
-    set extensions(value: number) {
-      this.inner.extensions = value;
-    }
-
-    get extensions(): number {
-      return this.inner.extensions;
-    }
-  }
-
-  return { ...actual, CooklangParser: SpyingCooklangParser };
+      return actual.parseInPool(...args);
+    },
+  };
 });
 
 const errorSpy = vi.fn();
@@ -136,13 +156,13 @@ function stepsOf(count: number, ingredientsPerStep = 0): StructuredStep[] {
 }
 
 beforeEach(() => {
-  parseSpy.mockClear();
+  poolSpy.mockClear();
   errorSpy.mockClear();
   warnSpy.mockClear();
 });
 
 describe("COOK_LIMITS", () => {
-  it("declares exactly the nine T-27-01 caps at their calibrated values", () => {
+  it("declares exactly the nine T-27-01 caps at their calibrated values", async () => {
     expect(COOK_LIMITS).toEqual({
       maxCookSourceBytes: 65_536,
       maxSteps: 200,
@@ -159,7 +179,7 @@ describe("COOK_LIMITS", () => {
 });
 
 describe("checkCookSourceLimits — maxCookSourceBytes", () => {
-  it("breaches at 65_537 ASCII bytes", () => {
+  it("breaches at 65_537 ASCII bytes", async () => {
     const result = checkCookSourceLimits("a".repeat(65_537));
 
     expect(result).toEqual({
@@ -169,11 +189,11 @@ describe("checkCookSourceLimits — maxCookSourceBytes", () => {
     });
   });
 
-  it("passes at exactly 65_536 ASCII bytes — the boundary is asserted on both sides", () => {
+  it("passes at exactly 65_536 ASCII bytes — the boundary is asserted on both sides", async () => {
     expect(checkCookSourceLimits("a".repeat(65_536))).toBeNull();
   });
 
-  it("REJECTS a multi-byte string whose .length is under the cap but whose UTF-8 byte length is over it", () => {
+  it("REJECTS a multi-byte string whose .length is under the cap but whose UTF-8 byte length is over it", async () => {
     // 20 000 astral-plane code points = 40 000 UTF-16 code units (under the cap by
     // `.length`) but 80 000 UTF-8 bytes (over it). The cap is BYTES, not code units.
     const astral = "\u{1F600}".repeat(20_000);
@@ -187,14 +207,14 @@ describe("checkCookSourceLimits — maxCookSourceBytes", () => {
     expect(result?.measured).toBe(80_000);
   });
 
-  it("does not treat a non-string as a breach (parseCookSource's own type guard owns that)", () => {
+  it("does not treat a non-string as a breach (parseCookSource's own type guard owns that)", async () => {
     expect(checkCookSourceLimits(null as unknown as string)).toBeNull();
     expect(checkCookSourceLimits(undefined as unknown as string)).toBeNull();
   });
 });
 
 describe("findCookSourceDefect — the gate that bounds parse TIME", () => {
-  it("accepts every shape norish's own serializer emits", () => {
+  it("accepts every shape norish's own serializer emits", async () => {
     const source = [
       "---",
       "title: Pancakes",
@@ -216,7 +236,7 @@ describe("findCookSourceDefect — the gate that bounds parse TIME", () => {
     expect(findCookSourceDefect(source)).toBeNull();
   });
 
-  it("accepts every committed serializer fixture's real `.cook` output", () => {
+  it("accepts every committed serializer fixture's real `.cook` output", async () => {
     for (const fixture of fixtures) {
       const cook = structuredToCooklang(fixture.recipe, units);
 
@@ -225,7 +245,7 @@ describe("findCookSourceDefect — the gate that bounds parse TIME", () => {
     }
   });
 
-  it("REJECTS the bypass family the malformed-token COUNT scored as well-formed", () => {
+  it("REJECTS the bypass family the malformed-token COUNT scored as well-formed", async () => {
     // Every one of these closes its brace, so the deleted `countMalformedCookTokens`
     // scored them ZERO malformed and let a 64 KiB source of them reach the parser
     // (measured: 11 118 ms, a 150 MB diagnostic report). They are refused now
@@ -235,7 +255,7 @@ describe("findCookSourceDefect — the gate that bounds parse TIME", () => {
     }
   });
 
-  it("REJECTS a bare sigil, adjacent sigils, an unterminated brace and the WASM-trap shape", () => {
+  it("REJECTS a bare sigil, adjacent sigils, an unterminated brace and the WASM-trap shape", async () => {
     for (const source of [
       "Rest ~ a while.",
       "##",
@@ -256,14 +276,14 @@ describe("findCookSourceDefect — the gate that bounds parse TIME", () => {
     expect(findCookSourceDefect("@sea salt{}")).toBeNull();
   });
 
-  it("REJECTS an unescaped metacharacter in prose and ACCEPTS the escaped form", () => {
+  it("REJECTS an unescaped metacharacter in prose and ACCEPTS the escaped form", async () => {
     for (const meta of ["\\", "@", "#", "~", "{", "}", "%", "=", ">", "-"]) {
       expect(findCookSourceDefect(`Mix a ${meta} b`), `bare ${meta}`).not.toBeNull();
       expect(findCookSourceDefect(`Mix a \\${meta} b`), `escaped ${meta}`).toBeNull();
     }
   });
 
-  it("REJECTS the pathological families that the BYTE cap alone lets through", () => {
+  it("REJECTS the pathological families that the BYTE cap alone lets through", async () => {
     // Each of these is at or under `maxCookSourceBytes` yet costs the parser
     // seconds-to-minutes; the byte cap is not what stops them.
     for (const source of [
@@ -287,7 +307,7 @@ describe("findCookSourceDefect — the gate that bounds parse TIME", () => {
     }
   });
 
-  it("does NOT refuse ordinary US shorthand once the serializer has escaped it", () => {
+  it("does NOT refuse ordinary US shorthand once the serializer has escaped it", async () => {
     // The 536-byte recipe the verifier used to refute "near-zero false positives":
     // the deleted counter scored it 12 malformed and REFUSED it, although the real
     // parser handles it in 13 ms with an empty report.
@@ -297,10 +317,10 @@ describe("findCookSourceDefect — the gate that bounds parse TIME", () => {
     expect(checkCookSourceLimits(cook)).toBeNull();
     expect(findCookSourceDefect(cook)).toBeNull();
     // and it earns a read model: it reaches the parser and parses cleanly
-    expect(parseCookSource(cook, units)).not.toBeNull();
+    expect(await parseCookSource(cook, units)).not.toBeNull();
   });
 
-  it("is total — it never throws on a degenerate string", () => {
+  it("is total — it never throws on a degenerate string", async () => {
     expect(findCookSourceDefect("")).toBeNull();
     expect(findCookSourceDefect("@")?.defect).toBe("malformed-token");
     expect(findCookSourceDefect("~")?.defect).toBe("malformed-token");
@@ -311,7 +331,7 @@ describe("findCookSourceDefect — the gate that bounds parse TIME", () => {
     expect(findCookSourceDefect(null as unknown as string)).toBeNull();
   });
 
-  it("REJECTS a frontmatter block the serializer could not have written", () => {
+  it("REJECTS a frontmatter block the serializer could not have written", async () => {
     expect(findCookSourceDefect("---\ntitle: X\n")?.defect).toBe("frontmatter-unterminated");
     expect(findCookSourceDefect("---\nnot a meta line\n---\n\nstep\n")?.defect).toBe(
       "frontmatter-line"
@@ -319,7 +339,7 @@ describe("findCookSourceDefect — the gate that bounds parse TIME", () => {
     expect(findCookSourceDefect("---\ntitle: X\n---\n\nstep\n")).toBeNull();
   });
 
-  it("REJECTS a section heading the serializer could not have written", () => {
+  it("REJECTS a section heading the serializer could not have written", async () => {
     expect(findCookSourceDefect("== A = B ==")?.defect).toBe("malformed-heading");
     expect(findCookSourceDefect("== A @ B ==")?.defect).toBe("malformed-heading");
     expect(findCookSourceDefect("== A \\= B ==")).toBeNull();
@@ -328,50 +348,50 @@ describe("findCookSourceDefect — the gate that bounds parse TIME", () => {
 });
 
 describe("checkStructuredRecipeLimits — a breach and an at-the-cap sibling for each cap", () => {
-  it("breaches maxRecipeNameChars at 501 characters", () => {
+  it("breaches maxRecipeNameChars at 501 characters", async () => {
     const result = checkStructuredRecipeLimits(recipeWith({ name: "n".repeat(501) }));
 
     expect(result).toEqual({ limit: "maxRecipeNameChars", measured: 501, allowed: 500 });
   });
 
-  it("passes maxRecipeNameChars at exactly 500 characters", () => {
+  it("passes maxRecipeNameChars at exactly 500 characters", async () => {
     expect(checkStructuredRecipeLimits(recipeWith({ name: "n".repeat(500) }))).toBeNull();
   });
 
-  it("breaches maxSteps at 201 steps", () => {
+  it("breaches maxSteps at 201 steps", async () => {
     const result = checkStructuredRecipeLimits(recipeWith({ steps: stepsOf(201) }));
 
     expect(result).toEqual({ limit: "maxSteps", measured: 201, allowed: 200 });
   });
 
-  it("passes maxSteps at exactly 200 steps", () => {
+  it("passes maxSteps at exactly 200 steps", async () => {
     expect(checkStructuredRecipeLimits(recipeWith({ steps: stepsOf(200) }))).toBeNull();
   });
 
-  it("breaches maxStepTextChars at 4_001 characters", () => {
+  it("breaches maxStepTextChars at 4_001 characters", async () => {
     const steps: StructuredStep[] = [{ text: "x".repeat(4_001), order: 1, ingredients: [] }];
     const result = checkStructuredRecipeLimits(recipeWith({ steps }));
 
     expect(result).toEqual({ limit: "maxStepTextChars", measured: 4_001, allowed: 4_000 });
   });
 
-  it("passes maxStepTextChars at exactly 4_000 characters", () => {
+  it("passes maxStepTextChars at exactly 4_000 characters", async () => {
     const steps: StructuredStep[] = [{ text: "x".repeat(4_000), order: 1, ingredients: [] }];
 
     expect(checkStructuredRecipeLimits(recipeWith({ steps }))).toBeNull();
   });
 
-  it("breaches maxIngredientRefsPerStep at 61 refs on one step", () => {
+  it("breaches maxIngredientRefsPerStep at 61 refs on one step", async () => {
     const result = checkStructuredRecipeLimits(recipeWith({ steps: stepsOf(1, 61) }));
 
     expect(result).toEqual({ limit: "maxIngredientRefsPerStep", measured: 61, allowed: 60 });
   });
 
-  it("passes maxIngredientRefsPerStep at exactly 60 refs on one step", () => {
+  it("passes maxIngredientRefsPerStep at exactly 60 refs on one step", async () => {
     expect(checkStructuredRecipeLimits(recipeWith({ steps: stepsOf(1, 60) }))).toBeNull();
   });
 
-  it("breaches maxTotalIngredientRefs at 605 refs spread under the per-step cap", () => {
+  it("breaches maxTotalIngredientRefs at 605 refs spread under the per-step cap", async () => {
     // 11 steps x 55 refs: every step is well under `maxIngredientRefsPerStep`, so
     // only the recipe-wide total can catch this.
     const result = checkStructuredRecipeLimits(recipeWith({ steps: stepsOf(11, 55) }));
@@ -379,11 +399,11 @@ describe("checkStructuredRecipeLimits — a breach and an at-the-cap sibling for
     expect(result).toEqual({ limit: "maxTotalIngredientRefs", measured: 605, allowed: 600 });
   });
 
-  it("passes maxTotalIngredientRefs at exactly 600 refs", () => {
+  it("passes maxTotalIngredientRefs at exactly 600 refs", async () => {
     expect(checkStructuredRecipeLimits(recipeWith({ steps: stepsOf(10, 60) }))).toBeNull();
   });
 
-  it("breaches maxTimersPerStep at 11 timers on one step", () => {
+  it("breaches maxTimersPerStep at 11 timers on one step", async () => {
     const timers = Array.from({ length: 11 }, () => ({ name: null, amount: 1, unit: "minutes" }));
     const steps: StructuredStep[] = [{ text: "Rest.", order: 1, ingredients: [], timers }];
     const result = checkStructuredRecipeLimits(recipeWith({ steps }));
@@ -391,14 +411,14 @@ describe("checkStructuredRecipeLimits — a breach and an at-the-cap sibling for
     expect(result).toEqual({ limit: "maxTimersPerStep", measured: 11, allowed: 10 });
   });
 
-  it("passes maxTimersPerStep at exactly 10 timers on one step", () => {
+  it("passes maxTimersPerStep at exactly 10 timers on one step", async () => {
     const timers = Array.from({ length: 10 }, () => ({ name: null, amount: 1, unit: "minutes" }));
     const steps: StructuredStep[] = [{ text: "Rest.", order: 1, ingredients: [], timers }];
 
     expect(checkStructuredRecipeLimits(recipeWith({ steps }))).toBeNull();
   });
 
-  it("breaches maxRefNameChars at a 201-character ingredient name", () => {
+  it("breaches maxRefNameChars at a 201-character ingredient name", async () => {
     const steps: StructuredStep[] = [
       { text: "Add it.", order: 1, ingredients: [{ name: "i".repeat(201) }] },
     ];
@@ -407,7 +427,7 @@ describe("checkStructuredRecipeLimits — a breach and an at-the-cap sibling for
     expect(result).toEqual({ limit: "maxRefNameChars", measured: 201, allowed: 200 });
   });
 
-  it("breaches maxRefNameChars at a 201-character TIMER name too", () => {
+  it("breaches maxRefNameChars at a 201-character TIMER name too", async () => {
     const steps: StructuredStep[] = [
       {
         text: "Rest.",
@@ -421,7 +441,7 @@ describe("checkStructuredRecipeLimits — a breach and an at-the-cap sibling for
     expect(result).toEqual({ limit: "maxRefNameChars", measured: 201, allowed: 200 });
   });
 
-  it("passes maxRefNameChars at exactly 200 characters", () => {
+  it("passes maxRefNameChars at exactly 200 characters", async () => {
     const steps: StructuredStep[] = [
       { text: "Add it.", order: 1, ingredients: [{ name: "i".repeat(200) }] },
     ];
@@ -429,7 +449,7 @@ describe("checkStructuredRecipeLimits — a breach and an at-the-cap sibling for
     expect(checkStructuredRecipeLimits(recipeWith({ steps }))).toBeNull();
   });
 
-  it("breaches maxUnitChars at a 41-character unit", () => {
+  it("breaches maxUnitChars at a 41-character unit", async () => {
     const steps: StructuredStep[] = [
       { text: "Add it.", order: 1, ingredients: [{ name: "flour", amount: 1, unit: "u".repeat(41) }] },
     ];
@@ -438,7 +458,7 @@ describe("checkStructuredRecipeLimits — a breach and an at-the-cap sibling for
     expect(result).toEqual({ limit: "maxUnitChars", measured: 41, allowed: 40 });
   });
 
-  it("breaches maxUnitChars at a 41-character TIMER unit too", () => {
+  it("breaches maxUnitChars at a 41-character TIMER unit too", async () => {
     const steps: StructuredStep[] = [
       {
         text: "Rest.",
@@ -452,7 +472,7 @@ describe("checkStructuredRecipeLimits — a breach and an at-the-cap sibling for
     expect(result).toEqual({ limit: "maxUnitChars", measured: 41, allowed: 40 });
   });
 
-  it("passes maxUnitChars at exactly 40 characters", () => {
+  it("passes maxUnitChars at exactly 40 characters", async () => {
     const steps: StructuredStep[] = [
       { text: "Add it.", order: 1, ingredients: [{ name: "flour", amount: 1, unit: "u".repeat(40) }] },
     ];
@@ -460,13 +480,13 @@ describe("checkStructuredRecipeLimits — a breach and an at-the-cap sibling for
     expect(checkStructuredRecipeLimits(recipeWith({ steps }))).toBeNull();
   });
 
-  it("passes every committed serializer fixture — if a fixture breached, the CAP would be wrong", () => {
+  it("passes every committed serializer fixture — if a fixture breached, the CAP would be wrong", async () => {
     for (const fixture of fixtures) {
       expect(checkStructuredRecipeLimits(fixture.recipe)).toBeNull();
     }
   });
 
-  it("is total — it never throws on a malformed shape", () => {
+  it("is total — it never throws on a malformed shape", async () => {
     expect(() =>
       checkStructuredRecipeLimits({ name: "x", systemUsed: "metric" } as StructuredRecipe)
     ).not.toThrow();
@@ -474,27 +494,44 @@ describe("checkStructuredRecipeLimits — a breach and an at-the-cap sibling for
   });
 });
 
-describe("THE WASM PARSER IS NEVER INVOKED ON A BREACH (R9)", () => {
-  it("control: a real fixture DOES reach the real parser, so the spy is provably wired", () => {
-    const payload = buildCookPayload(fixtures[0]!.recipe, units);
+describe("THE PARSER IS NEVER ASKED ON A BREACH (R9, re-pointed to the pool in W3B)", () => {
+  /**
+   * THE ANTI-VACUITY CONTROL. Every other assertion in this describe block is a
+   * `toHaveBeenCalledTimes(0)`, and a `0` is exactly what an UNWIRED spy reports.
+   * So the wiring itself is asserted, with an explicit BEFORE and AFTER count that
+   * must INCREASE across a real mint. If the pool mock ever stops intercepting —
+   * a moved module path, a renamed export, a change of isolation mechanism — this
+   * test fails, instead of the whole block passing while proving nothing.
+   */
+  it("control: the pool spy is provably WIRED — count goes 0 -> 1 across a real mint", async () => {
+    const before = poolSpy.mock.calls.length;
 
+    expect(before).toBe(0);
+
+    const payload = await buildCookPayload(fixtures[0]!.recipe, units);
+
+    const after = poolSpy.mock.calls.length;
+
+    // A real mint really did cross the process boundary, and really did come back.
     expect(payload).not.toBeNull();
-    expect(parseSpy.mock.calls.length).toBeGreaterThan(0);
+    expect(after).toBeGreaterThan(before);
+    expect(after).toBe(1);
+    // ...and the spy records BYTE COUNTS, never the source itself (T-27-05).
+    expect(poolSpy.mock.calls[0]?.[0]).toBe(
+      Buffer.byteLength(payload!.cookSource, "utf8")
+    );
   });
 
-  it("parseCookSource on an oversize source returns null, does not throw, and calls parse 0 times", () => {
-    let result: ReturnType<typeof parseCookSource> | undefined;
-
-    expect(() => {
-      result = parseCookSource("a".repeat(65_537), units);
-    }).not.toThrow();
-
-    expect(result).toBeNull();
-    expect(parseSpy).toHaveBeenCalledTimes(0);
+  it("parseCookSource on an oversize source returns null, does not throw, and calls parse 0 times", async () => {
+    // A rejected promise is not a throw, so the `expect(() => ...).not.toThrow()`
+    // wrapper this replaces was VACUOUS against an async `parseCookSource` (R6).
+    // `resolves` asserts BOTH halves: it did not reject, AND the value is null.
+    await expect(parseCookSource("a".repeat(65_537), units)).resolves.toBeNull();
+    expect(poolSpy).toHaveBeenCalledTimes(0);
   });
 
-  it("parseCookSource warns with the limit name and the measured value, and no source text", () => {
-    parseCookSource(`@secretIngredient{1%gram} ${"a".repeat(65_537)}`, units);
+  it("parseCookSource warns with the limit name and the measured value, and no source text", async () => {
+    await parseCookSource(`@secretIngredient{1%gram} ${"a".repeat(65_537)}`, units);
 
     expect(warnSpy).toHaveBeenCalled();
 
@@ -509,21 +546,16 @@ describe("THE WASM PARSER IS NEVER INVOKED ON A BREACH (R9)", () => {
     expect(JSON.stringify(warnSpy.mock.calls)).not.toContain("secretIngredient");
   });
 
-  it("buildCookPayload on a structured breach returns null and calls parse 0 times", () => {
+  it("buildCookPayload on a structured breach returns null and calls parse 0 times", async () => {
     const oversize = recipeWith({ steps: stepsOf(201, 1) });
 
-    let result: ReturnType<typeof buildCookPayload> | undefined;
-
-    expect(() => {
-      result = buildCookPayload(oversize, units);
-    }).not.toThrow();
-
-    expect(result).toBeNull();
-    expect(parseSpy).toHaveBeenCalledTimes(0);
+    // `resolves` rather than `not.toThrow()`: see the note above (R6).
+    await expect(buildCookPayload(oversize, units)).resolves.toBeNull();
+    expect(poolSpy).toHaveBeenCalledTimes(0);
     expect(errorSpy).toHaveBeenCalled();
   });
 
-  it("buildCookPayload's breach log carries the limit, the measured value and NO recipe prose (T-27-05)", () => {
+  it("buildCookPayload's breach log carries the limit, the measured value and NO recipe prose (T-27-05)", async () => {
     const oversize = recipeWith({
       name: "Grandmother's Secret Cassoulet",
       steps: [
@@ -535,7 +567,7 @@ describe("THE WASM PARSER IS NEVER INVOKED ON A BREACH (R9)", () => {
       ],
     });
 
-    expect(buildCookPayload(oversize, units)).toBeNull();
+    expect(await buildCookPayload(oversize, units)).toBeNull();
     expect(errorSpy).toHaveBeenCalledTimes(1);
 
     const [payload] = errorSpy.mock.calls[0] as [Record<string, unknown>, string];
@@ -559,7 +591,7 @@ describe("THE WASM PARSER IS NEVER INVOKED ON A BREACH (R9)", () => {
     expect(serialized).not.toContain("Fold the");
   });
 
-  it("buildCookPayload on a serialized-source breach returns null and calls parse 0 times", () => {
+  it("buildCookPayload on a serialized-source breach returns null and calls parse 0 times", async () => {
     // Within every STRUCTURED cap (100 steps x 3 900 chars) but ~390 KB once
     // serialized — only the pre-parse byte gate can catch this one.
     const steps: StructuredStep[] = Array.from({ length: 100 }, (_unused, index) => ({
@@ -570,10 +602,10 @@ describe("THE WASM PARSER IS NEVER INVOKED ON A BREACH (R9)", () => {
 
     expect(checkStructuredRecipeLimits(recipeWith({ steps }))).toBeNull();
 
-    const result = buildCookPayload(recipeWith({ steps }), units);
+    const result = await buildCookPayload(recipeWith({ steps }), units);
 
     expect(result).toBeNull();
-    expect(parseSpy).toHaveBeenCalledTimes(0);
+    expect(poolSpy).toHaveBeenCalledTimes(0);
   });
 });
 
@@ -591,7 +623,7 @@ describe("the hostile corpus — adversarial input sized AT the cap", () => {
    */
   const CORPUS_BYTES = 65_536;
 
-  it("is sized at the cap's baseline value — raise both together, deliberately", () => {
+  it("is sized at the cap's baseline value — raise both together, deliberately", async () => {
     expect(COOK_LIMITS.maxCookSourceBytes).toBe(CORPUS_BYTES);
   });
 
@@ -681,22 +713,21 @@ describe("the hostile corpus — adversarial input sized AT the cap", () => {
     },
   ];
 
-  it("has at least the twelve required adversarial inputs", () => {
+  it("has at least the twelve required adversarial inputs", async () => {
     expect(corpus.length).toBeGreaterThanOrEqual(12);
   });
 
   for (const { name, source, refused } of corpus) {
-    it(`neither throws nor exceeds 2000 ms on ${name}`, () => {
+    it(`neither throws nor exceeds 2000 ms on ${name}`, async () => {
       expect(Buffer.byteLength(source, "utf8")).toBeLessThanOrEqual(CORPUS_BYTES);
 
-      parseSpy.mockClear();
+      poolSpy.mockClear();
 
       const started = performance.now();
-      let result: ReturnType<typeof parseCookSource> | undefined;
-
-      expect(() => {
-        result = parseCookSource(source, units);
-      }).not.toThrow();
+      // NEVER REJECTS is part of the contract, and `await` is what enforces it: a
+      // rejected promise fails this test. The `expect(() => ...).not.toThrow()`
+      // wrapper this replaces could not — a rejection is not a throw (R6).
+      const result = await parseCookSource(source, units);
 
       const elapsed = performance.now() - started;
 
@@ -706,9 +737,9 @@ describe("the hostile corpus — adversarial input sized AT the cap", () => {
         // Refused at the door: the parser is provably never reached, which is the
         // only reason these inputs cannot cost seconds.
         expect(result).toBeNull();
-        expect(parseSpy).toHaveBeenCalledTimes(0);
+        expect(poolSpy).toHaveBeenCalledTimes(0);
       } else {
-        expect(parseSpy).toHaveBeenCalledTimes(1);
+        expect(poolSpy).toHaveBeenCalledTimes(1);
       }
 
       if (result !== null && result !== undefined) {
@@ -716,4 +747,12 @@ describe("the hostile corpus — adversarial input sized AT the cap", () => {
       }
     });
   }
+});
+
+/**
+ * R4: vitest will not exit while a child process lives, so every suite that parses
+ * must tear the pool down. A leaked child hangs the whole run.
+ */
+afterAll(() => {
+  shutdownCookParsePool();
 });

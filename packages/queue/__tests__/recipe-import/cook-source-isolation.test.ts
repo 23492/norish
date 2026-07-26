@@ -195,7 +195,7 @@ const SECRET_RECIPE: StructuredRecipe = {
 };
 
 /** Minted ONCE by the real `buildCookPayload`, so every case shares real token text. */
-const MINTED = buildCookPayload(SECRET_RECIPE);
+const MINTED = await buildCookPayload(SECRET_RECIPE);
 
 /**
  * Strings that may never appear in anything this suite records. `marzipan` is safe to
@@ -419,7 +419,7 @@ describe("a minted cook_source never crosses a cookbook at the write or emit end
     seedRow({ id: RECIPE_IN_B, userId: MEMBER_OF_B, householdId: COOKBOOK_B, name: "B's Recipe" });
   });
 
-  it("mints a REAL .cook for the fixture (harness self-check — the suite is not vacuous)", () => {
+  it("mints a REAL .cook for the fixture (harness self-check — the suite is not vacuous)", async () => {
     expect(MINTED).not.toBeNull();
     expect(MINTED!.cookSource).toContain("@marzipan{200%gram}");
     expect(MINTED!.cookTokens.length).toBeGreaterThan(0);

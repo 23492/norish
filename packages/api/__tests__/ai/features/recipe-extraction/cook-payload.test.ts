@@ -143,7 +143,7 @@ beforeEach(() => {
 // --------------------------------------------------------------------------
 
 describe("buildCookFromExtraction — the happy path", () => {
-  it("mints a self-validating .cook from the native system's per-step linkage", () => {
+  it("mints a self-validating .cook from the native system's per-step linkage", async () => {
     const output = makeOutput({
       name: "Simple Pancakes",
       metricFlat: ["200 g flour", "300 ml milk", "2 egg", "salt", "15 g butter"],
@@ -165,7 +165,7 @@ describe("buildCookFromExtraction — the happy path", () => {
       ],
     });
 
-    const cook = buildCookFromExtraction(
+    const cook = await buildCookFromExtraction(
       output,
       makeNormalized({ name: "Simple Pancakes" }),
       units
@@ -179,7 +179,7 @@ describe("buildCookFromExtraction — the happy path", () => {
     expect(logSpy.error).not.toHaveBeenCalled();
   });
 
-  it("picks the US steps and US flat list when the recipe's native system is US", () => {
+  it("picks the US steps and US flat list when the recipe's native system is US", async () => {
     const output = makeOutput({
       metricFlat: ["240 ml milk"],
       usFlat: ["1 cup milk"],
@@ -194,7 +194,7 @@ describe("buildCookFromExtraction — the happy path", () => {
       ],
     });
 
-    const cook = buildCookFromExtraction(output, makeNormalized({ systemUsed: "us" }), units);
+    const cook = await buildCookFromExtraction(output, makeNormalized({ systemUsed: "us" }), units);
 
     expect(cook).not.toBeNull();
     expect(cook!.cookSource).toContain("norish.system: us");
@@ -202,7 +202,7 @@ describe("buildCookFromExtraction — the happy path", () => {
     expect(cook!.cookSource).not.toContain("milliliter");
   });
 
-  it("carries the recipe's metadata into the .cook front matter", () => {
+  it("carries the recipe's metadata into the .cook front matter", async () => {
     const output = makeOutput({
       metricFlat: ["1 onion"],
       metricSteps: [
@@ -210,7 +210,7 @@ describe("buildCookFromExtraction — the happy path", () => {
       ],
     });
 
-    const cook = buildCookFromExtraction(
+    const cook = await buildCookFromExtraction(
       output,
       makeNormalized({
         name: "Onion Thing",
@@ -230,13 +230,13 @@ describe("buildCookFromExtraction — the happy path", () => {
 });
 
 describe("refusal 1 — no per-step linkage is the ORDINARY case (D-27-W3-03)", () => {
-  it("returns null for an all-strings extraction and does NOT log at error level", () => {
+  it("returns null for an all-strings extraction and does NOT log at error level", async () => {
     const output = makeOutput({
       metricFlat: ["200 g flour"],
       metricSteps: ["Whisk the flour into a batter.", "Fry until golden."],
     });
 
-    const cook = buildCookFromExtraction(output, makeNormalized(), units);
+    const cook = await buildCookFromExtraction(output, makeNormalized(), units);
 
     expect(cook).toBeNull();
     expect(logSpy.error).not.toHaveBeenCalled();
@@ -250,7 +250,7 @@ describe("refusal 1 — no per-step linkage is the ORDINARY case (D-27-W3-03)", 
     expect(debugPayload).not.toContain("flour");
   });
 
-  it("returns null when every step object carries an EMPTY ingredients array", () => {
+  it("returns null when every step object carries an EMPTY ingredients array", async () => {
     const output = makeOutput({
       metricFlat: ["200 g flour"],
       metricSteps: [
@@ -263,11 +263,11 @@ describe("refusal 1 — no per-step linkage is the ORDINARY case (D-27-W3-03)", 
       ],
     });
 
-    expect(buildCookFromExtraction(output, makeNormalized(), units)).toBeNull();
+    expect(await buildCookFromExtraction(output, makeNormalized(), units)).toBeNull();
     expect(logSpy.error).not.toHaveBeenCalled();
   });
 
-  it("returns null, never throws, for a mangled recipeInstructions value", () => {
+  it("returns null, never throws, for a mangled recipeInstructions value", async () => {
     for (const mangled of [null, undefined, 42, "not an array", [null], [{}], [42]]) {
       const output = makeOutput({ metricFlat: ["salt"], metricSteps: [] });
 
@@ -276,8 +276,7 @@ describe("refusal 1 — no per-step linkage is the ORDINARY case (D-27-W3-03)", 
         us: mangled,
       };
 
-      expect(() => buildCookFromExtraction(output, makeNormalized(), units)).not.toThrow();
-      expect(buildCookFromExtraction(output, makeNormalized(), units)).toBeNull();
+      await expect(buildCookFromExtraction(output, makeNormalized(), units)).resolves.toBeNull();
     }
   });
 });
@@ -309,8 +308,8 @@ describe("refusal 2 — THE COVERAGE GATE (D-27-W3-04)", () => {
     });
   }
 
-  it("REFUSES when the steps reference only 8 of 11 flat ingredients", () => {
-    const cook = buildCookFromExtraction(coverageOutput(8), makeNormalized(), units);
+  it("REFUSES when the steps reference only 8 of 11 flat ingredients", async () => {
+    const cook = await buildCookFromExtraction(coverageOutput(8), makeNormalized(), units);
 
     expect(cook).toBeNull();
 
@@ -322,8 +321,8 @@ describe("refusal 2 — THE COVERAGE GATE (D-27-W3-04)", () => {
     expect(payload).toContain('"missingCount":3');
   });
 
-  it("logs COUNTS ONLY — never the missing ingredient names or any step prose (T-27-05)", () => {
-    buildCookFromExtraction(coverageOutput(8), makeNormalized(), units);
+  it("logs COUNTS ONLY — never the missing ingredient names or any step prose (T-27-05)", async () => {
+    await buildCookFromExtraction(coverageOutput(8), makeNormalized(), units);
 
     const payload = loggedPayloads();
 
@@ -332,14 +331,14 @@ describe("refusal 2 — THE COVERAGE GATE (D-27-W3-04)", () => {
     }
   });
 
-  it("MINTS when all 11 are referenced (the sibling case)", () => {
-    const cook = buildCookFromExtraction(coverageOutput(11), makeNormalized(), units);
+  it("MINTS when all 11 are referenced (the sibling case)", async () => {
+    const cook = await buildCookFromExtraction(coverageOutput(11), makeNormalized(), units);
 
     expect(cook).not.toBeNull();
     expect(logSpy.error).not.toHaveBeenCalled();
   });
 
-  it("is not fooled by EXTRA refs beyond the flat list — those are not a failure", () => {
+  it("is not fooled by EXTRA refs beyond the flat list — those are not a failure", async () => {
     const output = makeOutput({
       metricFlat: ["200 g flour", "salt"],
       metricSteps: [
@@ -354,12 +353,12 @@ describe("refusal 2 — THE COVERAGE GATE (D-27-W3-04)", () => {
       ],
     });
 
-    expect(buildCookFromExtraction(output, makeNormalized(), units)).not.toBeNull();
+    expect(await buildCookFromExtraction(output, makeNormalized(), units)).not.toBeNull();
     expect(logSpy.error).not.toHaveBeenCalled();
   });
 
   describe("loose matching, in exactly two directions", () => {
-    function coverageOf(flat: string[], refNames: string[]) {
+    async function coverageOf(flat: string[], refNames: string[]) {
       const output = makeOutput({
         metricFlat: flat,
         metricSteps: [
@@ -370,32 +369,32 @@ describe("refusal 2 — THE COVERAGE GATE (D-27-W3-04)", () => {
         ],
       });
 
-      return buildCookFromExtraction(output, makeNormalized(), units);
+      return await buildCookFromExtraction(output, makeNormalized(), units);
     }
 
-    it('direction 1: flat "100 g plain flour" is covered by ref "flour"', () => {
-      expect(coverageOf(["100 g plain flour"], ["flour"])).not.toBeNull();
+    it('direction 1: flat "100 g plain flour" is covered by ref "flour"', async () => {
+      expect(await coverageOf(["100 g plain flour"], ["flour"])).not.toBeNull();
     });
 
-    it('direction 2: flat "salt" is covered by ref "salt to taste"', () => {
-      expect(coverageOf(["salt"], ["salt to taste"])).not.toBeNull();
+    it('direction 2: flat "salt" is covered by ref "salt to taste"', async () => {
+      expect(await coverageOf(["salt"], ["salt to taste"])).not.toBeNull();
     });
 
-    it('THE WHOLE-WORD RULE: flat "sugar" is NOT covered by ref "brown sugar" alone', () => {
-      expect(coverageOf(["sugar"], ["brown sugar"])).toBeNull();
+    it('THE WHOLE-WORD RULE: flat "sugar" is NOT covered by ref "brown sugar" alone', async () => {
+      expect(await coverageOf(["sugar"], ["brown sugar"])).toBeNull();
       expect(loggedPayloads()).toContain("incomplete-ingredient-coverage");
     });
 
-    it('but flat "sugar" IS covered once a "sugar" ref also exists', () => {
-      expect(coverageOf(["sugar", "brown sugar"], ["brown sugar", "sugar"])).not.toBeNull();
+    it('but flat "sugar" IS covered once a "sugar" ref also exists', async () => {
+      expect(await coverageOf(["sugar", "brown sugar"], ["brown sugar", "sugar"])).not.toBeNull();
     });
 
-    it('does not match on a partial word: flat "flourish" is not covered by ref "flour"', () => {
-      expect(coverageOf(["flourish"], ["flour"])).toBeNull();
+    it('does not match on a partial word: flat "flourish" is not covered by ref "flour"', async () => {
+      expect(await coverageOf(["flourish"], ["flour"])).toBeNull();
     });
 
-    it("matches case- and whitespace-insensitively, and through punctuation", () => {
-      expect(coverageOf(["oil or melted BUTTER,  for frying"], ["butter"])).not.toBeNull();
+    it("matches case- and whitespace-insensitively, and through punctuation", async () => {
+      expect(await coverageOf(["oil or melted BUTTER,  for frying"], ["butter"])).not.toBeNull();
     });
 
     /**
@@ -411,15 +410,15 @@ describe("refusal 2 — THE COVERAGE GATE (D-27-W3-04)", () => {
      * causes is recorded in the SUMMARY as a prompt/eval finding for W5, which
      * owns both the backfill and the evaluation harness.
      */
-    it("does NOT bridge a singular/plural mismatch — a known, recorded refusal driver", () => {
-      expect(coverageOf(["2 eggs"], ["egg"])).toBeNull();
-      expect(coverageOf(["2 egg"], ["egg"])).not.toBeNull();
+    it("does NOT bridge a singular/plural mismatch — a known, recorded refusal driver", async () => {
+      expect(await coverageOf(["2 eggs"], ["egg"])).toBeNull();
+      expect(await coverageOf(["2 egg"], ["egg"])).not.toBeNull();
     });
   });
 });
 
 describe("refusal 3 — a size cap breach (T-27-01) never fails the write", () => {
-  it("returns null with an input-too-large log when maxTotalIngredientRefs is breached", () => {
+  it("returns null with an input-too-large log when maxTotalIngredientRefs is breached", async () => {
     // 601 refs across 11 steps: over `maxTotalIngredientRefs` (600) but under
     // `maxIngredientRefsPerStep` (60) x steps, so THIS cap is the one that fires.
     const names = Array.from({ length: 601 }, (_, i) => `ingredient${i}`);
@@ -435,7 +434,7 @@ describe("refusal 3 — a size cap breach (T-27-01) never fails the write", () =
     }
 
     const output = makeOutput({ metricFlat: names, metricSteps: steps });
-    const cook = buildCookFromExtraction(output, makeNormalized(), units);
+    const cook = await buildCookFromExtraction(output, makeNormalized(), units);
 
     expect(cook).toBeNull();
 
@@ -448,7 +447,7 @@ describe("refusal 3 — a size cap breach (T-27-01) never fails the write", () =
 });
 
 describe("refusal 4 — output that does not parse cleanly (D-27-W2-04)", () => {
-  it("returns null with a did-not-parse-cleanly log, and no recipe prose", () => {
+  it("returns null with a did-not-parse-cleanly log, and no recipe prose", async () => {
     forceParseNull = true;
 
     const output = makeOutput({
@@ -461,7 +460,7 @@ describe("refusal 4 — output that does not parse cleanly (D-27-W2-04)", () => 
       ],
     });
 
-    const cook = buildCookFromExtraction(
+    const cook = await buildCookFromExtraction(
       output,
       makeNormalized({ name: "Secret Pancakes" }),
       units
@@ -529,7 +528,7 @@ describe("D-27-W3-07 — AI-emitted US ingredients vs the derived ones", () => {
   const report: string[] = [];
 
   for (const fixture of fixtures) {
-    it(`"${fixture.slug}": the derived US list loses no ingredient`, () => {
+    it(`"${fixture.slug}": the derived US list loses no ingredient`, async () => {
       const aiUsLines = AI_US_LISTS[fixture.slug];
 
       expect(aiUsLines, `no AI US list authored for ${fixture.slug}`).toBeDefined();
@@ -555,7 +554,7 @@ describe("D-27-W3-07 — AI-emitted US ingredients vs the derived ones", () => {
         metricSteps,
       });
 
-      const cook = buildCookFromExtraction(
+      const cook = await buildCookFromExtraction(
         output,
         makeNormalized({ name: fixture.recipe.name, systemUsed: "metric" }),
         units
@@ -612,7 +611,7 @@ describe("D-27-W3-07 — AI-emitted US ingredients vs the derived ones", () => {
     });
   }
 
-  it("records the measurement for the SUMMARY", () => {
+  it("records the measurement for the SUMMARY", async () => {
     expect(report).toHaveLength(fixtures.length);
     // eslint-disable-next-line no-console
     console.log(`\nD-27-W3-07 MEASUREMENT\n${report.join("\n")}\n`);

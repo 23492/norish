@@ -534,11 +534,10 @@ describe("`@cooklang/cooklang` is imported by exactly ONE source file", () => {
       .map((file) => relative(repoRoot, file))
       .sort();
 
-    // Task 1 moved the parser into the child; Task 2 removes `parse.ts`'s import.
-    expect(importers).toEqual([
-      "packages/shared-server/src/cooklang/parse-worker.ts",
-      "packages/shared-server/src/cooklang/parse.ts",
-    ]);
+    // EXACTLY ONE. Not "one plus the old one": `parse.ts` reaches the parser only
+    // through the pool now, so a second entry in this list means someone opened a
+    // path to the WASM that is outside the bound AND outside the two doors.
+    expect(importers).toEqual(["packages/shared-server/src/cooklang/parse-worker.ts"]);
   });
 
   it("the child entry imports NOTHING from `@norish/*` at runtime", () => {

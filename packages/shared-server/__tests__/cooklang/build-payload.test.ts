@@ -16,7 +16,7 @@
  */
 
 import type { StructuredRecipe } from "@norish/shared/cooklang";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { UnitsMap } from "@norish/config/zod/server-config";
 import defaultUnits from "@norish/config/units.default.json";
@@ -24,6 +24,7 @@ import { computeCookProjection } from "@norish/db/repositories/cook-projection";
 import { CookTokensSchema } from "@norish/shared/contracts/zod";
 
 import { fixtures } from "../../../shared/__tests__/cooklang/fixtures";
+import { shutdownCookParsePool } from "../../src/cooklang/pool";
 
 const units = defaultUnits as UnitsMap;
 
@@ -50,8 +51,8 @@ describe("buildCookPayload", () => {
 
   describe("the happy path", () => {
     for (const fixture of fixtures) {
-      it(`mints a clean, self-validating .cook for "${fixture.slug}"`, () => {
-        const payload = buildCookPayload(fixture.recipe, units);
+      it(`mints a clean, self-validating .cook for "${fixture.slug}"`, async () => {
+        const payload = await buildCookPayload(fixture.recipe, units);
 
         expect(payload).not.toBeNull();
         expect(payload!.cookSource).toContain("@");
@@ -61,16 +62,16 @@ describe("buildCookPayload", () => {
       });
     }
 
-    it("is deterministic — the same recipe mints byte-identical output", () => {
-      const a = buildCookPayload(fixtures[0]!.recipe, units);
-      const b = buildCookPayload(fixtures[0]!.recipe, units);
+    it("is deterministic — the same recipe mints byte-identical output", async () => {
+      const a = await buildCookPayload(fixtures[0]!.recipe, units);
+      const b = await buildCookPayload(fixtures[0]!.recipe, units);
 
       expect(a!.cookSource).toBe(b!.cookSource);
       expect(a!.cookTokens).toEqual(b!.cookTokens);
     });
 
-    it("emits canonical unit ids into %unit, never a localized label (D-8)", () => {
-      const payload = buildCookPayload(fixtures[0]!.recipe, units);
+    it("emits canonical unit ids into %unit, never a localized label (D-8)", async () => {
+      const payload = await buildCookPayload(fixtures[0]!.recipe, units);
 
       expect(payload!.cookSource).toMatch(/%gram\}/);
       expect(payload!.cookSource).not.toMatch(/%g\}/);
@@ -79,23 +80,20 @@ describe("buildCookPayload", () => {
   });
 
   describe("the failure path never costs the user their save (D-27-W2-04)", () => {
-    it("returns null instead of throwing when the recipe has no steps", () => {
+    it("returns null instead of throwing when the recipe has no steps", async () => {
       const empty: StructuredRecipe = {
         name: "Nothing here",
         systemUsed: "metric",
         steps: [],
       };
 
-      let result: ReturnType<typeof buildCookPayload> | undefined;
-
-      expect(() => {
-        result = buildCookPayload(empty, units);
-      }).not.toThrow();
-      expect(result).toBeNull();
+      // `resolves` rather than a `not.toThrow()` wrapper, which is vacuous against
+      // a promise: a rejection is not a throw (R6).
+      await expect(buildCookPayload(empty, units)).resolves.toBeNull();
     });
 
-    it("logs at ERROR level with counts and a reason when the round trip fails", () => {
-      buildCookPayload({ name: "Nothing here", systemUsed: "metric", steps: [] }, units);
+    it("logs at ERROR level with counts and a reason when the round trip fails", async () => {
+      await buildCookPayload({ name: "Nothing here", systemUsed: "metric", steps: [] }, units);
 
       expect(errorSpy).toHaveBeenCalled();
 
@@ -106,10 +104,10 @@ describe("buildCookPayload", () => {
       expect(payload).toHaveProperty("reason");
     });
 
-    it("NEVER puts recipe prose in the log payload (T-27-05)", () => {
+    it("NEVER puts recipe prose in the log payload (T-27-05)", async () => {
       const secret = "Marinate the wagyu in the family's secret 12-spice rub";
 
-      buildCookPayload(
+      await buildCookPayload(
         {
           name: "Secret family recipe",
           systemUsed: "metric",
@@ -149,11 +147,11 @@ describe("buildCookPayload", () => {
       const { parseCookSource } = await import("../../src/cooklang/parse");
 
       for (const fixture of fixtures) {
-        const payload = buildCookPayload(fixture.recipe, units);
+        const payload = await buildCookPayload(fixture.recipe, units);
 
         expect(payload).not.toBeNull();
         // The invariant W4's renderer and W6's `0043 NOT NULL` stand on.
-        expect(parseCookSource(payload!.cookSource, units)).not.toBeNull();
+        expect(await parseCookSource(payload!.cookSource, units)).not.toBeNull();
       }
     });
   });
@@ -161,9 +159,9 @@ describe("buildCookPayload", () => {
   describe("prose fidelity through to the projection", () => {
     // The full W2 write path in one line: serialize -> parse -> project. The step
     // prose the projection writes must be what the serializer was given.
-    it("reconstructs each step's prose byte-identically for an all-inline fixture", () => {
+    it("reconstructs each step's prose byte-identically for an all-inline fixture", async () => {
       const fixture = fixtures.find((f) => f.slug === "pancakes")!;
-      const payload = buildCookPayload(fixture.recipe, units);
+      const payload = await buildCookPayload(fixture.recipe, units);
       const projection = computeCookProjection({
         systemUsed: fixture.recipe.systemUsed,
         cookTokens: payload!.cookTokens,
@@ -176,9 +174,9 @@ describe("buildCookPayload", () => {
       expect(projection.steps.map((s) => s.step)).toEqual(expectedProse);
     });
 
-    it("projects every fixture's ingredients without losing one", () => {
+    it("projects every fixture's ingredients without losing one", async () => {
       for (const fixture of fixtures) {
-        const payload = buildCookPayload(fixture.recipe, units);
+        const payload = await buildCookPayload(fixture.recipe, units);
         const projection = computeCookProjection({
           systemUsed: fixture.recipe.systemUsed,
           cookTokens: payload!.cookTokens,
@@ -195,4 +193,12 @@ describe("buildCookPayload", () => {
       }
     });
   });
+});
+
+/**
+ * R4: vitest will not exit while a child process lives, so every suite that parses
+ * must tear the pool down. A leaked child hangs the whole run.
+ */
+afterAll(() => {
+  shutdownCookParsePool();
 });

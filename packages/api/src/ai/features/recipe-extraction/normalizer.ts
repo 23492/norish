@@ -419,11 +419,11 @@ function toStructuredTimerRef(ref: ExtractionTimerRef): StructuredTimerRef {
  * @param units - The server's unit vocabulary, for canonical `%unit` emission.
  * @returns The minted payload, or `null` when the recipe earns no `.cook`.
  */
-export function buildCookFromExtraction(
+export async function buildCookFromExtraction(
   output: RecipeExtractionOutput,
   normalized: FullRecipeInsertDTO,
   units: UnitsMap
-): CookPayload | null {
+): Promise<CookPayload | null> {
   // D-2: one `.cook` carries ONE unit system, and it is the recipe's NATIVE one —
   // the system `parseIngredients` inferred while normalizing.
   const systemUsed: MeasurementSystem = normalized.systemUsed ?? "metric";

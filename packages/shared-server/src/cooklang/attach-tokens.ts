@@ -36,7 +36,7 @@ export async function withCookTokens<T extends { id: string; cookSource: string 
   }
 
   const units = await getUnits();
-  const cookTokens = parseCookSource(recipe.cookSource, units);
+  const cookTokens = await parseCookSource(recipe.cookSource, units);
 
   if (!cookTokens) {
     // `buildCookPayload` refuses to STORE a source that does not round-trip, so
