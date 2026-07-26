@@ -614,9 +614,12 @@ describe("D-27-W3-07 — AI-emitted US ingredients vs the derived ones", () => {
     });
   }
 
-  it("records the measurement for the SUMMARY", async () => {
+  it("records the measurement for the SUMMARY", async ({ annotate }) => {
     expect(report).toHaveLength(fixtures.length);
-    // eslint-disable-next-line no-console
-    console.log(`\nD-27-W3-07 MEASUREMENT\n${report.join("\n")}\n`);
+    // Vitest's own reporting channel (`TestContext.annotate`), not `console`. The
+    // measurement is attached to THIS test's result instead of being written to
+    // stdout, so a reporter renders it against the test that produced it
+    // (`--reporter=verbose`) rather than as free-floating process output.
+    await annotate(`D-27-W3-07 MEASUREMENT\n${report.join("\n")}`, "notice");
   });
 });
