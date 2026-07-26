@@ -51,6 +51,7 @@ import { structuredToCooklang } from "@norish/shared/cooklang";
 import { fixtures } from "../../../shared/__tests__/cooklang/fixtures";
 import { COOK_BOUNDS } from "../../src/cooklang/limits";
 import {
+  cookParseChildCpuMsForTests,
   cookParseLastCpuMsForTests,
   cookParsePoolPidsForTests,
   parseInPool,
@@ -320,14 +321,51 @@ describe("a real recipe round-trips through the process boundary", () => {
   });
 
   /**
-   * R2 — READ-PATH LATENCY. Measured design figures: in-process p50 0.615 ms
-   * against a pooled IPC round trip of p50 0.847 ms, i.e. +0.23 ms on a
-   * `recipes.get` that already makes several Postgres round trips. The 5 ms
-   * assertion is deliberately loose: it is a REGRESSION ALARM, not a flake.
+   * R2 — READ-PATH LATENCY, asserted on the axes that measure THIS CODE.
+   *
+   * WHY THIS IS NOT A WALL-CLOCK p50 ANY MORE. It was one, and it had the exact
+   * disease D-27-W3B-03a diagnosed for the bound itself: `p50 < 5 ms` against a
+   * design figure of 0.85 ms is 5.9x of headroom on a quantity that §13.1 measured
+   * inflating **7.5x-11.6x under host load**. It duly passed in isolation and failed
+   * in the full `@norish/shared-server` run — 5.43 ms for one agent, **9.39 ms**
+   * re-measured here — because a pooled round trip's ELAPSED time is partly a
+   * function of how many vitest workers are competing for four cores. Raising it to
+   * 25 ms would have been the wall-clock retune this phase already rejected once, and
+   * would also have retired the alarm: a per-parse respawn (200-243 ms) is the only
+   * regression left that 25 ms still catches.
+   *
+   * So the alarm moved onto axes that measure the work and kept its teeth:
+   *
+   *  1. **CPU per round trip, in BOTH processes.** This is what the read path
+   *     actually pays for the process boundary, and CPU was measured flat within ±3%
+   *     across an order of magnitude of host load. Measured on this box: parent
+   *     **1.09 ms**, child **1.15 ms** per round trip. The ceilings are ~3.7x, the
+   *     same headroom rule `cookParseCpuMs` uses.
+   *  2. **The FASTEST round trip of the 100, not the median.** The minimum is the
+   *     standard robust estimator for a path's intrinsic latency — it is the iteration
+   *     that was least interfered with, so it still reports ~1.5 ms when the median has
+   *     inflated fourfold. Measured: **1.51 ms** idle. The 5 ms ceiling is R2's
+   *     original number, now applied to a statistic that measures this code.
+   *
+   * NEITHER IS VACUOUS, and that was VERIFIED rather than argued. Making `release()`
+   * retire its child — i.e. deleting the pooling, so every parse pays a fresh
+   * 200-243 ms spawn — turns this test RED, together with four others, at its very
+   * first assertion: after a warm-up parse there is no live child left to attribute
+   * CPU to. The floor would have caught it too had it got that far, as the sibling
+   * fixture round trip demonstrates in the same run (303 ms against its own 50 ms
+   * ceiling). Every other regression this exists to catch — a WASM instance rebuilt
+   * per parse (+15.7 ms), an extra copy of a 64 KiB payload, a lost `ready`
+   * handshake — costs CPU or raises the floor by far more than 3.7x.
    */
-  it("warm p50 round trip is under 5 ms over 100 iterations (explicit measurement)", async () => {
+  it("a warm round trip costs bounded CPU and has a bounded FLOOR (explicit measurement)", async () => {
     await parseInPool(REALISTIC, units);
 
+    const [pid] = cookParsePoolPidsForTests();
+
+    expect(typeof pid).toBe("number");
+
+    const childCpuAtStart = cookParseChildCpuMsForTests(pid!);
+    const parentCpuAtStart = process.cpuUsage();
     const elapsed: number[] = [];
 
     for (let iteration = 0; iteration < 100; iteration += 1) {
@@ -337,11 +375,31 @@ describe("a real recipe round-trips through the process boundary", () => {
       elapsed.push(performance.now() - startedAt);
     }
 
+    const parentCpu = process.cpuUsage(parentCpuAtStart);
+    const childCpuAtEnd = cookParseChildCpuMsForTests(pid!);
+    const parentCpuMs = (parentCpu.user + parentCpu.system) / 1_000 / elapsed.length;
+    const childCpuMs =
+      childCpuAtStart === null || childCpuAtEnd === null
+        ? null
+        : (childCpuAtEnd - childCpuAtStart) / elapsed.length;
+
     elapsed.sort((left, right) => left - right);
 
-    const p50 = elapsed[Math.floor(elapsed.length * 0.5)] ?? Number.POSITIVE_INFINITY;
+    const at = (quantile: number): number =>
+      elapsed[Math.min(elapsed.length - 1, Math.floor(elapsed.length * quantile))] ??
+      Number.POSITIVE_INFINITY;
 
-    expect(p50).toBeLessThan(5);
+    // ANTI-VACUITY: the loop really ran, and the floor is a real measurement.
+    expect(elapsed).toHaveLength(100);
+    expect(at(0)).toBeGreaterThan(0);
+
+    // THE WORK, on the axis that does not move with host load.
+    expect(parentCpuMs).toBeLessThan(4);
+    // `null` only on a host without `/proc/<pid>/schedstat`, which is not production.
+    expect(childCpuMs ?? 0).toBeLessThan(4);
+
+    // THE FLOOR: the least-interfered-with iteration of the hundred.
+    expect(at(0)).toBeLessThan(5);
   });
 
   /** D-27-W3B-11: `scale` survives the boundary, so W4 need not re-plumb it. */
@@ -381,27 +439,52 @@ describe("THE BOUND, on the exact inputs that refuted rounds 1 and 2", () => {
       expect(tokens).toBeNull();
 
       const hit = warnSpy.mock.calls
-        .map((call) => call[0] as { reason?: string; bound?: string; measured?: number | null })
+        .map(
+          (call) =>
+            call[0] as {
+              reason?: string;
+              bound?: string;
+              measured?: number | null;
+              cpuMs?: number | null;
+            }
+        )
         .find((fields) =>
           BOUND_REASONS.includes(fields.reason as (typeof BOUND_REASONS)[number])
         );
 
       expect(hit).toBeDefined();
 
-      // THE ASSERTION WITH TEETH, and it is contention-invariant: whichever gate
-      // fired, the number it measured actually reached the number it allows. The
-      // heap bound is the one breach that is observed as a `SIGABRT` rather than as
-      // a figure we hold, so it reports `measured: null` — which is why the reason
-      // itself is pinned below rather than left open.
-      if (entry.kills === "pure-cpu") {
-        // H1 runs at a FLAT 6 MB, so `pool-heap` is impossible, and 1 500 ms of CPU
-        // inside an 8 000 ms ceiling needs only 19% of one core — so `pool-timeout`
-        // is impossible on any box that can run this suite at all.
-        expect(hit?.reason).toBe("pool-cpu");
+      // WHICH GATE FIRES IS A PROPERTY OF THE BOX, AND THAT IS NOT AN ACCIDENT — it
+      // is arithmetic. Burning 1 500 ms of CPU takes 1 500 ms of wall clock only on an
+      // idle box; §13.1 measured wall inflating 7.5x-11.6x under contention, and
+      // 1 500 x 5.34 = 8 000, so **above ~5.3x of contention the WALL BACKSTOP
+      // pre-empts the CPU gate** and the same hostile row is refused as
+      // `pool-timeout` instead of `pool-cpu`. That was observed here: this very test
+      // went red on the report-explosion row at 8 158 ms in a full run. It is not a
+      // defect — the row is refused either way and costs the user nothing — but a
+      // test that PINS one reason at the shipped defaults is a measurement of the
+      // machine, which is exactly the mistake D-27-W3B-03a exists to stop repeating.
+      //
+      // So this test asserts what is true on EVERY box, and the teeth are (a) the
+      // per-reason number, (b) the discrimination `pool-heap` cannot pass for a
+      // flat-6-MB shape, and (c) proof the child was COMPUTING rather than stuck. The
+      // CPU gate itself is pinned deterministically two tests below, with the
+      // backstop lifted out of the way.
+      if (hit?.reason === "pool-cpu") {
         expect(hit?.bound).toBe("cookParseCpuMs");
         expect(hit?.measured ?? 0).toBeGreaterThanOrEqual(COOK_BOUNDS.cookParseCpuMs);
+      } else if (hit?.reason === "pool-timeout") {
+        expect(hit?.bound).toBe("cookParseWallCeilingMs");
+        expect(hit?.measured ?? 0).toBeGreaterThanOrEqual(COOK_BOUNDS.cookParseWallCeilingMs);
+        // NOT a stuck child: the gate had sampled real CPU before the ceiling fired.
+        // A `pool-timeout` with `cpuMs` at ~0 on a hostile row would mean the CPU
+        // sampler is broken, which is the failure this branch must not absorb.
+        expect(hit?.cpuMs ?? 0).toBeGreaterThan(COOK_BOUNDS.cookParseCpuMs * 0.5);
       } else {
-        expect(["pool-cpu", "pool-heap"]).toContain(hit?.reason);
+        // H1 runs at a FLAT 6 MB, so the heap bound provably cannot be what stopped
+        // it; only the ballooning shapes may report `pool-heap`.
+        expect(entry.kills).toBe("cpu-or-heap");
+        expect(hit?.reason).toBe("pool-heap");
       }
 
       // All wall clock can honestly say is THAT IT DID NOT HANG. A tighter ceiling
@@ -422,7 +505,14 @@ describe("THE BOUND, on the exact inputs that refuted rounds 1 and 2", () => {
   it("leaves the PARENT process alive with its heap essentially untouched", async () => {
     const before = process.memoryUsage().heapUsed;
 
-    for (const entry of HOSTILE) {
+    // THE BALLOONING SHAPES ONLY, and that is the claim rather than a shortcut: the
+    // four H1 rows run at a FLAT 6 MB, so they can contribute nothing to a
+    // heap-GROWTH measurement, while each of them can hold a child for up to
+    // `cookParseWallCeilingMs` on a loaded box (see the reason-arithmetic above).
+    // Six of those exceeds vitest's 30 s file timeout, and a test that dies on the
+    // harness timeout proves nothing — the file docblock's own rule. The parent
+    // surviving all six is asserted by the sweep above, which drives every row.
+    for (const entry of HOSTILE.filter((candidate) => candidate.kills === "cpu-or-heap")) {
       expect(await parseInPool(entry.source, units)).toBeNull();
     }
 
@@ -433,6 +523,48 @@ describe("THE BOUND, on the exact inputs that refuted rounds 1 and 2", () => {
     // not megabytes: unbounded, these payloads reach 839-1 650 MB.
     expect(growthMb).toBeLessThan(64);
     expect(await parseInPool(REALISTIC, units)).not.toBeNull();
+  });
+
+  /**
+   * THE CPU GATE, PINNED ON A REAL ARTEFACT AND DETERMINISTICALLY.
+   *
+   * This is the assertion the sweep above had to give up when it stopped pinning one
+   * reason at the shipped defaults, and it is restored here without the load
+   * dependence rather than dropped. The wall backstop is lifted to 60 s through its
+   * env lever, so on ANY box — idle or starved — the only gate that can fire is the
+   * CPU gate, and the reason, the bound name and the measured figure are pinned
+   * exactly. The H1 artefact is the right input for it: 22 759 ms of CPU at a flat
+   * 6 MB, so neither the heap bound nor a lucky fast parse can produce this result.
+   *
+   * `stub-parse-worker.mjs`'s burn mode proves the same mechanism with no WASM at
+   * all; this proves it on the payload that actually refuted round 2.
+   */
+  it("pins the CPU gate on the H1 artefact with the wall backstop lifted (deterministic)", async () => {
+    vi.stubEnv("NORISH_COOK_PARSE_WALL_CEILING_MS", "60000");
+    vi.resetModules();
+
+    const bounded = await import("../../src/cooklang/pool");
+
+    try {
+      const startedAt = performance.now();
+
+      expect(await bounded.parseInPool(HOSTILE[0]!.source, units)).toBeNull();
+
+      const hit = warnSpy.mock.calls
+        .map((call) => call[0] as { reason?: string; bound?: string; measured?: number | null })
+        .find((fields) => fields.reason === "pool-cpu");
+
+      expect(hit).toBeDefined();
+      expect(hit?.bound).toBe("cookParseCpuMs");
+      expect(hit?.measured ?? 0).toBeGreaterThanOrEqual(COOK_BOUNDS.cookParseCpuMs);
+      // ANTI-VACUITY, and SOUND ON ANY BOX: burning 1 500 ms of CPU takes at least
+      // 1 500 ms of elapsed time, so this cannot pass by refusing the input instantly.
+      expect(performance.now() - startedAt).toBeGreaterThan(COOK_BOUNDS.cookParseCpuMs * 0.9);
+    } finally {
+      bounded.shutdownCookParsePool();
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
   });
 
   /**

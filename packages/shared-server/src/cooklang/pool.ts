@@ -853,3 +853,16 @@ export function cookParsePoolPidsForTests(): number[] {
 export function cookParseLastCpuMsForTests(): number | null {
   return lastSampledCpuMs;
 }
+
+/**
+ * A child's total CPU consumption so far, in ms, or `null` on a host without
+ * `/proc/<pid>/schedstat`.
+ *
+ * For `pool.test.ts` only, and it exists so the READ-PATH LATENCY alarm (R2) can be
+ * asserted on CPU rather than on wall clock. It delegates to the gate's own reader
+ * instead of re-parsing `/proc` in the test, because two mirrored readers of the same
+ * kernel file would drift and only one of them would be the one the bound uses.
+ */
+export function cookParseChildCpuMsForTests(pid: number): number | null {
+  return readChildCpuMs(pid);
+}

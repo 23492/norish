@@ -21,8 +21,9 @@ import {
  * bound into a CHECKED precondition". That claim is void — see the section at the
  * end of this comment — and it is void in a way that matters, because acting on it
  * is what produced two refuted mitigations. The hard guarantee is a RESOURCE BOUND
- * on the parse itself (`./pool`: a 1 000 ms `SIGKILL` wall-clock bound and a
- * 256 MB heap bound, in a pooled child process). The caps and the recognizer here
+ * on the parse itself (`COOK_BOUNDS` below, enforced by `./pool`: a 1 500 ms
+ * CHILD-CPU `SIGKILL` gate, an 8 000 ms wall-clock BACKSTOP and a 256 MB heap
+ * bound, in a pooled child process). The caps and the recognizer here
  * run FIRST and still earn their place — they stop a known-bad source from costing
  * a process round trip, they feed W5's confidence signal, and they are why a real
  * recipe never comes near a bound — but a gap in them now costs one refused or
@@ -102,7 +103,9 @@ import {
  * could be made: **A RECOGNIZER FOR A GRAMMAR YOU DO NOT OWN CANNOT BE THE
  * GUARANTEE.** Each of the three rounds was complete with respect to the
  * sub-grammar its author knew about. What bounds parse time is `./pool`'s
- * wall-clock `SIGKILL`, which needs to understand nothing about the input at all.
+ * CPU-time `SIGKILL` (`cookParseCpuMs` below — wall clock was measured to conflate
+ * the threat with unrelated host load, D-27-W3B-03a), which needs to understand
+ * nothing about the input at all.
  * A source that passes both gates here is at most 64 KiB of what we believe to be
  * diagnostic-free, well-formed Cooklang — a good bet, and no longer a load-bearing
  * one.

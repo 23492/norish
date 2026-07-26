@@ -55,10 +55,15 @@ import { parseInPool } from "./pool";
  *
  *     ANYTHING THAT REACHES THE PARSER IS BOUNDED, WHATEVER WROTE IT.
  *
- * Every parse runs in a pooled child process under a 1 000 ms wall-clock bound
- * (`SIGKILL` from the parent) and a 256 MB heap bound (the child's own
- * `--max-old-space-size`). A bound hit kills and replaces the child and resolves
- * `null`. See `./pool` for the measurements behind both numbers and for why the
+ * Every parse runs in a pooled child process under a **1 500 ms CHILD-CPU gate**
+ * (`SIGKILL` from the parent, sampled from `/proc/<pid>/schedstat`), an 8 000 ms
+ * wall-clock BACKSTOP for a child that is stuck without burning CPU, and a 256 MB
+ * heap bound (the child's own `--max-old-space-size`). A bound hit kills and
+ * replaces the child and resolves `null`. The primary gate is CPU rather than wall
+ * clock because wall clock conflates the threat with unrelated host load, and was
+ * measured refusing legitimate recipes under contention (D-27-W3B-03a, superseding
+ * the 1 000 ms wall-clock bound this comment used to describe). See `./limits` for
+ * the three bounds and `./pool` for the measurements behind them and for why the
  * mechanism is a child process rather than a worker thread.
  *
  * THE BYTE CAP AND `findCookSourceDefect` STAY, AND THEY ARE STILL CHECKED FIRST
