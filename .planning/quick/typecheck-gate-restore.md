@@ -282,3 +282,178 @@ picks this up:
   `pnpm --filter @norish/trpc build` is re-run. This script needs a real
   decision (split "typecheck" from "build", or fix the path) rather than a
   one-line flag flip.
+
+---
+
+# Follow-up pass: the calendar `{ payload }` envelope — ground truth
+
+Resolves the "Known downstream consequence in `apps/web`" section above
+(`apps/web` 412/424). That section, and `18c242bc`'s commit message, both
+assert that the `{ payload }` wrapper never existed and that calendar realtime
+was therefore broken at runtime. **Both claims are wrong.** The wrapper is
+real; it is added client-side, one layer above where the previous pass looked.
+
+## Verdict: the wrapper is REAL (added by the tRPC provider proxy)
+
+`packages/shared-react/src/providers/trpc-provider.tsx` defines
+`withPayloadCompatibility()` and applies it through
+`wrapSubscriptionObserverOptions()` → `wrapTrpcProxy()` →
+`createNormalizedUseTRPC()`. Every `subscriptionOptions()` call made through a
+`createTRPCProviderBundle()` `useTRPC` has its `onData` wrapped, and the shim
+does this to each event:
+
+```ts
+const payload = unwrapPayload(data);          // strips RealtimeEventEnvelope if present
+if ("payload" in payload) return payload;
+return { ...(payload as Record<string, unknown>), payload };   // ← dual shape
+```
+
+So `onData` receives the domain payload's own keys **at the top level** *and* a
+legacy `payload` self-reference. `data.item` and `data.payload.item` both
+resolve, to the same object. This is deliberate and already regression-tested
+in `packages/shared-react/src/providers/trpc-provider.test.ts` ("exposes
+envelope payloads both at the top level and under payload", and the same for
+raw payloads).
+
+Both apps consume it: `apps/web/app/providers/trpc-provider.tsx` and
+`apps/mobile/src/providers/trpc-provider.tsx` are both thin
+`createTRPCProviderBundle<AppRouter>({ ... })` calls, so the proxy is always in
+the path in production.
+
+### Consequences
+
+- **`18c242bc` did not break production.** Bare top-level access works, because
+  the shim spreads the payload's own keys.
+- **The code before `18c242bc` was not broken either.** `{ payload }`
+  destructuring works, because the shim adds the alias.
+- **Live calendar realtime was never broken.** No user-visible bug, no
+  regression window, nothing to roll back. The claim in `18c242bc`'s message
+  ("the client would have thrown or silently no-opped on undefined `payload` at
+  runtime") is incorrect — it reasoned from the router alone and never checked
+  the provider.
+- **This was not a different code path either.** `apps/web/hooks/calendar/use-calendar-subscription.ts`
+  is a one-line re-export of `createCalendarHooks(...).useCalendarSubscription`
+  from `shared-react`, so the web test does exercise the shared hook.
+
+## Server-side shapes, for the record
+
+Two distinct server paths exist in `packages/trpc/src/helpers.ts`, and the
+publisher (`packages/shared-server/src/redis/pubsub.ts` `publish()`) always
+wraps in a `RealtimeEventEnvelope`:
+
+| helper | yields | routers |
+|---|---|---|
+| `createSubscriptionIterable` (runs `unwrapPayload`) | bare domain payload | calendar, groceries, stores, households, archive, caldav, permissions |
+| `createEnvelopeAwareSubscription` / `createPolicyAwareIterables` (assert + pass through) | `{ meta, payload }` | recipes, ratings |
+
+`createSubscriptionIterable` gained its `unwrapPayload` call in `1f684480`
+"Rc/0.19.0" (2026-06-19). Before that it passed the envelope straight through.
+That is the real divergence point, and it is where the confusion came from:
+
+- `80d8c1b8` "Rc/v0.18.0" (2026-04-14) introduced the envelope contract; every
+  hook correctly moved to `({ payload }: any)`.
+- `1f684480` (2026-06-19) made the server unwrap, and in the same release
+  migrated the **groceries** hook `({ payload }: any)` → `(payload: Typed)`,
+  switched **recipes/ratings** to the envelope-aware path (so their
+  `{ payload }` stayed correct), and added `withPayloadCompatibility` so that
+  neither style could break. The **calendar** hook was left on `{ payload }`
+  and, in the same release, had it formalised into a named
+  `SubscriptionEnvelope<T>` type — which is what later read as a deliberate
+  contract rather than a leftover.
+
+So the calendar hook was the one namespace not migrated, but the compat shim
+meant nothing ever broke. `18c242bc` completed that migration; it is the
+correct direction and is **kept**, because bare top-level access is the only
+form the tRPC output types can express for this router (it typechecks with no
+cast), and `payload` is documented in the shim as a legacy alias.
+
+## Root cause of the 12 `apps/web` failures
+
+Not the hook, and not the fixtures per se: **the test mocks
+`@/app/providers/trpc-provider`, which replaces the normalised proxy with a
+plain object, so `withPayloadCompatibility` never ran.** The fixtures then
+hand-rolled one half of the shim's output (`{ payload: ... }`, no top-level
+spread), so the test could only ever pass against a hook using the legacy half.
+It was asserting against its own mock, not against the wire.
+
+Every `apps/web` subscription test has this same gap, and they disagree with
+each other about which half to fake — `emitPayload()` is defined locally in
+four files, as `(p) => p` in `__tests__/hooks/groceries/`, and as
+`(p) => ({ payload: p })` in `__tests__/hooks/{ratings,recipes}/`. Both are
+half-fictions relative to the real `{ ...p, payload: p }`. The four that are
+green are green because each happens to match its own hook's access style.
+
+### Fix applied
+
+`apps/web/__tests__/hooks/calendar/use-calendar-subscription.test.ts`:
+
+1. The mocked `useTRPC` now routes each `subscriptionOptions()` call through the
+   **real** `wrapSubscriptionObserverOptions` imported from
+   `@norish/shared-react/providers`, instead of capturing `options.onData` raw.
+2. All 13 fixtures (the 12 failing ones plus `onFailed`, which passed only
+   because its handler ignores its argument) now carry the **true server wire
+   shape** from `CalendarSubscriptionEvents` — `{ item }`,
+   `{ itemId, date, slot }`, `{ item, targetSlotItems, ... }`, `{ reason }`.
+
+The test now covers server wire shape → real provider shim → hook, so drift on
+either side fails it, and neither half of the shim's output can go unexercised
+again. No fixture encodes a shape the system doesn't produce.
+
+Also added a contract comment to
+`packages/shared-react/src/hooks/calendar/use-calendar-subscription.ts`
+(comment only, no behaviour change) recording where the `payload` alias comes
+from and why it must not be "restored" here — the omission that produced two
+opposite wrong diagnoses in a row.
+
+## Sibling drift audit — no other hook is affected
+
+Checked every `onData` in `packages/shared-react/src/hooks/**`,
+`apps/web/hooks/**` and `apps/mobile/**` against its router's yield path. All
+consistent under the shim: recipes/ratings read `{ payload }` and are on the
+envelope-aware path; groceries and calendar read the top level; stores,
+households, archive and caldav read `{ payload }` on unwrapped routers, which
+the shim's alias covers.
+
+One genuine failure mode does exist and was checked explicitly:
+`withPayloadCompatibility` returns the payload **untouched** when it is an
+array, a primitive, or a non-plain-object, so no `payload` alias is added and a
+`{ payload }` hook would read `undefined`. Audited every event payload type
+(`CalendarSubscriptionEvents`, `RecipeSubscriptionEvents`,
+`RatingSubscriptionEvents`, `StoreSubscriptionEvents`,
+`HouseholdSubscriptionEvents`, `GrocerySubscriptionEvents`,
+`CaldavSubscriptionEvents`): **all are plain objects at the top level** — arrays
+appear only nested (`{ stores: StoreDto[] }`, `{ groceryIds: string[] }`). So
+the latent trap is unreachable today. Worth keeping in mind for any future
+event whose payload is a bare array.
+
+## Verification
+
+- `apps/web` tests: **424/424 passing (70 files)** — exact baseline restored.
+- `packages/shared-react` tests: **37/37 passing**.
+- `apps/mobile` tests: **132/132 passing**.
+- `tsc --noEmit -p apps/web/tsconfig.json`: **exit 0, zero output**.
+- `tsc --noEmit -p packages/shared-react/tsconfig.json`: exit 2, **the same 2
+  pre-existing `better-auth` duplicate errors** documented above, in
+  `node_modules/@norish/shared/src/lib/auth/client.ts:12,13`. Unchanged by this
+  pass (a comment-only edit cannot affect it).
+- `packages/trpc` tests: 326/337, **11 failing in
+  `__tests__/recipes/cook-tokens-isolation.test.ts`** — all `cookTokens` coming
+  back `null`. That file wraps the real
+  `@norish/shared-server/cooklang/parse` `parseCookSource`, and
+  `packages/shared-server/src/cooklang/**` is a concurrent agent's live working
+  tree. **Not attributable to this pass**: nothing in `packages/trpc` imports
+  `shared-react` or `apps/web`.
+- Full monorepo gate deliberately **not** run (concurrent `shared`/
+  `shared-server` edits in flight).
+- No `as any`, `@ts-ignore`, `@ts-expect-error`, or type-widening. The one cast
+  in the new test mock is a narrowing `unknown` → `ObserverOptions`, guarded by
+  a runtime `typeof`/`in` check that throws if the shim's contract changes.
+
+## Recommended follow-up (not done here — out of scope)
+
+The four `apps/web` subscription tests that still hand-roll `emitPayload()`
+(`groceries`, `ratings`, `recipes` ×2) should adopt the same
+`wrapSubscriptionObserverOptions` approach. They are green today, but each one
+only exercises one of the shim's two access forms, so they would not catch a
+hook migrated in either direction — exactly the blind spot that made this
+incident take two passes to diagnose.
