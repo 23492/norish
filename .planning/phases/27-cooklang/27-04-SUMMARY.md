@@ -4,7 +4,7 @@ plan: 04
 subsystem: infra
 tags: [cooklang, wasm, child-process, resource-bound, dos, tsdown, vitest]
 
-status: PARTIAL — Tasks 1, 2 and 5 COMPLETE. Tasks 3, 4 and 6 NOT STARTED. Parse bound REPLATFORMED onto CPU time by D-27-W3B-03a (director, 2026-07-26) — see §13.
+status: COMPLETE — all six tasks. 1/2/5 (§1-§12) · the CPU-time bound redesign D-27-W3B-03a (§13) · 3/4, the H1/H2/H3 root fixes (§14) · 6, the adversarial weakenings + the wave close-out (§15). NOTHING IS DEPLOYED: live is still image `516c52576a5f` at DB 42.
 
 requires:
   - phase: 27-03
@@ -45,16 +45,52 @@ key-decisions:
   - "The child imports ONLY @cooklang/cooklang. Unit canonicalization moved to the parent — raw Node cannot load @norish/* source."
   - "The tsdown sibling extension is derived, not hardcoded: the bundle emits .mjs, not .js."
   - "copyRecipeForSave's `cook` is now a REQUIRED caller-proven parameter; @norish/db stays parser-free."
+  - "D-27-W3B-06 changed the EMITTER, not the recognizer: every non-numeric frontmatter value is quoted UNCONDITIONALLY, which is why a pre-Task-3 `.cook` is refused on read (a W5 prerequisite)."
+  - "Task 6 finding: above ~5.3x of host contention the 8 000 ms WALL BACKSTOP pre-empts the 1 500 ms CPU gate, so a hostile row is refused as `pool-timeout`. Never-broken holds; the operator signal is `cpuMs`, not the reason alone."
 ---
 
-# 27-04 — Bound the WASM parse (Tasks 1, 2, 5)
+# 27-04 — Bound the WASM parse (all six tasks)
 
-**Commits:** `59f3a767` (T1) · `4bbeecc7` (T2) · `226f04a7` (T5). Nothing pushed.
-**Tree:** `main`, DB at migration **42**, `pnpm-lock.yaml` diff EMPTY.
+**Commits, in the order they landed:** `59f3a767` (T1) · `4bbeecc7` (T2) ·
+`226f04a7` (T5) · `cffaa5d8` (the CPU-gate redesign) · `5cdfc8aa` (T3, H1) ·
+`d3848c54` (T4, H2 + H3) · `231baf91` (T6's root fix to the read-path latency alarm)
+· plus the record commits. **Nothing pushed. Nothing deployed** — live still runs
+image `516c52576a5f` (verified: `docker inspect norish-app`) at DB migration **42**,
+`pnpm-lock.yaml` diff EMPTY, `packages/db/src/migrations/` and `meta/_journal.json`
+untouched throughout.
 
-> **THIS PLAN IS NOT COMPLETE.** Tasks 3 (H1 frontmatter recognizer), 4 (H2 + H3
-> root fixes) and 6 (adversarial weakenings) are **untouched**. See
-> *"What Tasks 3, 4 and 6 must still pick up"* at the end.
+---
+
+## HOW TO READ THIS FILE
+
+Four executors wrote it, in this order, and each section is kept intact as the record
+of what was measured when. Read §0 first if you only read one thing.
+
+| § | what it covers | status |
+|---|---|---|
+| **§0** | **the superseded claims, in one table** | **read this first** |
+| §1-§12 | Tasks 1/2/5: the pivot to a resource bound, the pooled child, the async ripple, the copy path | current, except where §0 says otherwise |
+| §3b | how the wall-clock bound was found to refuse legitimate recipes | **HISTORICAL** — kept as the record of the discovery; decided in §13 |
+| "What Tasks 3, 4 and 6 must still pick up" | the Tasks 1/2/5 executor's handover | **HISTORICAL — all three are now DONE**; one of its recommendations was deliberately not followed (§0) |
+| §13 | **D-27-W3B-03a — the primary gate is CPU time, not wall clock** | current |
+| §14 | Tasks 3/4 — the H1 / H2 / H3 root fixes | current |
+| **§15** | **Task 6 — the adversarial weakenings — and the WAVE CLOSE-OUT: W5's prerequisites, the corrected operational guidance, what is NOT done** | current |
+
+---
+
+## §0. THE SUPERSEDED CLAIMS, IN ONE TABLE
+
+Nothing below has been deleted from where it was written; this table is the index of
+what NOT to act on. Every row was a correct reading of the evidence available at the
+time, which is why it is worth keeping visible.
+
+| claim, and where it still appears | superseded by | what is true now |
+|---|---|---|
+| "the frontmatter value grammar **must accept both** quoted and unquoted values, or every real recipe is refused" — *What Tasks 3, 4 and 6 must still pick up* → Task 3 | **§14.1** (D-27-W3B-06, Task 3) | The opposite was done: the **EMITTER** now quotes every non-numeric value UNCONDITIONALLY, and the recognizer accepts only `"…"` or a plain number. Accepting plain scalars means accepting nearly arbitrary YAML — `title: a [[[[…` was legitimate serializer output — which is H1 with one extra step. Proven by weakening **W3B-W6** (§15.2): restoring the unquoted branch turns **120 tests RED**, including all 14 realistic recipes |
+| "the heap bound is reached at ~285 ms, **before** the time bound" — D-27-W3B-03 in `27-04-PLAN.md`, and the T-27-01b threat row | **§3** ("A MATERIAL DEVIATION"), refined in §13.3 | It did not reproduce: the heap bound fires at **6-12 s**, so the CPU gate is what fires first on every hostile family. The heap bound is **not** redundant — it is the only thing standing between a hostile row and 839 MB-1.65 GB now that the wall ceiling is 8 s |
+| `cookParseTimeoutMs: 1_000`, a WALL-CLOCK `SIGKILL`, as "the bound" — §1-§12 passim, and two docblocks | **§13** (D-27-W3B-03a) | The primary gate is `cookParseCpuMs: 1_500`, sampled from `/proc/<pid>/schedstat`; wall clock survives only as `cookParseWallCeilingMs: 8_000`, a BACKSTOP for a child stuck without burning CPU. The two docblocks that still described the old bound were corrected in `231baf91` (§15.4) |
+| "`pool-timeout` should be ~zero; any occurrence is a bug report" — §13.10 | **§15.3** (Task 6's contention finding) | True for a QUIET box. Above ~5.3x of contention the 8 s backstop pre-empts the 1 500 ms CPU gate, so a hostile row is legitimately refused as `pool-timeout`. **The reason alone is not the signal — read `cpuMs` beside it** |
+| "`AI_API_KEY` is empty on live, so W3's producer never fires there — the deploy is a no-op in practice" — W3's exit item 5 in `waves/W3-SUMMARY.md`, `STATE.md` and `ROADMAP.md` (all three now annotated in place) | **§15.6** | **Wrong now.** Live's `ai_config` has held a DeepSeek key since 2026-06-15 (set via the Admin UI) and it is now env-backed in `/opt/norish/.env` (untracked, `chmod 600`, verified present). **W3 will NOT be inert once deployed** |
 
 ---
 
@@ -112,6 +148,12 @@ the web server is not a bound.** Do not "simplify" this back to `worker_threads`
 ---
 
 ## 3. The two bounds as landed
+
+> **SUPERSEDED IN PART (§13 / D-27-W3B-03a).** `cookParseTimeoutMs: 1_000` — the
+> WALL-CLOCK bound described here and throughout §1-§12 — no longer exists. Read it as
+> `cookParseCpuMs: 1_500` (the primary gate) plus `cookParseWallCeilingMs: 8_000` (a
+> backstop). The heap-bound analysis below stands and is the reason the heap bound was
+> NOT relaxed when the ceiling rose to 8 s.
 
 `COOK_BOUNDS` (a separate `as const` object beside the untouched nine `COOK_LIMITS`),
 each env-overridable: `cookParseTimeoutMs 1_000`, `cookParseHeapMb 256`,
@@ -477,6 +519,13 @@ New log reasons to watch: `pool-timeout`, `pool-heap`, `pool-crash`,
 
 ## What Tasks 3, 4 and 6 must still pick up
 
+> **HISTORICAL — ALL THREE ARE NOW DONE.** Task 3 and Task 4 landed in `5cdfc8aa` /
+> `d3848c54` (§14); Task 6 landed in `231baf91` + the record (§15). This section is
+> kept as the Tasks-1/2/5 executor's handover, **and one of its recommendations was
+> deliberately NOT followed** — see the first row of §0 and §14.1: the frontmatter
+> grammar does **not** accept unquoted values, because the EMITTER was changed to stop
+> producing them.
+
 **The bound is in place, so these are now quality-and-depth work rather than the
 guarantee.** Nothing below is load-bearing for T-27-01 any more — that is the point
 of the pivot — but all three are still required to call plan 27-04 complete.
@@ -784,6 +833,12 @@ H1/H2/H3 fixes are **untouched** (Tasks 3/4 own those). No `as any`, no `@ts-ign
 
 ## 13.10 Two things the director should know
 
+> **ITEM 2 IS PARTLY SUPERSEDED — see §15.3.** "`pool-timeout` should be near-zero and
+> any occurrence is a bug report" holds on a quiet box, but `1 500 x 5.34 = 8 000`, so
+> above ~5.3x of sustained contention the wall BACKSTOP pre-empts the CPU gate and a
+> hostile row is legitimately refused as `pool-timeout`. Read `cpuMs` beside the reason:
+> ~0 is a stuck child, hundreds of ms is the bound working.
+
 1. **The tsdown gate's hardcoded `parse-worker.mjs` is CORRECT and was deliberately left
    alone.** The prior agent's finding was about the **pool's runtime sibling rule**,
    which derives the extension from `extname(import.meta.url)` — a hardcoded `.js`
@@ -1037,3 +1092,318 @@ for wall-clock assertions, not a regression from Tasks 3/4.
    `PLAIN_YAML_SCALAR` branch in `quoteYaml` and confirm the H1 artefact tests go RED;
    (b) revert `matchTokenBody` to counting characters and confirm the H2 tests go RED.
    Both revert cleanly and neither should ever be committed.
+
+---
+
+# 15. Task 6 — the adversarial weakenings — and the WAVE CLOSE-OUT
+
+**Commits:** `231baf91` (the read-path latency root fix + two more contention flips +
+two stale docblocks) · this commit (the record). Nothing pushed. **Nothing deployed.**
+Tree `main`, DB at migration **42**, `packages/db/src/migrations/` and
+`meta/_journal.json` untouched, `pnpm-lock.yaml` diff EMPTY. No `as any`, no
+`@ts-ignore`, no `@ts-expect-error`. No `COOK_LIMITS`, `COOK_BOUNDS` or
+`COOK_FRONTMATTER_KEYS` value moved. `maxCookMalformedTokens` stayed deleted. W4/W5/W6
+untouched. Files touched by this task's ONE commit: `src/cooklang/pool.ts`,
+`src/cooklang/limits.ts` (docblock only), `src/cooklang/parse.ts` (docblock only),
+`__tests__/cooklang/pool.test.ts` — all in `@norish/shared-server`.
+
+## 15.1 THE PROTOCOL, AND WHY EVERY REVERT WAS CHECKED TWICE
+
+Each weakening: edit → run the suites → record the exact failing test names → revert by
+the **reverse edit** (never `git checkout`) → verify `md5sum` against a pre-edit copy,
+`cmp` against it, and `git diff --exit-code`. **The reverse edit rather than
+`git checkout -- <file>` is deliberate and it is an environment trap, not fastidiousness:**
+`node_modules/@norish/*` are injected **hardlink farms sharing the workspace inode**, so
+a `git checkout` replaces the file with a NEW inode and the injected twin keeps the
+WEAKENED bytes — every cross-package suite would then have gone on running the weakening
+while `git diff` read clean. The twin's md5 is therefore asserted too, on every revert.
+**No weakening was committed** (`git diff --exit-code` empty after each; the commit
+above contains none of them).
+
+## 15.2 THE SIX WEAKENINGS OF THE NEW SURFACE
+
+W3B-W1/W2 (disable the CPU gate → 13 RED; regress it to wall clock → 9 RED) and W3's
+five (W3-W1…W3-W5) are recorded in §13.7 and `27-03-SUMMARY.md`. These six cover the
+surface that landed in Tasks 3, 4 and 6 — the H1 closed frontmatter grammar, H2's
+trim-aware emission and recognition, H3's matched span, and the pooling itself.
+
+| # | the exact edit | RED | reverted |
+|---|---|---|---|
+| **W3B-W4** | `limits.ts`: reinstate the pre-Task-3 recognizer — `if (/^[A-Za-z][A-Za-z0-9._-]*: .*$/.test(line)) return null;` at the top of `findFrontmatterLineDefect`, plus `if (false && …)` on BOTH `frontmatter-too-large` caps (the arithmetic block cap and the line-count cap) | **30 RED** in `limits.test.ts` (30 failed / 120 passed) | md5 `7c5b419a…`, `cmp` clean, `git diff` empty |
+| **W3B-W5** | `limits.ts`: `isSerializedSegment` back to counting — `return segment.chars > 0;` | **22 RED** in `limits.test.ts` (22 failed / 128 passed) | same md5, `cmp` clean, `git diff` empty |
+| **W3B-W6** | `serialize.ts`: restore the deleted `PLAIN_YAML_SCALAR = /^[\p{L}\p{N}][^\r\n:#"]*$/u` branch in `quoteYaml` (`if (PLAIN_YAML_SCALAR.test(flat)) return flat;`) | **120 RED**: `@norish/shared` 6, `@norish/shared-server` 97, `@norish/api` `cook-payload` 17 | md5 `482d6551…`, `cmp` clean, `git diff` empty |
+| **W3B-W7** | `ingredient-token.ts`: `formatTokenAmount`'s guard back to `if (amount == null \|\| amount === "")`, so `Number(" ")` is `0` and a blank amount formats as `"0"` | **7 RED** in `@norish/shared` `serialize.test.ts` | md5 `3d395fe2…`, `cmp` clean, `git diff` empty |
+| **W3B-W8** | `serialize.ts`: `splitFragment(…, span.index, ref.name.length, token)` — the H3 defect | **20 RED**: `@norish/shared` 6, `@norish/shared-server` `round-trip-fidelity` 14 | md5 `482d6551…`, `cmp` clean, `git diff` empty |
+| **W3B-W9** | `serialize.ts`: add `"author"` to `COOK_FRONTMATTER_KEYS` without teaching `buildFrontmatter` to emit it — i.e. KEY-SET DRIFT between the two halves | **4 RED**: `limits.test.ts` 3, `@norish/shared` `serialize.test.ts` 1 | md5 `482d6551…`, `cmp` clean, `git diff` empty |
+| **W3B-W10** | `pool.ts`: `release()` retires its child instead of freeing it — i.e. DELETE THE POOLING, every parse pays a fresh 200-243 ms spawn | **5 RED** in `pool.test.ts`, incl. the new latency alarm and `each committed fixture completes in under 50 ms` (measured **303 ms**) | md5 `c50b94a1…`, `cmp` clean, `git diff` empty |
+
+**Every weakening turned something red. There is no coverage gap to report** — which
+is worth stating plainly, because the instruction was to report one loudly if a planned
+weakening had turned nothing red.
+
+### The exact RED test names
+
+**W3B-W4 (30)** — all six `returns a NAMED defect for the H1 artefact: …` (`65 400
+unbalanced [` · `balanced 25 000-deep [/]` · `balanced 30 000-deep [/]` ·
+`{`-nesting variant · `title: @@@@ ####` · `YAML anchor + alias a: &x [*x]`), `REJECTS a
+frontmatter block the serializer could not have written`, and 23 of the 30 `REFUSED`
+rows: a literal / folded block scalar, a flow map, a flow sequence, a YAML tag, an
+unquoted value, an unquoted numeric title, an empty value, an empty QUOTED value, a
+whitespace-padded quoted value, an unterminated quote, a quote closed only by an
+ESCAPED quote, a RAW quote, a RAW backslash, a control character, a NUL, a QUOTED
+`servings`, an exponential `servings`, a key not in the closed set, a YAML anchor under
+an unknown key, a duplicate key, more lines than the key set has keys, a value longer
+than the per-key maximum. **The four 50-65 KB H1 payloads went from
+`frontmatter-too-large` back to ACCEPTED, exactly as the director's brief required.**
+(The seven `REFUSED` rows that stayed green — a comment line, `...`, no space after the
+colon, a blank line, a TAB/SPACE-indented line, an unterminated block — are refused by
+the *structure*, not the key/value grammar, so the permissive line pattern cannot rescue
+them. That is the correct result, not a gap.)
+
+**W3B-W5 (22)** — every one of the H2 `REJECTS "…" and never asks the pool` rows:
+`@a{ %g}\n`, `~a{ %m}\n`, `#a{ %g}\n`, `@a{ %g}` (no trailing newline), `~a{ % }\n`,
+`@a{ }\n`, the TAB and NBSP variants of all three sigils, `@a{1 %g}`, `@a{ 1%g}`,
+`@a{1% g}`, `@a{1%g }`, `@a{1  1/2%g}`, `@a{1%fl  oz}`, `@ flour{1%cup}`,
+`@flour {1%cup}`, `@brown  sugar{1%cup}`, `~ rest{5%minutes}`. **All three trap sigils
+reach the parser again**, and the same assertion proves the pool was never asked.
+
+**W3B-W6 (120)** — `@norish/shared`: `emits YAML frontmatter carrying norish.system
+(D-2)`, `emits numeric metadata UNQUOTED so the parser reports no diagnostic`, `emits
+only key: "…" or key: <number>, for every hostile metadata value`, `keeps servings a
+BARE number and quotes everything else`, `OMITS a key rather than emitting a value the
+recognizer would refuse`, `emits an all-whitespace metadata value as NO key at all`.
+`@norish/shared-server`: 97, including `accepts a REAL serializer-emitted line for every
+key in the closed set`, `accepts every committed serializer fixture's real .cook
+output`, `agrees with the serializer about every character YAML forbids RAW`, the whole
+`soundness: the serializer can NEVER produce a source the recognizer refuses` sweep, and
+**all 14 of `the 14 realistic recipes still MINT`**. `@norish/api`: 17 of 25
+`cook-payload` tests. **This is the row that settles §0's first line:** the emitter and
+the recognizer are two halves of one contract, and moving either half alone costs every
+real recipe its `cook_source`.
+
+**W3B-W7 (7)** — the six `emits no blank-quantity shape for an amount/unit of …`
+rows (`" "`, `"\t"`, NBSP, `"  "`, `" \t "`, U+2028) and `a blank amount keeps the
+reference and reports it as placed`. The fabricated `@flour{0%gram}` is caught on the
+emitter side. **Not run: `@norish/shared-react`'s `ingredient-links.test.ts` (9 tests),
+which also consumes `formatTokenAmount`** — another agent owned that package during this
+task, so its 9 tests are an untested additional detector rather than a claimed one.
+
+**W3B-W8 (20)** — `@norish/shared`: `keeps the prose intact around a ref name with
+trailing space / leading space / both / internal double space / internal triple space`
+and `the SPECIFIC measured H3 artefacts no longer eat a character`.
+`@norish/shared-server` `round-trip-fidelity.test.ts`: 12 × `keeps the prose
+BYTE-IDENTICAL with <whitespace shape>, at the start / in the middle`, `the four
+MEASURED H3 artefacts render byte-identically`, and `the ingredient NAME still comes
+back trimmed and collapsed, and the ref is never dropped`. **`"flour "` produces
+`"Add flournow."` again and a ref-name-whitespace test catches it** — which is the
+dimension the pre-Task-4 45-test suite structurally could not see. (The `at the end`
+positions stay green: with no prose after the ref there is nothing for the over-long
+slice to eat. Worth knowing if this defect ever recurs — an end-of-step ref hides it.)
+
+**W3B-W9 (4)** — `REJECTS a key not in the closed set with frontmatter-key`, `accepts a
+REAL serializer-emitted line for every key in the closed set`, `the closed key set is
+EXACTLY what the serializer emits (add a key here and there)`, and `@norish/shared`'s
+`emits each key at most once, in the closed set's order`. So the **two-way** key-set
+assertion §14.1 claims really does bite in the direction that a one-way allowlist would
+have rotted in silently.
+
+**W3B-W10 (5)** — `spawns exactly one child on the first parse, and never exceeds the
+pool size`, `each committed fixture completes in under 50 ms once the pool is warm`,
+`a warm round trip costs bounded CPU and has a bounded FLOOR`, `retires the exact pid
+that hit the bound, and the next call still succeeds`, `survives a child killed
+EXTERNALLY mid-flight and answers with null`.
+
+## 15.3 THE FLAKY LATENCY ASSERTION, ROOT-FIXED — AND TWO MORE OF THE SAME CLASS
+
+`pool.test.ts`'s `warm p50 round trip is under 5 ms over 100 iterations` measured
+**5.43 ms** for the Tasks-3/4 executor and **9.39 ms** when re-measured here, in full
+runs, while passing in isolation. It had **the exact disease D-27-W3B-03a diagnosed for
+the bound itself**: 5.9x of headroom (5 ms against a design p50 of 0.85 ms) on a
+quantity §13.1 measured inflating **7.5x-11.6x under host load**. Raising it to 25 ms
+would have been the wall-clock retune this phase already rejected once — and would have
+retired the alarm, since a per-parse respawn is about the only regression 25 ms still
+catches.
+
+**The alarm moved onto axes that measure THIS CODE**, mirroring the architecture of
+`COOK_BOUNDS` itself (a CPU primary + a generous wall backstop):
+
+| assertion | measured on this box | ceiling | rationale |
+|---|---:|---:|---|
+| PARENT CPU per warm round trip (`process.cpuUsage()` over 100 iterations) | **1.087 ms** | 4 ms | ~3.7x, the same headroom rule `cookParseCpuMs` uses; CPU was measured flat within ±3% across an order of magnitude of load |
+| CHILD CPU per warm round trip (`/proc/<pid>/schedstat`, via the gate's own reader) | **1.154 ms** | 4 ms | same |
+| the **FASTEST** of the 100 round trips, not the median | **1.513 ms** | 5 ms | the minimum is the standard robust estimator for a path's intrinsic latency — the least-interfered-with iteration — and 5 ms is R2's original number, now on a statistic that measures the code |
+
+`cookParseChildCpuMsForTests(pid)` was added beside the two existing `ForTests` exports
+so the test reads the child's CPU through **the gate's own reader** rather than
+re-parsing `/proc` itself — two mirrored readers of one kernel file would drift, and only
+one of them would be the one the bound decides with.
+
+**It can still fail meaningfully, and that was verified rather than argued:** W3B-W10
+(delete the pooling) turns it RED. Its first assertion fires — after a warm-up parse
+there is no live child left to attribute CPU to — and the sibling 50 ms fixture
+assertion measured **303 ms** in the same run, so the floor would have caught it too.
+A WASM instance rebuilt per parse (+15.7 ms), an extra copy of a 64 KiB payload or a lost
+`ready` handshake each cost CPU or raise the floor by far more than 3.7x.
+
+### ⚠ THE FINDING THAT CAME OUT OF FIXING IT: ABOVE ~5.3x OF CONTENTION THE BACKSTOP PRE-EMPTS THE CPU GATE
+
+Two more tests in the same file were flaky for one shared reason, and it is **arithmetic,
+not luck**: burning 1 500 ms of CPU takes 1 500 ms of wall clock only on an idle box, and
+`1 500 x 5.34 = 8 000`. So **once sustained contention exceeds ~5.3x — well inside the
+7.5x-11.6x §13.1 measured — the 8 000 ms WALL BACKSTOP fires before the CPU gate can
+spend its budget**, and the same hostile row is refused as `pool-timeout` with
+`bound: "cookParseWallCeilingMs"` instead of `pool-cpu`.
+
+Observed, not theorised: `resolves null, with the gate reporting the CPU it refused, on
+report explosion — "#" x 8192` failed at **8 158 ms** in a full run, and `leaves the
+PARENT process alive with its heap essentially untouched` died on vitest's 30 s file
+timeout because it drove all six hostile payloads at up to 8 s each.
+
+**This is not a defect in the bound.** The row is refused either way, the child is killed
+and replaced either way, and the user loses nothing either way — the never-broken
+guarantee holds on both paths. `cookParseWallCeilingMs` was NOT changed: it is a
+deliberate 9.6x over the worst legitimate IDLE wall clock, and lowering the CPU budget or
+raising the ceiling to separate them would trade a real property for a tidier test.
+
+What was wrong was the **tests**, and both are now root-fixed:
+
+- The hostile sweep no longer PINS one reason at the shipped defaults — pinning one was a
+  measurement of the machine, the very mistake D-27-W3B-03a exists to stop repeating. It
+  now asserts what is true on every box, with three sets of teeth: the per-reason number
+  (`pool-cpu` ⇒ `measured >= cookParseCpuMs`; `pool-timeout` ⇒
+  `measured >= cookParseWallCeilingMs`), the discrimination that **`pool-heap` remains
+  impossible for a flat-6-MB H1 shape**, and — the important one — that a `pool-timeout`
+  on a hostile row carries **`cpuMs > 0.5 x cookParseCpuMs`**, i.e. the child was
+  COMPUTING and not stuck. A broken CPU sampler cannot hide in that branch.
+- **A NEW deterministic test pins the CPU gate on the real H1 artefact** with the
+  backstop lifted to 60 s through its env lever, so on any box, idle or starved, the only
+  gate that can fire is the CPU gate: `reason: "pool-cpu"`, `bound: "cookParseCpuMs"`,
+  `measured >= 1 500`, and an anti-vacuity floor (`elapsed > 0.9 x cookParseCpuMs`) that
+  is sound everywhere because burning 1 500 ms of CPU takes at least that long. This is
+  the assertion the sweep gave up, restored without the load dependence rather than lost.
+- The parent-heap test drives the **two ballooning payloads**, which is its actual claim:
+  the four H1 rows run at a flat 6 MB and can contribute nothing to a heap-GROWTH figure,
+  while each can hold a child for up to 8 s. A test that dies on the harness timeout
+  proves only that the harness has one — that rule is in the file's own docblock.
+
+## 15.4 TWO DOCBLOCKS STILL DESCRIBED THE SUPERSEDED WALL-CLOCK BOUND
+
+`limits.ts`'s module docblock ("`./pool`: a 1 000 ms `SIGKILL` wall-clock bound and a
+256 MB heap bound") and its lesson paragraph ("what bounds parse time is `./pool`'s
+wall-clock `SIGKILL`"), plus `parse.ts`'s guarantee paragraph ("under a 1 000 ms
+wall-clock bound"), were **false after `cffaa5d8`**. All three now describe the CPU gate,
+the backstop and the heap bound, and name D-27-W3B-03a as what superseded the old text.
+This is exactly the class of stale claim D-27-W3B-13 was created to prevent — a docblock
+that states a guarantee the code no longer provides — and it is the **fourth** time in
+this phase that a comment had to be corrected rather than trusted.
+
+## 15.5 W5's PREREQUISITES, NOW ACCUMULATED — READ BEFORE PLANNING THE BACKFILL
+
+W5 is the live-data backfill (migration `0042`) and it now carries three hard
+preconditions, two of which did not exist when it was scoped.
+
+1. **W5's BACKFILL MUST RE-SERIALIZE, NOT RE-PARSE.** Task 3 made every non-numeric
+   frontmatter value quoted UNCONDITIONALLY, so a `.cook` written by the PRE-Task-3
+   serializer (unquoted plain scalars — `title: Spaghetti Bolognese`) is **no longer
+   serializer-shaped and is refused on the read and copy paths**. Live data is confirmed
+   clean (**0 rows with a non-NULL `cook_source`**), so the blast radius today is zero —
+   but any backfill that reads a stored source and re-parses it will refuse rows minted
+   between `f7bcecb8` and `5cdfc8aa`. Re-serialize from the structured tables instead.
+   This also settles the old **director exit item 4**: no H3 data audit is needed,
+   because there are no rows to audit.
+2. **THE UNIT VOCABULARY AND A ROUNDING RULE MUST LAND FIRST.** D-27-W3-07 was measured
+   in W3 and the answer was uncomfortable: the DERIVED US output is **worse than the
+   AI's** — 18 of 35 ingredients differ across the five fixtures, every `cup` of a dry
+   good becomes `ounce` (`2 cup flour` → `8.81849 ounce`), `fl oz` and `pint` are never
+   produced at all, and every conversion carries unrounded 6-decimal values
+   (`14 ounce` → `14.109585 ounce`). So W5 must not enable single-system extraction until
+   **both** the W0 `kilogram` / `fl oz` / `pint` canonical unit IDs **and** a rounding
+   rule are in. The density table (~29 ingredients) should be expanded in the same pass,
+   after measuring the flag rate on out-of-table volume-authored ingredients.
+3. **W5 PAUSES FOR KIRAN'S EXPLICIT SIGN-OFF.** Per the Phase-22.4/25 migration
+   discipline, and unchanged by anything in this plan. `0042` is a data migration on a
+   live database; nothing about it is inferable from a green suite.
+
+## 15.6 CORRECTED OPERATIONAL GUIDANCE FOR THE DEPLOY
+
+- **`pool-cpu` firing does NOT mean "the number is wrong for this box".** The bound is
+  now box-independent (±3% across an 11.6x wall-clock inflation), so a nonzero `pool-cpu`
+  rate on real recipes means a genuinely new legitimate shape costs more than the
+  measured **506 ms** worst-legitimate CPU. That is **a measurement to redo, not a knob
+  to turn** — and the 506 ms figure itself deserves re-measuring on the deployed box.
+- **`pool-timeout` should be near zero, and it is a bug report rather than a tuning
+  signal — WITH ONE MEASURED EXCEPTION.** §15.3: above ~5.3x of sustained contention a
+  hostile row legitimately lands on the backstop. So **read `cpuMs` beside the reason**:
+  `pool-timeout` with `cpuMs` at ~0 is a genuinely stuck child (a hang, a lost IPC reply)
+  and is the bug report; `pool-timeout` with `cpuMs` in the hundreds or thousands is a
+  hostile row on a saturated box, which is the bound working. Every bound log already
+  carries `bound` + `limit` + `measured` + `cpuMs` + `elapsedMs` + `bytes` + `pid`.
+- **`pool-heap` is not redundant** and must not be relaxed if the ceiling ever rises: it
+  is the only thing between a hostile row and 839 MB-1.65 GB (§3, §13.3).
+- **Size the container against ~628 MB of transient**, not 512 MB: two children at a
+  measured 313.6 MB peak RSS each (`--max-old-space-size` caps V8's old space, not RSS).
+- **The `tsdown` build gate's hardcoded `parse-worker.mjs` is CORRECT — do NOT "fix" it.**
+  The `.js`/`.mjs` finding concerned the **pool's runtime sibling rule**, which derives
+  its extension from `extname(import.meta.url)` because a hardcoded `.js` there would
+  resolve a nonexistent path **in production only, silently**. In the BUILD GATE a
+  hardcode fails the build LOUDLY if tsdown's output ever changes, which is the whole
+  point of having the gate. Both were re-verified in §13.9.
+- **W3 will NOT be inert once deployed.** Live's `ai_config` has held a DeepSeek key
+  since **2026-06-15** (set through the Admin UI) and it is now **env-backed**:
+  `AI_API_KEY` in `/opt/norish/.env` (verified present, untracked — outside the repo —
+  and `chmod 600`). W3's exit item 5, `27-03-SUMMARY.md` and `STATE.md` all say the
+  opposite; they are **wrong** and are corrected here and in `STATE.md`. Extraction is
+  live-configured, so the first deploy carrying W3 begins minting real `cook_source`
+  rows, which makes §15.5's re-serialize prerequisite live rather than theoretical.
+- Still open and unchanged: an **in-image** confirmation that `dist-server/parse-worker.mjs`
+  is present and the pool spawns **inside the container** (R1's failure mode is silent, so
+  the build host is not evidence), and a verified-restorable backup before the deploy.
+
+## 15.7 WHAT IS **NOT** DONE
+
+- **W4** (client token renderer, multi-timer, deleting the heuristic runtime path),
+  **W5** (backfill `0042` + review tool, gated on sign-off) and **W6** (contract:
+  `cook_source` NOT NULL) are **untouched**. Phase 27 is 3 of 7 waves deployed and 4 of 7
+  code-complete.
+- **NOTHING FROM W3 OR W3B IS DEPLOYED.** Live `norish-app` runs image
+  **`516c52576a5f`** at DB migration **42** — verified with `docker inspect` during this
+  task, not assumed. `pnpm docker:build` is the director's step and was not run.
+- `apps/web` was **not** run (412/424 red for an unrelated reason, and another agent owns
+  it this session); `@norish/shared-react` was **not** run for the same ownership reason.
+  Neither was touched.
+
+## 15.8 Gates
+
+| gate | baseline | result |
+|---|---|---|
+| real `tsc --noEmit -p packages/shared-server` | EXIT 0 | **EXIT 0**, zero output (redirected to a file; `tsc \| head` lies) |
+| real `tsc --noEmit -p packages/shared` | EXIT 0 | **EXIT 0**, zero output |
+| `@norish/shared-server` test | 545 with **1 flaky red** | **546 passed / 22 files** (+1 deterministic CPU-gate test), full-suite run, the flaky red GONE |
+| `@norish/shared` test | 319 | **319 passed / 15 files** |
+| `@norish/api` `cook-payload` | 25 | **25 passed** |
+| `@norish/queue` test | 121 | **121 passed / 17 files** |
+| `@norish/db` test (`sg docker`) | 179 | **179 passed / 23 files** |
+| eslint on every touched source file | 0 errors | **0 errors, 0 warnings** |
+| the 14 realistic recipes | all mint | **all 14 mint** (and W3B-W6 proves the assertion bites) |
+| `@cooklang/cooklang` importers in production | 1 (`parse-worker.ts`) | **1**; the static one-importer assertion and the tsdown gate both untouched |
+| `git diff` after every weakening | empty | **empty**, md5 + `cmp` verified against a pre-edit copy, twin inode checked |
+| DB migration | 42 | **42**; `migrations/` + `meta/_journal.json` untouched |
+| `git diff pnpm-lock.yaml` | empty | **empty** |
+
+## 15.9 THREE THINGS THE DIRECTOR SHOULD KNOW
+
+1. **A bound test that pins WHICH gate fired is a measurement of the machine.** §15.3's
+   arithmetic (`1 500 x 5.34 = 8 000`) means the answer changes with host load, and this
+   file now has three tests that were written as if it could not. The general rule, worth
+   carrying into W4-W6: assert the never-broken OUTCOME at the shipped defaults, and pin
+   a MECHANISM only with the other bounds lifted out of the way through their env levers.
+2. **The emitter and the recognizer are one contract with two halves, and W3B-W6 is the
+   proof.** Moving either half alone costs every real recipe its `cook_source` — 120 tests
+   red, including all 14 realistic recipes. That is the strongest argument for keeping
+   `COOK_FRONTMATTER_KEYS` exported from the serializer and imported by `limits.ts`, and
+   against ever "relaxing the recognizer" as a standalone change.
+3. **The live DeepSeek key changes the risk profile of the next deploy** (§15.6). Every
+   prior summary assumed W3 would be inert on live. It will not be: the first deploy
+   carrying W3 starts writing real `cook_source` rows through the new serializer, which is
+   exactly when §15.5's re-serialize prerequisite and the `pool-cpu` / `pool-timeout`
+   watch become real rather than precautionary.

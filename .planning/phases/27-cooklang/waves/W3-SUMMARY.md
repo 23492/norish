@@ -550,10 +550,15 @@ watches the two error-level logs after deploy.**
    prompt/eval finding for W5, not a reason to relax the gate.**
 4. **Confirm a verified-restorable backup exists before the deploy that carries W3.** W3 adds
    no migration, but it is the first deploy that WRITES `cook_source` on live data.
-5. **Live DeepSeek extraction is still unconfigured** (`AI_API_KEY` empty). W3's producer only
+5. ~~**Live DeepSeek extraction is still unconfigured** (`AI_API_KEY` empty). W3's producer only
    fires on the AI extraction paths, so **until a key is configured no recipe will earn a
-   `cook_source` on live** and the W3 deploy is a no-op in practice. Worth deciding
-   deliberately rather than discovering it.
+   `cook_source` on live** and the W3 deploy is a no-op in practice.~~
+   **CORRECTED, 2026-07-26 (plan 27-04, §15.6).** This was wrong. Live's `ai_config` has held
+   a DeepSeek key since **2026-06-15**, set through the Admin UI, and it is now **env-backed**:
+   `AI_API_KEY` in `/opt/norish/.env` (verified present, untracked, `chmod 600`). **W3 will NOT
+   be inert once deployed** — the first deploy carrying it starts minting real `cook_source`
+   rows, which is what makes plan 27-04 §15.5's "W5 must RE-SERIALIZE, not re-parse"
+   prerequisite live rather than theoretical.
 6. **Consider a small plan for the `--noCheck` typecheck hole** (finding 1 above). It made two
    of this wave's risks unverifiable by the command the plan prescribed.
 7. **Worth knowing for W5:** the parser TRAPS (`RuntimeError: unreachable`, a Rust panic) on
