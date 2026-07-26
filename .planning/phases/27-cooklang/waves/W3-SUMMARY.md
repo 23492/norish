@@ -588,3 +588,54 @@ watches the two error-level logs after deploy.**
 ---
 *Wave: W3 of 7 — CODE-COMPLETE (5/5 tasks)*
 *Completed: 2026-07-25*
+
+---
+
+# W3B ADDENDUM — plan 27-04, the T-27-01 bounded-parse pivot (Tasks 1, 2, 5 only)
+
+*Appended by 27-04's executor. The wave summary above was authored by another plan
+and is left intact.*
+
+**W3's own conclusion above — "Every trapping input is now refused before the
+parser" — is no longer the guarantee, and the sentence should be read with that in
+mind.** It was true of the inputs then known. Two of the three claims W3 made about
+`findCookSourceDefect` were subsequently refuted (H1: an unconstrained frontmatter
+recognizer let a 65 417-byte source parse for 24 557–38 511 ms; H2: `@a{ %g}`, eight
+bytes, still traps the WASM). Plan 27-04 therefore stopped treating recognizer
+completeness as load-bearing.
+
+**What changed structurally:** every `@cooklang/cooklang` parse now runs in a POOLED
+CHILD PROCESS under a 1 000 ms wall-clock bound (`SIGKILL` from the parent) and a
+256 MB heap bound (the child's `--max-old-space-size`).
+`packages/shared-server/src/cooklang/parse-worker.ts` is the ONLY file in the repo
+that imports the WASM binary. The escaping layer and `findCookSourceDefect` stay,
+checked first, as **defence in depth**.
+
+**What W4 must now additionally assume, beyond the list above:**
+- **`parseCookSource`, `buildCookPayload` and `buildCookFromExtraction` are `async`.**
+  `withCookTokens` was already async; `packages/trpc` needed no change.
+- **`parseCookSource(src, units, scale?)` carries an optional `scale` across the
+  process boundary**, forwarded verbatim to the WASM and covered by a test. W4's
+  servings scaling needs no re-plumbing.
+- **A refusal now has more causes**, all of which resolve `null` and cost the user
+  nothing: `pool-timeout`, `pool-heap`, `pool-crash`, `pool-saturated`,
+  `pool-spawn-failed`. W4's legacy branch stays the common path.
+- **W4 will make a latent hole live, and it is already closed.** `copyRecipeForSave`
+  carried `cookSource` + `cookTokens` across with no re-parse; it was latent only
+  because `getRecipeFull` never populates `cookTokens` — which is exactly what W4
+  changes. `cook` is now a REQUIRED, caller-proven parameter
+  (`revalidateCookPayload`), and `@norish/db` stays parser-free.
+- **The read path keeps the bound** (+0.23 ms p50, measured). "Validated at write" is
+  not airtight, so a stored row is re-proven whatever wrote it.
+
+**H3 IS STILL OPEN AND IT DELETES USER TEXT.** `splitFragment` slices by
+`ref.name.length` instead of the matched span, so an ingredient named `"flour "` in
+the step `"Add flour now."` renders `"Add flournow."`. This is **pre-existing**, it
+affects `f7bcecb8`'s parent too, and the 45-test fidelity suite cited above
+structurally cannot catch it because it only varies **prose**, never ref-name
+whitespace. **W4's renderer cannot trust the token text for names carrying leading,
+trailing or internal extra whitespace until 27-04 Task 4 lands.**
+
+*27-04 status: Tasks 1, 2, 5 CODE-COMPLETE (`59f3a767`, `4bbeecc7`, `226f04a7`).
+Tasks 3 (H1 recognizer), 4 (H2 + H3) and 6 (adversarial weakenings) NOT STARTED.
+The plan is NOT complete.*
