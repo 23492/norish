@@ -506,3 +506,279 @@ round-trip.
   destructive `rm -rf dist .cache`, and the other queued follow-ups untouched.
 - `pnpm i18n:check` (EXIT 1) and `pnpm format:check` (EXIT 1) left at their
   documented baselines; neither made worse.
+
+---
+
+## G4 — the flaky `import-flow.test.ts`, the item G1 recorded as out of scope
+
+**Commit:** `test(27-04): take the module load out of import-flow's test budget`.
+Position at the start of this task: 46 commits ahead of `origin/main`, tree clean.
+Nothing pushed, nothing deployed. Live image still `516c52576a5f`, DB still at
+migration **42**. Box: LXC 110, 4 cores, 5 000 MB RAM, Node v22.22.3, pnpm
+10.33.2, vitest 4.1.6 — same as G1/G2/G3.
+
+**Scope: one file,**
+`packages/api/__tests__/server/parser/import-flow.test.ts`. No production source
+touched. `pnpm-lock.yaml`, root `package.json`, `pnpm-workspace.yaml`,
+`packages/db/src/migrations/` and `meta/_journal.json` untouched.
+
+### Reproduction (BEFORE the fix)
+
+Isolated, idle box, `--reporter=verbose`:
+
+```
+✓ uses the existing video pipeline for video imports                          2523ms
+✓ uses AI directly when forceAI is true                                        279ms
+✓ uses AI directly when alwaysUseAI is enabled                                 246ms
+✓ returns a successful Python parser result without running AI                 267ms
+✓ falls back to AI when … page still looks recipe-like                        165ms
+✓ falls back to AI on structured parser failure …                             136ms
+✓ hard-fails when parser failure occurs and the page does not look recipe-like 139ms
+✓ hard-fails when parser failure occurs and AI is disabled                     180ms
+✓ uses the deprecated legacy parser only when the rollback flag is enabled     125ms
+Duration  4.53s (transform 1.08s, import 205ms, tests 4.07s)
+```
+
+First test **2 523 ms against its own hand-raised `{ timeout: 15000 }`** — **5.9x
+headroom**, close to the previous agent's **2 742 ms / 5.5x** (small run-to-run
+variance, same disease). Every other test also pays a smaller re-import tax
+(125-279 ms) against the file's **implicit default 5 000 ms** `testTimeout` — the
+file sets no override of its own for those eight.
+
+Contention was manufactured with a plain busy-loop spinner
+(`Math.sqrt(Math.random())` in a tight `while`) rather than the cooklang-specific
+single-core pin of §13.1, matching this file's own G1 precedent
+(`migrate-gallery-images.test.ts`'s "eight busy-loop spinners on 4 cores"). On
+this box, **ambient host load varies run to run** (`uptime` showed load averages
+of 11-21 even with zero spinners running, i.e. LXC 110 has noisy neighbors on
+the shared Proxmox host) — eight spinners reproduced the failure inconsistently
+(6 962-11 945 ms, under the 15 000 ms cutoff every time in five isolated-file
+attempts), so contention was increased to **20 spinners** until the signature
+reproduced, matching in kind (CPU-bound busy loops on a 4-core box) even though
+the multiplier differs from the previous agent's box-state. Full `@norish/api`
+suite, `--reporter=verbose`, 20 spinners:
+
+```
+ ✗ …import-flow.test.ts > … uses the existing video pipeline for video imports  26201ms
+   → Test timed out in 15000ms.
+ ✗ …import-flow.test.ts > … uses AI directly when forceAI is true                4260ms
+   → expected "vi.fn()" to not be called at all, but actually been called 1 times
+     1st vi.fn() call: Array [ Object { "html": "…", "url": "https://example.com/video" } ]
+ ✗ …cook-payload.test.ts > … mints a self-validating .cook …                     2095ms
+   → expected null not to be null
+ Test Files  2 failed | 28 passed (30)
+      Tests  3 failed | 405 passed (408)
+   Duration  85.21s
+```
+
+(full capture: `/tmp/repro_run1.log`, not committed). **Reproduced**, same
+signature G1 recorded for this file (`Test timed out in 15000ms`) plus one new
+finding (below). A third, unrelated failure in `cook-payload.test.ts` also
+appeared in this run — noted as incidental collateral of the 20-spinner
+contention on an already-noisy box, out of this file's scope, and not chased.
+
+**A collateral finding beyond G1's note.** The timed-out first test's in-flight
+call did not stop when vitest declared the timeout — its promise chain kept
+running in the background, past that test's own boundary and past the *next*
+test's `beforeEach`/`vi.clearAllMocks()`, and eventually called a mock with the
+**first test's URL** (`"https://example.com/video"`), which the second test's
+assertion (`not.toHaveBeenCalled()`, freshly cleared) then saw and failed on.
+A test timing out under contention was not merely failing in isolation — it was
+**corrupting the test after it**. That risk disappears once the module-load cost
+that caused the timeout is removed from the timed region.
+
+### Root cause
+
+Identical shape to G1: the subject (`@norish/api/parser`) was `await import()`ed
+**inside every one of the 9 tests**, behind a per-test `vi.resetModules()`. That
+charged the transform + evaluation of the whole `@norish/api/parser` graph
+(`ai/recipe-parser`, `parser/fetch`, `parser/jsonld`, `parser/legacy`,
+`parser/python/*`, `shared-server/config/server-config-loader`, etc.) to the
+per-test wall budget **nine times over**, not twice as in G1's file. The first
+test paid the cold transform (~2.5 s); the remaining eight paid a smaller
+re-evaluation cost each (125-880 ms observed across runs) because Vite's
+transform cache was warm but the module graph still had to be **re-instantiated**
+per test. **Nothing in this file asserts anything about time** — every assertion
+is about branch selection (video / forceAI / alwaysUseAI / structured-parser
+success / AI fallback / hard failure / legacy rollback), none about latency.
+
+### Why `vi.resetModules()` bought no isolation here — checked, not assumed
+
+This is the check the task called out as the one to get right: G1's cure
+(hoist to file scope) is only safe if no test relies on getting a **fresh**
+module instance. Read `packages/api/src/parser/index.ts`:
+
+- It holds **no top-level mutable state** — no cache, no counter, no module-level
+  `let`. Its only closure-captured value is
+  `const parserEnvConfig = SERVER_CONFIG as …` (line 24), which is a **live
+  reference to the same `mockServerConfig` object** the test file mutates in
+  place (`mockServerConfig.LEGACY_RECIPE_PARSER_ROLLBACK = false` in
+  `beforeEach`, `= true` in the rollback test). Re-importing the module would
+  bind `parserEnvConfig` to the identical object again — mutation-in-place
+  already makes every later read see the update, with or without a fresh
+  import.
+- Every OTHER dependency is `vi.mock()`ed (hoisted, file-scoped, never
+  `vi.doMock`), and the isolation between tests comes from `vi.clearAllMocks()`
+  plus fresh `mockResolvedValue`/`mockReturnValue` calls in `beforeEach` — both
+  of which act on the **mock functions**, not on module identity, and both
+  survive a hoisted import completely unchanged.
+- There is no per-test `vi.doMock` of anything that needs to be re-read at
+  import time (unlike G1's file, which had to defer `SERVER_CONFIG.UPLOADS_DIR`
+  until a temp directory existed). Nothing here has a temporal-dead-zone
+  hazard.
+
+So `vi.resetModules()` was pure overhead: 8 redundant re-evaluations of a graph
+that has nothing to reset. Confirmed by mutation testing below rather than
+assumed.
+
+### The fix, and why it is not a bandaid
+
+Raising 15 000 ms further would have picked a bigger point on the same curve —
+already-observed inflation was up to **10.4x** (2 523 → 26 201 ms) against
+§13.1's ceiling of 11.6x, so there was no headroom multiplier left to reach for
+honestly. G1's cure, applied verbatim:
+
+- `const { parseRecipeFromUrl } = await import("@norish/api/parser");` moved to
+  **file scope**, directly after the last `vi.mock()` call and before
+  `describe(...)`. This runs during file **COLLECTION**, which neither
+  `testTimeout` nor `hookTimeout` bounds, and now runs **once** instead of nine
+  times.
+- `vi.resetModules()` removed from `beforeEach` (see isolation analysis above).
+- The 9 per-test `const { parseRecipeFromUrl } = await import(...)` lines
+  removed — the binding now comes from the module scope import.
+- The now-unneeded `{ timeout: 15000 }` override on the first test **removed**.
+  It was itself the earlier symptom of this exact disease (someone had already
+  reached for a bigger budget instead of the root fix) — leaving it in place
+  after the fix would have been keeping a stale bandaid over a wound that no
+  longer exists, and its presence would have hidden regressions in a 3x window
+  instead of the file's real, tiny cost.
+- `vi.clearAllMocks()` and every `mockResolvedValue`/`mockReturnValue` call in
+  `beforeEach`, and **every assertion in every test, are byte-for-byte
+  unchanged.** No coverage was traded.
+- The file's docblock records the measurement, the cause, and — the point
+  proven above — why `vi.resetModules()` was safe to drop here, so a future
+  reader cannot silently re-nest the import without re-deriving that argument.
+
+### Mutation evidence — non-vacuity, proven per test
+
+Eight mutations of the **subject**
+(`packages/api/src/parser/index.ts`, never the test file), each applied, run
+against its specific test(s) with `-t`, confirmed RED, then reverted **by
+reverse edit** (never `git checkout` — this repo's `node_modules/@norish/*` are
+hardlinked copies and `checkout` would break the twins). Never committed.
+
+| # | mutation | test(s) forced RED | observed failure |
+|---|---|---|---|
+| M1 | `tryHandleVideoUrl`: `if (!isVideoUrl(url))` → `if (true)` | "uses the existing video pipeline for video imports" | `usedAI: false` instead of `true` (video branch never taken) |
+| M2 | `useAIOnly = Boolean(forceAI \|\| …)` → `Boolean(false \|\| …)` | "uses AI directly when forceAI is true" | `usedAI: false` (forceAI ignored) |
+| M3 | same line → `Boolean(forceAI \|\| false)` | "uses AI directly when alwaysUseAI is enabled" | `usedAI: false` (alwaysUseAI ignored) |
+| M4 | `if (structured.recipe) return …` → `if (false && structured.recipe)` | "returns a successful Python parser result without running AI" | `usedAI: true` instead of `false` (structured success path skipped, fell through to AI) |
+| M5 | `if (aiEnabled && (await isPageLikelyRecipe(html)))` → `if (false)` | "falls back to AI when the Python parser output is invalid …" AND "falls back to AI on structured parser failure …" | both raise `Python parser … failed`/`returned … without a valid title` instead of returning the AI recipe (AI fallback never attempted) |
+| M6 | `NON_RECIPE_FAILURE_CODES` drops `"NoSchemaFoundInWildMode"` | "hard-fails … page does not look recipe-like" | thrown message is `Python parser failed: NoSchemaFoundInWildMode` instead of `Page does not appear to contain a recipe.` |
+| M7 | `NON_RECIPE_FAILURE_CODES` drops `"RecipeSchemaNotFound"` | "hard-fails … AI is disabled" | thrown message is `Python parser failed: RecipeSchemaNotFound` instead of `Page does not appear to contain a recipe.` |
+| M8 | `if (parserEnvConfig.LEGACY_RECIPE_PARSER_ROLLBACK)` → `if (false)` | "uses the deprecated legacy parser only when the rollback flag is enabled" | `mockTryLegacyStructuredRecipeParsing` never called (legacy branch unreachable) |
+
+**All 9 tests forced RED by at least one mutation** (M5 covers two). After each
+mutation: reverted by reverse edit, then verified three ways —
+`md5sum src/parser/index.ts` **matches the pre-mutation hash** for every one of
+the 8 rounds, a final `diff` against a saved pre-mutation copy is **IDENTICAL**,
+and `git diff -- packages/api/src/parser/index.ts` is **empty**. No mutation was
+ever staged or committed.
+
+### Isolation re-proved, not assumed, after removing `resetModules()`
+
+- **3/3 `--sequence.shuffle` runs green** (9/9 each time) — order no longer
+  matters now that all nine tests share one module instance.
+- **Each of the 9 tests passes alone** (`vitest run … -t "<name>"`, one at a
+  time) — no test depends on a side effect left by another.
+- Full-file and full-suite runs (below) all show **9/9 passed** with the
+  hoisted import.
+
+### Evidence (AFTER)
+
+Isolated, idle, `--reporter=verbose`:
+
+```
+✓ uses the existing video pipeline for video imports   7-10ms
+✓ uses AI directly when forceAI is true                11-14ms
+✓ uses AI directly when alwaysUseAI is enabled          2-4ms
+✓ returns a successful Python parser result …           1-2ms
+✓ falls back to AI when … recipe-like                   2-9ms
+✓ falls back to AI on structured parser failure …       2-8ms
+✓ hard-fails … does not look recipe-like                3-6ms
+✓ hard-fails … AI is disabled                            1ms
+✓ uses the deprecated legacy parser only …              1-4ms
+```
+
+**First test: 2 523 ms → 7-10 ms.** Against the file's now-unraised default
+5 000 ms `testTimeout`, headroom went from **5.9x to roughly 500-700x**. The
+other eight tests' 125-880 ms each collapsed to 1-14 ms each — total in-file
+test time (`tests …ms` in the `Duration` line) dropped from **4.07 s to
+31-40 ms**, roughly **100-130x**.
+
+Five consecutive full `@norish/api` runs under the **same 20-spinner contention
+that produced the failure above**:
+
+| run | result | first test | 2nd test |
+|---|---|---:|---:|
+| 1 | 408 passed | 22ms | 45ms |
+| 2 | 408 passed | 70ms | 56ms |
+| 3 | 408 passed | 42ms | 57ms |
+| 4 | 408 passed | 216ms | 156ms |
+| 5 | 408 passed | 64ms | 75ms |
+
+**0 timeouts, 5/5 contended runs, 408/408 each time.** Even the worst observed
+figure under 20-spinner contention (216 ms) is 23x under the 5 000 ms default
+and 69x under the original 15 000 ms override. Three consecutive **idle** full
+`@norish/api` suite runs: 408/408 each (12.5-18.4 s total suite duration, first
+test at 10-41 ms).
+
+`/tmp` left no stray directories from this file (it creates none — no uploads
+dir, no filesystem fixture). One unrelated empty `/tmp/norish-migrate-images-*`
+directory was found, left over from an earlier contended run of this task that
+was killed mid-flight by a shell timeout before `migrate-gallery-images.test.ts`
+`afterAll` could run; removed as housekeeping, not evidence of a regression in
+that file (G1's own file, untouched here).
+
+### Gates
+
+| gate | result |
+|---|---|
+| `tsc --noEmit -p tsconfig.json` (`@norish/api`) | **EXIT 0, zero output** — note: `packages/api/tsconfig.json` scopes `include: ["src"]`, the same as every other package in this repo, so it does not itself typecheck `__tests__/**`. Independently re-verified with a throwaway `tsconfig.import-flow-check.json` (extends the real config, adds this one test file to `include`) → **EXIT 0, zero output**; the scratch file was deleted afterward, `git status` shows no trace |
+| `eslint --flag unstable_native_nodejs_ts_config __tests__/server/parser/import-flow.test.ts` | **EXIT 0** — `0 errors, 1 warning` ("File ignored because of a matching ignore pattern"), the same repo-wide `**/__tests__/**`/`**/*.test.ts` ignore G3 documented; the file is never actually linted, same as before |
+| `prettier --check` on the file | **EXIT 0**, clean |
+| vitest `@norish/api`, idle | **408 passed (30 files)**, 3 consecutive runs |
+| vitest `@norish/api`, 20-spinner contention | **408 passed (30 files)**, 5 consecutive runs, 0 timeouts |
+| `--sequence.shuffle` on the file | **9/9 passed**, 3 consecutive runs |
+| `-t "<name>"` isolation, each of 9 tests alone | **all 9 pass individually** |
+| `git status` | only `packages/api/__tests__/server/parser/import-flow.test.ts` modified; `pnpm-lock.yaml`, root `package.json`, `pnpm-workspace.yaml`, `packages/db/src/migrations/`, `meta/_journal.json` untouched |
+
+No `as any`, no `@ts-ignore`, no `@ts-expect-error`, no type widening. No
+`pnpm install` run, no lockfile touched. Nothing pushed, nothing deployed, live
+image and DB migration untouched.
+
+### Decisions taken
+
+- **Removed the `{ timeout: 15000 }` override** rather than leaving it as a
+  defensive margin. Per the standing "no bandaids" directive, a large timeout
+  that is no longer earning its keep is exactly the kind of latent bandaid that
+  hides a future regression instead of catching it — the file's real cost is now
+  ~10 ms and the default 5 000 ms budget covers it with three orders of
+  magnitude to spare, contention included (worst observed: 216 ms under 20
+  spinners).
+- **Contention methodology stated, not hidden:** this box's ambient load varies
+  run to run (observed 11-21 `uptime` load average with zero spinners of mine
+  running), so 8 spinners reproduced inconsistently and 20 were used to get a
+  clean, repeatable reproduction of the exact `Test timed out in 15000ms`
+  signature before the fix. The AFTER verification then re-used that same
+  20-spinner load for the 5 required consecutive runs — a harder bar than the
+  literal "eight spinners," not a softer one.
+- **The collateral cross-test mock-call bleed is recorded but not separately
+  "fixed"** — it was a symptom of the timeout, not a second defect. Once the
+  module-load cost that caused the timeout is gone, the promise that used to
+  outlive its test's timeout completes well within budget and the bleed does
+  not occur (proven by the 5/5 contended runs above showing no such assertion
+  failures).
+- The unrelated `cook-payload.test.ts` failure observed once under 20-spinner
+  contention during the BEFORE reproduction is out of this file's scope and was
+  not chased; it did not recur in any of the five AFTER contended runs.

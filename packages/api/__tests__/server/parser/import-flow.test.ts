@@ -1,4 +1,39 @@
 // @vitest-environment node
+/**
+ * `parseRecipeFromUrl` — the import-flow branch matrix (video / forceAI /
+ * alwaysUseAI / structured-parser success / AI fallback / hard failures /
+ * legacy rollback).
+ *
+ * ⚠ THE SUBJECT IS IMPORTED AT FILE SCOPE, ONCE — DO NOT MOVE IT BACK INTO A TEST.
+ * It used to be `await import()`ed inside EVERY one of the 9 tests, behind a
+ * per-test `vi.resetModules()`, which charged the transform + evaluation of the
+ * whole `@norish/api/parser` graph to the per-test wall budget 9 times over. The
+ * first test alone measured **2 742 ms isolated against its own hand-raised
+ * 15 000 ms `{ timeout }`** (5.5x headroom) and hit **15 125-14 740 ms and TIMED
+ * OUT** under host contention manufactured the same way as
+ * `migrate-gallery-images.test.ts` (see that file and `27-04-FIX-GATES.md`
+ * G1/G4) — the same wall-clock-under-contention disease D-27-W3B-03a diagnosed
+ * for the cooklang parse bound. Worse: the timeout did not stay contained — the
+ * timed-out test's in-flight promise kept running in the background past its own
+ * `beforeEach`, and a mock call it made landed on the NEXT test's cleared mocks
+ * (`mockCallRecipeScrapersParser` recorded a call inside "uses AI directly when
+ * forceAI is true"), producing a second, unrelated red test. That collateral
+ * failure is gone once the module load — the actual cost — is out of the timed
+ * region altogether.
+ *
+ * The cure is the same one: a top-level `await import` runs during file
+ * COLLECTION, which neither `testTimeout` nor `hookTimeout` bounds, and it now
+ * runs ONCE instead of 9 times. Every mock seam and every assertion below is
+ * unchanged; what changed is only where the module load is accounted. The
+ * subject holds no module-level mutable state — `parserEnvConfig` is a live
+ * binding to the SAME `mockServerConfig` object every test mutates in place, so
+ * a single import sees every later mutation with no re-import needed — so
+ * `vi.resetModules()` bought no isolation here; it only paid for 8 redundant
+ * re-evaluations of the module graph. Removing it is not a coverage trade: the
+ * per-test `vi.clearAllMocks()` plus fresh `mockResolvedValue`/`mockReturnValue`
+ * calls in `beforeEach` are what actually isolate these tests, and both are kept
+ * verbatim.
+ */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -76,6 +111,8 @@ vi.mock("@norish/shared-server/logger", () => ({
   createLogger: vi.fn(() => mockLogger),
 }));
 
+const { parseRecipeFromUrl } = await import("@norish/api/parser");
+
 describe("parseRecipeFromUrl import flow", () => {
   const structuredRecipe = {
     id: "recipe-1",
@@ -116,7 +153,6 @@ describe("parseRecipeFromUrl import flow", () => {
   };
 
   beforeEach(() => {
-    vi.resetModules();
     vi.clearAllMocks();
 
     mockIsVideoUrl.mockReturnValue(false);
@@ -155,11 +191,10 @@ describe("parseRecipeFromUrl import flow", () => {
     });
   });
 
-  it("uses the existing video pipeline for video imports", { timeout: 15000 }, async () => {
+  it("uses the existing video pipeline for video imports", async () => {
     mockIsVideoUrl.mockReturnValue(true);
     mockIsVideoParsingEnabled.mockResolvedValue(true);
 
-    const { parseRecipeFromUrl } = await import("@norish/api/parser");
     const result = await parseRecipeFromUrl("https://example.com/video", "recipe-1", ["dairy"]);
 
     expect(result).toEqual({ recipe: structuredRecipe, usedAI: true, cook: null });
@@ -175,7 +210,6 @@ describe("parseRecipeFromUrl import flow", () => {
   });
 
   it("uses AI directly when forceAI is true", async () => {
-    const { parseRecipeFromUrl } = await import("@norish/api/parser");
     const result = await parseRecipeFromUrl("https://example.com/recipe", "recipe-1", [], true);
 
     expect(result).toEqual({ recipe: aiRecipe, usedAI: true, cook: null });
@@ -186,7 +220,6 @@ describe("parseRecipeFromUrl import flow", () => {
   it("uses AI directly when alwaysUseAI is enabled", async () => {
     mockShouldAlwaysUseAI.mockResolvedValue(true);
 
-    const { parseRecipeFromUrl } = await import("@norish/api/parser");
     const result = await parseRecipeFromUrl("https://example.com/recipe", "recipe-1");
 
     expect(result).toEqual({ recipe: aiRecipe, usedAI: true, cook: null });
@@ -194,7 +227,6 @@ describe("parseRecipeFromUrl import flow", () => {
   });
 
   it("returns a successful Python parser result without running AI", async () => {
-    const { parseRecipeFromUrl } = await import("@norish/api/parser");
     const result = await parseRecipeFromUrl("https://example.com/recipe", "recipe-1");
 
     expect(result).toEqual({ recipe: structuredRecipe, usedAI: false, cook: null });
@@ -206,7 +238,6 @@ describe("parseRecipeFromUrl import flow", () => {
   it("falls back to AI when the Python parser output is invalid and the page still looks recipe-like", async () => {
     mockAdaptRecipeScrapersResponse.mockResolvedValue(null);
 
-    const { parseRecipeFromUrl } = await import("@norish/api/parser");
     const result = await parseRecipeFromUrl("https://example.com/recipe", "recipe-1");
 
     expect(result).toEqual({ recipe: aiRecipe, usedAI: true, cook: null });
@@ -221,7 +252,6 @@ describe("parseRecipeFromUrl import flow", () => {
       parser: { mode: "supported", scraper: "unknown", version: "15.10.0" },
     });
 
-    const { parseRecipeFromUrl } = await import("@norish/api/parser");
     const result = await parseRecipeFromUrl("https://example.com/recipe", "recipe-1");
 
     expect(result).toEqual({ recipe: aiRecipe, usedAI: true, cook: null });
@@ -236,8 +266,6 @@ describe("parseRecipeFromUrl import flow", () => {
       parser: { mode: "wild", scraper: "unknown", version: "15.10.0" },
     });
     mockFetchViaPlaywright.mockResolvedValue("<html><body>plain text</body></html>");
-
-    const { parseRecipeFromUrl } = await import("@norish/api/parser");
 
     await expect(parseRecipeFromUrl("https://example.com/page", "recipe-1")).rejects.toThrow(
       "Page does not appear to contain a recipe."
@@ -254,8 +282,6 @@ describe("parseRecipeFromUrl import flow", () => {
     });
     mockIsAIEnabled.mockResolvedValue(false);
 
-    const { parseRecipeFromUrl } = await import("@norish/api/parser");
-
     await expect(parseRecipeFromUrl("https://example.com/page", "recipe-1")).rejects.toThrow(
       "Page does not appear to contain a recipe."
     );
@@ -267,7 +293,6 @@ describe("parseRecipeFromUrl import flow", () => {
     mockServerConfig.LEGACY_RECIPE_PARSER_ROLLBACK = true;
     mockTryLegacyStructuredRecipeParsing.mockResolvedValue(structuredRecipe);
 
-    const { parseRecipeFromUrl } = await import("@norish/api/parser");
     const result = await parseRecipeFromUrl("https://example.com/recipe", "recipe-1");
 
     expect(result).toEqual({ recipe: structuredRecipe, usedAI: false, cook: null });
