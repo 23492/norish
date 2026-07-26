@@ -191,15 +191,35 @@ with a cast:
   `package.json` / lockfile — out of scope for a pass restricted to
   `packages/shared-react/**` and `apps/mobile/**`.
 
-No `as any`, `@ts-ignore`, `@ts-expect-error`, or type-widening was used
-anywhere in this pass, including for these two.
+No `as any`, `@ts-ignore`, or `@ts-expect-error` was used anywhere in this pass,
+including for these two. **One type-widening was used**, and it is described in
+the correction below.
 
-> **CORRECTED 2026-07-26 (Phase 27 VERIFY-3):** this claim is wrong.
-> `packages/shared-react/src/providers/trpc-links.ts:216` (`createHttpDataTransportLink`)
-> and its sibling `createHttpTransportLink` both return `TRPCLink<any>` — a real
-> production type widening, present at this line before and after this pass. See
-> `.planning/phases/27-cooklang/27-04-SUMMARY.md` § VERIFY-3 — open blockers before
-> deploy, "Minor, also open".
+> **CORRECTED 2026-07-26 (Phase 27 VERIFY-3), RE-CORRECTED 2026-07-27 (Phase 27
+> FIX-TYPEWIDENING):** the original blanket "no type-widening" claim was wrong,
+> and VERIFY-3's correction to it was itself wrong about the provenance.
+>
+> The facts, established by reading the range rather than either record:
+> `packages/shared-react/src/providers/trpc-links.ts` held **four** `TRPCLink<any>`
+> occurrences at `origin/main` (lines 47, 48, 191, 202) and **five** at `bf1f5136`.
+> The fifth — the return type of `createHttpTransportLink` — was **added by this
+> pass**, in commit `bba2943e fix(shared-react): resolve generic-inference errors
+> in trpc/query plumbing`, which replaced
+> `createHttpTransportLink<TRouter extends AnyTRPCRouter>(): TRPCLink<TRouter>`
+> with a non-generic `(): TRPCLink<any>`. It was **not** "present at this line
+> before and after this pass", as VERIFY-3 stated; that mis-attribution is
+> recorded as VERIFY-4 finding H-1.
+>
+> **All five are now gone.** `trpc-links.ts` constrains its router generic to
+> `TransformedRouter` (a router whose `$types["transformer"]` is `true`) and
+> threads it through `createHttpMutationLink`, `createHttpFormDataMutationLink`,
+> `createHttpTransportLink`, `wsLink`, `createTRPCClientLinks`,
+> `CreateTRPCProviderBundleOptions` (`mutationLink` / `extraLinks`) and
+> `createTRPCProviderBundle`. The `ResolveTransformer<TRouter>` helper documented
+> at that site is a *narrowing* restatement of what the constraint already
+> guarantees, needed only because TypeScript cannot resolve
+> `@trpc/client`'s `TransformerOptions<TRoot>` conditional against an unresolved
+> type parameter. See `.planning/phases/27-cooklang/27-04-FIX-TYPEWIDENING.md`.
 
 ### Cross-package leak fixed with a scoped, non-invasive declaration
 
@@ -452,14 +472,20 @@ event whose payload is a bare array.
   `shared-react` or `apps/web`.
 - Full monorepo gate deliberately **not** run (concurrent `shared`/
   `shared-server` edits in flight).
-- No `as any`, `@ts-ignore`, `@ts-expect-error`, or type-widening. The one cast
-  in the new test mock is a narrowing `unknown` → `ObserverOptions`, guarded by
-  a runtime `typeof`/`in` check that throws if the shim's contract changes.
-  > **CORRECTED 2026-07-26 (Phase 27 VERIFY-3):** this line's blanket claim is
-  > wrong at the package level — see the correction above near line 194.
-  > `trpc-links.ts:216`'s `TRPCLink<any>` predates and survives this pass; it is
-  > not introduced by it, but the doc's "no type-widening anywhere" statement is
-  > inaccurate as written.
+- No `as any`, `@ts-ignore`, or `@ts-expect-error`. The one cast in the new test
+  mock is a narrowing `unknown` → `ObserverOptions`, guarded by a runtime
+  `typeof`/`in` check that throws if the shim's contract changes. **One
+  type-widening was used** — see the correction below.
+  > **CORRECTED 2026-07-26 (Phase 27 VERIFY-3), RE-CORRECTED 2026-07-27 (Phase 27
+  > FIX-TYPEWIDENING):** this line's blanket "no type-widening" claim was wrong at
+  > the package level, and VERIFY-3's correction to it was wrong about the
+  > provenance. This pass **did** introduce a type-widening: commit `bba2943e`
+  > dropped the `<TRouter extends AnyTRPCRouter>` generic from
+  > `createHttpTransportLink` and widened its return type to `TRPCLink<any>`,
+  > taking `trpc-links.ts` from four `TRPCLink<any>` occurrences to five. It did
+  > not "predate and survive" the pass. All five have since been removed and the
+  > router generic properly threaded — see the fuller correction above near line
+  > 194 and `.planning/phases/27-cooklang/27-04-FIX-TYPEWIDENING.md`.
 
 ## Recommended follow-up (not done here — out of scope)
 

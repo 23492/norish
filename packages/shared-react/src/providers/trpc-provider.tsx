@@ -1,6 +1,5 @@
 "use client";
 
-import type { AnyTRPCRouter } from "@trpc/server";
 import type { ReactNode } from "react";
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -9,7 +8,7 @@ import { createTRPCContext } from "@trpc/tanstack-react-query";
 
 import { unwrapPayload } from "@norish/shared/lib/operation-helpers";
 
-import type { CreateTRPCProviderBundleOptions } from "./trpc-links";
+import type { CreateTRPCProviderBundleOptions, TransformedRouter } from "./trpc-links";
 import {
   createTRPCClientLinks,
   defaultGetBaseUrl,
@@ -118,7 +117,7 @@ function createNormalizedUseTRPC<TTrpc>(useRawTRPC: () => TTrpc) {
   };
 }
 
-export function createTRPCProviderBundle<TRouter extends AnyTRPCRouter>({
+export function createTRPCProviderBundle<TRouter extends TransformedRouter>({
   logger,
   getBaseUrl = defaultGetBaseUrl,
   getWsUrl = defaultGetWsUrl,
@@ -138,7 +137,7 @@ export function createTRPCProviderBundle<TRouter extends AnyTRPCRouter>({
   mutationLink,
   extraLinks = [],
   invalidateOnReconnect = true,
-}: CreateTRPCProviderBundleOptions) {
+}: CreateTRPCProviderBundleOptions<TRouter>) {
   const { TRPCProvider, useTRPC: useRawTRPC } = createTRPCContext<TRouter>();
   const useTRPC = createNormalizedUseTRPC(useRawTRPC);
   const ConnectionContext = createContext<ConnectionContextValue>({

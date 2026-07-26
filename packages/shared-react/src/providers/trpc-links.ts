@@ -22,11 +22,37 @@ export type TrpcLogger = {
   debug: (meta: unknown, message: string) => void;
 };
 
+/**
+ * The marker `initTRPC.create({ transformer })` leaves on a router's client types.
+ */
+type TransformedClientTypes = {
+  _def: { _config: { $types: { transformer: true } } };
+};
+
+/**
+ * Every transport link in this module hard-codes a data transformer, so they are
+ * only correct for a router that was built with one. Constraining `TRouter` here
+ * makes that requirement checked at each call site instead of assumed.
+ */
+export type TransformedRouter = AnyTRPCRouter & TransformedClientTypes;
+
+/**
+ * `@trpc/client` types its link options through
+ * `TransformerOptions<TRoot> = TRoot["transformer"] extends true ? ... : ...`.
+ * TypeScript cannot resolve that conditional while `TRoot` is an indexed access on
+ * an unresolved type parameter, so `httpLink<TRouter>({ transformer })` is rejected
+ * even when `TRouter` is already constrained to a transformed router. Re-stating the
+ * literal `true` that the constraint has already promised makes the conditional
+ * resolvable. This adds no information and cannot mask a mismatch: a router without
+ * `transformer: true` is rejected by the `TransformedRouter` constraint first.
+ */
+type ResolveTransformer<TRouter extends TransformedRouter> = TRouter & TransformedClientTypes;
+
 type ManagedWebSocketClient = {
   close: () => Promise<void>;
 };
 
-export type CreateTRPCProviderBundleOptions = {
+export type CreateTRPCProviderBundleOptions<TRouter extends TransformedRouter> = {
   logger: TrpcLogger;
   getBaseUrl?: () => string;
   getWsUrl?: () => string;
@@ -44,15 +70,16 @@ export type CreateTRPCProviderBundleOptions = {
   onWebSocketClientCreate?: (client: ManagedWebSocketClient) => void;
   onWebSocketClientDestroy?: (client: ManagedWebSocketClient) => void;
   onUnauthorized?: (cause: unknown) => void;
-  mutationLink?: TRPCLink<any>;
-  extraLinks?: TRPCLink<any>[];
+  mutationLink?: TRPCLink<TRouter>;
+  extraLinks?: TRPCLink<TRouter>[];
   /** Automatically invalidate all queries on WebSocket reconnect. Defaults to true. */
   invalidateOnReconnect?: boolean;
 };
 
-type CreateTRPCClientLinksOptions = CreateTRPCProviderBundleOptions & {
-  includeSubscriptions?: boolean;
-};
+type CreateTRPCClientLinksOptions<TRouter extends TransformedRouter> =
+  CreateTRPCProviderBundleOptions<TRouter> & {
+    includeSubscriptions?: boolean;
+  };
 
 function getWebSocketCloseCode(cause: unknown): number | null {
   if (!cause || typeof cause !== "object") {
@@ -185,22 +212,22 @@ function createUnauthorizedLink<TRouter extends AnyTRPCRouter>(
   };
 }
 
-function createHttpMutationLink(
+function createHttpMutationLink<TRouter extends TransformedRouter>(
   getBaseUrl: () => string,
   getHeaders: () => HTTPHeaders
-): TRPCLink<any> {
-  return httpLink({
+): TRPCLink<TRouter> {
+  return httpLink<ResolveTransformer<TRouter>>({
     url: `${getBaseUrl()}/api/trpc`,
     headers: createRequestHeadersResolver(getHeaders),
     transformer: superjson,
   });
 }
 
-function createHttpFormDataMutationLink(
+function createHttpFormDataMutationLink<TRouter extends TransformedRouter>(
   getBaseUrl: () => string,
   getHeaders: () => HTTPHeaders
-): TRPCLink<any> {
-  return httpLink({
+): TRPCLink<TRouter> {
+  return httpLink<ResolveTransformer<TRouter>>({
     url: `${getBaseUrl()}/api/trpc`,
     headers: createRequestHeadersResolver(getHeaders),
     transformer: {
@@ -210,18 +237,18 @@ function createHttpFormDataMutationLink(
   });
 }
 
-function createHttpTransportLink(
+function createHttpTransportLink<TRouter extends TransformedRouter>(
   getBaseUrl: () => string,
   getHeaders: () => HTTPHeaders
-): TRPCLink<any> {
-  return splitLink({
+): TRPCLink<TRouter> {
+  return splitLink<TRouter>({
     condition: (op) => op.type === "mutation",
-    true: splitLink({
+    true: splitLink<TRouter>({
       condition: (op) => isNonJsonSerializable(op.input),
-      true: createHttpFormDataMutationLink(getBaseUrl, getHeaders),
-      false: createHttpMutationLink(getBaseUrl, getHeaders),
+      true: createHttpFormDataMutationLink<TRouter>(getBaseUrl, getHeaders),
+      false: createHttpMutationLink<TRouter>(getBaseUrl, getHeaders),
     }),
-    false: httpBatchLink({
+    false: httpBatchLink<ResolveTransformer<TRouter>>({
       url: `${getBaseUrl()}/api/trpc`,
       headers: createBatchRequestHeadersResolver(getHeaders),
       transformer: superjson,
@@ -249,7 +276,7 @@ export const defaultGetWsUrl = () => {
 
 export const defaultGetHeaders = (): HTTPHeaders => ({});
 
-export function createTRPCClientLinks<TRouter extends AnyTRPCRouter>({
+export function createTRPCClientLinks<TRouter extends TransformedRouter>({
   logger,
   getBaseUrl = defaultGetBaseUrl,
   getWsUrl = defaultGetWsUrl,
@@ -268,7 +295,7 @@ export function createTRPCClientLinks<TRouter extends AnyTRPCRouter>({
   onUnauthorized,
   mutationLink,
   extraLinks = [],
-}: CreateTRPCClientLinksOptions): TRPCLink<TRouter>[] {
+}: CreateTRPCClientLinksOptions<TRouter>): TRPCLink<TRouter>[] {
   const resolvedWsLazyEnabled = getWsLazyEnabled?.() ?? wsLazyEnabled;
   const webSocketClient = includeSubscriptions
     ? createWsClient(
@@ -288,15 +315,15 @@ export function createTRPCClientLinks<TRouter extends AnyTRPCRouter>({
   }
 
   const transportLink = includeSubscriptions
-    ? splitLink({
+    ? splitLink<TRouter>({
         condition: (op) => op.type === "subscription",
-        true: wsLink({
+        true: wsLink<ResolveTransformer<TRouter>>({
           client: webSocketClient!,
           transformer: superjson,
         }),
-        false: createHttpTransportLink(getBaseUrl, getHeaders),
+        false: createHttpTransportLink<TRouter>(getBaseUrl, getHeaders),
       })
-    : createHttpTransportLink(getBaseUrl, getHeaders);
+    : createHttpTransportLink<TRouter>(getBaseUrl, getHeaders);
 
   return [
     ...(enableLoggerLink
