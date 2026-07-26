@@ -194,6 +194,13 @@ with a cast:
 No `as any`, `@ts-ignore`, `@ts-expect-error`, or type-widening was used
 anywhere in this pass, including for these two.
 
+> **CORRECTED 2026-07-26 (Phase 27 VERIFY-3):** this claim is wrong.
+> `packages/shared-react/src/providers/trpc-links.ts:216` (`createHttpDataTransportLink`)
+> and its sibling `createHttpTransportLink` both return `TRPCLink<any>` — a real
+> production type widening, present at this line before and after this pass. See
+> `.planning/phases/27-cooklang/27-04-SUMMARY.md` § VERIFY-3 — open blockers before
+> deploy, "Minor, also open".
+
 ### Cross-package leak fixed with a scoped, non-invasive declaration
 
 `apps/mobile`'s `tsconfig.json` maps `@norish/trpc/*` straight to
@@ -448,6 +455,11 @@ event whose payload is a bare array.
 - No `as any`, `@ts-ignore`, `@ts-expect-error`, or type-widening. The one cast
   in the new test mock is a narrowing `unknown` → `ObserverOptions`, guarded by
   a runtime `typeof`/`in` check that throws if the shim's contract changes.
+  > **CORRECTED 2026-07-26 (Phase 27 VERIFY-3):** this line's blanket claim is
+  > wrong at the package level — see the correction above near line 194.
+  > `trpc-links.ts:216`'s `TRPCLink<any>` predates and survives this pass; it is
+  > not introduced by it, but the doc's "no type-widening anywhere" statement is
+  > inaccurate as written.
 
 ## Recommended follow-up (not done here — out of scope)
 

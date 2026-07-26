@@ -91,6 +91,7 @@ time, which is why it is worth keeping visible.
 | `cookParseTimeoutMs: 1_000`, a WALL-CLOCK `SIGKILL`, as "the bound" — §1-§12 passim, and two docblocks | **§13** (D-27-W3B-03a) | The primary gate is `cookParseCpuMs: 1_500`, sampled from `/proc/<pid>/schedstat`; wall clock survives only as `cookParseWallCeilingMs: 8_000`, a BACKSTOP for a child stuck without burning CPU. The two docblocks that still described the old bound were corrected in `231baf91` (§15.4) |
 | "`pool-timeout` should be ~zero; any occurrence is a bug report" — §13.10 | **§15.3** (Task 6's contention finding) | True for a QUIET box. Above ~5.3x of contention the 8 s backstop pre-empts the 1 500 ms CPU gate, so a hostile row is legitimately refused as `pool-timeout`. **The reason alone is not the signal — read `cpuMs` beside it** |
 | "`AI_API_KEY` is empty on live, so W3's producer never fires there — the deploy is a no-op in practice" — W3's exit item 5 in `waves/W3-SUMMARY.md`, `STATE.md` and `ROADMAP.md` (all three now annotated in place) | **§15.6** | **Wrong now.** Live's `ai_config` has held a DeepSeek key since 2026-06-15 (set via the Admin UI) and it is now env-backed in `/opt/norish/.env` (untracked, `chmod 600`, verified present). **W3 will NOT be inert once deployed** |
+| "`cookParseHeapMb: 256` is 7.8x headroom over the worst accepted peak (33 MB)" (§13.3) and "size the container against ~628 MB of transient, not 512 MB" (§11, §15.6) | **VERIFY-3 §1 (below)** | **The 256 MB figure is not a memory bound at all.** `--max-old-space-size=256` caps only V8's OLD SPACE; the WASM parser allocates in **linear memory**, which that flag does not govern. A child forked exactly as `pool.ts:331` does measured **899 MB RSS** at the instant the 1 500 ms CPU gate fires (two runs) and **2 273 MB peak** before `SIGABRT`. Real worst-case transient is **~1.8 GB across two pool slots**, not 512 MB or 628 MB. Mutation-tested: `execArgv: []` (no heap flag at all) leaves **331/331** cooklang tests green; disabling the CPU gate fails **8**. The CPU gate is what actually catches every hostile family — the heap bound has no teeth in the suite and the wrong number in its rationale |
 
 ---
 
@@ -1542,3 +1543,230 @@ deliberately left alone: it hands the repository `cookSource` AND `cookTokens` a
 literal payloads and asserts storage round-trips, so its bytes are opaque and never
 parsed. It is not wrong — but if W4/W5 ever make that suite parse, it will need the
 same treatment.
+
+---
+
+## VERIFY-3 — open blockers before deploy
+
+**Verdict at sha `0b246943d569f22fd66d99e9209386cb76ab36b0`: FAIL. Six open blockers.
+Nothing is deployed and nothing is pushed.** This is the record of the THIRD
+independent adversarial verification of threat T-27-01 (the WASM-parser DoS). A
+fresh chat picking this up should read this section top to bottom before touching
+code — the security property this whole plan exists for now HOLDS, which has never
+been true before, but the deploy is still blocked on six separate defects, two of
+them user-visible bugs unrelated to the DoS threat itself.
+
+### The headline: T-27-01 is the first round with NO bypass found
+
+Round 1 (plan `27-03`) and round 2 (the frontmatter recognizer) each produced a
+**working exploit** — a ~10 s parse with a 143.7 MB diagnostic report, and a 24–38 s
+parse with a 131 KB report. This round found none, across the widest sweep run so
+far:
+
+- **~71 000 recognizer-filtered token shapes** plus **60 hand-built adversarial
+  families** → **zero** non-empty diagnostics reached the WASM.
+- **Worst recognizer-passing input**, `("@a" x 32700)`: **621 ms child main-thread
+  CPU, 150 MB RSS** — 41% / 59% of budget. No recognizer-passing input got close to
+  the CPU gate or the heap bound.
+- **H1's payload** (the 65 417-byte flow-sequence flood under `a:`) is refused by the
+  frontmatter arithmetic in **1 ms** (`frontmatter-too-large`); the 8192-`#`
+  report-explosion family is refused in **1 ms** (`malformed-token`). The frontmatter
+  cap arithmetic was re-verified by hand: `50 + 6 x 1005 = 6 080`, the check is
+  `end - 4 > MAX`, no off-by-one.
+- **Never-broken re-confirmed independently, on every path:** an unspawnable child
+  resolves `null` in **72 ms**; a child `SIGKILL`ed externally resolves `null` in
+  **11 ms**; **24 concurrent 64 KiB heavy parses** all resolve within **1 558 ms**
+  (22 `pool-saturated`, 2 parsed tokens), **zero throws**, and the pool fully
+  recovers afterward. Every bound log carries `reason`/`limit`/`measured`/`offset`/
+  `bytes`/`pid` and **never prose** — re-verified against a payload carrying a real
+  recipe name and ingredient.
+- **No legitimate refusal**, swept across 30 hand-built plausible recipes:
+  `@Home mayonnaise`, `Brand{X} chocolate`, `70% dark chocolate`, `mac & cheese
+  sauce`, `#2 pencil leeks`, `A=B spice mix`, Dutch/CJK/Arabic/emoji/`İzmir` text,
+  `1 1/2`, `2-3`, and 200 steps x 3 refs = 600 refs. All mint.
+- **Round-trip stays byte-identical** across 19 adversarial cases, with **no third
+  normalization** introduced (CR/LF-folds-to-space and unpaired-surrogate-becomes-
+  U+FFFD remain the only two). `parser.extensions = 0` costs **no real capability** —
+  timers are core Cooklang syntax, so W4's multi-timer mode is unaffected — and it
+  genuinely fixes the `180 °C` / `1.5 kg` prose-number corruption documented in §14.5.
+
+**Read this as: the resource-bound pivot (D-27-W3B-03a) and the three root fixes
+(H1/H2/H3, §14) worked.** The six blockers below are real and block the deploy, but
+none of them is "the parser is still exploitable" — that specific fear, chased
+across three rounds, did not reproduce this time.
+
+### The six open blockers
+
+**1. `cookParseHeapMb` is not a memory bound, and its own rationale is off by 3.5x.**
+Every prior summary (§3, §11, §13.3, §15.6) described 256 MB as what "catches the
+report-explosion family's 839 MB–1.65 GB balloon" and sized the container against a
+"~628 MB" worst-case transient. Neither is true: `--max-old-space-size=256` caps
+**V8's old-generation heap**; the parser's allocation lives in **WASM linear
+memory**, which that flag has no authority over. Forking a child exactly as
+`pool.ts:331` does and driving it with a hostile payload measured **899 MB RSS at
+the instant the 1 500 ms CPU gate fires** (reproduced twice, 899 MB / 898 MB) and
+**2 273 MB peak** before the child SIGABRTs on its own. **Real worst case across two
+pool slots is ~1.8 GB, not 512 MB or 628 MB.** Decisive mutation test: replacing
+`execArgv: ['--max-old-space-size=256']` with `execArgv: []` in the pool leaves
+**331/331** cooklang tests green; disabling the CPU gate the same way fails **8**.
+The heap bound has no teeth anywhere in the suite, and the number attached to its
+rationale describes the wrong subsystem. **Live exposure today is limited** — the
+recognizer refuses every payload that would drive this, and no recognizer-passing
+input in this round exceeded 150 MB — but the design's stated guarantee is
+"bounded, whatever wrote it", and right now that guarantee rests entirely on the CPU
+gate, with the heap bound as an unexamined assumption rather than a proven backstop.
+
+**2. A stale hand-written fixture in `pool.test.ts:92` (`REALISTIC`) is refused by
+the recognizer it's meant to exercise.** Its frontmatter is unquoted
+(`title: Weeknight Tomato Pasta`), which Task 3 (`5cdfc8aa`) made
+non-serializer-shaped. `findCookSourceDefect` refuses it with
+`{"defect":"frontmatter-value","offset":11}` in ~1 ms, **without ever spawning a
+child** — it survives in the suite only because `parseInPool` (blocker 4) sits
+*below* the recognizer and is called directly there. It backs **~15 assertions**,
+including the read-path p50/p95 latency benchmark, "a real recipe round-trips
+through the process boundary", and every `warmToExactlyOneChild()` helper — none of
+which are testing what their names claim. **This is the same class of defect as
+`cook-tokens-isolation.test.ts`**, found and fixed in `1ec0a521` (§16) earlier in
+this plan: a hand-written `.cook` literal is an **unversioned third copy of a
+contract** the emitter and the recognizer already share, and it rots the moment
+either half moves. §16.5 flagged one remaining instance
+(`packages/db/__tests__/.../cook-write-path.test.ts`, deliberately left alone
+because its bytes are opaque and never parsed) but missed this second one, which
+**is** parsed and **is** silently defeated.
+
+**3. Two assertions in the existing suite are vacuous.** `limits.test.ts:1187-1193`
+— the ten accepted-hostile-row cases assert only that `poolSpy` was *called*; the
+structural check on the result sits behind `if (result !== null)`, so a spawn that
+fails silently passes the test. `attach-tokens.test.ts:198-199` — the
+spawn-failure case asserts only `toBeNull()`, which cannot distinguish a clean
+`pool-spawn-failed` from a bound hit, a crash, or a broken `withCookTokens`. Worth
+weighing against this codebase's own history: **five committed tests have asserted
+defective behaviour** — four in the Phase 22 realtime-isolation-leak family, and one
+in this very plan (§14.4's rewritten frontmatter-acceptance test, which pinned the
+H1 hole itself before Task 3).
+
+**4. `parseInPool` is an unenforced third door to the WASM.** It is exported as a
+public subpath (`"./cooklang/pool"` in `package.json`), it carries **no byte cap and
+no recognizer** of its own, and nothing in lint or in the test suite enforces the
+"single caller" discipline the design otherwise leans on (the static
+one-importer assertion in §6/§9 covers `@cooklang/cooklang` itself, not this
+subpath). Today it has exactly one legitimate caller; nothing stops a second one
+appearing unrecognized.
+
+**5. USER-VISIBLE BUG — nutrition estimation silently deletes `cook_source`.**
+`packages/db/src/repositories/recipes.ts:1614`:
+`updateData.cookSource = cook ? cook.cookSource : null;` — this is D-27-W3-06's
+intentional "no `cook` argument means NULL the stale projection" rule (§14.7,
+correct for the recipe editor, which genuinely has no linkage). But
+`packages/queue/src/nutrition-estimation/worker.ts:70` calls the same update path
+and **passes no `cook` argument**, so it hits the identical branch for a reason
+D-27-W3-06 never considered: **every recipe that receives nutrition estimation after
+import has its freshly minted `.cook` silently NULLed**, falling back to the legacy
+projection with no error, no log, and no user-visible signal that anything changed.
+
+**6. USER-VISIBLE BUG — a metric↔US system switch serves the wrong `.cook`.**
+`setActiveSystemForRecipe` (`recipes.ts:1035`) updates `systemUsed` but never
+touches `cook_source`. After a user converts a recipe from metric to imperial (or
+back), `recipes.get`/`getEditable` keep serving tokens derived from the **old**
+system's `.cook` — e.g. a metric `.cook` rendered as the read model for a recipe the
+UI now claims is imperial. No error, no refusal, just a silently wrong read model.
+
+**Blockers 5 and 6 both cite W5's backfill as the recovery path in the surrounding
+code/comments — but W5's backfill does not exist yet** (§15.5/§15.7: W5 is not
+started and pauses for Kiran's sign-off). There is currently no path back to a
+correct `cook_source` for a recipe hit by either bug.
+
+### Minor, also open (not blocking, but should not be forgotten)
+
+- `@a{1/0%g}` and `@a{0/0%g}` pass the recognizer and panic the WASM
+  (`RuntimeError: unreachable`). Contained — the child is discarded, the parent is
+  unaffected, cost is ~0 ms and one refusal — but it is a gap in the H2 fix (§14.2),
+  which closed the whitespace-shaped traps but not a zero-denominator fraction.
+- `packages/shared-react/src/providers/trpc-links.ts:216` and `:216`'s sibling
+  `createHttpTransportLink` both return `TRPCLink<any>` — a real production type
+  widening. `.planning/quick/typecheck-gate-restore.md:194` and `:448` each state
+  "No `as any`, `@ts-ignore`, `@ts-expect-error`, or type-widening was used anywhere
+  in this pass" — **that claim is wrong** and has been annotated in place in that
+  file (see its own note near those lines). Unrelated to T-27-01; flagged because a
+  fresh session should not trust that doc's blanket claim at face value.
+
+### The three gate problems (from the consolidated pass)
+
+1. **`packages/api/__tests__/startup/migrate-gallery-images.test.ts` is genuinely
+   flaky** — 2/408 failures under full-suite load on a hardcoded 5 000 ms timeout,
+   green in isolation every time. Reproduced 3x under full-suite load, 2x in
+   isolation (always green). This is **the same disease** already root-caused and
+   fixed for the parse bound (D-27-W3B-03a) and the pool perf assertion (§15.3):
+   wall-clock-under-contention. It has not been fixed here — it is pre-existing and
+   outside this plan's `files_modified` — but it is the same class of bug this
+   whole plan spent two root-cause passes curing elsewhere, and a fresh session
+   should recognize it rather than re-diagnose it from scratch.
+2. **`pnpm typecheck` is genuinely RED**, not the `--noCheck`-masked kind of red
+   this phase has flagged before (STATE.md 2026-07-24 entry) — this is real
+   `tsc` output on packages that DO type-check: `shared-react` has **2 errors**
+   (duplicate `better-auth` / `@better-auth/core` installs producing two nominally
+   distinct classes) and `apps/mobile` has **2 errors**
+   (`create-persisted-query-client.ts:52,66`, a duplicate `@tanstack/query-core` —
+   root `5.100.11` vs `5.100.10` nested under
+   `@tanstack/query-persist-client-core`). Both packages had their `--noCheck` flags
+   flipped OFF in an earlier pass specifically to catch real errors — and it worked,
+   just not the way anyone wanted: the aggregate `pnpm typecheck` gate is red right
+   now. **Root fix, not yet done: a `pnpm.overrides` entry in the root
+   `package.json` to dedupe both packages.**
+3. A new `eslint-disable-next-line no-console` was found at
+   `packages/api/__tests__/ai/features/recipe-extraction/cook-payload.test.ts:619`,
+   outside this plan's touched files. Recorded so it isn't mistaken for something
+   introduced by 27-04.
+
+### What VERIFY-3 could not test
+
+- **Production-scale contention** — the ~5.3x crossover (§15.3) where the 8 000 ms
+  wall backstop pre-empts the 1 500 ms CPU gate. This round manufactured its own
+  contention (like §13.5/§13.1 before it) but did not reproduce LXC 110's real
+  production load profile.
+- **A real `pool-heap` kill reached through a legitimate door** — blocker 1's 899 MB
+  / 2.27 GB figures come from calling `parseInPool` directly (below the
+  recognizer, same methodology §4 always used for "bound-only" figures). No
+  recognizer-passing input in this round got anywhere near triggering `pool-heap`.
+- **Anything DB-backed.** No Postgres was available in this verification's
+  worktree, so blockers 5 and 6 are confirmed by reading the code paths and their
+  call sites, not by reproducing the bug against a live database.
+
+### Current position (re-confirmed this round)
+
+**34 commits ahead of `origin/main`. Nothing pushed. Nothing deployed.** Live image
+is still `516c52576a5f`, DB is still at migration **42**, `_journal.json` still has
+exactly 42 entries ending `0041_add_cook_source`, and the working tree is clean at
+sha `0b246943d569f22fd66d99e9209386cb76ab36b0`. An integrity audit over the whole
+34-commit range found **zero adversarial weakenings left committed** (14+ were
+executed and reverted byte-identically across this and the prior plan — §15.1's
+protocol, re-checked), exactly **one** production importer of `@cooklang/cooklang`,
+**no** `pnpm-lock.yaml` drift, and **no** migration files touched.
+
+### Queued follow-ups (nothing here is done — recorded so it isn't lost)
+
+- The **5 remaining `--noCheck` flags** (of the original set the phase has been
+  chipping away at), plus `packages/trpc`'s missing `--noEmit` and its destructive
+  `rm -rf dist .cache` step.
+- The **duplicate package installs** underlying gate problem #2 above
+  (`better-auth`/`@better-auth/core`, `@tanstack/query-core`) — the
+  `pnpm.overrides` fix.
+- A **typed `SubscriptionData<T>`** for the subscription compat shim — would delete
+  ~60 `({payload}: any)` call sites and would have turned the calendar-contract
+  incident (referenced in `.planning/quick/typecheck-gate-restore.md`) into a
+  compile error instead of a runtime one.
+- **4 `apps/web` suites** still hand-roll `emitPayload()` instead of using the
+  shim (`groceries`, `ratings`, `recipes` x2) — same blind spot as the point above.
+- The **remaining hand-written `.cook`** in
+  `packages/db/__tests__/.../cook-write-path.test.ts` (§16.5) — deliberately left
+  alone because its bytes are opaque and never parsed, but flagged for the same
+  treatment if W4/W5 ever make that suite parse.
+- **W5 prerequisites (unchanged from §15.5, restated because W5 is next after
+  these blockers clear):** the backfill must **re-serialize, not re-parse**; the
+  W0 `kilogram`/`fl oz`/`pint` unit vocabulary **and** a rounding rule are needed
+  first (D-27-W3-07 measured 18 of 35 ingredients differing from the AI's own
+  output); and **W5 pauses for Kiran's explicit sign-off** regardless of any of the
+  above.
+- **W6 prerequisite:** revisit the 8 000 ms wall backstop before `cook_source`
+  becomes NOT NULL — a refusal that costs the user nothing today becomes a hard
+  import failure once W6 lands (§13.3, §15.3).
