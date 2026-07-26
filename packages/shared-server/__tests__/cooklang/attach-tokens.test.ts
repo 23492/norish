@@ -21,13 +21,14 @@ import { COOK_BOUNDS } from "../../src/cooklang/limits";
 import { shutdownCookParsePool } from "../../src/cooklang/pool";
 
 const warnSpy = vi.fn();
+const errorSpy = vi.fn();
 
 vi.mock("../../src/logger", () => ({
   parserLogger: {
     debug: vi.fn(),
     info: vi.fn(),
     warn: (...args: unknown[]) => warnSpy(...args),
-    error: vi.fn(),
+    error: (...args: unknown[]) => errorSpy(...args),
   },
   createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
 }));
@@ -185,19 +186,59 @@ describe("withCookTokens under a resource bound (T-27-01, never-broken)", () => 
     }
   });
 
-  /** A child that cannot be spawned at all — the mis-packaged-bundle failure (T-27-09). */
-  it("degrades to cookTokens: null when NO child can be spawned", async () => {
+  /**
+   * A child that cannot be spawned at all — the mis-packaged-bundle failure
+   * (T-27-09).
+   *
+   * IT ASSERTS THE SPECIFIC OUTCOME, NOT JUST `toBeNull()` (VERIFY-3 blocker 3).
+   * `cookTokens: null` is the answer for a bound hit, a crashed child, a saturated
+   * pool, a source the recognizer refused AND a `withCookTokens` that quietly
+   * stopped parsing at all — five different things, one of which is the bug this
+   * test exists to catch and four of which would make it pass while proving
+   * nothing. `VALID_COOK` is a source the recognizer ACCEPTS, so the only honest
+   * reason for a `null` here is that no child could be had, and that reason is now
+   * pinned by name.
+   */
+  it("degrades to cookTokens: null with reason pool-spawn-failed when NO child can be spawned", async () => {
     vi.stubEnv("NORISH_COOK_PARSE_WORKER_PATH", "/nonexistent/cook-parse-worker.mjs");
     vi.resetModules();
+    errorSpy.mockClear();
 
     const { withCookTokens: broken } = await import("../../src/cooklang/attach-tokens");
     const { shutdownCookParsePool: shutdownBroken } = await import("../../src/cooklang/pool");
 
     try {
-      const result = await broken({ id: "r-nochild", cookSource: VALID_COOK });
+      const startedAt = performance.now();
+      const result = await broken({ id: "r-nochild", cookSource: VALID_COOK, name: "Pancakes" });
+      const elapsed = performance.now() - startedAt;
 
       expect(result.cookTokens).toBeNull();
       expect(result.cookSource).toBe(VALID_COOK);
+      // `withCookTokens` still did its job: the row passes through intact.
+      expect(result.id).toBe("r-nochild");
+      expect(result.name).toBe("Pancakes");
+
+      // THE SPECIFIC REASON. `pool-spawn-failed` is logged at ERROR level by the
+      // pool; a bound hit would be a WARN carrying `bound`/`limit`/`measured`, and a
+      // refused source would never have reached the pool at all.
+      const errorReasons = errorSpy.mock.calls.map(
+        (call) => (call[0] as { reason?: string })?.reason
+      );
+
+      expect(errorReasons).toContain("pool-spawn-failed");
+
+      // NOT a bound hit and NOT a crash — this row never ran a parse.
+      const warnReasons = warnSpy.mock.calls.map((call) => (call[0] as { reason?: string })?.reason);
+
+      for (const bound of ["pool-cpu", "pool-timeout", "pool-heap", "pool-crash"]) {
+        expect(warnReasons).not.toContain(bound);
+      }
+
+      // AND `withCookTokens`'s own degradation path ran, which is what a caller sees.
+      expect(warnReasons).toContain("stored-source-did-not-parse");
+
+      // It degraded, it did not hang: a spawn failure is answered at the door.
+      expect(elapsed).toBeLessThan(COOK_BOUNDS.cookParseQueueTimeoutMs + 2_000);
     } finally {
       shutdownBroken();
       vi.unstubAllEnvs();

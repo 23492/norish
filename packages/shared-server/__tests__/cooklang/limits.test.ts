@@ -1086,76 +1086,96 @@ describe("the hostile corpus — adversarial input sized AT the cap", () => {
    * return `null` or a `CookTokensSchema`-valid DTO, never throw, and finish inside
    * 2 000 ms — whether it gets there by REFUSING the source or by parsing it.
    *
-   * `refused` records which of the two the gate regime produces, so the test also
-   * pins WHICH inputs `findCookSourceDefect` is carrying. Every `refused: true`
-   * entry was measured to cost the parser between 4 s and 35 s (or to TRAP the WASM)
-   * when allowed through, so those assertions are the ones with teeth — see the
-   * measurement table in `limits.ts`.
+   * `outcome` NAMES WHICH OF THE THREE, AND IS ASSERTED UNCONDITIONALLY (VERIFY-3
+   * blocker 3). It used to be a boolean `refused`, and the accepted half asserted
+   * only that `poolSpy` had been CALLED — the structural check on the result sat
+   * behind `if (result !== null)`, so a child that failed to spawn (which also
+   * resolves `null`, and which was a real, observed failure mode on this tree)
+   * passed all ten accepted rows in silence. Probing every accepted row through the
+   * real pool also turned up a case the boolean could not express: 8 192 section
+   * headings and nothing else is ACCEPTED by the recognizer, crosses the process
+   * boundary, parses cleanly, and still resolves `null` — because it describes zero
+   * STEPS. That is a correct outcome with its own name, not "sometimes null".
+   *
+   * Every `refused` entry was measured to cost the parser between 4 s and 35 s (or
+   * to TRAP the WASM) when allowed through, so those assertions are the ones with
+   * teeth — see the measurement table in `limits.ts`.
    *
    * The families the previous, heuristic gate let through are here explicitly:
    * brace-closed-but-invalid tokens (`@a{1%}`, `~{5}`, `~a{5}`), the verifier's exact
    * 16 x 3 996 bypass, its single-huge-line variant, and the >= 16 KiB `~10 minutes`
    * shape that TRAPS the WASM with `unreachable` rather than merely being slow.
    */
-  const corpus: { name: string; source: string; refused: boolean }[] = [
-    { name: "unbalanced opening braces", source: atCap("@a{"), refused: true },
-    { name: "unbalanced closing braces", source: atCap("}"), refused: true },
-    { name: "nested ingredient tokens", source: atCap("@a{@b{@c{"), refused: true },
-    { name: "dense timer sigils", source: atCap("~"), refused: true },
-    { name: "dense unit sigils", source: atCap("%"), refused: true },
-    { name: "dense ingredient sigils", source: atCap("@"), refused: true },
-    { name: "dense cookware sigils", source: atCap("#"), refused: true },
+  const corpus: {
+    name: string;
+    source: string;
+    /**
+     * `refused` — `findCookSourceDefect` rejected it and THE POOL WAS NEVER ASKED.
+     * `tokens` — it crossed the process boundary and came back a schema-valid,
+     * NON-EMPTY read model.
+     * `no-steps` — it crossed, parsed cleanly and described zero steps, which
+     * `parseCookSource` reports as `null` by design (D-27-W2-04).
+     */
+    outcome: "refused" | "tokens" | "no-steps";
+  }[] = [
+    { name: "unbalanced opening braces", source: atCap("@a{"), outcome: "refused" },
+    { name: "unbalanced closing braces", source: atCap("}"), outcome: "refused" },
+    { name: "nested ingredient tokens", source: atCap("@a{@b{@c{"), outcome: "refused" },
+    { name: "dense timer sigils", source: atCap("~"), outcome: "refused" },
+    { name: "dense unit sigils", source: atCap("%"), outcome: "refused" },
+    { name: "dense ingredient sigils", source: atCap("@"), outcome: "refused" },
+    { name: "dense cookware sigils", source: atCap("#"), outcome: "refused" },
     {
       name: "malformed timers ahead of one very long line",
       source: `${"~~ ".repeat(2_048)}${"z".repeat(59_392)}`,
-      refused: true,
+      outcome: "refused",
     },
     {
       name: "malformed cookware ahead of one very long line",
       source: `${"## ".repeat(2_048)}${"z".repeat(59_392)}`,
-      refused: true,
+      outcome: "refused",
     },
     {
       name: "one 60 000-byte token with no whitespace",
       source: `@${"z".repeat(60_000)}{1%gram}`,
-      refused: false,
+      outcome: "tokens",
     },
-    { name: "deeply repeated section headings", source: atCap("== h ==\n"), refused: false },
-    { name: "deeply repeated legacy metadata lines", source: atCap(">> a: b\n"), refused: true },
-    { name: "well-formed cookware at maximum density", source: atCap("#a "), refused: false },
-    { name: "well-formed timers at maximum density", source: atCap("~{1%min} "), refused: false },
+    { name: "deeply repeated section headings", source: atCap("== h ==\n"), outcome: "no-steps" },
+    { name: "deeply repeated legacy metadata lines", source: atCap(">> a: b\n"), outcome: "refused" },
+    { name: "well-formed cookware at maximum density", source: atCap("#a "), outcome: "tokens" },
+    { name: "well-formed timers at maximum density", source: atCap("~{1%min} "), outcome: "tokens" },
     {
       name: "well-formed ingredients at maximum density (the worst ACCEPTED shape)",
       source: atCap("@a{1%g} "),
-      refused: false,
+      outcome: "tokens",
     },
-    { name: "astral-plane characters", source: atCap("\u{1F373}\u{1F9C2}"), refused: false },
-    { name: "combining marks", source: atCap("e\u0301\u0302\u0303\u0304"), refused: false },
-    { name: "embedded NUL bytes", source: atCap("a\u0000b"), refused: false },
-    { name: "lone surrogates", source: atCap("\u{10000}\uD800"), refused: false },
-    { name: "mixed sigil soup", source: atCap("@{~}%#|>[]"), refused: true },
+    { name: "astral-plane characters", source: atCap("\u{1F373}\u{1F9C2}"), outcome: "tokens" },
+    { name: "combining marks", source: atCap("e\u0301\u0302\u0303\u0304"), outcome: "tokens" },
+    { name: "embedded NUL bytes", source: atCap("a\u0000b"), outcome: "tokens" },
+    { name: "lone surrogates", source: atCap("\u{10000}\uD800"), outcome: "tokens" },
+    { name: "mixed sigil soup", source: atCap("@{~}%#|>[]"), outcome: "refused" },
     // ---- the families the DELETED heuristic scored as well-formed ----
     {
       name: "brace-closed empty unit @a{1%} (the verifier's 16 x 3 996 bypass)",
       source: Array.from({ length: 16 }, () => "@a{1%} ".repeat(571).slice(0, 3_996)).join("\n\n"),
-      refused: true,
+      outcome: "refused",
     },
     {
       name: "brace-closed empty unit @a{1%} on ONE huge line",
       source: "@a{1%} ".repeat(9_362),
-      refused: true,
+      outcome: "refused",
     },
-    { name: "brace-closed unit-less timer ~{5}", source: atCap("~{5} "), refused: true },
-    { name: "brace-closed unit-less named timer ~a{5}", source: atCap("~a{5} "), refused: true },
+    { name: "brace-closed unit-less timer ~{5}", source: atCap("~{5} "), outcome: "refused" },
+    { name: "brace-closed unit-less named timer ~a{5}", source: atCap("~a{5} "), outcome: "refused" },
     {
       name: "the WASM-trap shape `~10 minutes` in a 16 KiB line",
       source: `${"z".repeat(16_384)} ~10 minutes ${"z".repeat(16_384)}`,
-      refused: true,
+      outcome: "refused",
     },
     {
       name: "escaped prose at maximum density (every metacharacter, ACCEPTED)",
       source: atCap("\\@\\#\\~\\{\\}\\%\\=\\>\\-\\\\ "),
-      refused: false,
+      outcome: "tokens",
     },
   ];
 
@@ -1163,11 +1183,30 @@ describe("the hostile corpus — adversarial input sized AT the cap", () => {
     expect(corpus.length).toBeGreaterThanOrEqual(12);
   });
 
-  for (const { name, source, refused } of corpus) {
+  /** Every reason `./pool` logs when it DEGRADED rather than answered. */
+  const POOL_DEGRADED = [
+    "pool-cpu",
+    "pool-timeout",
+    "pool-heap",
+    "pool-crash",
+    "pool-bad-envelope",
+    "pool-saturated",
+    "pool-spawn-failed",
+  ];
+
+  function loggedReasons(): string[] {
+    return [...warnSpy.mock.calls, ...errorSpy.mock.calls].map(
+      (call) => (call[0] as { reason?: string })?.reason ?? ""
+    );
+  }
+
+  for (const { name, source, outcome } of corpus) {
     it(`neither throws nor exceeds 2000 ms on ${name}`, async () => {
       expect(Buffer.byteLength(source, "utf8")).toBeLessThanOrEqual(CORPUS_BYTES);
 
       poolSpy.mockClear();
+      warnSpy.mockClear();
+      errorSpy.mockClear();
 
       const started = performance.now();
       // NEVER REJECTS is part of the contract, and `await` is what enforces it: a
@@ -1179,18 +1218,41 @@ describe("the hostile corpus — adversarial input sized AT the cap", () => {
 
       expect(elapsed).toBeLessThan(2000);
 
-      if (refused) {
+      if (outcome === "refused") {
         // Refused at the door: the parser is provably never reached, which is the
         // only reason these inputs cannot cost seconds.
         expect(result).toBeNull();
         expect(poolSpy).toHaveBeenCalledTimes(0);
-      } else {
-        expect(poolSpy).toHaveBeenCalledTimes(1);
+
+        return;
       }
 
-      if (result !== null && result !== undefined) {
-        expect(() => CookTokensSchema.parse(result)).not.toThrow();
+      // ACCEPTED. The pool was asked EXACTLY ONCE, and with the WHOLE source —
+      // asserting only "it was called" cannot tell a full parse from a truncated
+      // one, and `poolSpy` records the byte length precisely so it can.
+      expect(poolSpy).toHaveBeenCalledTimes(1);
+      expect(poolSpy).toHaveBeenCalledWith(Buffer.byteLength(source, "utf8"));
+
+      // AND THE POOL ANSWERED — it did not DEGRADE. This is the assertion that was
+      // missing (VERIFY-3 blocker 3): a child that cannot spawn, a crashed child, a
+      // saturated pool and a bound hit ALL resolve `null`, so without this every one
+      // of the accepted rows passed while proving nothing about the parse.
+      expect(loggedReasons().filter((reason) => POOL_DEGRADED.includes(reason))).toEqual([]);
+
+      if (outcome === "no-steps") {
+        // A source of 8 192 section headings and nothing else: accepted, parsed
+        // cleanly, and it describes zero STEPS — so `parseCookSource` reports `null`
+        // by design. Named rather than absorbed by an `if (result !== null)`.
+        expect(result).toBeNull();
+
+        return;
       }
+
+      // UNCONDITIONAL, so a silent `null` can no longer slip past.
+      expect(result).not.toBeNull();
+      expect(() => CookTokensSchema.parse(result)).not.toThrow();
+      expect((result ?? []).length).toBeGreaterThan(0);
+      expect((result ?? [])[0]?.tokens.length).toBeGreaterThan(0);
     });
   }
 });
