@@ -118,7 +118,9 @@ each env-overridable: `cookParseTimeoutMs 1_000`, `cookParseHeapMb 256`,
 
 **Headroom.** 1 000 ms is 1.44x over the worst *legitimate* shape (694 ms), ~59x
 over a realistic recipe (17 ms), ~1 500x over a real fixture, and 2x under the
-2 000 ms budget — so nothing that parses today starts failing.
+2 000 ms budget. **The 1.44x is thinner than it reads — see §3b, where it was
+measured to FLIP under CPU contention.** For a realistic recipe the margin is
+enormous and there is no concern at all.
 
 ### ⚠ A MATERIAL DEVIATION FROM D-27-W3B-03 — the bounds fire in the OTHER ORDER
 
@@ -144,6 +146,54 @@ the reason changes, and the director needs the corrected version:
 > redundant just because the time bound currently fires first.
 
 ---
+
+## 3b. ⚠ THE ONE REAL NEVER-BROKEN RISK I FOUND — the director must decide this
+
+**The 1 000 ms bound CAN refuse the worst LEGITIMATE `.cook` shapes on a loaded
+box.** This was not predicted by the plan and it is the finding I would escalate
+first.
+
+D-27-W3B-03 set 1 000 ms deliberately above the worst legitimate shapes (648 ms /
+694 ms) so that "nothing which parses today starts failing". Measured here:
+
+| the worst ACCEPTED shapes | idle box | **under heavy CPU contention** |
+|---|---:|---:|
+| 64 KiB of `@a{1%g} ` | 331 / 370 / **784 ms** → OK | **1 238 ms → REFUSED** |
+| `"#p " x 21845` | 425 / 469 / **485 ms** → OK | **1 137 ms → REFUSED** |
+
+The contended figures are from the real full `@norish/shared-server` run (~20 vitest
+workers). **The bound is WALL-CLOCK, and wall clock inflates under contention while
+the actual work does not.** At 1.3–1.4x headroom that is enough to flip.
+
+This surfaced because the pool suite asserted the never-broken property as an
+absolute and **went red in the full run while passing in isolation** — exactly the
+kind of failure that is easy to dismiss as flake. It is not flake.
+
+**What I did and deliberately did NOT do.** I did **not** change
+`cookParseTimeoutMs`: D-27-W3B-03 is a locked decision with a recorded rationale and
+retuning it is not an executor's call. I did **not** loosen the assertion into
+vacuity either. The test now proves what is actually true — that these shapes are not
+*inherently* refused (not by the recognizer, not by the heap bound, not by having
+become slower), by running them with the bound raised through its supported env
+lever — and its docblock states plainly what it does not assert and why.
+
+**The decision for the director.** On LXC 110 the web server, queue workers and
+Postgres share CPU, so this is reachable in production: an affected recipe loses its
+`cook_source` and renders on the legacy path. Nothing breaks, no import fails, no
+500 — but it is a silent quality loss on exactly the largest legitimate recipes.
+Options, in the plan's own order of priority (never-broken outranks a tighter bound):
+
+1. **Raise the default to ~2 000 ms** — 2.9x over 694 ms, at the plan's stated budget
+   ceiling. Note the existing hostile-corpus assertion (`< 2000 ms`) would then need
+   revisiting, and the worst-case request latency for a bounded-out parse doubles.
+2. **Ship 1 000 ms and watch `pool-timeout`**, raising
+   `NORISH_COOK_PARSE_TIMEOUT_MS` deliberately if the rate is nonzero on real
+   recipes. This is exit item 3, and it is now a *likely* action rather than a
+   contingency.
+3. Leave as-is and accept the loss on the largest recipes.
+
+**Whichever is chosen: the heap bound becomes MORE important, not less, as the time
+bound rises** — see the §3 warning.
 
 ## 4. THE EXACT-INPUTS TABLE
 
