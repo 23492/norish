@@ -12,50 +12,74 @@ vi.mock("@trpc/tanstack-react-query", () => ({
   useSubscription: vi.fn(),
 }));
 
-vi.mock("@/app/providers/trpc-provider", () => ({
-  useTRPC: () => ({
-    calendar: {
-      listItems: {
-        queryKey: (input: { startISO: string; endISO: string }) => ["calendar", "listItems", input],
-      },
-      onItemCreated: {
-        subscriptionOptions: (_input: unknown, options: { onData: SubscriptionCallback }) => {
-          subscriptionCallbacks["onItemCreated"] = options?.onData;
+/**
+ * The fixtures in this file are the RAW SERVER WIRE SHAPE, i.e. exactly what
+ * packages/trpc/src/routers/calendar/subscriptions.ts yields:
+ * `CalendarSubscriptionEvents[...]` (`{ item }`, `{ itemId, date, slot }`, ...). The calendar
+ * router builds its iterables with `createSubscriptionIterable`, which runs `unwrapPayload`,
+ * so no `RealtimeEventEnvelope` reaches the client on this namespace.
+ *
+ * The `payload` key that the calendar/recipe/store/household hooks read is added CLIENT-SIDE:
+ * production `useTRPC` is the normalised proxy from `createTRPCProviderBundle`, which routes
+ * every `subscriptionOptions()` call through `wrapSubscriptionObserverOptions` ->
+ * `withPayloadCompatibility`. That shim hands `onData` the domain payload's own keys at the
+ * top level AND a legacy `payload` self-reference, so both access styles work at runtime.
+ *
+ * Mocking `@/app/providers/trpc-provider` bypasses that proxy, so we re-apply the real shim
+ * here rather than hand-rolling half of it into the fixtures. Hand-rolled `{ payload: ... }`
+ * fixtures previously encoded only the legacy half and made a correct hook look broken.
+ */
+vi.mock("@/app/providers/trpc-provider", async () => {
+  const { wrapSubscriptionObserverOptions } = await import("@norish/shared-react/providers");
 
-          return { enabled: true };
+  type ObserverOptions = { onData: SubscriptionCallback };
+
+  const registerSubscription = (name: string, options: ObserverOptions) => {
+    const wrapped = wrapSubscriptionObserverOptions(options);
+
+    if (typeof wrapped !== "object" || wrapped === null || !("onData" in wrapped)) {
+      throw new Error("wrapSubscriptionObserverOptions must return observer options with onData");
+    }
+
+    subscriptionCallbacks[name] = (wrapped as ObserverOptions).onData;
+
+    return { enabled: true };
+  };
+
+  return {
+    useTRPC: () => ({
+      calendar: {
+        listItems: {
+          queryKey: (input: { startISO: string; endISO: string }) => [
+            "calendar",
+            "listItems",
+            input,
+          ],
+        },
+        onItemCreated: {
+          subscriptionOptions: (_input: unknown, options: ObserverOptions) =>
+            registerSubscription("onItemCreated", options),
+        },
+        onItemDeleted: {
+          subscriptionOptions: (_input: unknown, options: ObserverOptions) =>
+            registerSubscription("onItemDeleted", options),
+        },
+        onItemMoved: {
+          subscriptionOptions: (_input: unknown, options: ObserverOptions) =>
+            registerSubscription("onItemMoved", options),
+        },
+        onItemUpdated: {
+          subscriptionOptions: (_input: unknown, options: ObserverOptions) =>
+            registerSubscription("onItemUpdated", options),
+        },
+        onFailed: {
+          subscriptionOptions: (_input: unknown, options: ObserverOptions) =>
+            registerSubscription("onFailed", options),
         },
       },
-      onItemDeleted: {
-        subscriptionOptions: (_input: unknown, options: { onData: SubscriptionCallback }) => {
-          subscriptionCallbacks["onItemDeleted"] = options?.onData;
-
-          return { enabled: true };
-        },
-      },
-      onItemMoved: {
-        subscriptionOptions: (_input: unknown, options: { onData: SubscriptionCallback }) => {
-          subscriptionCallbacks["onItemMoved"] = options?.onData;
-
-          return { enabled: true };
-        },
-      },
-      onItemUpdated: {
-        subscriptionOptions: (_input: unknown, options: { onData: SubscriptionCallback }) => {
-          subscriptionCallbacks["onItemUpdated"] = options?.onData;
-
-          return { enabled: true };
-        },
-      },
-      onFailed: {
-        subscriptionOptions: (_input: unknown, options: { onData: SubscriptionCallback }) => {
-          subscriptionCallbacks["onFailed"] = options?.onData;
-
-          return { enabled: true };
-        },
-      },
-    },
-  }),
-}));
+    }),
+  };
+});
 
 type PlannedItemFromQuery = {
   id: string;
@@ -129,22 +153,20 @@ describe("useCalendarSubscription", () => {
       expect(callback).toBeDefined();
 
       callback({
-        payload: {
-          item: {
-            id: "new-item-1",
-            userId: "user-1",
-            date: "2025-01-15",
-            slot: "Breakfast",
-            sortOrder: 0,
-            itemType: "recipe",
-            recipeId: "recipe-456",
-            title: null,
-            recipeName: "New Recipe",
-            recipeImage: "/img/recipe.jpg",
-            servings: 2,
-            calories: 300,
-            version: 3,
-          },
+        item: {
+          id: "new-item-1",
+          userId: "user-1",
+          date: "2025-01-15",
+          slot: "Breakfast",
+          sortOrder: 0,
+          itemType: "recipe",
+          recipeId: "recipe-456",
+          title: null,
+          recipeName: "New Recipe",
+          recipeImage: "/img/recipe.jpg",
+          servings: 2,
+          calories: 300,
+          version: 3,
         },
       });
 
@@ -170,22 +192,20 @@ describe("useCalendarSubscription", () => {
       const callback = subscriptionCallbacks["onItemCreated"];
 
       callback({
-        payload: {
-          item: {
-            id: "existing-1",
-            userId: "user-1",
-            date: "2025-01-15",
-            slot: "Breakfast",
-            sortOrder: 0,
-            itemType: "recipe",
-            recipeId: "recipe-123",
-            title: null,
-            recipeName: "Test Recipe",
-            recipeImage: null,
-            servings: 4,
-            calories: 500,
-            version: 2,
-          },
+        item: {
+          id: "existing-1",
+          userId: "user-1",
+          date: "2025-01-15",
+          slot: "Breakfast",
+          sortOrder: 0,
+          itemType: "recipe",
+          recipeId: "recipe-123",
+          title: null,
+          recipeName: "Test Recipe",
+          recipeImage: null,
+          servings: 4,
+          calories: 500,
+          version: 2,
         },
       });
 
@@ -214,22 +234,20 @@ describe("useCalendarSubscription", () => {
       const callback = subscriptionCallbacks["onItemCreated"];
 
       callback({
-        payload: {
-          item: {
-            id: "item-3",
-            userId: "user-1",
-            date: "2025-01-14",
-            slot: "Dinner",
-            sortOrder: 0,
-            itemType: "note",
-            recipeId: null,
-            title: "Earlier Note",
-            recipeName: null,
-            recipeImage: null,
-            servings: null,
-            calories: null,
-            version: 4,
-          },
+        item: {
+          id: "item-3",
+          userId: "user-1",
+          date: "2025-01-14",
+          slot: "Dinner",
+          sortOrder: 0,
+          itemType: "note",
+          recipeId: null,
+          title: "Earlier Note",
+          recipeName: null,
+          recipeImage: null,
+          servings: null,
+          calories: null,
+          version: 4,
         },
       });
 
@@ -249,22 +267,20 @@ describe("useCalendarSubscription", () => {
       const callback = subscriptionCallbacks["onItemCreated"];
 
       callback({
-        payload: {
-          item: {
-            id: "tomorrow-item",
-            userId: "user-1",
-            date: "2025-02-01",
-            slot: "Dinner",
-            sortOrder: 0,
-            itemType: "recipe",
-            recipeId: "recipe-456",
-            title: null,
-            recipeName: "Tomorrow Recipe",
-            recipeImage: null,
-            servings: 2,
-            calories: 300,
-            version: 1,
-          },
+        item: {
+          id: "tomorrow-item",
+          userId: "user-1",
+          date: "2025-02-01",
+          slot: "Dinner",
+          sortOrder: 0,
+          itemType: "recipe",
+          recipeId: "recipe-456",
+          title: null,
+          recipeName: "Tomorrow Recipe",
+          recipeImage: null,
+          servings: 2,
+          calories: 300,
+          version: 1,
         },
       });
 
@@ -286,7 +302,7 @@ describe("useCalendarSubscription", () => {
 
       expect(callback).toBeDefined();
 
-      callback({ payload: { itemId: "item-1", date: "2025-01-15", slot: "Breakfast" } });
+      callback({ itemId: "item-1", date: "2025-01-15", slot: "Breakfast" });
 
       const data = queryClient.getQueryData<PlannedItemFromQuery[]>(getQueryKey());
 
@@ -312,28 +328,26 @@ describe("useCalendarSubscription", () => {
       expect(callback).toBeDefined();
 
       callback({
-        payload: {
-          item: {
-            id: "moved-item",
-            userId: "user-1",
-            date: "2025-01-16",
-            slot: "Dinner",
-            sortOrder: 2,
-            itemType: "recipe",
-            recipeId: "recipe-123",
-            title: null,
-            recipeName: "Test Recipe",
-            recipeImage: null,
-            servings: 4,
-            calories: 500,
-            version: 2,
-          },
-          targetSlotItems: [{ id: "moved-item", sortOrder: 2 }],
-          sourceSlotItems: null,
-          oldDate: "2025-01-15",
-          oldSlot: "Breakfast",
-          oldSortOrder: 0,
+        item: {
+          id: "moved-item",
+          userId: "user-1",
+          date: "2025-01-16",
+          slot: "Dinner",
+          sortOrder: 2,
+          itemType: "recipe",
+          recipeId: "recipe-123",
+          title: null,
+          recipeName: "Test Recipe",
+          recipeImage: null,
+          servings: 4,
+          calories: 500,
+          version: 2,
         },
+        targetSlotItems: [{ id: "moved-item", sortOrder: 2 }],
+        sourceSlotItems: null,
+        oldDate: "2025-01-15",
+        oldSlot: "Breakfast",
+        oldSortOrder: 0,
       });
 
       const data = queryClient.getQueryData<PlannedItemFromQuery[]>(getQueryKey());
@@ -359,32 +373,30 @@ describe("useCalendarSubscription", () => {
       const callback = subscriptionCallbacks["onItemMoved"];
 
       callback({
-        payload: {
-          item: {
-            id: "item-3",
-            userId: "user-1",
-            date: "2025-01-15",
-            slot: "Breakfast",
-            sortOrder: 0,
-            itemType: "recipe",
-            recipeId: "recipe-123",
-            title: null,
-            recipeName: "Test Recipe",
-            recipeImage: null,
-            servings: 4,
-            calories: 500,
-            version: 5,
-          },
-          targetSlotItems: [
-            { id: "item-3", sortOrder: 0 },
-            { id: "item-1", sortOrder: 1 },
-            { id: "item-2", sortOrder: 2 },
-          ],
-          sourceSlotItems: null,
-          oldDate: "2025-01-15",
-          oldSlot: "Breakfast",
-          oldSortOrder: 2,
+        item: {
+          id: "item-3",
+          userId: "user-1",
+          date: "2025-01-15",
+          slot: "Breakfast",
+          sortOrder: 0,
+          itemType: "recipe",
+          recipeId: "recipe-123",
+          title: null,
+          recipeName: "Test Recipe",
+          recipeImage: null,
+          servings: 4,
+          calories: 500,
+          version: 5,
         },
+        targetSlotItems: [
+          { id: "item-3", sortOrder: 0 },
+          { id: "item-1", sortOrder: 1 },
+          { id: "item-2", sortOrder: 2 },
+        ],
+        sourceSlotItems: null,
+        oldDate: "2025-01-15",
+        oldSlot: "Breakfast",
+        oldSortOrder: 2,
       });
 
       const data = queryClient.getQueryData<PlannedItemFromQuery[]>(getQueryKey());
@@ -412,31 +424,29 @@ describe("useCalendarSubscription", () => {
       const callback = subscriptionCallbacks["onItemMoved"];
 
       callback({
-        payload: {
-          item: {
-            id: "b-1",
-            userId: "user-1",
-            date: "2025-01-15",
-            slot: "Lunch",
-            sortOrder: 1,
-            itemType: "recipe",
-            recipeId: "recipe-123",
-            title: null,
-            recipeName: "Test Recipe",
-            recipeImage: null,
-            servings: 4,
-            calories: 500,
-            version: 6,
-          },
-          targetSlotItems: [
-            { id: "l-1", sortOrder: 0 },
-            { id: "b-1", sortOrder: 1 },
-          ],
-          sourceSlotItems: [{ id: "b-2", sortOrder: 0 }],
-          oldDate: "2025-01-15",
-          oldSlot: "Breakfast",
-          oldSortOrder: 0,
+        item: {
+          id: "b-1",
+          userId: "user-1",
+          date: "2025-01-15",
+          slot: "Lunch",
+          sortOrder: 1,
+          itemType: "recipe",
+          recipeId: "recipe-123",
+          title: null,
+          recipeName: "Test Recipe",
+          recipeImage: null,
+          servings: 4,
+          calories: 500,
+          version: 6,
         },
+        targetSlotItems: [
+          { id: "l-1", sortOrder: 0 },
+          { id: "b-1", sortOrder: 1 },
+        ],
+        sourceSlotItems: [{ id: "b-2", sortOrder: 0 }],
+        oldDate: "2025-01-15",
+        oldSlot: "Breakfast",
+        oldSortOrder: 0,
       });
 
       const data = queryClient.getQueryData<PlannedItemFromQuery[]>(getQueryKey());
@@ -470,31 +480,29 @@ describe("useCalendarSubscription", () => {
       const callback = subscriptionCallbacks["onItemMoved"];
 
       callback({
-        payload: {
-          item: {
-            id: "item-2",
-            userId: "user-1",
-            date: "2025-01-15",
-            slot: "Breakfast",
-            sortOrder: 0,
-            itemType: "recipe",
-            recipeId: "recipe-123",
-            title: null,
-            recipeName: "Test Recipe",
-            recipeImage: null,
-            servings: 4,
-            calories: 500,
-            version: 7,
-          },
-          targetSlotItems: [
-            { id: "item-2", sortOrder: 0 },
-            { id: "item-1", sortOrder: 1 },
-          ],
-          sourceSlotItems: null,
-          oldDate: "2025-01-15",
-          oldSlot: "Breakfast",
-          oldSortOrder: 1,
+        item: {
+          id: "item-2",
+          userId: "user-1",
+          date: "2025-01-15",
+          slot: "Breakfast",
+          sortOrder: 0,
+          itemType: "recipe",
+          recipeId: "recipe-123",
+          title: null,
+          recipeName: "Test Recipe",
+          recipeImage: null,
+          servings: 4,
+          calories: 500,
+          version: 7,
         },
+        targetSlotItems: [
+          { id: "item-2", sortOrder: 0 },
+          { id: "item-1", sortOrder: 1 },
+        ],
+        sourceSlotItems: null,
+        oldDate: "2025-01-15",
+        oldSlot: "Breakfast",
+        oldSortOrder: 1,
       });
 
       const data = queryClient.getQueryData<PlannedItemFromQuery[]>(getQueryKey());
@@ -511,28 +519,26 @@ describe("useCalendarSubscription", () => {
       const callback = subscriptionCallbacks["onItemMoved"];
 
       callback({
-        payload: {
-          item: {
-            id: "moved-into-range",
-            userId: "user-1",
-            date: "2025-01-20",
-            slot: "Dinner",
-            sortOrder: 0,
-            itemType: "recipe",
-            recipeId: "recipe-123",
-            title: null,
-            recipeName: "Moved Recipe",
-            recipeImage: null,
-            servings: 4,
-            calories: 500,
-            version: 2,
-          },
-          targetSlotItems: [{ id: "moved-into-range", sortOrder: 0 }],
-          sourceSlotItems: null,
-          oldDate: "2025-02-01",
-          oldSlot: "Dinner",
-          oldSortOrder: 0,
+        item: {
+          id: "moved-into-range",
+          userId: "user-1",
+          date: "2025-01-20",
+          slot: "Dinner",
+          sortOrder: 0,
+          itemType: "recipe",
+          recipeId: "recipe-123",
+          title: null,
+          recipeName: "Moved Recipe",
+          recipeImage: null,
+          servings: 4,
+          calories: 500,
+          version: 2,
         },
+        targetSlotItems: [{ id: "moved-into-range", sortOrder: 0 }],
+        sourceSlotItems: null,
+        oldDate: "2025-02-01",
+        oldSlot: "Dinner",
+        oldSortOrder: 0,
       });
 
       const data = queryClient.getQueryData<PlannedItemFromQuery[]>(getQueryKey());
@@ -557,28 +563,26 @@ describe("useCalendarSubscription", () => {
       const callback = subscriptionCallbacks["onItemMoved"];
 
       callback({
-        payload: {
-          item: {
-            id: "moved-out-of-range",
-            userId: "user-1",
-            date: "2025-02-01",
-            slot: "Dinner",
-            sortOrder: 0,
-            itemType: "recipe",
-            recipeId: "recipe-123",
-            title: null,
-            recipeName: "Moved Recipe",
-            recipeImage: null,
-            servings: 4,
-            calories: 500,
-            version: 2,
-          },
-          targetSlotItems: [{ id: "moved-out-of-range", sortOrder: 0 }],
-          sourceSlotItems: null,
-          oldDate: "2025-01-20",
-          oldSlot: "Breakfast",
-          oldSortOrder: 0,
+        item: {
+          id: "moved-out-of-range",
+          userId: "user-1",
+          date: "2025-02-01",
+          slot: "Dinner",
+          sortOrder: 0,
+          itemType: "recipe",
+          recipeId: "recipe-123",
+          title: null,
+          recipeName: "Moved Recipe",
+          recipeImage: null,
+          servings: 4,
+          calories: 500,
+          version: 2,
         },
+        targetSlotItems: [{ id: "moved-out-of-range", sortOrder: 0 }],
+        sourceSlotItems: null,
+        oldDate: "2025-01-20",
+        oldSlot: "Breakfast",
+        oldSortOrder: 0,
       });
 
       const data = queryClient.getQueryData<PlannedItemFromQuery[]>(getQueryKey());
@@ -599,22 +603,20 @@ describe("useCalendarSubscription", () => {
       expect(callback).toBeDefined();
 
       callback({
-        payload: {
-          item: {
-            id: "updated-item",
-            userId: "user-1",
-            date: "2025-01-15",
-            slot: "Breakfast",
-            sortOrder: 0,
-            itemType: "note",
-            recipeId: null,
-            title: "Updated",
-            recipeName: null,
-            recipeImage: null,
-            servings: null,
-            calories: null,
-            version: 2,
-          },
+        item: {
+          id: "updated-item",
+          userId: "user-1",
+          date: "2025-01-15",
+          slot: "Breakfast",
+          sortOrder: 0,
+          itemType: "note",
+          recipeId: null,
+          title: "Updated",
+          recipeName: null,
+          recipeImage: null,
+          servings: null,
+          calories: null,
+          version: 2,
         },
       });
 
@@ -640,7 +642,7 @@ describe("useCalendarSubscription", () => {
 
       expect(callback).toBeDefined();
 
-      callback({ payload: { reason: "Something went wrong" } });
+      callback({ reason: "Something went wrong" });
 
       expect(invalidateSpy).toHaveBeenCalledWith({
         queryKey: getQueryKey(),

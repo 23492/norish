@@ -12,6 +12,20 @@ type CreateUseCalendarSubscriptionOptions = CreateCalendarHooksOptions & {
   useCalendarCacheHelpers: (startISO: string, endISO: string) => CalendarCacheHelpers;
 };
 
+/**
+ * Wire contract for these handlers.
+ *
+ * The calendar router (packages/trpc/src/routers/calendar/subscriptions.ts) builds its
+ * iterables with `createSubscriptionIterable`, which runs `unwrapPayload`. It therefore
+ * yields `CalendarSubscriptionEvents[...]` directly — no `RealtimeEventEnvelope` reaches the
+ * client on this namespace, so these `onData` types match the tRPC output types exactly.
+ *
+ * Separately, `createTRPCProviderBundle`'s normalised `useTRPC` proxy runs every event through
+ * `withPayloadCompatibility` (see providers/trpc-provider.tsx), which ALSO exposes a legacy
+ * `payload` self-reference alongside the payload's own top-level keys. Reading the top level is
+ * the forward-compatible form and the only one the tRPC types can express; do not "restore" a
+ * `{ payload }` wrapper here — it is a client-side compatibility alias, not the wire shape.
+ */
 type ItemPayload = {
   item: PlannedItemWithRecipePayload;
 };
