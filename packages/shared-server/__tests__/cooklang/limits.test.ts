@@ -40,8 +40,14 @@ import type { UnitsMap } from "@norish/config/zod/server-config";
 import defaultUnits from "@norish/config/units.default.json";
 import { CookTokensSchema } from "@norish/shared/contracts/zod";
 
-import { structuredToCooklang } from "@norish/shared/cooklang";
+import {
+  COOK_FRONTMATTER_KEYS,
+  COOK_FRONTMATTER_MAX_VALUE_CHARS,
+  COOK_FRONTMATTER_NUMERIC_KEYS,
+  structuredToCooklang,
+} from "@norish/shared/cooklang";
 
+import type { CookSourceDefectCode } from "../../src/cooklang/limits";
 import { fixtures } from "../../../shared/__tests__/cooklang/fixtures";
 import { shutdownCookParsePool } from "../../src/cooklang/pool";
 
@@ -217,9 +223,13 @@ describe("findCookSourceDefect — the gate that bounds parse TIME", () => {
   it("accepts every shape norish's own serializer emits", async () => {
     const source = [
       "---",
-      "title: Pancakes",
+      // QUOTED since W3B (D-27-W3B-06): the frontmatter value grammar is exactly
+      // `"…"` or a plain number, so an unquoted `title: Pancakes` is no longer a
+      // shape the serializer can emit. `servings` stays a bare number because
+      // Cooklang TYPES it as one.
+      'title: "Pancakes"',
       "servings: 4",
-      "norish.system: metric",
+      'norish.system: "metric"',
       "---",
       "Mix the @flour{200%gram} with @milk{300%milliliter}.",
       "",
@@ -332,11 +342,18 @@ describe("findCookSourceDefect — the gate that bounds parse TIME", () => {
   });
 
   it("REJECTS a frontmatter block the serializer could not have written", async () => {
-    expect(findCookSourceDefect("---\ntitle: X\n")?.defect).toBe("frontmatter-unterminated");
+    expect(findCookSourceDefect('---\ntitle: "X"\n')?.defect).toBe("frontmatter-unterminated");
     expect(findCookSourceDefect("---\nnot a meta line\n---\n\nstep\n")?.defect).toBe(
       "frontmatter-line"
     );
-    expect(findCookSourceDefect("---\ntitle: X\n---\n\nstep\n")).toBeNull();
+    expect(findCookSourceDefect('---\ntitle: "X"\n---\n\nstep\n')).toBeNull();
+    // REWRITTEN IN W3B, AND WORTH SAYING OUT LOUD: this assertion used to read
+    // `expect(findCookSourceDefect("---\ntitle: X\n---\n\nstep\n")).toBeNull()`,
+    // i.e. it PINNED the acceptance of an unquoted value. That was the H1 hole — the
+    // old `FRONTMATTER_LINE` accepted `key: <anything>`, which is how 65 400 raw `[`
+    // reached the parser. An unquoted value is now a defect, and the serializer
+    // quotes unconditionally so nothing legitimate arrives in that shape.
+    expect(findCookSourceDefect("---\ntitle: X\n---\n\nstep\n")?.defect).toBe("frontmatter-value");
   });
 
   it("REJECTS a section heading the serializer could not have written", async () => {
@@ -345,6 +362,347 @@ describe("findCookSourceDefect — the gate that bounds parse TIME", () => {
     expect(findCookSourceDefect("== A \\= B ==")).toBeNull();
     expect(findCookSourceDefect("== Dough ==")).toBeNull();
   });
+});
+
+/**
+ * H1 — THE FRONTMATTER RECOGNIZER WAS UNCONSTRAINED (W3B, D-27-W3B-06).
+ *
+ * `FRONTMATTER_LINE = /^[A-Za-z][A-Za-z0-9._-]*: .*$/` constrained neither the key
+ * set nor the value, so ARBITRARY YAML passed both gates:
+ * `---\na: ${"[".repeat(65400)}\n---\nstep\n` — 65 417 bytes, inside every cap,
+ * `findCookSourceDefect` returning `null` — parsed for 24 557 ms / 38 511 ms with a
+ * 131 218-byte "recursion limit exceeded" report, and the balanced 25 000-/30 000-deep
+ * and `{`-nesting variants make it a MONOTONE FAMILY rather than a lucky point.
+ *
+ * WHAT THIS BLOCK PROVES AND WHAT IT DOES NOT. It proves the recognizer now refuses
+ * that family and every neighbouring YAML construct, each with its own named defect
+ * code. It does NOT prove the system is bounded — the companion proof, every H1
+ * payload driven THROUGH the pool with no recognizer in the way at all, lives in
+ * `pool.test.ts` (D-27-W3B-03a). The two are deliberately independent: either alone
+ * is sufficient, which is the whole point of the W3B pivot, and this file being the
+ * only one that matters is what refuted round 2.
+ */
+describe("findCookSourceDefect — the CLOSED frontmatter grammar (H1)", () => {
+  /** Every measured H1 artefact, verbatim from the verify round. */
+  const H1_ARTEFACTS: [string, string][] = [
+    ["65 400 unbalanced `[` (65 417 B, 24 557 / 38 511 ms)", `---\na: ${"[".repeat(65_400)}\n---\nstep\n`],
+    [
+      "balanced 25 000-deep `[`/`]` (4 838 ms)",
+      `---\na: ${"[".repeat(25_000)}${"]".repeat(25_000)}\n---\nstep\n`,
+    ],
+    [
+      "balanced 30 000-deep `[`/`]` (8 256 ms)",
+      `---\na: ${"[".repeat(30_000)}${"]".repeat(30_000)}\n---\nstep\n`,
+    ],
+    [
+      "`{`-nesting variant (10 489 ms)",
+      `---\na: ${"{".repeat(30_000)}${"}".repeat(30_000)}\n---\nstep\n`,
+    ],
+    ["title: @@@@ ####", "---\ntitle: @@@@ ####\n---\nstep\n"],
+    ["YAML anchor + alias `a: &x [*x]`", "---\na: &x [*x]\n---\nstep\n"],
+  ];
+
+  for (const [name, source] of H1_ARTEFACTS) {
+    it(`returns a NAMED defect for the H1 artefact: ${name}`, async () => {
+      // Inside the byte cap — the point of H1 is that no size gate stops it.
+      expect(checkCookSourceLimits(source)).toBeNull();
+
+      const defect = findCookSourceDefect(source);
+
+      expect(defect, name).not.toBeNull();
+      expect(defect!.defect, name).toMatch(/^frontmatter-/);
+      // A POSITION, never a quotation (T-27-05).
+      expect(typeof defect!.offset).toBe("number");
+    });
+  }
+
+  /**
+   * One row per YAML construct the old `.*` value pattern accepted, with the exact
+   * code each must produce — the codes are the operational signal W5's backfill
+   * triages on, so "some defect" is not good enough.
+   */
+  const REFUSED: [string, string, CookSourceDefectCode][] = [
+    ["a literal block scalar", '---\ntitle: |\n  x\n---\nstep\n', "frontmatter-value"],
+    ["a folded block scalar", '---\ntitle: >\n  x\n---\nstep\n', "frontmatter-value"],
+    ["a flow map", "---\ntitle: {a: b}\n---\nstep\n", "frontmatter-value"],
+    ["a flow sequence", "---\ntitle: [a, b]\n---\nstep\n", "frontmatter-value"],
+    ["a YAML tag", "---\ntitle: !!str x\n---\nstep\n", "frontmatter-value"],
+    ["an unquoted value", "---\ntitle: Pancakes\n---\nstep\n", "frontmatter-value"],
+    ["an unquoted numeric title", "---\ntitle: 1.50\n---\nstep\n", "frontmatter-value"],
+    ["an empty value", "---\ntitle: \n---\nstep\n", "frontmatter-value"],
+    ["an empty QUOTED value", '---\ntitle: ""\n---\nstep\n', "frontmatter-value"],
+    ["a whitespace-padded quoted value", '---\ntitle: " a"\n---\nstep\n', "frontmatter-value"],
+    ["an unterminated quote", '---\ntitle: "a\n---\nstep\n', "frontmatter-value"],
+    ["a quote closed only by an ESCAPED quote", '---\ntitle: "a\\"\n---\nstep\n', "frontmatter-value"],
+    ["a RAW quote inside the value", '---\ntitle: "a"b"\n---\nstep\n', "frontmatter-value"],
+    ["a RAW backslash inside the value", '---\ntitle: "a\\b"\n---\nstep\n', "frontmatter-value"],
+    [
+      "a control character inside the value",
+      '---\ntitle: "a\u0007b"\n---\nstep\n',
+      "frontmatter-value",
+    ],
+    ["a NUL inside the value", '---\ntitle: "a\u0000b"\n---\nstep\n', "frontmatter-value"],
+    ["a QUOTED servings (Cooklang types it as a number)", '---\nservings: "4"\n---\nstep\n', "frontmatter-value"],
+    ["an exponential servings", "---\nservings: 1e+21\n---\nstep\n", "frontmatter-value"],
+    ["a key not in the closed set", '---\nauthor: "Kiran"\n---\nstep\n', "frontmatter-key"],
+    ["a YAML anchor under an unknown key", "---\na: &x [*x]\n---\nstep\n", "frontmatter-key"],
+    ["a TAB-indented line", '---\n\ttitle: "x"\n---\nstep\n', "frontmatter-key"],
+    ["a SPACE-indented line", '---\n  title: "x"\n---\nstep\n', "frontmatter-key"],
+    ["a duplicate key", '---\ntitle: "a"\ntitle: "b"\n---\nstep\n', "frontmatter-duplicate-key"],
+    ["a comment line", '---\n# nothing to see\ntitle: "x"\n---\nstep\n', "frontmatter-line"],
+    ["a multi-document marker", '---\ntitle: "x"\n...\n---\nstep\n', "frontmatter-line"],
+    ["no space after the colon", '---\ntitle:"x"\n---\nstep\n', "frontmatter-line"],
+    ["a blank line inside the block", '---\ntitle: "x"\n\n---\nstep\n', "frontmatter-line"],
+    ["an unterminated block", '---\ntitle: "x"\n', "frontmatter-unterminated"],
+    [
+      "more lines than the closed key set has keys",
+      `---\n${Array.from({ length: COOK_FRONTMATTER_KEYS.length + 1 }, () => 'title: "x"').join("\n")}\n---\nstep\n`,
+      "frontmatter-too-large",
+    ],
+    [
+      "a value longer than the per-key maximum",
+      `---\ntitle: "${"a".repeat(COOK_FRONTMATTER_MAX_VALUE_CHARS)}"\n---\nstep\n`,
+      "frontmatter-too-large",
+    ],
+  ];
+
+  for (const [name, source, defect] of REFUSED) {
+    it(`REJECTS ${name} with \`${defect}\``, async () => {
+      expect(findCookSourceDefect(source)?.defect, name).toBe(defect);
+    });
+  }
+
+  it("REJECTS a SECOND `---` block, and a `---` block that is not first", async () => {
+    // Both land on the BODY recognizer, which is sound about them already: `-` is a
+    // metacharacter, and the serializer escapes every `-` it writes into prose, so a
+    // bare `---` line outside the leading block cannot be serializer output.
+    expect(
+      findCookSourceDefect('---\ntitle: "a"\n---\n\nstep\n\n---\ntitle: "b"\n---\n')?.defect
+    ).toBe("unescaped-metacharacter");
+    expect(findCookSourceDefect('step\n\n---\ntitle: "a"\n---\n')?.defect).toBe(
+      "unescaped-metacharacter"
+    );
+  });
+
+  /**
+   * THE TWO-WAY ASSERTION (the plan's Task 3 action). A one-way allowlist rots
+   * silently: add a key to the serializer, forget the recognizer, and every recipe
+   * that carries the new key loses its `cook_source` — a total outage of the feature
+   * that no test would catch. So the key set is asserted in BOTH directions, and it is
+   * IMPORTED from the serializer rather than restated here.
+   */
+  const MAXIMAL: StructuredRecipe = {
+    name: "Maximal Metadata",
+    servings: 4,
+    prepMinutes: 15,
+    cookMinutes: 30,
+    totalMinutes: 45,
+    source: "https://example.test/recipes/maximal",
+    systemUsed: "us",
+    steps: [{ text: "Mix it.", order: 1, ingredients: [] }],
+  };
+
+  /** The frontmatter lines of a `.cook`, without the `---` fences. */
+  function frontmatterLinesOf(cook: string): string[] {
+    expect(cook.startsWith("---\n")).toBe(true);
+
+    const end = cook.indexOf("\n---\n", 3);
+
+    expect(end).toBeGreaterThan(0);
+
+    return cook.slice(4, end).split("\n");
+  }
+
+  it("accepts a REAL serializer-emitted line for every key in the closed set", async () => {
+    const lines = frontmatterLinesOf(structuredToCooklang(MAXIMAL, units));
+
+    expect(lines).toHaveLength(COOK_FRONTMATTER_KEYS.length);
+
+    for (const line of lines) {
+      // Each line ALONE, so one accepting key cannot mask another being refused.
+      expect(findCookSourceDefect(`---\n${line}\n---\n\nstep\n`), line).toBeNull();
+    }
+  });
+
+  it("the closed key set is EXACTLY what the serializer emits (add a key here and there)", async () => {
+    const keys = frontmatterLinesOf(structuredToCooklang(MAXIMAL, units)).map(
+      (line) => line.slice(0, line.indexOf(": "))
+    );
+
+    expect(keys).toEqual([...COOK_FRONTMATTER_KEYS]);
+    expect(new Set(keys).size).toBe(COOK_FRONTMATTER_KEYS.length);
+    // and the numeric keys are a SUBSET of the closed set, emitted unquoted
+    for (const key of COOK_FRONTMATTER_NUMERIC_KEYS) {
+      expect(COOK_FRONTMATTER_KEYS).toContain(key);
+      expect(structuredToCooklang(MAXIMAL, units)).toContain(`\n${key}: 4\n`);
+    }
+  });
+
+  it("the per-value cap is the one the serializer derives its own from", async () => {
+    // `@norish/shared` cannot import `COOK_LIMITS` (it must not depend on
+    // `@norish/shared-server`), so the constant is duplicated there BY DERIVATION:
+    // a quoted `title` is at most twice `maxRecipeNameChars` plus two delimiters.
+    expect(COOK_FRONTMATTER_MAX_VALUE_CHARS).toBe(COOK_LIMITS.maxRecipeNameChars * 2 + 2);
+  });
+
+  it("agrees with the serializer about every character YAML forbids RAW", async () => {
+    // The serializer FOLDS YAML-forbidden characters to a space and keeps TAB; this
+    // recognizer mirrors that predicate. Two mirrored predicates drift, so the
+    // agreement is asserted over the whole range rather than reviewed.
+    const failures: string[] = [];
+    const codes = [...Array.from({ length: 0xa0 }, (_unused, code) => code), 0x2028, 0x2029];
+
+    for (const code of codes) {
+      const name = `a${String.fromCodePoint(code)}b`;
+      const cook = structuredToCooklang(
+        { name, systemUsed: "metric", steps: [{ text: "Mix it.", order: 1, ingredients: [] }] },
+        units
+      );
+      const defect = findCookSourceDefect(cook);
+
+      if (defect) failures.push(`U+${code.toString(16).padStart(4, "0")} -> ${defect.defect}`);
+    }
+
+    expect(failures).toEqual([]);
+  });
+
+  it("accepts a title made entirely of the two characters quoting must escape", async () => {
+    // 250 x `"\` is 500 characters of name, which quotes to exactly the cap.
+    const name = '"\\'.repeat(250);
+    const cook = structuredToCooklang(
+      { name, systemUsed: "metric", steps: [{ text: "Mix it.", order: 1, ingredients: [] }] },
+      units
+    );
+
+    expect(checkStructuredRecipeLimits({ name, systemUsed: "metric", steps: [] })).toBeNull();
+    expect(findCookSourceDefect(cook)).toBeNull();
+    expect(await parseCookSource(cook, units)).not.toBeNull();
+  });
+});
+
+/**
+ * NO REGRESSION INTO FALSE REFUSALS — THE 14 REALISTIC RECIPES (the plan's
+ * "THE EXACT INPUTS THAT MUST BE RE-TESTED").
+ *
+ * Round 2 was verified against these fourteen by hand and all fourteen minted; they
+ * are COMMITTED here because W3B tightens the recognizer, and a tighter recognizer
+ * that starts refusing a real recipe is exactly how round 1 failed. Each one must
+ * pass every cap, produce NO defect, and come back from the real parser with a read
+ * model.
+ */
+describe("the 14 realistic recipes still MINT (the false-positive direction)", () => {
+  function realistic(
+    name: string,
+    text: string,
+    ingredients: StructuredRecipe["steps"][number]["ingredients"] = [],
+    extra: Partial<StructuredRecipe> = {}
+  ): StructuredRecipe {
+    return {
+      name,
+      systemUsed: "metric",
+      steps: [{ text, order: 1, ingredients }],
+      ...extra,
+    };
+  }
+
+  const REALISTIC: [string, StructuredRecipe][] = [
+    ["the pot roast (US shorthand: @ # ~)", POT_ROAST],
+    [
+      "2% milk",
+      realistic("Béchamel", "Warm the 2% milk without boiling it.", [
+        { name: "2% milk", amount: 500, unit: "milliliter" },
+      ]),
+    ],
+    [
+      "70% dark chocolate",
+      realistic("Ganache", "Melt the 70% dark chocolate over a bain-marie.", [
+        { name: "70% dark chocolate", amount: 200, unit: "gram" },
+      ]),
+    ],
+    [
+      "S&P",
+      realistic("Steak", "Season generously with S&P and rest.", [
+        { name: "S&P", amount: null, unit: null },
+      ]),
+    ],
+    [
+      "Ben & Jerry's",
+      realistic("Sundae", "Scoop the Ben & Jerry's into a chilled bowl.", [
+        { name: "Ben & Jerry's", amount: 2, unit: "scoop" },
+      ]),
+    ],
+    [
+      "3-4 cloves",
+      realistic("Aglio e olio", "Slice 3-4 cloves of garlic paper-thin.", [
+        { name: "garlic", amount: "3-4", unit: "clove" },
+      ]),
+    ],
+    [
+      "1/2 tsp",
+      realistic("Cookies", "Add 1/2 tsp of baking soda.", [
+        { name: "baking soda", amount: "1/2", unit: "teaspoon" },
+      ]),
+    ],
+    [
+      "180°C (350°F)",
+      realistic("Sponge", "Bake at 180°C (350°F) for 25 minutes.", [], {
+        prepMinutes: 15,
+        cookMinutes: 25,
+      }),
+    ],
+    [
+      "Dutch: ± 200 g and 2½ uur",
+      realistic("Stoofvlees", "Neem ± 200 g boter en stoof 2½ uur zachtjes.", [
+        { name: "boter", amount: "± 200", unit: "gram" },
+      ]),
+    ],
+    [
+      "CJK",
+      realistic("麻婆豆腐", "豆腐を切って、そして炒める。", [
+        { name: "豆腐", amount: 400, unit: "gram" },
+      ]),
+    ],
+    [
+      "Café @ Home blend",
+      realistic("Iced coffee", "Brew the Café @ Home blend twice as strong.", [
+        { name: "Café @ Home blend", amount: 30, unit: "gram" },
+      ]),
+    ],
+    [
+      "{filtered} water",
+      realistic("Sourdough", "Mix the {filtered} water into the flour.", [
+        { name: "{filtered} water", amount: 350, unit: "milliliter" },
+      ]),
+    ],
+    [
+      "jalapeño #2",
+      realistic("Salsa", "Char the jalapeño #2 over an open flame.", [
+        { name: "jalapeño #2", amount: 2, unit: "piece" },
+      ]),
+    ],
+    [
+      "a numeric title, and `to taste`",
+      realistic("1.50", "Finish with olive oil to taste.", [
+        { name: "olive oil", amount: null, unit: null },
+      ], { servings: 4, source: "https://example.test/1.50" }),
+    ],
+  ];
+
+  it("is exactly the fourteen recipes the plan enumerates", async () => {
+    expect(REALISTIC).toHaveLength(14);
+  });
+
+  for (const [name, recipe] of REALISTIC) {
+    it(`still mints: ${name}`, async () => {
+      const cook = structuredToCooklang(recipe, units);
+
+      expect(checkStructuredRecipeLimits(recipe), name).toBeNull();
+      expect(checkCookSourceLimits(cook), name).toBeNull();
+      expect(findCookSourceDefect(cook), `${name}: ${JSON.stringify(cook)}`).toBeNull();
+      // ...and it earns a read model from the REAL parser, with an empty report.
+      expect(await parseCookSource(cook, units), name).not.toBeNull();
+    });
+  }
 });
 
 describe("checkStructuredRecipeLimits — a breach and an at-the-cap sibling for each cap", () => {

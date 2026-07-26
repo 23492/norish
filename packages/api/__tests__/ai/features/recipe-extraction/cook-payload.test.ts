@@ -197,7 +197,10 @@ describe("buildCookFromExtraction — the happy path", () => {
     const cook = await buildCookFromExtraction(output, makeNormalized({ systemUsed: "us" }), units);
 
     expect(cook).not.toBeNull();
-    expect(cook!.cookSource).toContain("norish.system: us");
+    // Quoted since W3B (D-27-W3B-06 — H1): every non-numeric frontmatter value is
+    // double-quoted so the recognizer can accept `"…"` or a plain number and nothing
+    // else. `servings` stays a bare number because Cooklang types it as one.
+    expect(cook!.cookSource).toContain('norish.system: "us"');
     expect(cook!.cookSource).toContain("@milk{1%cup}");
     expect(cook!.cookSource).not.toContain("milliliter");
   });
@@ -223,7 +226,7 @@ describe("buildCookFromExtraction — the happy path", () => {
       units
     );
 
-    expect(cook!.cookSource).toContain("title: Onion Thing");
+    expect(cook!.cookSource).toContain('title: "Onion Thing"');
     expect(cook!.cookSource).toContain("servings: 6");
     expect(cook!.cookSource).toContain("https://example.com/onion");
   });

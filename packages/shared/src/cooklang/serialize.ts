@@ -47,6 +47,17 @@ import { normalizeUnit } from "../lib/unit-localization";
  * literal text, inside prose, inside a section heading, inside a token name and
  * inside a `{amount%unit}` body alike — so the escaping is LOSSLESSLY REVERSIBLE
  * and the round trip is byte-identical (`round-trip-fidelity.test.ts`).
+ *
+ * FRONTMATTER IS A CLOSED SHAPE, NOT "SOME YAML" (W3B, D-27-W3B-06 — H1).
+ * Escaping fixed the BODY and left the frontmatter unconstrained: the recognizer's
+ * `key: value` line pattern accepted arbitrary YAML, so a 65 417-byte
+ * `---\na: [[[[…\n---\n` passed every gate and cost the parser 24-38 SECONDS with a
+ * 131 218-byte "recursion limit exceeded" report. This module is the other half of
+ * that fix: it emits a CLOSED set of keys (`COOK_FRONTMATTER_KEYS`) whose values are
+ * either a DOUBLE-QUOTED scalar or a plain YAML NUMBER, and nothing else — so the
+ * recognizer can accept exactly that shape and refuse every other YAML construct
+ * (anchors, aliases, tags, block scalars, flow collections, comments, multi-document
+ * markers) by grammar rather than by prediction.
  */
 
 const SINGLE_WORD_STOP = /[\s@{}\[\]()~#,;:!?.]/;
@@ -139,11 +150,64 @@ export function formatCooklangTimer(timer: StructuredTimerRef): string {
 }
 
 /**
- * A YAML plain scalar that needs no quoting: it starts with a letter or digit and
- * contains none of the three characters that end a plain scalar (`:` maps, `#`
- * comments, `"` quoting) and no line terminator.
+ * THE CLOSED SET OF FRONTMATTER KEYS norish can emit, in emission order (W3B,
+ * D-27-W3B-06).
+ *
+ * This tuple is the SINGLE SOURCE OF TRUTH for the frontmatter key set:
+ * `@norish/shared-server/cooklang/limits`'s recognizer imports it rather than
+ * restating it, so a key added here without teaching the recognizer fails a
+ * two-way test loudly instead of silently refusing every new recipe. It is a
+ * SECURITY boundary, not documentation — H1 was an unconstrained key/value pattern.
+ *
+ * `buildFrontmatter` below is typed against it, so `tsc` refuses a key that is not
+ * a member.
  */
-const PLAIN_YAML_SCALAR = /^[\p{L}\p{N}][^\r\n:#"]*$/u;
+export const COOK_FRONTMATTER_KEYS = [
+  "title",
+  "servings",
+  "time.prep",
+  "time.cook",
+  "source",
+  "norish.system",
+] as const;
+
+export type CookFrontmatterKey = (typeof COOK_FRONTMATTER_KEYS)[number];
+
+/**
+ * The keys emitted as a BARE YAML NUMBER rather than a quoted scalar.
+ *
+ * Cooklang TYPES `servings` as a number and reports `Unsupported value for key:
+ * 'servings' — expected 'number' but got 'string'` for `servings: "4"`, so that one
+ * key must stay unquoted. Every other key is quoted unconditionally (see
+ * `quoteYaml`).
+ */
+export const COOK_FRONTMATTER_NUMERIC_KEYS = ["servings"] as const satisfies readonly CookFrontmatterKey[];
+
+/**
+ * Exactly the numbers `String(Number(x))` can produce for a finite value in plain
+ * decimal notation. Exponential forms (`1e+21`, `1e-7`) do NOT match, and a key
+ * whose value does not match is OMITTED rather than emitted in a shape the
+ * recognizer would refuse — see `frontmatterLine`.
+ */
+const FRONTMATTER_NUMBER = /^-?\d+(?:\.\d+)?$/;
+
+/**
+ * The maximum number of CHARACTERS a frontmatter value may occupy once emitted,
+ * quotes and escapes included.
+ *
+ * Derived, not guessed: the longest legitimate value is a quoted `title`, whose
+ * plaintext is capped at `COOK_LIMITS.maxRecipeNameChars` (500) by
+ * `checkStructuredRecipeLimits`, and quoting at most DOUBLES it (a value of nothing
+ * but `"` or `\`) plus the two delimiters — 2 x 500 + 2. The number is duplicated
+ * here rather than imported because `@norish/shared` must not depend on
+ * `@norish/shared-server`; `limits.ts` imports THIS constant, and a test asserts the
+ * two agree so the derivation cannot silently drift.
+ *
+ * It is load-bearing for H1: the recognizer's frontmatter block cap is this number
+ * times the size of the closed key set, which is what refuses a 65 KB frontmatter
+ * BY ARITHMETIC, before any value grammar is even considered.
+ */
+export const COOK_FRONTMATTER_MAX_VALUE_CHARS = 1_002;
 
 /**
  * Every character a YAML scalar may not carry raw: the C0 controls except TAB, the
@@ -187,8 +251,18 @@ function foldYamlForbidden(value: string): string {
  * @@@@ ####` makes the parser report `Invalid YAML frontmatter syntax`, and a
  * value carrying a NEWLINE would break out of the frontmatter block entirely and
  * inject arbitrary `.cook` body (the structural half of the same injection bug the
- * escaping above fixes). Line terminators are therefore folded first, and anything
- * that is not a provably plain scalar is double-quoted.
+ * escaping above fixes). Line terminators are therefore folded first, and the value
+ * is then double-quoted UNCONDITIONALLY.
+ *
+ * UNCONDITIONALLY IS THE W3B CHANGE (D-27-W3B-06 — H1). This used to emit a value
+ * VERBATIM when it looked like a "provably plain scalar" (`^[\p{L}\p{N}][^\r\n:#"]*$`),
+ * which meant `title: a [[[[[…` was serializer output — a plain scalar carrying
+ * 65 000 flow-sequence characters. The recognizer then had to accept plain scalars,
+ * i.e. accept nearly arbitrary YAML, which is exactly the hole H1 exploited. Quoting
+ * every non-numeric value collapses the frontmatter value grammar to TWO shapes
+ * (`"…"` or a plain number), which a recognizer can assert instead of predict. The
+ * cost is two bytes per metadata line and a changed byte string for a plain title;
+ * `title: "Pancakes"` was verified to parse with an EMPTY report.
  *
  * YAML also forbids RAW CONTROL CHARACTERS outright, quoted or not ("control
  * characters are not allowed at position N"), so they are folded to a space here.
@@ -196,32 +270,51 @@ function foldYamlForbidden(value: string): string {
  * `escapeCookText`: step prose keeps a TAB or a NUL byte-identically, a YAML scalar
  * cannot. TAB is the one control character YAML does allow, so it survives.
  *
- * QUOTING IS DECIDED BY THE KEY, NOT BY THE VALUE. Cooklang types `servings` as a
- * NUMBER and reports `Unsupported value for key: 'servings' — expected 'number' but
- * got 'string'` for `servings: "4"`, so that one key is emitted raw (`buildFrontmatter`
- * builds it from a `number`). Deciding from the VALUE instead was the earlier bug: a
- * recipe literally titled "1.50" produced `title: 1.50`, YAML read it as a number and
- * the parser reported `Unsupported value for key: 'title'` — costing that recipe its
- * `cook_source` for a name the user chose.
+ * Returns `null` — meaning OMIT THE KEY — when the value folds to nothing (an
+ * all-whitespace title is not a title) or when the quoted form would exceed
+ * `COOK_FRONTMATTER_MAX_VALUE_CHARS`. Omitting optional metadata keeps the recipe's
+ * `cook_source`; emitting a value the recognizer refuses would cost the recipe the
+ * whole read model, and the DB columns remain the source of truth for every one of
+ * these fields.
  */
-function quoteYaml(value: string): string {
+function quoteYaml(value: string): string | null {
   const flat = foldYamlForbidden(value).trim();
 
-  // Everything that could confuse YAML ("15 min", "a: b", "1.50", "@@@@") is quoted.
-  if (/^\d/.test(flat) || !PLAIN_YAML_SCALAR.test(flat)) {
-    return `"${flat.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+  if (flat === "") return null;
+
+  const quoted = `"${flat.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+
+  return quoted.length > COOK_FRONTMATTER_MAX_VALUE_CHARS ? null : quoted;
+}
+
+/**
+ * Render one frontmatter line, or `null` to omit the key.
+ *
+ * The value shape is decided BY THE KEY, never by the value. Deciding from the
+ * value was an earlier bug: a recipe literally titled "1.50" produced `title: 1.50`,
+ * YAML read it as a number and the parser reported `Unsupported value for key:
+ * 'title'` — costing that recipe its `cook_source` for a name the user chose.
+ */
+function frontmatterLine(key: CookFrontmatterKey, value: string): string | null {
+  if ((COOK_FRONTMATTER_NUMERIC_KEYS as readonly string[]).includes(key)) {
+    // A number outside plain decimal notation ("1e+21") is not a shape the
+    // recognizer accepts, so the key is dropped rather than emitted unrecognizably.
+    return FRONTMATTER_NUMBER.test(value) && value.length <= COOK_FRONTMATTER_MAX_VALUE_CHARS
+      ? `${key}: ${value}`
+      : null;
   }
 
-  return flat;
+  const quoted = quoteYaml(value);
+
+  return quoted === null ? null : `${key}: ${quoted}`;
 }
 
 function buildFrontmatter(recipe: StructuredRecipe): string {
-  /** `raw: true` bypasses quoting — reserved for values built from a `number`. */
-  const meta: { key: string; value: string; raw?: boolean }[] = [];
+  const meta: { key: CookFrontmatterKey; value: string }[] = [];
 
   if (recipe.name) meta.push({ key: "title", value: recipe.name });
   if (recipe.servings != null && Number.isFinite(Number(recipe.servings))) {
-    meta.push({ key: "servings", value: String(Number(recipe.servings)), raw: true });
+    meta.push({ key: "servings", value: String(Number(recipe.servings)) });
   }
   if (recipe.prepMinutes != null) meta.push({ key: "time.prep", value: `${recipe.prepMinutes} min` });
   if (recipe.cookMinutes != null) meta.push({ key: "time.cook", value: `${recipe.cookMinutes} min` });
@@ -229,13 +322,13 @@ function buildFrontmatter(recipe: StructuredRecipe): string {
   // D-2: record the single unit system this `.cook` is written in.
   meta.push({ key: "norish.system", value: recipe.systemUsed });
 
-  if (meta.length === 0) return "";
+  const lines = meta
+    .map(({ key, value }) => frontmatterLine(key, value))
+    .filter((line): line is string => line !== null);
 
-  const body = meta
-    .map(({ key, value, raw }) => `${key}: ${raw ? value : quoteYaml(value)}`)
-    .join("\n");
+  if (lines.length === 0) return "";
 
-  return `---\n${body}\n---\n`;
+  return `---\n${lines.join("\n")}\n---\n`;
 }
 
 /** case-insensitive, token-consuming, word-ish boundary match of `name` in `text` */

@@ -1,5 +1,11 @@
 import type { StructuredRecipe } from "@norish/shared/cooklang";
 
+import {
+  COOK_FRONTMATTER_KEYS,
+  COOK_FRONTMATTER_MAX_VALUE_CHARS,
+  COOK_FRONTMATTER_NUMERIC_KEYS,
+} from "@norish/shared/cooklang";
+
 /**
  * Input-size limiting for the Cooklang pipeline (Phase 27, T-27-01 / W3).
  *
@@ -100,6 +106,22 @@ import type { StructuredRecipe } from "@norish/shared/cooklang";
  * A source that passes both gates here is at most 64 KiB of what we believe to be
  * diagnostic-free, well-formed Cooklang — a good bet, and no longer a load-bearing
  * one.
+ *
+ * WHAT W3B THEN FIXED HERE, AS DEFENCE IN DEPTH (D-27-W3B-06 / D-27-W3B-07).
+ * The two holes above are closed at their root, and the fixes are shaped so that
+ * they can never again be a PREDICTION of what the parser dislikes:
+ *  - H1: the serializer now emits a CLOSED set of frontmatter keys
+ *    (`COOK_FRONTMATTER_KEYS`, imported below — not restated) whose values are
+ *    either a double-quoted scalar or a plain YAML number. This recognizer accepts
+ *    exactly that and refuses every other YAML construct — anchors, aliases, tags,
+ *    block scalars, flow collections, comments, multi-document markers, unquoted
+ *    values, duplicate keys, unknown keys — with a NAMED defect code each. It also
+ *    caps the block BY ARITHMETIC (the key set's size x the per-value maximum), which
+ *    is what kills the whole 65 KB H1 family at the door before any value is parsed.
+ * Neither claim restores the recognizer to load-bearing status. The bound stands
+ * whether these are complete or not; that is the whole point of the pivot, and the
+ * H1 payloads are proven bounded with no help from this file at all in
+ * `__tests__/cooklang/pool.test.ts`.
  *
  * DELIBERATELY NOT A ZOD `.max()` ON THE EXTRACTION SCHEMA (T-27-01b): a cap there
  * would make an oversize extraction fail the WHOLE import. A cap at the parser door
@@ -359,10 +381,27 @@ export function checkCookSourceLimits(cookSource: string): CookLimitBreach | nul
   return overLimit("maxCookSourceBytes", Buffer.byteLength(cookSource, "utf8"));
 }
 
-/** Why a `.cook` source is not something norish's own serializer could have written. */
+/**
+ * Why a `.cook` source is not something norish's own serializer could have written.
+ *
+ * ONE CODE PER REJECTION REASON, deliberately fine-grained across the frontmatter
+ * (D-27-W3B-06): a log must be able to distinguish "unknown key" from "unquoted
+ * value" from "duplicate key" from "oversize block" without carrying the source, and
+ * those codes are the operational signal W5's backfill triages on. A code is a
+ * REASON, never a quotation (T-27-05).
+ */
 export type CookSourceDefectCode =
   | "frontmatter-unterminated"
+  /** not a `key: value` line at all: a comment, `...`, an indented continuation */
   | "frontmatter-line"
+  /** shaped like `key: value`, but the key is not in the serializer's closed set */
+  | "frontmatter-key"
+  /** a key the serializer emits at most once, seen twice */
+  | "frontmatter-duplicate-key"
+  /** the value is neither a well-formed double-quoted scalar nor a plain number */
+  | "frontmatter-value"
+  /** more lines, or more characters, than the closed key set can arithmetically need */
+  | "frontmatter-too-large"
   | "malformed-heading"
   | "malformed-token"
   | "unescaped-metacharacter"
@@ -389,8 +428,151 @@ const COOK_METACHARACTERS = "\\@#~{}%=>-";
  */
 const HEADING_LINE = /^== (?:\\[^\n]|[^\\@#~{}%=>\-\n])* ==$/;
 
-/** A frontmatter line exactly as `buildFrontmatter` writes it: `key: value`. */
-const FRONTMATTER_LINE = /^[A-Za-z][A-Za-z0-9._-]*: .*$/;
+/**
+ * THE FRONTMATTER GRAMMAR (D-27-W3B-06 — the H1 root fix).
+ *
+ * What this replaced, and why it mattered: `FRONTMATTER_LINE = /^[A-Za-z][A-Za-z0-9._-]*: .*$/`
+ * constrained neither the KEY nor the VALUE, so `.*` accepted ARBITRARY YAML.
+ * `---\na: ${"[".repeat(65400)}\n---\nstep\n` — 65 417 bytes, inside every cap, no
+ * defect reported — cost the parser 24 557 ms / 38 511 ms and a 131 218-byte
+ * "recursion limit exceeded" report, and the balanced 25 000-/30 000-deep and
+ * `{`-nesting variants made it a monotone FAMILY rather than a lucky point.
+ *
+ * The grammar accepted here is EXACTLY what `buildFrontmatter` emits:
+ *
+ *     frontmatter := "---" NL ( line NL )+ "---" NL      // at most once, and FIRST
+ *     line        := KEY ": " VALUE
+ *     KEY         := a member of COOK_FRONTMATTER_KEYS, at most once each
+ *     VALUE       := number  (for a COOK_FRONTMATTER_NUMERIC_KEYS key)
+ *                  | quoted  (for every other key)
+ *     number      := "-"? DIGIT+ ( "." DIGIT+ )?
+ *     quoted      := '"' ( char | "\\\\" | '\\"' )+ '"'   // non-empty, trim-invariant
+ *     char        := anything but '"', '\', or a YAML-forbidden control (TAB is fine)
+ *
+ * The key set is IMPORTED from the serializer, never restated, and a two-way test
+ * walks it so a new key added there without teaching this file fails loudly instead
+ * of silently refusing every new recipe.
+ *
+ * A `---` block that is not the first thing in the source, and a SECOND `---` block,
+ * are refused by the body recognizer rather than here: `-` is a metacharacter, so a
+ * bare `---` line in the body is `unescaped-metacharacter`. There is nothing to add;
+ * the serializer escapes every `-` it writes into prose.
+ */
+const FRONTMATTER_KEYS: ReadonlySet<string> = new Set(COOK_FRONTMATTER_KEYS);
+const FRONTMATTER_NUMERIC_KEYS: ReadonlySet<string> = new Set(COOK_FRONTMATTER_NUMERIC_KEYS);
+
+/** Exactly the plain decimal notation `String(Number(x))` produces. */
+const FRONTMATTER_NUMBER = /^-?\d+(?:\.\d+)?$/;
+
+/**
+ * THE CAP THAT KILLS THE H1 FAMILY BY ARITHMETIC. The serializer emits each key at
+ * most once, so the largest frontmatter block it can possibly write is the sum, over
+ * the closed key set, of `key.length + ": ".length + COOK_FRONTMATTER_MAX_VALUE_CHARS
+ * + "\n".length` — about 6 KB against the 64 KiB source cap. Anything larger is a
+ * defect by arithmetic and is refused before a single value is examined, which is why
+ * a 65 KB frontmatter costs this gate one length comparison.
+ */
+const FRONTMATTER_MAX_CHARS = COOK_FRONTMATTER_KEYS.reduce(
+  (total, key) => total + key.length + 2 + COOK_FRONTMATTER_MAX_VALUE_CHARS + 1,
+  0
+);
+
+/**
+ * A character YAML may not carry raw, quoted or not ("control characters are not
+ * allowed at position N"). Mirrors `isYamlForbidden` in `@norish/shared/cooklang`'s
+ * serializer, which FOLDS these to a space before quoting — the folder and this
+ * recognizer are two halves of one contract, and `limits.test.ts` proves they agree
+ * by pushing every code point in the range through the real serializer.
+ *
+ * TAB is the one control character YAML allows, and the serializer's fold keeps it,
+ * so it is allowed here too.
+ *
+ * A code-point test rather than a regular expression on purpose: a character class
+ * of literal control escapes is what `no-control-regex` exists to flag.
+ */
+function isYamlForbidden(code: number): boolean {
+  if (code === 0x09) return false;
+
+  return code <= 0x1f || (code >= 0x7f && code <= 0x9f) || code === 0x2028 || code === 0x2029;
+}
+
+/**
+ * Decode a double-quoted YAML scalar exactly as `quoteYaml` encodes one, or return
+ * `null` if this is not such a scalar.
+ *
+ * Rejects, by construction: an unterminated quote (including one whose closing quote
+ * is escaped), a RAW `"` or `\` inside the body, any escape other than `\\` and `\"`,
+ * and any YAML-forbidden control character. Single left-to-right pass.
+ */
+function unquoteYamlScalar(value: string): string | null {
+  if (value.length < 2 || !value.startsWith('"') || !value.endsWith('"')) return null;
+
+  const closing = value.length - 1;
+  let decoded = "";
+  let index = 1;
+
+  while (index < closing) {
+    const char = value[index] ?? "";
+
+    if (char === "\\") {
+      const escaped = value[index + 1];
+
+      if (escaped !== "\\" && escaped !== '"') return null;
+
+      decoded += escaped;
+      index += 2;
+      continue;
+    }
+
+    if (char === '"') return null;
+    if (isYamlForbidden(char.codePointAt(0) ?? 0)) return null;
+
+    decoded += char;
+    index += 1;
+  }
+
+  // index > closing means the final `"` was consumed as an escape pair: unterminated.
+  return index === closing ? decoded : null;
+}
+
+/** Recognize one frontmatter line, consuming its key so a duplicate is a defect. */
+function findFrontmatterLineDefect(
+  line: string,
+  base: number,
+  seen: Set<string>
+): CookSourceDefect | null {
+  const separator = line.indexOf(": ");
+
+  if (separator < 0) return { defect: "frontmatter-line", offset: base };
+
+  const key = line.slice(0, separator);
+  const value = line.slice(separator + 2);
+
+  if (!FRONTMATTER_KEYS.has(key)) return { defect: "frontmatter-key", offset: base };
+  if (seen.has(key)) return { defect: "frontmatter-duplicate-key", offset: base };
+
+  seen.add(key);
+
+  const valueOffset = base + separator + 2;
+
+  if (value.length > COOK_FRONTMATTER_MAX_VALUE_CHARS) {
+    return { defect: "frontmatter-too-large", offset: valueOffset };
+  }
+
+  if (FRONTMATTER_NUMERIC_KEYS.has(key)) {
+    return FRONTMATTER_NUMBER.test(value) ? null : { defect: "frontmatter-value", offset: valueOffset };
+  }
+
+  const decoded = unquoteYamlScalar(value);
+
+  // Non-empty and trim-invariant: `quoteYaml` folds, trims and OMITS an empty value,
+  // so `key: ""` and `key: " a "` are not shapes the serializer can produce.
+  if (decoded === null || decoded === "" || decoded.trim() !== decoded) {
+    return { defect: "frontmatter-value", offset: valueOffset };
+  }
+
+  return null;
+}
 
 /**
  * A character that may appear RAW in a BARE `@name` token. Mirrors the serializer's
@@ -575,12 +757,23 @@ export function findCookSourceDefect(cookSource: string): CookSourceDefect | nul
 
     if (end < 0) return { defect: "frontmatter-unterminated", offset: 0 };
 
+    // BY ARITHMETIC FIRST: one length comparison refuses the whole H1 family before
+    // any line is split or any value examined.
+    if (end - 4 > FRONTMATTER_MAX_CHARS) return { defect: "frontmatter-too-large", offset: 4 };
+
+    const lines = cookSource.slice(4, end).split("\n");
+
+    if (lines.length > COOK_FRONTMATTER_KEYS.length) {
+      return { defect: "frontmatter-too-large", offset: 4 };
+    }
+
+    const seen = new Set<string>();
     let lineStart = 4;
 
-    for (const line of cookSource.slice(4, end + 1).split("\n")) {
-      if (line !== "" && !FRONTMATTER_LINE.test(line)) {
-        return { defect: "frontmatter-line", offset: lineStart };
-      }
+    for (const line of lines) {
+      const defect = findFrontmatterLineDefect(line, lineStart, seen);
+
+      if (defect) return defect;
 
       lineStart += line.length + 1;
     }

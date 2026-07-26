@@ -9,7 +9,12 @@ import { describe, expect, it } from "vitest";
 import type { UnitsMap } from "@norish/config/zod/server-config";
 import type { StructuredRecipe } from "@norish/shared/cooklang";
 import defaultUnits from "@norish/config/units.default.json";
-import { serializeWithReport, structuredToCooklang } from "@norish/shared/cooklang";
+import {
+  COOK_FRONTMATTER_KEYS,
+  COOK_FRONTMATTER_MAX_VALUE_CHARS,
+  serializeWithReport,
+  structuredToCooklang,
+} from "@norish/shared/cooklang";
 
 import { fixtures } from "./fixtures";
 
@@ -44,8 +49,15 @@ describe("structuredToCooklang — document shape", () => {
     const cook = structuredToCooklang(recipeOf("bolognese"));
 
     expect(cook.startsWith("---\n")).toBe(true);
-    expect(cook).toContain("title: Spaghetti Bolognese");
-    expect(cook).toContain("norish.system: metric");
+    // REWRITTEN IN W3B (D-27-W3B-06 — H1), AND SAID OUT LOUD: these two assertions
+    // used to read `title: Spaghetti Bolognese` and `norish.system: metric`, i.e.
+    // they pinned UNQUOTED plain-scalar emission. That is what forced the recognizer
+    // to accept plain scalars — and therefore very nearly arbitrary YAML — which is
+    // the hole a 65 417-byte `a: [[[[…` frontmatter walked through (24-38 s of parse
+    // time). Every non-numeric value is quoted unconditionally now, so the value
+    // grammar is exactly `"…"` or a plain number.
+    expect(cook).toContain('title: "Spaghetti Bolognese"');
+    expect(cook).toContain('norish.system: "metric"');
   });
 
   it("emits numeric metadata UNQUOTED so the parser reports no diagnostic", () => {
@@ -154,6 +166,169 @@ describe("structuredToCooklang — ingredient tokens", () => {
     expect(cook).toContain("@brown sugar{50%gram}");
     expect(cook).toContain("@sugar syrup{100%milliliter}");
     expect(cook).not.toContain("brown @sugar");
+  });
+});
+
+/**
+ * H1 (D-27-W3B-06) — THE FRONTMATTER IS A CLOSED SHAPE, ASSERTED AT THE EMITTER.
+ *
+ * The recognizer in `@norish/shared-server/cooklang/limits` accepts exactly two
+ * value shapes, `"…"` and a plain number, and imports `COOK_FRONTMATTER_KEYS` from
+ * here so the key set has ONE definition. These tests are the emitter's half: what
+ * comes out is inside that grammar for every input, including the inputs that used
+ * to slip out unquoted.
+ */
+describe("structuredToCooklang — the closed frontmatter shape (H1)", () => {
+  /** The frontmatter lines of a `.cook`, without the `---` fences. */
+  function frontmatterLinesOf(cook: string): string[] {
+    const end = cook.indexOf("\n---\n", 3);
+
+    expect(cook.startsWith("---\n")).toBe(true);
+    expect(end).toBeGreaterThan(0);
+
+    return cook.slice(4, end).split("\n");
+  }
+
+  const HOSTILE_METADATA = [
+    "[".repeat(400),
+    "{".repeat(400),
+    "&anchor",
+    "*alias",
+    "!!str x",
+    "| block",
+    "> folded",
+    "# comment",
+    "a: b",
+    "---",
+    "...",
+    '"quoted"',
+    "back\\slash",
+    "1.50",
+    "0",
+    "@@@@ ####",
+    "  padded  ",
+    "\ttabbed\t",
+    "tab\tinside",
+    "line\nbreak",
+    "180°C (350°F)",
+    "麻婆豆腐",
+    "Café @ Home",
+  ];
+
+  it("emits only `key: \"…\"` or `key: <number>`, for every hostile metadata value", () => {
+    const failures: string[] = [];
+
+    for (const hostile of HOSTILE_METADATA) {
+      const cook = structuredToCooklang(
+        {
+          name: hostile,
+          source: hostile,
+          servings: 4,
+          prepMinutes: 15,
+          systemUsed: "metric",
+          steps: [{ text: "Mix it.", order: 0, ingredients: [] }],
+        },
+        unitsConfig
+      );
+
+      for (const line of frontmatterLinesOf(cook)) {
+        const separator = line.indexOf(": ");
+        const key = line.slice(0, separator);
+        const value = line.slice(separator + 2);
+        const shaped =
+          COOK_FRONTMATTER_KEYS.includes(key as (typeof COOK_FRONTMATTER_KEYS)[number]) &&
+          (/^-?\d+(?:\.\d+)?$/.test(value) ||
+            (value.startsWith('"') && value.endsWith('"') && value.length > 2));
+
+        if (!shaped) failures.push(`${JSON.stringify(hostile)} -> ${JSON.stringify(line)}`);
+      }
+    }
+
+    expect(failures).toEqual([]);
+  });
+
+  it("keeps `servings` a BARE number and quotes everything else", () => {
+    const cook = structuredToCooklang(
+      {
+        name: "Quoted",
+        servings: 4,
+        prepMinutes: 15,
+        cookMinutes: 30,
+        source: "https://example.test/a",
+        systemUsed: "us",
+        steps: [{ text: "Mix it.", order: 0, ingredients: [] }],
+      },
+      unitsConfig
+    );
+
+    expect(cook).toContain("\nservings: 4\n");
+    expect(cook).toContain('title: "Quoted"');
+    expect(cook).toContain('time.prep: "15 min"');
+    expect(cook).toContain('time.cook: "30 min"');
+    expect(cook).toContain('source: "https://example.test/a"');
+    expect(cook).toContain('norish.system: "us"');
+  });
+
+  it("OMITS a key rather than emitting a value the recognizer would refuse", () => {
+    // A `source` longer than the per-value maximum, and a `servings` that
+    // `String(Number(x))` renders in exponential notation, are both unrepresentable
+    // inside the closed grammar. Dropping optional METADATA keeps the recipe's
+    // `cook_source` (the DB columns remain the source of truth for both fields);
+    // emitting them unrecognizably would cost the recipe its whole read model.
+    const cook = structuredToCooklang(
+      {
+        name: "Edge",
+        servings: 1e21,
+        source: `https://example.test/${"a".repeat(COOK_FRONTMATTER_MAX_VALUE_CHARS)}`,
+        systemUsed: "metric",
+        steps: [{ text: "Mix it.", order: 0, ingredients: [] }],
+      },
+      unitsConfig
+    );
+
+    expect(cook).not.toContain("servings:");
+    expect(cook).not.toContain("source:");
+    expect(cook).toContain('title: "Edge"');
+
+    for (const line of frontmatterLinesOf(cook)) {
+      expect(line.slice(line.indexOf(": ") + 2).length).toBeLessThanOrEqual(
+        COOK_FRONTMATTER_MAX_VALUE_CHARS
+      );
+    }
+  });
+
+  it("emits an all-whitespace metadata value as NO key at all", () => {
+    const cook = structuredToCooklang(
+      {
+        name: "   ",
+        source: " \t ",
+        systemUsed: "metric",
+        steps: [{ text: "Mix it.", order: 0, ingredients: [] }],
+      },
+      unitsConfig
+    );
+
+    expect(frontmatterLinesOf(cook)).toEqual(['norish.system: "metric"']);
+  });
+
+  it("emits each key at most once, in the closed set's order", () => {
+    const keys = frontmatterLinesOf(
+      structuredToCooklang(
+        {
+          name: "Ordered",
+          servings: 2,
+          prepMinutes: 5,
+          cookMinutes: 10,
+          source: "https://example.test/b",
+          systemUsed: "metric",
+          steps: [{ text: "Mix it.", order: 0, ingredients: [] }],
+        },
+        unitsConfig
+      )
+    ).map((line) => line.slice(0, line.indexOf(": ")));
+
+    expect(keys).toEqual([...COOK_FRONTMATTER_KEYS]);
+    expect(new Set(keys).size).toBe(keys.length);
   });
 });
 

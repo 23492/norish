@@ -11,11 +11,15 @@ import { shutdownCookParsePool } from "../../src/cooklang/pool";
 
 const unitsConfig = defaultUnits as UnitsMap;
 
+// Hand-written in the shape `structuredToCooklang` emits, which since W3B
+// (D-27-W3B-06 — H1) QUOTES every non-numeric metadata value: the recognizer accepts
+// a quoted scalar or a plain number and nothing else, so `title: Chocolate Chip
+// Cookies` unquoted is no longer serializer output and `parseCookSource` refuses it.
 const COOK = [
   "---",
-  "title: Chocolate Chip Cookies",
+  'title: "Chocolate Chip Cookies"',
   "servings: 24",
-  "norish.system: metric",
+  'norish.system: "metric"',
   "---",
   "== Dough ==",
   "",

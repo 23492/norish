@@ -15,7 +15,11 @@ export type {
   StructuredStep,
   StructuredTimerRef,
 } from "./types";
+export type { CookFrontmatterKey } from "./serialize";
 export {
+  COOK_FRONTMATTER_KEYS,
+  COOK_FRONTMATTER_MAX_VALUE_CHARS,
+  COOK_FRONTMATTER_NUMERIC_KEYS,
   escapeCookText,
   formatCooklangIngredient,
   formatCooklangTimer,

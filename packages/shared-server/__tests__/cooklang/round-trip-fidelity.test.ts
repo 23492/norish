@@ -404,7 +404,10 @@ describe("soundness: the serializer can NEVER produce a source the recognizer re
       units
     );
 
-    expect(cook).toContain("title: Roast Beef");
+    // QUOTED since W3B (D-27-W3B-06): every non-numeric metadata value is quoted
+    // unconditionally, which is what lets the recognizer accept `"…"` or a number and
+    // nothing else. The fold itself is unchanged — the NUL is still a space.
+    expect(cook).toContain('title: "Roast Beef"');
     expect(findCookSourceDefect(cook)).toBeNull();
     expect(await parseCookSource(cook, units)).not.toBeNull();
   });
