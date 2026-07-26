@@ -797,3 +797,243 @@ H1/H2/H3 fixes are **untouched** (Tasks 3/4 own those). No `as any`, no `@ts-ign
    costs more than 506 ms of CPU, which is a **measurement to redo**, not a knob to
    turn. `pool-timeout` now means a stuck child and should be near-zero; if it is not,
    that is a bug report, not a tuning signal.
+
+---
+
+# 14. Tasks 3 and 4 — the H1 / H2 / H3 root fixes
+
+**Commits:** `5cdfc8aa` (Task 3, H1) · `d3848c54` (Task 4, H2 + H3) · this commit (the
+record). Nothing pushed. Tree `main`, DB at migration **42**,
+`packages/db/src/migrations/` and `meta/_journal.json` untouched, `pnpm-lock.yaml`
+untouched. The nine `COOK_LIMITS` are unchanged and still asserted literally;
+`COOK_BOUNDS`, `pool.ts`, `parse-worker.ts`, `apps/web/tsdown.config.ts` and
+`pool.test.ts` were **not touched** (Tasks 1/2/5 own them, and another stream was
+editing them concurrently). No `as any`, no `@ts-ignore`, no `@ts-expect-error`. W4/W5/W6
+untouched.
+
+**Files changed (9).** `packages/shared/src/cooklang/serialize.ts`,
+`packages/shared/src/cooklang/index.ts`, `packages/shared/src/lib/ingredient-token.ts`,
+`packages/shared/__tests__/cooklang/serialize.test.ts`,
+`packages/shared-server/src/cooklang/limits.ts`,
+`packages/shared-server/__tests__/cooklang/limits.test.ts`,
+`packages/shared-server/__tests__/cooklang/round-trip-fidelity.test.ts`,
+`packages/shared-server/__tests__/cooklang/parse.test.ts`, and — forced by the emission
+change, two assertions only —
+`packages/api/__tests__/ai/features/recipe-extraction/cook-payload.test.ts`.
+
+## 14.1 H1 — the key set and the value grammar as landed (D-27-W3B-06)
+
+**The closed key set, derived from `buildFrontmatter`'s code and now exported from it as
+the single source of truth:**
+
+```ts
+COOK_FRONTMATTER_KEYS = ["title", "servings", "time.prep", "time.cook", "source", "norish.system"] as const
+COOK_FRONTMATTER_NUMERIC_KEYS = ["servings"] as const   // Cooklang TYPES servings as a number
+COOK_FRONTMATTER_MAX_VALUE_CHARS = 1_002                // = 2 x maxRecipeNameChars + 2
+```
+
+`buildFrontmatter` is typed against the tuple, so `tsc` refuses a key that is not a
+member; `limits.ts` IMPORTS all three constants rather than restating them.
+
+**The value grammar:**
+
+```
+frontmatter := "---" NL ( line NL )+ "---" NL     // at most one block, and FIRST
+line        := KEY ": " VALUE                    // each KEY at most once
+KEY         := a member of COOK_FRONTMATTER_KEYS
+VALUE       := number   (for a numeric key)  |  quoted  (for every other key)
+number      := "-"? DIGIT+ ( "." DIGIT+ )?       // plain decimal only; no 1e+21
+quoted      := '"' ( char | "\\" | '\"' )+ '"'   // NON-EMPTY and trim-invariant
+char        := anything but '"', '\', or a YAML-forbidden control (TAB is allowed)
+```
+
+**THE ONE DECISION THAT CONTRADICTS §"What Tasks 3, 4 and 6 must still pick up".** That
+section advised that the grammar "must accept both" quoted and unquoted values, "or
+every real recipe is refused". I did the opposite and **changed the EMITTER instead**:
+every non-numeric value is now quoted **unconditionally**, and the old
+`PLAIN_YAML_SCALAR` branch is deleted. Reason: that branch was
+`/^[\p{L}\p{N}][^\r\n:#"]*$/u`, so `title: a [[[[[…` — 65 000 flow-sequence characters
+under a KNOWN key — was legitimate serializer output. Accepting plain scalars therefore
+means accepting very nearly arbitrary YAML, which is the H1 hole with one extra step.
+Quoting collapses the value space to two shapes a recognizer can assert. Verified against
+the real WASM: `title: "Spaghetti Bolognese"`, `norish.system: "metric"` and a 5 000-char
+quoted `[`-flood all parse with an **empty report** (the flood in 42 ms — quoting also
+removes the recursion, though the length cap makes that moot).
+
+**Values that cannot be expressed inside the grammar OMIT THEIR KEY** rather than being
+emitted unrecognizably: an all-whitespace value, a `source` whose quoted form exceeds
+1 002 chars, and a `servings` that `String(Number(x))` renders exponentially. Optional
+metadata is dropped, the recipe keeps its `cook_source`, and the DB columns remain the
+source of truth for all of these fields. A `title` cannot reach the cap in practice —
+`checkStructuredRecipeLimits` caps the name at 500 and quoting at most doubles it, which
+is exactly where 1 002 comes from.
+
+**What the H1 payloads do NOW — refused by the recognizer, not merely bounded:**
+
+| input | bytes | before | now |
+|---|---:|---|---|
+| `---\na: ${"[".repeat(65400)}\n---\nstep\n` | 65 417 | `null`, 24 557 / 38 511 ms | **`frontmatter-too-large`** (one length comparison) |
+| balanced 25 000-deep `[`/`]` | 50 017 | `null`, 4 838 ms | **`frontmatter-too-large`** |
+| balanced 30 000-deep `[`/`]` | 60 017 | `null`, 8 256 ms | **`frontmatter-too-large`** |
+| `{`-nesting variant | 60 017 | `null`, 10 489 ms | **`frontmatter-too-large`** |
+| `title: @@@@ ####` | 30 | `null`, diagnostics | **`frontmatter-value`** |
+| `a: &x [*x]` | 24 | `null`, diagnostics | **`frontmatter-key`** |
+
+The four big ones die on the **arithmetic block cap** (6 080 chars max, from the key set
+x the per-value maximum) before any value is examined; shortened variants of the same
+payloads die on `frontmatter-value` / `frontmatter-key`. Both `title: @@@@ ####` and
+`a: &x [*x]` are refused.
+
+**Six named defect codes**, so a log can triage without carrying the source:
+`frontmatter-unterminated`, `frontmatter-line` (not `key: value` at all — a comment,
+`...`, an indented continuation), `frontmatter-key`, `frontmatter-duplicate-key`,
+`frontmatter-value`, `frontmatter-too-large`. A second `---` block and a `---` block that
+is not first are refused by the BODY recognizer as `unescaped-metacharacter` (`-` is a
+metacharacter and the serializer escapes every `-` it writes) — no new code needed, and
+both are asserted.
+
+**The bound half of the criterion was NOT duplicated.** Task 3's second acceptance
+criterion (every H1 payload proven bounded with the recognizer stubbed to `null`) is
+already carried by `pool.test.ts`, which drives all four H1 payloads plus the round-1
+bypass THROUGH the pool with no recognizer in the way at all. That file belongs to
+Tasks 1/2 and was being edited concurrently, so re-asserting the same property in
+`limits.test.ts` would have added a slow duplicate and a merge conflict for no new
+information. The two proofs remain independent, which is the point of the pivot.
+
+## 14.2 H2 — confirmed for all three sigils, fixed on both sides (D-27-W3B-07)
+
+Re-confirmed on this tree before fixing: `@a{ %g}`, `~a{ %m}`, `#a{ %g}` and `~a{ % }`
+each raise `RuntimeError: unreachable`; `@a{ }` does not trap but is equally not
+serializer output. All of them returned `null` from `findCookSourceDefect` before this
+commit. All are now `malformed-token`, together with the no-trailing-newline, TAB and
+NBSP variants of each sigil, and the padded/doubled-space forms (`{1 %g}`, `{ 1%g}`,
+`{1% g}`, `{1%g }`, `{1  1/2%g}`, `{1%fl  oz}`).
+
+- **Emission.** The serializer already trimmed via `escapeTokenText`, but
+  `formatTokenAmount(" ")` returned **`"0"`** (`Number(" ")` is `0`), so a blank amount
+  emitted `@flour{0%gram}` — inventing a quantity, and rendering "0 gram" on the read
+  side. A blank amount is now NO amount, exactly like `""`: the token degrades to
+  `@salt` / `@sea salt{}` and **the ref is never dropped** (the projection builds
+  ingredient rows from the tokens). That is the only behaviour change on this side, and
+  it is a fidelity improvement, not just a hardening.
+- **`#cookware` — established explicitly, as the plan required:** the serializer emits
+  cookware **nowhere** (only `@` and `~`). So the emission half is a **no-op for `#`**;
+  the recognizer still refuses the `#` form, because a `#` token in a serializer-authored
+  source is by definition not serializer-shaped.
+- **Recognition.** `matchTokenBody` now mirrors `escapeTokenText` **per segment**
+  (leading / trailing / doubled whitespace is a defect) instead of counting characters —
+  counting is precisely what let a space through. The same rule is applied to the token
+  **NAME**, which goes through the same escaper: `@ flour{1%cup}`, `@flour {1%cup}`,
+  `@brown  sugar{1%cup}` and `~ rest{5%minutes}` are refused too. Internal SINGLE spaces
+  stay legal (`{1 1/2%cup}`, a `fl oz` unit, `@sea salt{}`), because over-tightening here
+  is exactly how round 1 failed.
+- **Containment is asserted separately**: `parseInPool` is called DIRECTLY with all three
+  trap shapes (recognizer bypassed), each resolves `null`, the parent survives, and the
+  pool still serves a good source afterwards.
+
+## 14.3 H3 — the span fix, and the test dimension that was missing (D-27-W3B-08)
+
+`findNameIndex` is now `findNameSpan`, returning `{ index, length }` — the **matched**
+span — and `splitFragment` slices by `length`. Confirmed before and after:
+
+| ingredient name | step prose | before | now |
+|---|---|---|---|
+| `"flour "` | `Add flour now.` | `Add @flour{1%cup}now.` | `Add @flour{1%cup} now.` |
+| `" flour"` | `Add flour now.` | `Add @flour{1%cup}now.` | `Add @flour{1%cup} now.` |
+| `" flour "` | `Add flour now.` | `Add @flour{1%cup}ow.` (2 chars gone) | `Add @flour{1%cup} now.` |
+| `"brown  sugar"` | `Add brown sugar into the bowl.` | `…{1%cup}into the bowl.` | `…{1%cup} into the bowl.` |
+| `"brown   sugar"` | `Add brown sugar into the bowl.` | `…{1%cup}nto the bowl.` (ate the `i`) | `…{1%cup} into the bowl.` |
+
+**`toLowerCase()` is not length-preserving**, so the span is measured in the ORIGINAL
+string's coordinates through an explicit per-code-unit fold map (`foldCase`): `"İ"`
+lowercases to two code units, and folding the whole string then using folded indices
+against the original would have reintroduced the same off-by-N through a different door.
+A lone surrogate lowercases to itself, so surrogate pairs survive.
+
+**The new tests vary the REF NAME, not the prose** — that is the dimension the existing
+45-test suite structurally lacked (it varies prose exhaustively and always passes a clean
+name, so the two lengths were always equal). Leading, trailing, both, internal double,
+internal triple, TAB, NBSP, a newline, mixed, and a length-changing lowercase name, each
+crossed with the ref at the **start**, the **middle** and the **end** of the step: 30
+byte-identical `serialize -> REAL parser -> project` round trips in
+`round-trip-fidelity.test.ts`, plus the emitter-side equivalents in `serialize.test.ts`,
+plus the four measured artefacts pinned by name (including an explicit
+`not.toBe("Add flournow.")`). **No existing assertion was weakened or deleted to
+accommodate any of this.**
+
+## 14.4 Assertions that PINNED the old wrong behaviour, rewritten loudly
+
+Four, all of them pinning the emitted frontmatter shape or the H1 hole itself:
+
+1. `limits.test.ts`: `expect(findCookSourceDefect("---\ntitle: X\n---\n\nstep\n")).toBeNull()`
+   — it **asserted that an unquoted value is accepted**, i.e. it pinned the H1 hole. Now
+   asserts `frontmatter-value`, with the reason in a comment.
+2. `serialize.test.ts`: `title: Spaghetti Bolognese` and `norish.system: metric` →
+   quoted.
+3. `round-trip-fidelity.test.ts`: `title: Roast Beef` → `title: "Roast Beef"` (the
+   control-character FOLD it tests is unchanged).
+4. `parse.test.ts` and `api/…/cook-payload.test.ts`: hand-written frontmatter quoted.
+
+The `api` file is outside Tasks 3/4's `<files>`; I edited **two assertion lines** there
+because my emission change would otherwise have left that suite knowingly red for the
+consolidated gate. Nothing else in `packages/api` was touched.
+
+## 14.5 No regression into false refusals — re-verified explicitly
+
+- **The 14 realistic recipes are now a COMMITTED corpus** in `limits.test.ts` (they were
+  a hand-run verify-round list before): the pot roast (`@` / `#` / `~` shorthand),
+  `2% milk`, `70% dark chocolate`, `S&P`, `Ben & Jerry's`, `3-4 cloves`, `1/2 tsp`,
+  `180°C (350°F)`, Dutch (`± 200 g`, `2½ uur`), CJK (`麻婆豆腐`), `Café @ Home blend`,
+  `{filtered} water`, `jalapeño #2`, and a numeric title `1.50` with `to taste`. Each is
+  asserted to pass every cap, produce **no defect**, and come back from the REAL parser
+  with a read model. All 14 mint.
+- The five committed fixtures still serialize, pass both gates and round-trip, with **no
+  fixture and no fixture assertion edited**.
+- Round-trip fidelity is still byte-identical, and the two documented normalizations are
+  unchanged and still the only two: CR/LF in prose folds to a space, and an unpaired
+  UTF-16 surrogate becomes U+FFFD. **No third normalization was introduced** — the H2
+  amount change removes an invented `0`, and the H3 fix removes a deletion.
+- `parser.extensions = 0` untouched; `180°C` and `1.50 kg` still round-trip verbatim.
+
+## 14.6 Gates
+
+| gate | result |
+|---|---|
+| real `tsc --noEmit -p packages/shared/tsconfig.json` | **EXIT 0**, zero output (redirected to a file; `tsc \| head` lies) |
+| real `tsc --noEmit -p packages/shared-server/tsconfig.json` | **EXIT 0**, zero output |
+| `@norish/shared` test | **319 passed / 15 files** (was 295 — +24) |
+| `@norish/shared-server` test | **545 passed / 22 files** (was 432 — +113), full-suite run |
+| `@norish/api` `cook-payload.test.ts` | **25 passed** |
+| `@norish/shared-react` `ingredient-links.test.ts` | **9 passed** (it consumes `formatTokenAmount`) |
+| eslint on every touched source file | **0 errors, 0 warnings** |
+| `grep maxCookMalformedTokens\|countMalformedCookTokens` | 5 hits, **all prose in docblocks**, no code |
+| DB migration | **42**, `migrations/` + `meta/_journal.json` untouched |
+
+**Per the concurrency instructions I did NOT run the full monorepo gate** — three other
+streams were editing `apps/mobile`, `packages/shared-react` and the pool in the same tree.
+One transient failure is worth recording honestly: in the first full `@norish/shared-server`
+run, `pool.test.ts`'s "warm p50 round trip is under 5 ms" measured **5.43 ms** and failed.
+It is a wall-clock latency measurement in **another stream's file**, it passed in isolation
+and in the later full run, and my change does not touch that path (that test parses a
+hand-written source through the pool). It is the same contention sensitivity §13 documents
+for wall-clock assertions, not a regression from Tasks 3/4.
+
+## 14.7 Three things the director should know
+
+1. **A `.cook` written by the PRE-Task-3 serializer is now REFUSED on the read and copy
+   paths** (unquoted plain scalars are no longer serializer-shaped). Live data is
+   confirmed clean — **0 rows with a non-NULL `cook_source`** — so the blast radius today
+   is zero, and any row written from here on is written by the new serializer. But this is
+   the one place where an existing row's behaviour changes, and if W5's backfill ever
+   reads rows minted between `f7bcecb8` and this commit, it must re-serialize rather than
+   re-parse. It also settles **director exit item 4**: no H3 data audit is needed, because
+   there are no rows to audit.
+2. **`findCookSourceDefect` is still not the guarantee, and the docblocks now say so in
+   both directions.** The H1/H2 fixes are recorded as defence in depth with an explicit
+   pointer to `pool.test.ts` for the bound. Please keep that framing in review — the same
+   mistake has now been available in three separate places.
+3. **Task 6 (adversarial verification) is still NOT DONE** and is not mine. Two obvious
+   weakenings for the new grammar, in the same style as W3B-W1/W2: (a) restore the
+   `PLAIN_YAML_SCALAR` branch in `quoteYaml` and confirm the H1 artefact tests go RED;
+   (b) revert `matchTokenBody` to counting characters and confirm the H2 tests go RED.
+   Both revert cleanly and neither should ever be committed.
