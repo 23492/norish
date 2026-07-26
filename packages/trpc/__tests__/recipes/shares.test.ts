@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { TRPCError } from "@trpc/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   createMockAuthedContext,
@@ -797,6 +797,66 @@ describe("recipe share procedures", () => {
     );
   });
 
+  /**
+   * T-27-07 — THE COPY PATH IS A DOOR NOW, NOT A CARRY-ACROSS.
+   *
+   * `copyRecipeForSave` used to derive `cook` itself from the source DTO, so a
+   * stored `cook_source` (and its tokens) travelled into a brand-new row with no
+   * re-parse, no size cap, no recognizer and no resource bound. These two tests pin
+   * the replacement: the resolver re-proves the source through `parseCookSource` and
+   * hands the repository what IT parsed, or `null`.
+   */
+  it("RE-PROVES a good source .cook and hands the repository freshly parsed tokens", async () => {
+    const caller = recipeSharesProcedures.createCaller(authedCtx as never);
+    const goodCook = "Whisk the @flour{200%gram} and @milk{300%milliliter}.\n";
+
+    mockActivePublicShare(
+      createMockFullRecipe({ id: recipeId, visibility: "public", cookSource: goodCook })
+    );
+    copyRecipeForSaveMock.mockResolvedValue(savedRecipeId);
+    dashboardRecipeMock.mockResolvedValue(createMockRecipeDashboard({ id: savedRecipeId }));
+
+    await caller.saveShared({ token: "valid-token" });
+
+    expect(copyRecipeForSaveMock).toHaveBeenCalledTimes(1);
+
+    const cook = copyRecipeForSaveMock.mock.calls[0]![4];
+
+    // Not carried across on trust: these tokens are the ones the BOUNDED parse
+    // produced for those source bytes, in a child process, just now.
+    expect(cook).not.toBeNull();
+    expect(cook.cookSource).toBe(goodCook);
+    expect(cook.cookTokens[0].tokens).toEqual([
+      { type: "text", value: "Whisk the " },
+      { type: "ingredient", name: "flour", amount: 200, unit: "gram" },
+      { type: "text", value: " and " },
+      { type: "ingredient", name: "milk", amount: 300, unit: "milliliter" },
+      { type: "text", value: "." },
+    ]);
+  });
+
+  it("passes cook = NULL for a POISONED source .cook, and the save still SUCCEEDS", async () => {
+    const caller = recipeSharesProcedures.createCaller(authedCtx as never);
+
+    // The H1 artefact: 65 400 `[` in frontmatter, measured at 24 557 ms in-process.
+    const poisoned = `---\na: ${"[".repeat(65_400)}\n---\nstep\n`;
+
+    mockActivePublicShare(
+      createMockFullRecipe({ id: recipeId, visibility: "public", cookSource: poisoned })
+    );
+    copyRecipeForSaveMock.mockResolvedValue(savedRecipeId);
+    dashboardRecipeMock.mockResolvedValue(createMockRecipeDashboard({ id: savedRecipeId }));
+
+    const startedAt = performance.now();
+    const result = await caller.saveShared({ token: "valid-token" });
+
+    // The user's save is NOT broken by a poisoned row, and NOT stalled by one.
+    expect(result).toEqual({ recipeId: savedRecipeId });
+    expect(performance.now() - startedAt).toBeLessThan(5_000);
+    expect(copyRecipeForSaveMock).toHaveBeenCalledTimes(1);
+    expect(copyRecipeForSaveMock.mock.calls[0]![4]).toBeNull();
+  });
+
   it("does NOT save a PRIVATE recipe reached via a valid token (mirrors the SHARE-01 gate)", async () => {
     const caller = recipeSharesProcedures.createCaller(authedCtx as never);
 
@@ -847,4 +907,14 @@ describe("recipe share procedures", () => {
     });
     expect(copyRecipeForSaveMock).not.toHaveBeenCalled();
   });
+});
+
+/**
+ * R4: `saveShared` now re-proves a source `.cook` through the bounded pool, so this
+ * suite spawns child processes. Vitest will not exit while one lives.
+ */
+afterAll(async () => {
+  const { shutdownCookParsePool } = await import("@norish/shared-server/cooklang/pool");
+
+  shutdownCookParsePool();
 });

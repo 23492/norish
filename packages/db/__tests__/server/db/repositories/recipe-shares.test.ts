@@ -343,7 +343,13 @@ describe("recipe share repository", () => {
     });
     const newRecipeId = randomUUID();
 
-    const createdId = await copyRecipeForSave(source, saver.id, saverCookbook.id, newRecipeId);
+    const createdId = await copyRecipeForSave(
+      source,
+      saver.id,
+      saverCookbook.id,
+      newRecipeId,
+      null
+    );
 
     expect(createdId).toBe(newRecipeId);
     expect(createdId).not.toBe(testRecipeId);
@@ -386,7 +392,7 @@ describe("recipe share repository", () => {
     const saver = await createTestUser({ name: "Solo Saver" });
     const newRecipeId = randomUUID();
 
-    const createdId = await copyRecipeForSave(source, saver.id, null, newRecipeId);
+    const createdId = await copyRecipeForSave(source, saver.id, null, newRecipeId, null);
 
     const copy = (await getRecipeFull(createdId!))!;
 

@@ -354,11 +354,16 @@ describe("W2 write path — the optional server-authored `cook` argument", () =>
 
       expect(source?.cookSource).toBe(COOK_SOURCE);
 
-      // getRecipeFull never parses (D-27-W2-09), so hand the tokens in as the
-      // read path's `withCookTokens` would have.
+      // T-27-07: `cook` is now a REQUIRED argument that the CALLER must have
+      // proven — the repository no longer derives it from `source`, so a stored
+      // `.cook` can never ride across on trust. `@norish/db` stays parser-free, so
+      // this test plays the role `revalidateCookPayload` plays in production.
       const copyId = crypto.randomUUID();
 
-      await copyRecipeForSave({ ...source!, cookTokens: COOK_TOKENS }, userId, householdId, copyId);
+      await copyRecipeForSave(source!, userId, householdId, copyId, {
+        cookSource: COOK_SOURCE,
+        cookTokens: COOK_TOKENS,
+      });
 
       expect(await cookSourceOf(copyId)).toBe(COOK_SOURCE);
 
@@ -380,10 +385,71 @@ describe("W2 write path — the optional server-authored `cook` argument", () =>
       const source = await getRecipeFull(sourceId);
       const copyId = crypto.randomUUID();
 
-      await copyRecipeForSave(source!, userId, householdId, copyId);
+      await copyRecipeForSave(source!, userId, householdId, copyId, null);
 
       expect(await cookSourceOf(copyId)).toBeNull();
       expect(await ingredientRows(copyId)).toHaveLength(2);
+    });
+
+    /**
+     * T-27-07 — THE HOLE THIS CLOSED.
+     *
+     * `copyRecipeForSave` used to build its own `cook` as
+     * `source.cookSource && source.cookTokens ? {...} : undefined`, so a poisoned
+     * `cook_source` on the SOURCE row rode across into the copy verbatim — no
+     * re-parse, no size cap, no recognizer, no bound. It was latent only because
+     * `getRecipeFull` never populates `cookTokens`, which W4 changes.
+     *
+     * The structural fix is that `cook` is now a REQUIRED parameter the caller must
+     * have proven, so there is no code path left that can derive it from `source`.
+     * This test pins that: a source row carrying a poisoned `cook_source` and
+     * matching tokens cannot put ANYTHING in the copy unless the caller passes it,
+     * and passing `null` (what `revalidateCookPayload` returns for a source that
+     * does not prove out) still produces a complete, successful copy.
+     */
+    it("cannot carry a POISONED source .cook across — copy lands NULL, with a full projection", async () => {
+      const sourceId = crypto.randomUUID();
+
+      // A source row whose `.cook` would never survive re-validation: 65 400 `[`
+      // in frontmatter, the H1 artefact that parsed for 24 557 ms in-process.
+      const poisoned = `---\na: ${"[".repeat(65_400)}\n---\nstep\n`;
+
+      await createRecipeWithRefs(sourceId, userId, householdId, insertPayload(), {
+        cookSource: poisoned,
+        cookTokens: COOK_TOKENS,
+      });
+
+      const source = await getRecipeFull(sourceId);
+
+      expect(source?.cookSource).toBe(poisoned);
+
+      const sourceRows = await ingredientRows(sourceId);
+      const copyId = crypto.randomUUID();
+
+      // What `revalidateCookPayload` resolves for a source that does not prove out.
+      const created = await copyRecipeForSave(source!, userId, householdId, copyId, null);
+
+      // The copy SUCCEEDED and cost the user nothing...
+      expect(created).toBe(copyId);
+      // ...but the poison did not travel...
+      expect(await cookSourceOf(copyId)).toBeNull();
+
+      // ...and NOT ONE INGREDIENT ROW WAS LOST. This is the never-broken guarantee
+      // at its sharpest: refusing the `.cook` must change what the row CARRIES, not
+      // what the user SEES.
+      const copyRows = await ingredientRows(copyId);
+
+      const shapeOf = (rows: typeof sourceRows) =>
+        rows.map((row) => `${row.amount}|${row.unit}|${row.systemUsed}`).sort();
+
+      expect(sourceRows.length).toBeGreaterThan(0);
+      expect(copyRows).toHaveLength(sourceRows.length);
+      expect(shapeOf(copyRows)).toEqual(shapeOf(sourceRows));
+
+      // Projection rows are never copied raw — a grocery FK must not cross recipes.
+      const sourceRowIds = new Set(sourceRows.map((row) => row.id));
+
+      for (const row of copyRows) expect(sourceRowIds.has(row.id)).toBe(false);
     });
   });
 

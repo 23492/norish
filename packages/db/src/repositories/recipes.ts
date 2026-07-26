@@ -2432,13 +2432,34 @@ function rewriteSavedRecipeMediaUrl(
  *   opts in to sharing their own copy separately (it never inherits the
  *   source's `public`).
  *
+ * `cook` IS REQUIRED, AND IT IS NOT DERIVED FROM `source` (T-27-07, W3B).
+ * This function used to build it itself, as
+ * `source.cookSource && source.cookTokens ? {...} : undefined` — carrying a stored
+ * `.cook` and its projection across VERBATIM with no re-parse, no size cap, no
+ * `findCookSourceDefect` and no resource bound. It trusted the source row
+ * completely. That made the invariant "a non-NULL `cook_source` always parses
+ * cleanly" a statement about how the row happened to be written, not something the
+ * write path enforced.
+ *
+ * `@norish/db` MUST STAY PARSER-FREE, so it cannot re-prove the source itself.
+ * Instead the caller is now REQUIRED to pass either a freshly proven payload
+ * (`revalidateCookPayload` in `@norish/shared-server/cooklang/build-payload`, which
+ * runs the stored source back through the byte cap, the recognizer and the bound)
+ * or an explicit `null`. Making the parameter REQUIRED rather than optional is the
+ * point: a caller cannot silently inherit an unvalidated `.cook` any more, because
+ * omitting it does not compile.
+ *
+ * Passing `null` costs the user nothing: the copy lands with `cook_source = NULL`
+ * and the full legacy projection, and it still SUCCEEDS.
+ *
  * Returns the new recipe id, or `null` if the insert could not be persisted.
  */
 export async function copyRecipeForSave(
   source: FullRecipeDTO,
   userId: string,
   householdId: string | null,
-  newRecipeId: string
+  newRecipeId: string,
+  cook: RecipeCookPayload | null
 ): Promise<string | null> {
   const insert: FullRecipeInsertDTO = {
     name: source.name,
@@ -2487,13 +2508,9 @@ export async function copyRecipeForSave(
     })),
   };
 
-  // SHARE-02 / §2.11: carry the source's `.cook` across, but NEVER its projection
-  // rows — the copy gets a freshly derived projection with brand-new
-  // `recipe_ingredients.id`s, so a grocery FK can never point across two recipes.
-  const cook =
-    source.cookSource && source.cookTokens
-      ? { cookSource: source.cookSource, cookTokens: source.cookTokens }
-      : undefined;
-
-  return createRecipeWithRefs(newRecipeId, userId, householdId, insert, cook);
+  // SHARE-02 / §2.11: the caller's freshly-proven `.cook` goes across, but NEVER
+  // the source's projection rows — the copy gets a freshly derived projection with
+  // brand-new `recipe_ingredients.id`s, so a grocery FK can never point across two
+  // recipes.
+  return createRecipeWithRefs(newRecipeId, userId, householdId, insert, cook ?? undefined);
 }

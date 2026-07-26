@@ -41,7 +41,9 @@ vi.mock("../../src/logger", () => ({
   createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
 }));
 
-const { buildCookPayload } = await import("../../src/cooklang/build-payload");
+const { buildCookPayload, revalidateCookPayload } = await import(
+  "../../src/cooklang/build-payload"
+);
 
 describe("buildCookPayload", () => {
   beforeEach(() => {
@@ -192,6 +194,63 @@ describe("buildCookPayload", () => {
         expect(projection.derived.length).toBe(projection.native.length);
       }
     });
+  });
+});
+
+/**
+ * `revalidateCookPayload` — the copy path's door (T-27-07, W3B).
+ *
+ * `copyRecipeForSave` used to carry a stored `cook_source` AND its tokens across
+ * verbatim, with no re-parse and no bound. This is the function that replaced that
+ * trust, and it must be a REAL door: same byte cap, same recognizer, same resource
+ * bound as the minting path, and it must return the tokens IT parsed rather than
+ * whatever the source row happened to carry.
+ */
+describe("revalidateCookPayload", () => {
+  it("re-proves a good stored source and returns FRESHLY PARSED tokens", async () => {
+    const minted = await buildCookPayload(fixtures[0]!.recipe, units);
+
+    expect(minted).not.toBeNull();
+
+    const revalidated = await revalidateCookPayload(minted!.cookSource, units);
+
+    expect(revalidated).not.toBeNull();
+    expect(revalidated!.cookSource).toBe(minted!.cookSource);
+    // Byte-identical to a fresh mint: the tokens really were re-derived.
+    expect(revalidated!.cookTokens).toEqual(minted!.cookTokens);
+    expect(() => CookTokensSchema.parse(revalidated!.cookTokens)).not.toThrow();
+  });
+
+  it("resolves null for null / undefined / empty, without throwing", async () => {
+    await expect(revalidateCookPayload(null)).resolves.toBeNull();
+    await expect(revalidateCookPayload(undefined)).resolves.toBeNull();
+    await expect(revalidateCookPayload("")).resolves.toBeNull();
+  });
+
+  it("REFUSES the H1 artefact — a poisoned row cannot be copied across", async () => {
+    const startedAt = performance.now();
+
+    await expect(
+      revalidateCookPayload(`---\na: ${"[".repeat(65_400)}\n---\nstep\n`, units)
+    ).resolves.toBeNull();
+
+    // Bounded whichever gate catches it, so a poisoned row cannot stall a copy.
+    expect(performance.now() - startedAt).toBeLessThan(3_000);
+  });
+
+  it("REFUSES an oversize stored source", async () => {
+    await expect(revalidateCookPayload("a".repeat(70_000), units)).resolves.toBeNull();
+  });
+
+  it("logs the refusal with a reason and byte count, and NO source text", async () => {
+    warnSpy.mockClear();
+
+    await revalidateCookPayload("@a{1%} ".repeat(200), units);
+
+    const serialized = JSON.stringify([...warnSpy.mock.calls, ...errorSpy.mock.calls]);
+
+    expect(serialized).toContain("not-serializer-shaped");
+    expect(serialized).not.toContain("@a{1%}");
   });
 });
 

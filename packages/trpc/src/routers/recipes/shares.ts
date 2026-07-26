@@ -34,6 +34,7 @@ import {
   getUnits,
   isTimersEnabled,
 } from "@norish/shared-server/config/server-config-loader";
+import { revalidateCookPayload } from "@norish/shared-server/cooklang/build-payload";
 import { copyRecipeImagesDir } from "@norish/shared-server/media/storage";
 import { trpcLogger as log } from "@norish/shared-server/logger";
 import { TimerKeywordsSchema } from "@norish/shared/contracts/zod";
@@ -401,10 +402,24 @@ const saveShared = authedSharedRecipeProcedure
     // original being deleted; copyRecipeForSave rewrites the URLs onto the new id.
     await copyRecipeImagesDir(source.id, newRecipeId);
 
+    // T-27-07: RE-PROVE the source's `.cook` rather than carrying it across on
+    // trust. `revalidateCookPayload` runs the stored source back through the byte
+    // cap, `findCookSourceDefect` AND the resource bound, and returns the tokens it
+    // parsed itself — never the ones the source row happened to carry. A source that
+    // no longer proves out yields `null`, and the copy lands with `cook_source =
+    // NULL` plus a full legacy projection. The copy SUCCEEDS either way.
+    const revalidatedCook = await revalidateCookPayload(source.cookSource, await getUnits());
+
     // Deep copy into the SAVER's active cookbook (household_id = ctx.household?.id
     // ?? null), owned by the saver. NOT a reference to the original, and NOT in
     // the source's cookbook — per-cookbook scoping is preserved.
-    const createdId = await copyRecipeForSave(source, ctx.user.id, targetHouseholdId, newRecipeId);
+    const createdId = await copyRecipeForSave(
+      source,
+      ctx.user.id,
+      targetHouseholdId,
+      newRecipeId,
+      revalidatedCook
+    );
 
     if (!createdId) {
       throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to save recipe" });

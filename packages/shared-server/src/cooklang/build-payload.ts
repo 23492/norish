@@ -151,3 +151,56 @@ export async function buildCookPayload(
 
   return { cookSource, cookTokens };
 }
+
+/**
+ * RE-PROVE AN ALREADY-STORED `.cook` BEFORE IT IS WRITTEN INTO A NEW ROW
+ * (Phase 27, W3B — T-27-07).
+ *
+ * WHY THIS EXISTS. `copyRecipeForSave` used to carry `cookSource` AND `cookTokens`
+ * verbatim off the source `FullRecipeDTO` straight into `createRecipeWithRefs` —
+ * no re-parse, no byte cap, no `findCookSourceDefect`, no bound. It trusted the
+ * source row completely, which made "a non-NULL `cook_source` always parses
+ * cleanly" a claim about history rather than an invariant.
+ *
+ * It was LATENT, not live: its only caller's `source` comes from `getRecipeFull`,
+ * which populates `cookSource` but never `cookTokens`, so `cook` was always
+ * `undefined` and the copy landed with `cook_source = NULL`. That is a hole waiting
+ * for the first change that populates `cookTokens` on that path — which is exactly
+ * what W4 does — and W5's backfill will additionally write `cook_source` in bulk.
+ *
+ * SO A COPY'S `.cook` IS NOW EITHER FRESHLY PROVEN OR NULL. This runs the stored
+ * source back through `parseCookSource`, i.e. through the byte cap, the recognizer
+ * AND the resource bound, and returns the tokens IT produced rather than the ones
+ * it was handed. A source that no longer parses is dropped, and the copy lands with
+ * `cook_source = NULL` and a full legacy projection — the copy still SUCCEEDS.
+ *
+ * `@norish/db` STAYS PARSER-FREE. This deliberately lives here, not in the
+ * repository: `copyRecipeForSave` now REQUIRES its caller to hand in an
+ * already-proven pair (or `null`), and the required parameter is what makes
+ * forgetting it a type error instead of a silent carry-across.
+ */
+export async function revalidateCookPayload(
+  cookSource: string | null | undefined,
+  units?: UnitsMap
+): Promise<CookPayload | null> {
+  if (typeof cookSource !== "string" || cookSource === "") return null;
+
+  const cookTokens = await parseCookSource(cookSource, units);
+
+  if (!cookTokens) {
+    // Counts only, never the source (T-27-05). WARN, not ERROR: on a copy this is
+    // an old or externally-written row, not evidence that the serializer regressed.
+    log.warn(
+      {
+        module: "cooklang",
+        reason: "stored-source-did-not-revalidate",
+        bytes: Buffer.byteLength(cookSource, "utf8"),
+      },
+      "Stored cook_source did not re-prove; copying with cook_source NULL"
+    );
+
+    return null;
+  }
+
+  return { cookSource, cookTokens };
+}
