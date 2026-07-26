@@ -46,10 +46,11 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import defaultUnits from "@norish/config/units.default.json";
 import { CookTokensSchema } from "@norish/shared/contracts/zod";
+import type { StructuredRecipe } from "@norish/shared/cooklang";
 import { structuredToCooklang } from "@norish/shared/cooklang";
 
 import { fixtures } from "../../../shared/__tests__/cooklang/fixtures";
-import { COOK_BOUNDS } from "../../src/cooklang/limits";
+import { COOK_BOUNDS, findCookSourceDefect } from "../../src/cooklang/limits";
 import {
   cookParseChildCpuMsForTests,
   cookParseLastCpuMsForTests,
@@ -80,33 +81,72 @@ vi.mock("../../src/logger", () => ({
 
 /**
  * A realistic recipe at the size the serializer actually produces (the five
- * committed fixtures serialize to 225-506 B). This is the shape whose latency
- * matters, because it is the shape a real read path parses.
+ * committed fixtures serialize to 225-506 B; this one mints to 486 B). This is the
+ * shape whose latency matters, because it is the shape a real read path parses.
  *
- * BLANK-LINE SEPARATED, exactly as `structuredToCooklang` emits: in Cooklang a
- * step ends at a blank line, so consecutive non-blank lines are ONE step. Writing
- * this fixture without the blank lines produced two steps instead of five and is
- * worth recording — a hand-written `.cook` in a test is easy to get wrong in a way
- * that quietly weakens whatever it was meant to prove.
+ * IT IS MINTED BY THE REAL SERIALIZER, NEVER HAND-WRITTEN — and that is a fix, not
+ * a style preference. This fixture WAS a hand-written `.cook` literal, and its
+ * frontmatter was unquoted (`title: Weeknight Tomato Pasta`). Task 3's H1 root fix
+ * (`5cdfc8aa`) made every non-numeric frontmatter value quoted UNCONDITIONALLY on
+ * both sides of the contract, so from that commit on `findCookSourceDefect` refused
+ * this literal with `{"defect":"frontmatter-value","offset":11}` in ~1 ms. It
+ * survived here only because `parseInPool` sits BELOW the recognizer, so the ~15
+ * assertions that lean on it — the read-path latency alarm, "a real recipe
+ * round-trips through the process boundary", every `warmToExactlyOneChild()` — were
+ * quietly exercising a source no norish serializer could have written.
+ *
+ * This is the same defect class as `cook-tokens-isolation.test.ts` (`1ec0a521`): a
+ * hand-written `.cook` is an UNVERSIONED THIRD COPY of a contract the emitter and
+ * the recognizer already share, and it rots the moment either half moves. Minting
+ * it means this suite consumes whatever the emitter actually emits, and the guard
+ * test below fails loudly instead of silently if the two ever diverge again.
+ *
+ * Blank-line separation, section headings and timer placement are therefore the
+ * serializer's, not this file's: in Cooklang a step ends at a blank line, and
+ * hand-writing that was already wrong here once (two steps instead of five).
  */
-const REALISTIC = `---
-title: Weeknight Tomato Pasta
-servings: 4
----
-== Prep ==
+const REALISTIC_RECIPE: StructuredRecipe = {
+  name: "Weeknight Tomato Pasta",
+  servings: 4,
+  systemUsed: "metric",
+  steps: [
+    { text: "# Prep", order: 0, ingredients: [] },
+    {
+      text: "Bring a large pot of salted water to a boil, then add the spaghetti.",
+      order: 1,
+      ingredients: [{ name: "spaghetti", amount: 400, unit: "gram" }],
+    },
+    {
+      text: "Meanwhile warm the olive oil in a pan over medium heat.",
+      order: 2,
+      ingredients: [{ name: "olive oil", amount: 2, unit: "tablespoon" }],
+    },
+    {
+      text: "Add the garlic and cook until fragrant.",
+      order: 3,
+      ingredients: [{ name: "garlic", amount: 3, unit: "clove" }],
+      timers: [{ amount: 1, unit: "minutes" }],
+    },
+    { text: "# Finish", order: 4, ingredients: [] },
+    {
+      text: "Stir in the canned tomatoes and simmer.",
+      order: 5,
+      ingredients: [{ name: "canned tomatoes", amount: 800, unit: "gram" }],
+      timers: [{ amount: 15, unit: "minutes" }],
+    },
+    {
+      text: "Season with the salt and black pepper, then toss with the basil.",
+      order: 6,
+      ingredients: [
+        { name: "salt", amount: 1, unit: "teaspoon" },
+        { name: "black pepper", amount: 1, unit: "teaspoon" },
+        { name: "basil", amount: 10, unit: "gram" },
+      ],
+    },
+  ],
+};
 
-Bring a large pot of salted water to a boil, then add @spaghetti{400%gram}.
-
-Meanwhile warm @olive oil{2%tablespoon} in a pan over medium heat.
-
-Add @garlic{3%clove} and cook until fragrant, about ~{1%minute}.
-
-== Finish ==
-
-Stir in @canned tomatoes{800%gram} and simmer ~{15%minute}.
-
-Season with @salt{1%teaspoon} and @black pepper{1%teaspoon}, then toss with @basil{10%gram}.
-`;
+const REALISTIC = structuredToCooklang(REALISTIC_RECIPE, units);
 
 /**
  * THE EXACT ARTEFACTS THAT REFUTED ROUND 2, plus round 1's bypass.
@@ -263,6 +303,26 @@ describe("COOK_BOUNDS", () => {
 });
 
 describe("a real recipe round-trips through the process boundary", () => {
+  /**
+   * THE GUARD THAT KEEPS THE FIXTURE HONEST — declared before everything that
+   * consumes it, because if this fails, ~15 assertions below are testing something
+   * other than what their names claim.
+   *
+   * `REALISTIC` is what this file calls "a real recipe", and every latency,
+   * laziness and terminate-and-replace assertion is calibrated on it. `parseInPool`
+   * is the layer BELOW `findCookSourceDefect`, so a `REALISTIC` the recognizer
+   * would refuse still round-trips here and nothing goes red — which is exactly how
+   * the hand-written literal this replaced survived Task 3 for three commits. So
+   * the property is asserted DIRECTLY, on the same recognizer the read path runs.
+   */
+  it("the REALISTIC fixture is a source the real recognizer accepts (not just one the pool tolerates)", () => {
+    expect(findCookSourceDefect(REALISTIC)).toBeNull();
+    // Minted, not quoted by hand: the emitter's own frontmatter, whatever it emits.
+    expect(REALISTIC.startsWith('---\ntitle: "Weeknight Tomato Pasta"\nservings: 4\n')).toBe(true);
+    // A real recipe's size class, so the latency alarm below measures a real shape.
+    expect(Buffer.byteLength(REALISTIC, "utf8")).toBeLessThan(1_024);
+  });
+
   it("produces a CookTokensSchema-valid DTO for a realistic recipe", async () => {
     const tokens = await parseInPool(REALISTIC, units);
 
@@ -271,6 +331,29 @@ describe("a real recipe round-trips through the process boundary", () => {
     expect(tokens).toHaveLength(5);
     expect(tokens?.[0]?.section).toBe("Prep");
     expect(tokens?.[4]?.section).toBe("Finish");
+
+    // PINNED CONTENT, not merely "not null" (§16.3's rule): these amounts and
+    // canonical unit IDs exist ONLY because the WASM in the child derived them from
+    // `@spaghetti{400%gram}` and `@olive oil{2%tablespoon}`, so this cannot pass on
+    // a token stream that made the round trip but carries nothing.
+    expect(tokens?.[0]?.tokens?.[1]).toEqual({
+      type: "ingredient",
+      name: "spaghetti",
+      amount: 400,
+      unit: "gram",
+    });
+    expect(tokens?.[1]?.tokens?.[1]).toEqual({
+      type: "ingredient",
+      name: "olive oil",
+      amount: 2,
+      unit: "tablespoon",
+    });
+    expect(tokens?.[2]?.tokens?.at(-1)).toEqual({
+      type: "timer",
+      name: null,
+      amount: 1,
+      unit: "minutes",
+    });
   });
 
   /**
