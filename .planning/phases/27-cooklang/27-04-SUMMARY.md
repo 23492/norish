@@ -4,14 +4,14 @@ plan: 04
 subsystem: infra
 tags: [cooklang, wasm, child-process, resource-bound, dos, tsdown, vitest]
 
-status: PARTIAL — Tasks 1, 2 and 5 COMPLETE. Tasks 3, 4 and 6 NOT STARTED.
+status: PARTIAL — Tasks 1, 2 and 5 COMPLETE. Tasks 3, 4 and 6 NOT STARTED. Parse bound REPLATFORMED onto CPU time by D-27-W3B-03a (director, 2026-07-26) — see §13.
 
 requires:
   - phase: 27-03
     provides: the serializer escaping layer, `findCookSourceDefect`, the nine `COOK_LIMITS`
 provides:
   - "A pooled child process that is the ONLY importer of `@cooklang/cooklang`"
-  - "`COOK_BOUNDS`: a 1 000 ms SIGKILL wall-clock bound and a 256 MB child heap bound"
+  - "`COOK_BOUNDS`: a 1 500 ms CHILD-CPU SIGKILL gate (D-27-W3B-03a, superseding the 1 000 ms wall-clock bound), an 8 000 ms wall-clock BACKSTOP and a 256 MB child heap bound"
   - "`async` `parseCookSource` / `buildCookPayload` / `buildCookFromExtraction`"
   - "`revalidateCookPayload` — the copy path's door (T-27-07)"
   - "A HARD build-time gate that the child entry is emitted into `dist-server`"
@@ -39,6 +39,7 @@ key-files:
     - apps/web/tsdown.config.ts
 
 key-decisions:
+  - "D-27-W3B-03a: the PRIMARY gate is the child's CPU time (`/proc/<pid>/schedstat`), not wall clock — wall clock conflates the threat with host load and was measured to refuse legitimate recipes under contention. Superseded the locked D-27-W3B-03."
   - "The guarantee is a RESOURCE BOUND, not an input-shape predicate. Recognizer completeness is no longer load-bearing."
   - "A pooled CHILD PROCESS, not worker_threads: resourceLimits was reproduced aborting the entire Node process."
   - "The child imports ONLY @cooklang/cooklang. Unit canonicalization moved to the parent — raw Node cannot load @norish/* source."
@@ -147,7 +148,14 @@ the reason changes, and the director needs the corrected version:
 
 ---
 
-## 3b. ⚠ THE ONE REAL NEVER-BROKEN RISK I FOUND — the director must decide this
+## 3b. ⚠ THE ONE REAL NEVER-BROKEN RISK I FOUND — **DECIDED: see §13 (D-27-W3B-03a)**
+
+> **RESOLVED, 2026-07-26.** The director REJECTED all three options below — they pick
+> different points on the same wall-clock axis and each flips again on a busier box — and
+> replaced the wall-clock bound with a **CPU-time primary gate**. §13 has the mechanism,
+> the measurements and the re-proved failure paths. The analysis below is kept as the
+> record of how the defect was found.
+
 
 **The 1 000 ms bound CAN refuse the worst LEGITIMATE `.cook` shapes on a loaded
 box.** This was not predicted by the plan and it is the finding I would escalate
@@ -511,3 +519,281 @@ self-check above covers only W3B-W1's shape and is not a substitute. Note for W3
    between a hostile row and ~1.6 GB.**
 4. Decide whether H3 warrants a **data audit** of already-written `cook_source` rows.
 5. Confirm a verified-restorable backup before the deploy carrying this plan.
+
+---
+
+# 13. D-27-W3B-03a — THE PRIMARY GATE IS CPU TIME, NOT WALL CLOCK
+
+**Commits:** `cffaa5d8` (code + tests) · this commit (the record). Nothing pushed. Tree `main`, DB at migration **42**,
+`pnpm-lock.yaml` diff EMPTY. **Tasks 3, 4 and 6 remain NOT STARTED** — this section
+changes the parse bound only.
+
+**Director decision, 2026-07-26, superseding the locked D-27-W3B-03.** §3b's three
+options (raise to 2 000 ms · ship 1 000 ms and watch · accept the loss) were all
+**REJECTED**: they pick different points on the same wall-clock axis and each flips
+again on a busier box. Kiran's standing directive is no bandaids, root cause only.
+
+**Rationale, as given.** Wall clock **conflates the threat (unbounded computation) with
+unrelated host load**. And **W6 makes `cook_source` NOT NULL, so a refusal that is free
+today becomes an IMPORT FAILURE then** — a contention-flaky bound is a latent W6 defect
+and had to be fixed, not tuned.
+
+## 13.1 THE NUMBER THAT JUSTIFIES THE WHOLE CHANGE
+
+Contention manufactured by pinning the parse child and ten spinners to a single core.
+13 runs per shape per condition.
+
+| worst ACCEPTED shape | **wall idle** | **wall starved** | inflation | **CPU idle** | **CPU starved** | drift |
+|---|---:|---:|---:|---:|---:|---:|
+| 64 KiB of `@a{1%g} ` (65 536 B) | 351-449 ms | **4 096-5 085 ms** | **11.6x** | 328-373 ms | **328-373 ms** | **0%** |
+| `"#p " x 21845` (65 535 B) | 483-830 ms | **5 537-6 264 ms** | **7.5x** | 453-506 ms | **452-506 ms** | **±1%** |
+| a realistic 437 B recipe | 13-15 ms | 154-194 ms | 11.4x | 10-30 ms | 10-20 ms | flat |
+
+**Wall clock inflated 7.5x-11.6x. CPU did not move.** §3b's own figures sit inside this:
+the shapes that measured 1 137 / 1 238 ms of wall clock in the full vitest run and were
+REFUSED were spending ~500 ms of CPU throughout. Wall clock was never measuring the
+work.
+
+A **broader legitimate sweep** was run so the budget is not calibrated on two shapes
+alone. Every shape that reaches the 64 KiB `cook_source` cap: timers
+(`~{1%minute} `, 121-149 ms CPU), prose (13-15), headings (50-52), `@a{1%g}` with no
+space (340-356), 200 steps x 4 000 chars (14-15), 600 ingredient refs (47-51), real
+serializer frontmatter (18-19). **Nothing legitimate exceeds 506 ms of CPU.**
+
+## 13.2 THE MECHANISM, AND WHY `schedstat` AND NOT `utime`+`stime`
+
+The child cannot self-police — the synchronous WASM parse can never check a timer,
+which is the original problem this pivot exists for — so the **parent** measures it. It
+samples `/proc/<pid>/schedstat` field 1 (`sum_exec_runtime`, **nanoseconds**) every
+`cookParseCpuPollMs` and `SIGKILL`s the child once `cookParseCpuMs` is spent.
+
+Both candidates were measured. `schedstat` won on three counts:
+
+1. **Resolution.** Nanoseconds, against `utime`/`stime`'s 10 ms USER_HZ ticks — which
+   would additionally require assuming `sysconf(_SC_CLK_TCK)`, a value **Node exposes
+   nowhere**.
+2. **It measures the threat and nothing else.** `schedstat` is the MAIN THREAD, which is
+   where 100% of the hostile computation lives (`parser.parse()` is one synchronous
+   single-threaded WASM call, as is the `JSON.parse` of its report). `utime`+`stime`
+   aggregate the thread group, so they also charge V8's **parallel GC helper threads**:
+   measured **690 ms against a 346 ms main thread for one and the same 64 KiB parse**.
+   That makes the thread-group figure a function of how many cores happen to be free —
+   the exact coupling this decision exists to remove. It would also have forced a
+   budget above ~800 ms of *observed* cost, with unknown inflation on a wider box.
+3. **It is the stable figure** — ±3% across an 11.6x wall-clock inflation (13.1).
+
+**The residual, stated rather than hidden.** Helper-thread CPU is not counted. Measured
+across every shape probed it is **≤0.6x of the main-thread figure**, and on the hostile
+shapes 0.003x / 0.04x / 0.06x — so the child's TOTAL CPU is bounded at roughly
+`1.6 x cookParseCpuMs`, and the 256 MB heap bound independently caps the allocation
+that drives GC work at all.
+
+**POLL OVERHEAD, measured.**
+
+| | measured |
+|---|---:|
+| one sample (read + parse `/proc/<pid>/schedstat`) | **30.23 µs** (20 000 iterations, warm) |
+| samples for a pooled round trip (~0.97 ms) | **0** |
+| samples for a 437 B fixture / a 64 KiB realistic recipe (13-15 ms) | **0** |
+| samples for the worst legitimate shape (~500 ms CPU) | ~19 ≈ **0.6 ms** |
+| samples for a hostile parse (1 500 ms CPU) | ~60 ≈ **1.8 ms** |
+| overshoot past the budget (one interval) | **20 ms** measured (1 520 vs 1 500) |
+
+The first sample is scheduled 25 ms out, so for every real recipe the timer is created
+and cleared **without ever firing**. There is no measurable read-path cost.
+
+**Non-Linux hosts.** `readChildCpuMs` returns `null` rather than throwing, and the parse
+then falls through to the wall ceiling and the heap bound only — strictly weaker, and
+documented in the function rather than hidden. Production is a Linux container on
+LXC 110, so this is a dev-box caveat, not a production one.
+
+## 13.3 THE BOUNDS AS LANDED, WITH HEADROOM
+
+`COOK_BOUNDS` is now seven values (still a separate object from the untouched nine
+`COOK_LIMITS`), each env-overridable:
+
+| bound | value | env | headroom |
+|---|---:|---|---|
+| `cookParseCpuMs` **(PRIMARY)** | **1 500** | `NORISH_COOK_PARSE_CPU_MS` | **2.96x** over the worst legitimate CPU (506 ms); ~88x over a realistic recipe (17 ms); ~2 500x over a fixture |
+| `cookParseCpuPollMs` | 25 | `NORISH_COOK_PARSE_CPU_POLL_MS` | 1.7% overshoot; 0 polls for any real recipe |
+| `cookParseWallCeilingMs` (BACKSTOP) | **8 000** | `NORISH_COOK_PARSE_WALL_CEILING_MS` | 9.6x the worst legitimate IDLE wall (830 ms); above the 6 264 ms measured under 11.6x starvation |
+| `cookParseHeapMb` | 256 | unchanged | 7.8x the worst accepted peak (33 MB) |
+| `cookParsePoolSize` | 2 | unchanged | — |
+| `cookParseQueueTimeoutMs` | 1 000 | unchanged | — |
+| `cookParseReadyTimeoutMs` | 2 000 | `NORISH_COOK_PARSE_READY_TIMEOUT_MS` | ~8x the 200-243 ms cold spawn |
+
+**`cookParseReadyTimeoutMs` is the one bound that is new by NAME only.** It used to be
+DERIVED as `cookParseQueueTimeoutMs + cookParseTimeoutMs` = 2 000 ms. With the parse
+bound becoming an 8 000 ms backstop, that derivation would silently have stretched the
+cold-spawn wait to **9 000 ms** — a real latency regression smuggled in by an unrelated
+change. Same value, now stated.
+
+**Why the ceiling is a BACKSTOP and not a bandaid.** It cannot be reached by a child
+that is computing, because the CPU gate kills that child first. It exists only for a
+child stuck **without** burning CPU — a hang, a lost IPC reply — which the CPU gate is
+structurally blind to because the counter never advances. A blocked-but-idle child is
+not a DoS amplifier: it holds one pool slot, `cookParseQueueTimeoutMs` degrades anything
+queued behind it, and D-27-W3B-10's terminate-and-replace disposes of it.
+
+**The heap bound became MORE important, exactly as §3 warned, and was NOT weakened.**
+`"#" x 8192` peaks at 839 MB and the round-1 bypass at 1 650 MB; with the wall ceiling
+now 8 s it is the only thing standing between a hostile row and that balloon.
+
+## 13.4 WHAT THE HOSTILE FAMILIES NOW MEASURE, AND HOW EACH DIES
+
+| input | bytes | **CHILD CPU if left to run** | **under the gate** |
+|---|---:|---:|---|
+| H1 `---\na: "["x65400\n---\nstep\n` | 65 417 | **22 759 ms** (23 086 ms wall, flat 6 MB) | `pool-cpu` at **1 520 ms CPU / 1 640 ms wall** |
+| H1 balanced 25 000 / 30 000-deep `[`/`]`, `{`-nesting | 50-60 KB | 4.8-10.5 s in-process | `pool-cpu` at 1 500 ms CPU |
+| report explosion `"#" x 8192` | **8 192** | **12 222 ms** CPU; SIGABRT at 13 691 ms wall, 839 MB peak | `pool-cpu` at 1 500 ms CPU (heap bound is the backstop) |
+| round-1 bypass 16 x 3 996 `@a{1%}` | 63 966 | **4 895 ms** CPU, then `RuntimeError: unreachable` at 4 940 ms | `pool-cpu` at 1 500 ms CPU |
+| 64 KiB of `@a{1%g} ` — worst ACCEPTED | 65 536 | 328-373 ms | **SUCCEEDS** (22% of budget) |
+| `"#p " x 21845` — worst ACCEPTED | 65 535 | 452-506 ms | **SUCCEEDS** (34% of budget) |
+
+Every hostile family is killed by the **CPU gate**, and the ratio is not marginal: the
+cheapest of them burns **3.3x** the budget and H1 burns **15x** it. The two legitimate
+shapes sit at 22% and 34%. **There is no overlap between the two populations on this
+axis** — which is precisely what was untrue on the wall-clock axis, where the gap was
+1.44x and inverted under load.
+
+## 13.5 THE NEVER-BROKEN PROPERTY UNDER CONTENTION — PROVEN WITHOUT A VACUOUS TEST
+
+The claim has two halves. Only one can be proven without involving the host scheduler,
+so they are proven separately rather than conflated into one hopeful test.
+
+**HALF ONE — THE MECHANISM, FULLY DETERMINISTIC.** A new test-only child,
+`__tests__/cooklang/stub-parse-worker.mjs`, speaks the pool's IPC protocol and imports
+nothing. It decouples the two axes completely:
+
+- `STUB_MODE=sleep`, 3 000 ms: **burns ~0 CPU, elapses 3 s of wall clock.** The
+  superseded 1 000 ms bound would have killed it. The test asserts it **SUCCEEDS**, that
+  the stub's own ingredient token came back (so it is a real round trip, not an
+  accidental `null` that looks like success), that elapsed time really did exceed
+  1 000 ms (anti-vacuity — it cannot pass by replying instantly), and that **no bound
+  reason was logged at all**.
+- `STUB_MODE=burn`, 6 000 ms: **blocks its event loop**, exactly as the synchronous WASM
+  parse does, so no timer inside it could rescue it. The test asserts `pool-cpu`,
+  `bound: "cookParseCpuMs"`, `measured >= 1 500`, **and `measured < 1 700`** — i.e. the
+  gate did not overshoot by more than one poll interval.
+
+No load to manufacture, nothing to flake.
+
+**HALF TWO — THE REAL SHAPES ON A REALLY LOADED BOX.** A test spawns
+`3 x availableParallelism()` (12 here) blocking spinners and then parses BOTH worst
+legitimate shapes through the real WASM child. **Its own recorded numbers:**
+
+| shape | wall under load | CPU sampled | wall/CPU | verdict |
+|---|---:|---:|---:|---|
+| 64 KiB of `@a{1%g} ` | **2 294 ms** | 330 ms | **6.95x** | **PARSED** |
+| `"#p " x 21845` | **1 192 ms** | 401 ms | **2.97x** | **PARSED** |
+
+Both elapsed **past the superseded 1 000 ms bound** — i.e. both would have been REFUSED
+by D-27-W3B-03 — and both parsed, with CPU at 22% and 27% of budget.
+
+**HOW IT IS KEPT FROM BEING GREEN-BUT-EMPTY.** Three assertions, and the third is the
+one that matters: the wall/CPU ratio must exceed **1.5x** and at least one shape must
+have elapsed past 1 000 ms. **If the spinners fail to bite, the test FAILS rather than
+passing quietly.** The 3x-cores spinner count is calibrated, not picked: it leaves the
+child roughly a quarter of a core, which on the measured CPU costs puts elapsed time at
+~1.2-2.3 s — past 1 000 ms with margin and still ~4x under the 8 000 ms ceiling, so the
+BACKSTOP cannot fire and turn this into the flaky test it is replacing.
+
+**WHAT IT DOES NOT CLAIM.** It does not reproduce §3b's exact 20-worker vitest
+contention; it manufactures its own, which measured **harsher** (7.5x-11.6x wall
+inflation against §3b's ~2.5x). It asserts no particular elapsed time, because that is a
+property of the host and not of this code. Both limits are stated in the test docblock.
+
+**THE PREVIOUS TEST'S WEAKER CLAIM IS GONE.** §3b's version had to raise the bound
+through its env lever and could only assert "not INHERENTLY refused". The replacement
+asserts the shapes parse **at the shipped defaults**, with headroom asserted on the CPU
+figure the gate actually decides with.
+
+**THE HOSTILE ASSERTIONS WERE MADE CONTENTION-PROOF TOO.** `elapsed < 1 500 ms` on a
+hostile input is a measurement OF THE MACHINE — under load a hostile row takes longer in
+elapsed time to burn its budget. Those assertions now bound only
+`cookParseWallCeilingMs` ("it did not hang", which is all wall clock can honestly say),
+and the teeth moved to `measured >= cookParseCpuMs`, which is contention-invariant. For
+the H1 family — flat 6 MB, so `pool-heap` is impossible — the reason is pinned to
+`pool-cpu` exactly.
+
+## 13.6 THE TIMEOUT AND CRASH PATHS, RE-PROVED — NOT ASSUMED TO CARRY OVER
+
+| path | proof under the NEW gate |
+|---|---|
+| **CPU gate** | `withCookTokens` on the H1 row → `cookTokens: null`, warn, no throw, no hang, `reason: "pool-cpu"`, `measured >= 1 500`. Anti-vacuity floor raised to `elapsed > 0.9 x cookParseCpuMs` with `findCookSourceDefect` stubbed to `null`, so it cannot pass by being refused at the door — and that floor is SOUND on any box, because burning 1 500 ms of CPU takes at least that long in elapsed time |
+| **wall-clock BACKSTOP** | NEW dedicated test: the sleeping stub with the ceiling lowered to 1 200 ms through its env lever → `null`, `reason: "pool-timeout"`, `bound: "cookParseWallCeilingMs"`, `measured >= 1 200`; elapsed > 1 100 ms (it waited the ceiling out) and < 10 000 ms (it did NOT wait out the child's 30 s sleep). The doomed pid is captured WHILE it is stuck and asserted gone afterwards, so terminate-and-replace is proven for the backstop too |
+| **heap bound** | unchanged and still fires; the report-explosion payloads resolve `null` with the parent's heap growth < 64 MB against their unbounded 839-1 650 MB |
+| **child crash mid-flight** | unchanged: a child `SIGKILL`ed externally 150 ms into an H1 parse resolves `null`, the killed pid is gone, the next call succeeds |
+| **no child spawnable** | unchanged: entry forced to a nonexistent file → `null`, `pool-spawn-failed`, no throw |
+| **saturation** | `poolSize + 4` concurrent bound-hitting requests all resolve; ceiling re-derived from the bounds actually on that path (`queueTimeout + 2 x cpuMs + slack`) rather than the retired `cookParseTimeoutMs` |
+| **from the SHIPPED BUNDLE** | a throwaway tsdown entry exercised the real `dist-server/*.mjs` pool: lazy spawn (no pids before the first parse), unit canonicalization (`unit: "gram"`), the worst legitimate shape **OK in 813 ms wall / 475 ms CPU**, and H1 killed at **1 520 ms CPU / 1 640 ms wall** with the full log line `reason: "pool-cpu", bound: "cookParseCpuMs", limit: 1500, measured: 1520, cpuMs: 1520, elapsedMs: 1630, bytes: 65417, pid: …` and **no recipe prose**. The throwaway entry was removed and `tsdown.config.ts` is byte-identical (`git diff` empty) |
+
+## 13.7 ADVERSARIAL SELF-VERIFICATION (not a substitute for Task 6)
+
+Both weakenings were **executed, proven RED, and reverted byte-identically** (md5
+verified). Neither was committed.
+
+1. **Make the CPU gate never fire** (`if (false && …)`) → **13 tests RED** across
+   `pool.test.ts` and `attach-tokens.test.ts`, including every hostile-corpus case, both
+   worst-accepted cases, the burn-stub case, the contention case and the log-shape case.
+   The H1 payloads then fell through to the 8 000 ms ceiling at 8 022-8 253 ms elapsed —
+   which independently confirms the backstop is live.
+2. **Regress the gate to WALL CLOCK at the superseded 1 000 ms**, changing nothing else
+   → **9 tests RED**, and critically the two that exist for this decision:
+   *"does NOT refuse a parse that elapses 3 s of WALL CLOCK while burning no CPU"* and
+   *"parses BOTH worst legitimate shapes while the box is saturated with spinners"*.
+   **The contention test catches a wall-clock regression directly** — it is not green by
+   accident.
+
+## 13.8 New log reasons and the operator surface
+
+`pool-cpu` **is new** and is the one to watch; `pool-timeout` now means *stuck without
+burning CPU*, which is a different and much rarer condition than it used to be. Every
+bound hit now carries **`bound` + `limit` + `measured` + `cpuMs` + `elapsedMs` +
+`bytes` + `pid`**, so a `pool-cpu` rate is actionable: `measured` says whether a row was
+marginal or 15x over. Still no recipe prose and no ingredient names — asserted, on a log
+line generated from a payload carrying `"Grandmother's Secret Cassoulet"` and
+`@duck confit`.
+
+## 13.9 Gates — all green, per package
+
+| gate | baseline | result |
+|---|---|---|
+| real `tsc --noEmit -p` shared-server / shared / api / queue / trpc / db | EXIT 0 | **EXIT 0 all six, zero output** (redirected to files; `tsc \| head` lies) |
+| shared-server test | 427 | **432** (+5), and **three consecutive full runs green** |
+| shared / api / queue / trpc | 295 / 408 / 121 / 337 | **295 / 408 / 121 / 337** |
+| web / mobile / auth | 424 / 132 / 133 | **424 / 132 / 133** |
+| db test (`sg docker`) | 179 | **179** |
+| lint shared-server / api / queue / db / trpc | 0 errors | **0 errors**; touched files contribute **0 warnings** |
+| `check-workspace-imports.mjs` | EXIT 0 | **EXIT 0** |
+| `build:server` | EXIT 0 | **EXIT 0**, `dist-server/parse-worker.mjs` emitted (6 942 B) |
+| tsdown HARD GATE (negative case) | fails the build | **re-executed: EXIT 1** with the explanatory error, then reverted byte-identically |
+| `@cooklang/cooklang` importers in the bundle | index 0 / worker 1 | **index.mjs 0, parse-worker.mjs 1** |
+| one-importer static assertions | 1 prod / 1 test | **unchanged and still green** (the stub child is `.mjs` and imports nothing, so it is invisible to both sweeps by construction) |
+| `git diff pnpm-lock.yaml` | empty | **empty** |
+| `pnpm i18n:check` | EXIT 1, pre-existing | **EXIT 1, unchanged**; 0 i18n files touched |
+| DB migration | 42 | **42**; `migrations/` and `meta/_journal.json` untouched |
+
+**Files changed: four, plus one new test fixture.** `src/cooklang/limits.ts`,
+`src/cooklang/pool.ts`, `__tests__/cooklang/pool.test.ts`,
+`__tests__/cooklang/attach-tokens.test.ts`, and the new
+`__tests__/cooklang/stub-parse-worker.mjs`. **Nothing under `apps/`, `packages/db`,
+`packages/trpc` or `packages/api`.** `findCookSourceDefect`, `serialize.ts` and the
+H1/H2/H3 fixes are **untouched** (Tasks 3/4 own those). No `as any`, no `@ts-ignore`, no
+`@ts-expect-error`. W4/W5/W6 untouched.
+
+## 13.10 Two things the director should know
+
+1. **The tsdown gate's hardcoded `parse-worker.mjs` is CORRECT and was deliberately left
+   alone.** The prior agent's finding was about the **pool's runtime sibling rule**,
+   which derives the extension from `extname(import.meta.url)` — a hardcoded `.js`
+   *there* would have resolved a nonexistent path **in production only, silently**. In
+   the build gate a hardcoded `.mjs` fails the build LOUDLY if tsdown's output ever
+   changes, which is the desired direction. Both were re-verified; do not "fix" the gate
+   to match the pool.
+2. **§3b's exit item 3 is now materially different.** The thing to watch is `pool-cpu`,
+   and a nonzero rate on real recipes no longer means "the number is wrong for this box"
+   — the number is now box-independent. It would mean a genuinely new legitimate shape
+   costs more than 506 ms of CPU, which is a **measurement to redo**, not a knob to
+   turn. `pool-timeout` now means a stuck child and should be near-zero; if it is not,
+   that is a bug report, not a tuning signal.
