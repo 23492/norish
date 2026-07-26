@@ -12,10 +12,6 @@ type CreateUseCalendarSubscriptionOptions = CreateCalendarHooksOptions & {
   useCalendarCacheHelpers: (startISO: string, endISO: string) => CalendarCacheHelpers;
 };
 
-type SubscriptionEnvelope<TPayload> = {
-  payload: TPayload;
-};
-
 type ItemPayload = {
   item: PlannedItemWithRecipePayload;
 };
@@ -99,7 +95,7 @@ export function createUseCalendarSubscription({
 
     useSubscription(
       trpc.calendar.onItemCreated.subscriptionOptions(undefined, {
-        onData: ({ payload }: SubscriptionEnvelope<ItemPayload>) => {
+        onData: (payload: ItemPayload) => {
           setItems((prev) => upsertItemInRange(prev, payload.item, startISO, endISO));
         },
       })
@@ -107,7 +103,7 @@ export function createUseCalendarSubscription({
 
     useSubscription(
       trpc.calendar.onItemDeleted.subscriptionOptions(undefined, {
-        onData: ({ payload }: SubscriptionEnvelope<ItemDeletedPayload>) => {
+        onData: (payload: ItemDeletedPayload) => {
           setItems((prev) => prev.filter((item) => item.id !== payload.itemId));
         },
       })
@@ -115,7 +111,7 @@ export function createUseCalendarSubscription({
 
     useSubscription(
       trpc.calendar.onItemMoved.subscriptionOptions(undefined, {
-        onData: ({ payload }: SubscriptionEnvelope<ItemMovedPayload>) => {
+        onData: (payload: ItemMovedPayload) => {
           setItems((prev) => {
             const itemIsInRange = isDateInRange(payload.item.date, startISO, endISO);
             const targetSortMap = new Map(
@@ -161,7 +157,7 @@ export function createUseCalendarSubscription({
 
     useSubscription(
       trpc.calendar.onItemUpdated.subscriptionOptions(undefined, {
-        onData: ({ payload }: SubscriptionEnvelope<ItemPayload>) => {
+        onData: (payload: ItemPayload) => {
           setItems((prev) => upsertItemInRange(prev, payload.item, startISO, endISO));
         },
       })
