@@ -332,6 +332,203 @@ describe("structuredToCooklang — the closed frontmatter shape (H1)", () => {
   });
 });
 
+/**
+ * H2 (D-27-W3B-07) — THE SERIALIZER CANNOT EMIT A WHITESPACE-ONLY AMOUNT OR UNIT.
+ *
+ * `@a{ %g}` is nine bytes and it panics the WASM parser with `RuntimeError:
+ * unreachable`; `~a{ %m}` and `#a{ %g}` do the same. `f7bcecb8` guarded the EMPTY
+ * case and missed the whitespace-only one, and the pre-W3B `formatTokenAmount` made
+ * it worse in a second way: `Number(" ")` is `0`, so a blank amount emitted
+ * `@flour{0%gram}` — a quantity the extraction never carried.
+ *
+ * The property asserted here is two-sided: no forbidden shape is emitted, AND NO REF
+ * IS DROPPED. Dropping one would drop an ingredient ROW, because the projection
+ * builds rows from the tokens.
+ */
+describe("structuredToCooklang — no whitespace-only amount or unit (H2)", () => {
+  const BLANKS = ["", " ", "\t", " ", "  ", " \t ", " "];
+  const FORBIDDEN = ["{ ", " }", "{ }", "{%}", "{ %", "% }", "{\t", "\t}"];
+
+  for (const blank of BLANKS) {
+    it(`emits no blank-quantity shape for an amount/unit of ${JSON.stringify(blank)}`, () => {
+      const cook = structuredToCooklang(
+        {
+          name: "Blanks",
+          systemUsed: "metric",
+          steps: [
+            {
+              text: "Add flour and sugar, then rest.",
+              order: 0,
+              ingredients: [
+                { name: "flour", amount: blank, unit: "gram" },
+                { name: "sugar", amount: 2, unit: blank },
+              ],
+              timers: [{ name: "rest", amount: blank, unit: blank }],
+            },
+          ],
+        },
+        unitsConfig
+      );
+
+      for (const shape of FORBIDDEN) {
+        expect(cook, `${JSON.stringify(blank)} produced ${shape}`).not.toContain(shape);
+      }
+
+      // NOTHING IS DROPPED: both refs are still tokens, and a blank amount degrades
+      // to the amount-less form rather than inventing `0`.
+      expect(cook).toContain("@flour");
+      expect(cook).toContain("@sugar");
+      expect(cook).not.toContain("{0%");
+      expect(cook).not.toContain("@flour{0}");
+    });
+  }
+
+  it("keeps a legitimate multi-word amount and unit, which carry INTERNAL spaces", () => {
+    const cook = structuredToCooklang(
+      {
+        name: "Internal",
+        systemUsed: "us",
+        steps: [
+          {
+            text: "Add flour and milk.",
+            order: 0,
+            ingredients: [
+              { name: "flour", amount: "1 1/2", unit: "cup" },
+              { name: "milk", amount: 8, unit: "fl oz" },
+            ],
+          },
+        ],
+      },
+      unitsConfig
+    );
+
+    expect(cook).toContain("@flour{1 1/2%cup}");
+    expect(cook).toContain("@milk{8%fl oz}");
+  });
+
+  it("a blank amount keeps the reference and reports it as placed", () => {
+    const { cook, links } = serializeWithReport(
+      {
+        name: "Blank amount",
+        systemUsed: "metric",
+        steps: [
+          {
+            text: "Season with sea salt.",
+            order: 0,
+            ingredients: [{ name: "sea salt", amount: " ", unit: " " }],
+          },
+        ],
+      },
+      unitsConfig
+    );
+
+    expect(links).toEqual([{ stepOrder: 0, ingredient: "sea salt", placement: "inline" }]);
+    expect(cook).toContain("@sea salt{}");
+  });
+});
+
+/**
+ * H3 (D-27-W3B-08) — THE SERIALIZER USED TO DELETE TEXT THE USER TYPED.
+ *
+ * `splitFragment` removed `ref.name.length` characters at an index produced by
+ * matching `normalizeIngredientLinkName(name)`, whose length DIFFERS on any leading,
+ * trailing or internal extra whitespace. Measured, all minting silently:
+ *
+ *   | ingredient name   | step prose                    | emitted                        |
+ *   |-------------------|-------------------------------|--------------------------------|
+ *   | `"flour "`        | `"Add flour now."`            | `Add @flour{1%cup}now.`        |
+ *   | `" flour "`       | `"Add flour now."`            | `Add @flour{1%cup}ow.`         |
+ *   | `"brown  sugar"`  | `"Add brown sugar into…"`     | `…{1%cup}into the bowl.`       |
+ *   | `"brown   sugar"` | `"Add brown sugar into…"`     | `…{1%cup}nto the bowl.`        |
+ *
+ * WHY THE 45-TEST ROUND-TRIP SUITE COULD NOT CATCH IT: that suite varies PROSE and
+ * never a ref NAME's whitespace, so the two lengths were always equal in it. These
+ * tests vary the ref name — leading, trailing, both, internal double and triple
+ * space, TAB, NBSP, and a name whose lowercasing changes its LENGTH — crossed with
+ * the ref at the start, the middle and the end of the step. The byte-identical
+ * READ-side proof is in
+ * `@norish/shared-server/__tests__/cooklang/round-trip-fidelity.test.ts`; this half
+ * proves the emitted `.cook` keeps the surrounding prose intact.
+ */
+describe("structuredToCooklang — the matched SPAN, never ref.name.length (H3)", () => {
+  const NAMES = [
+    ["trailing space", "flour "],
+    ["leading space", " flour"],
+    ["both", " flour "],
+    ["internal double space", "all  purpose"],
+    ["internal triple space", "all   purpose"],
+    ["a TAB", "all\tpurpose"],
+    ["an NBSP", "all\u00a0purpose"],
+    ["a newline", "all\npurpose"],
+    // `"İ".toLowerCase()` is TWO code units, so the normalized needle is LONGER than
+    // the text it matched: the same off-by-N through a different door.
+    ["a name whose lowercasing changes length", "İstanbul spice"],
+  ] as const;
+
+  /** The prose each name must be found in, with the ref at three positions. */
+  function proseFor(name: string): [string, string][] {
+    const anchor = name.trim().replace(/\s+/g, " ");
+
+    return [
+      ["start", `${anchor} goes in first, then water.`],
+      ["middle", `Add ${anchor} now.`],
+      ["end", `Whisk the water into the ${anchor}`],
+    ];
+  }
+
+  for (const [label, name] of NAMES) {
+    it(`keeps the prose intact around a ref name with ${label}`, () => {
+      for (const [position, text] of proseFor(name)) {
+        const { cook, links } = serializeWithReport(
+          {
+            name: "Span",
+            systemUsed: "us",
+            steps: [{ text, order: 0, ingredients: [{ name, amount: 1, unit: "cup" }] }],
+          },
+          unitsConfig
+        );
+        const body = cook.split("---\n").at(-1) ?? "";
+        // Reverse the token back to the prose it replaced: the emitted name, with
+        // its escaping and its braces removed, must land back in the original text.
+        const restored = body
+          .replace(/@((?:\\.|[^{\n])*)(?:\{[^}\n]*\})?/g, (_match, token: string) =>
+            token.replace(/\\(.)/g, "$1")
+          )
+          .replace(/\\(.)/g, "$1")
+          .trimEnd();
+
+        expect(links[0]?.placement, `${label} @ ${position}`).toBe("inline");
+        expect(restored, `${label} @ ${position}`).toBe(text.trim());
+      }
+    });
+  }
+
+  it("the SPECIFIC measured H3 artefacts no longer eat a character", () => {
+    function bodyOf(name: string, text: string): string {
+      const cook = structuredToCooklang(
+        {
+          name: "Artefact",
+          systemUsed: "us",
+          steps: [{ text, order: 0, ingredients: [{ name, amount: 1, unit: "cup" }] }],
+        },
+        unitsConfig
+      );
+
+      return (cook.split("---\n").at(-1) ?? "").trim();
+    }
+
+    expect(bodyOf("flour ", "Add flour now.")).toBe("Add @flour{1%cup} now.");
+    expect(bodyOf(" flour", "Add flour now.")).toBe("Add @flour{1%cup} now.");
+    expect(bodyOf(" flour ", "Add flour now.")).toBe("Add @flour{1%cup} now.");
+    expect(bodyOf("brown  sugar", "Add brown sugar into the bowl.")).toBe(
+      "Add @brown sugar{1%cup} into the bowl."
+    );
+    expect(bodyOf("brown   sugar", "Add brown sugar into the bowl.")).toBe(
+      "Add @brown sugar{1%cup} into the bowl."
+    );
+  });
+});
+
 describe("structuredToCooklang — timers", () => {
   it("emits an anonymous timer token `~{qty%unit}`", () => {
     const cook = structuredToCooklang(recipeOf("bolognese"), unitsConfig);

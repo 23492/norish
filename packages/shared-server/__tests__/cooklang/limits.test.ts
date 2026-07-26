@@ -116,6 +116,7 @@ const {
 } = await import("../../src/cooklang/limits");
 const { parseCookSource } = await import("../../src/cooklang/parse");
 const { buildCookPayload } = await import("../../src/cooklang/build-payload");
+const { parseInPool } = await import("../../src/cooklang/pool");
 
 /** A minimal, always-valid structured recipe to mutate one field of at a time. */
 function recipeWith(overrides: Partial<StructuredRecipe>): StructuredRecipe {
@@ -577,6 +578,93 @@ describe("findCookSourceDefect — the CLOSED frontmatter grammar (H1)", () => {
     expect(checkStructuredRecipeLimits({ name, systemUsed: "metric", steps: [] })).toBeNull();
     expect(findCookSourceDefect(cook)).toBeNull();
     expect(await parseCookSource(cook, units)).not.toBeNull();
+  });
+});
+
+/**
+ * H2 — A WHITESPACE-ONLY AMOUNT OR UNIT PANICS THE WASM (W3B, D-27-W3B-07).
+ *
+ * `@a{ %g}` is NINE BYTES, it passed both gates, and it kills the parse with
+ * `RuntimeError: unreachable` — a panic in a compiled Rust binary, reached from a
+ * prompt-injection surface. `f7bcecb8` closed the EMPTY-amount case (`@a{%g}`,
+ * `@a{1%}`) and missed the whitespace-only one, because the recognizer COUNTED
+ * characters and a space counts as a character.
+ *
+ * Confirmed on this tree for all three sigils, and confirmed NOT to poison the
+ * parser: after the trap, the same instance parses a good source correctly. So this
+ * is not a availability defect on top of the bound — it is the panic class round 2
+ * claimed to have closed.
+ */
+describe("findCookSourceDefect — a whitespace-only amount or unit (H2)", () => {
+  const TRAPS = [
+    "@a{ %g}\n",
+    "~a{ %m}\n",
+    "#a{ %g}\n",
+    // no trailing newline: the last line has no terminator, which is its own path
+    "@a{ %g}",
+    "~a{ % }\n",
+    "@a{ }\n",
+    // TAB and NBSP variants of each sigil
+    "@a{\t%g}\n",
+    "~a{\t%m}\n",
+    "#a{\t%g}\n",
+    "@a{\u00a0%g}\n",
+    "~a{\u00a0%m}\n",
+    "#a{\u00a0%g}\n",
+    // padded rather than only-whitespace, and a doubled internal space
+    "@a{1 %g}\n",
+    "@a{ 1%g}\n",
+    "@a{1% g}\n",
+    "@a{1%g }\n",
+    "@a{1  1/2%g}\n",
+    "@a{1%fl  oz}\n",
+    // the NAME segment is `escapeTokenText`-shaped too, so it carries no padding
+    "@ flour{1%cup}\n",
+    "@flour {1%cup}\n",
+    "@brown  sugar{1%cup}\n",
+    "~ rest{5%minutes}\n",
+  ];
+
+  for (const source of TRAPS) {
+    it(`REJECTS ${JSON.stringify(source)} and never asks the pool`, async () => {
+      expect(findCookSourceDefect(source)?.defect, source).toBe("malformed-token");
+
+      poolSpy.mockClear();
+
+      // The end-to-end consequence, not just the predicate: refused at the door.
+      await expect(parseCookSource(source, units)).resolves.toBeNull();
+      expect(poolSpy, source).toHaveBeenCalledTimes(0);
+    });
+  }
+
+  it("still ACCEPTS the whitespace shapes the serializer really emits", async () => {
+    // A single INTERNAL space in an amount ("1 1/2") or a unit ("fl oz") survives
+    // `escapeTokenText`, so it must stay legal — over-tightening here would refuse
+    // real recipes, which is the round-1 failure.
+    for (const source of [
+      "@a{1 1/2%cup}",
+      "@a{1%fl oz}",
+      "~a{1 1/2%hours}",
+      "@sea salt{}",
+      "@flour{2}",
+      "@salt",
+    ]) {
+      expect(findCookSourceDefect(source), source).toBeNull();
+    }
+  });
+
+  /**
+   * BELT AND BRACES: the trap is contained by the CHILD BOUNDARY as well as by the
+   * recognizer. `parseInPool` is called DIRECTLY, so nothing here can pass because a
+   * recognizer refused the input — the same discipline `pool.test.ts` uses for H1.
+   */
+  it("the `unreachable` trap is contained by the child process, with the recognizer bypassed", async () => {
+    for (const source of ["@a{ %g}\n", "~a{ %m}\n", "#a{ %g}\n"]) {
+      await expect(parseInPool(source, units), source).resolves.toBeNull();
+    }
+
+    // The parent is alive and the pool still works afterwards.
+    expect(await parseInPool("Mix @flour{1%gram}.\n", units)).not.toBeNull();
   });
 });
 

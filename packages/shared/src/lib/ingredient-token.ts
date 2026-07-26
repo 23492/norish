@@ -12,8 +12,17 @@ export function normalizeIngredientLinkName(name: string): string {
   return name.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
+/**
+ * Format a structured amount for display and for a `{amount%unit}` token body.
+ *
+ * A BLANK amount is NO amount, not zero (Phase 27 W3B, H2). `Number(" ")` is `0`, so
+ * a whitespace-only amount used to format as `"0"` — which rendered "0 gram of
+ * flour" on the read side and emitted `@flour{0%gram}` into the `.cook`, inventing a
+ * quantity the extraction never carried. It is treated exactly like `""` now: the
+ * token degrades to its amount-less form and the reference is kept.
+ */
 export function formatTokenAmount(amount: number | string | null | undefined): string {
-  if (amount == null || amount === "") return "";
+  if (amount == null || (typeof amount === "string" && amount.trim() === "")) return "";
 
   const numberAmount = typeof amount === "string" ? Number(amount) : amount;
 

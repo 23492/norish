@@ -450,6 +450,141 @@ describe("soundness: the serializer can NEVER produce a source the recognizer re
   });
 });
 
+/**
+ * H3 — REF-NAME WHITESPACE, THE FIDELITY DEFECT THE SUITE ABOVE STRUCTURALLY COULD
+ * NOT CATCH (W3B, D-27-W3B-08).
+ *
+ * `splitFragment` removed `ref.name.length` characters at an index produced by
+ * matching `normalizeIngredientLinkName(name)` — trimmed, whitespace-collapsed,
+ * lowercased — so the two lengths differed on any leading, trailing or internal extra
+ * whitespace in the NAME and the difference was DELETED FROM THE USER'S PROSE. It
+ * minted silently: `"Add flour now."` with an ingredient named `"flour "` rendered
+ * "Add flournow.", and `"brown   sugar"` ate the `i` from "into".
+ *
+ * WHY EVERY ONE OF THE 45 CASES ABOVE PASSED THROUGHOUT: they vary PROSE and always
+ * pass a clean ref name (or none at all), so `ref.name.length` and the matched span
+ * were always equal. No amount of extra prose could have found this — the missing
+ * dimension was the NAME. That is the lesson worth keeping: a corpus that varies one
+ * axis exhaustively proves nothing about a second one.
+ *
+ * It also predates `f7bcecb8` — the escaping round did not introduce it — but that
+ * commit claimed byte-identical round-trip fidelity and refactored this exact
+ * function, so it is in scope here. Live data is clean (0 rows with a non-NULL
+ * `cook_source`), so this is prevention, not remediation.
+ */
+describe("round-trip fidelity — REF-NAME whitespace (H3)", () => {
+  /** Every way a ref name's normalization can change its length. */
+  const NAMES: [string, string][] = [
+    ["a trailing space", "flour "],
+    ["a leading space", " flour"],
+    ["both", " flour "],
+    ["an internal DOUBLE space", "brown  sugar"],
+    ["an internal TRIPLE space", "brown   sugar"],
+    ["a TAB", "brown\tsugar"],
+    ["an NBSP", "brown\u00a0sugar"],
+    ["a newline", "brown\nsugar"],
+    ["mixed leading, internal and trailing", "  brown \t sugar  "],
+    // `"İ".toLowerCase()` is TWO code units, so the needle is LONGER than the text it
+    // matched: the same off-by-N as H3, reached through `toLowerCase()` instead.
+    ["a name whose lowercasing changes LENGTH", "İstanbul spice"],
+  ];
+
+  /** The three positions a ref can occupy in a step. */
+  function proseFor(name: string): [string, string][] {
+    const anchor = name.trim().replace(/\s+/g, " ");
+
+    return [
+      ["at the start", `${anchor} goes in first, then water.`],
+      ["in the middle", `Add ${anchor} now.`],
+      ["at the end", `Whisk the water into the ${anchor}`],
+    ];
+  }
+
+  for (const [label, name] of NAMES) {
+    for (const [position, prose] of proseFor(name)) {
+      it(`keeps the prose BYTE-IDENTICAL with ${label}, ${position}`, async () => {
+        const cook = structuredToCooklang(
+          recipeOf([
+            { text: prose, order: 0, ingredients: [{ name, amount: 1, unit: "cup" }] },
+          ]),
+          units
+        );
+
+        expect(findCookSourceDefect(cook), cook).toBeNull();
+
+        const tokens = await parseCookSource(cook, units);
+
+        expect(tokens, cook).not.toBeNull();
+        // The ingredient landed INLINE (not appended), so the assertion below is
+        // really about the span that was replaced.
+        expect(tokens![0]!.tokens.some((token) => token.type === "ingredient")).toBe(true);
+        expect(renderProse(tokens!)).toBe(prose);
+      });
+    }
+  }
+
+  it("the four MEASURED H3 artefacts render byte-identically", async () => {
+    const artefacts: [string, string][] = [
+      ["flour ", "Add flour now."],
+      [" flour", "Add flour now."],
+      ["brown  sugar", "Add brown sugar into the bowl."],
+      ["brown   sugar", "Add brown sugar into the bowl."],
+    ];
+
+    for (const [name, prose] of artefacts) {
+      const cook = structuredToCooklang(
+        recipeOf([{ text: prose, order: 0, ingredients: [{ name, amount: 1, unit: "cup" }] }]),
+        units
+      );
+      const tokens = await parseCookSource(cook, units);
+
+      expect(renderProse(tokens!), `${JSON.stringify(name)} in ${JSON.stringify(prose)}`).toBe(
+        prose
+      );
+    }
+
+    // and the exact regressions, named:
+    const flour = await parseCookSource(
+      structuredToCooklang(
+        recipeOf([
+          {
+            text: "Add flour now.",
+            order: 0,
+            ingredients: [{ name: "flour ", amount: 1, unit: "cup" }],
+          },
+        ]),
+        units
+      ),
+      units
+    );
+
+    expect(renderProse(flour!)).not.toBe("Add flournow.");
+    expect(renderProse(flour!)).toBe("Add flour now.");
+  });
+
+  it("the ingredient NAME still comes back trimmed and collapsed, and the ref is never dropped", async () => {
+    const cook = structuredToCooklang(
+      recipeOf([
+        {
+          text: "Add brown sugar now.",
+          order: 0,
+          ingredients: [{ name: "  brown   sugar ", amount: 50, unit: "gram" }],
+        },
+      ]),
+      units
+    );
+    const tokens = (await parseCookSource(cook, units))!;
+
+    expect(tokens[0]!.tokens).toContainEqual({
+      type: "ingredient",
+      name: "brown sugar",
+      amount: 50,
+      unit: "gram",
+    });
+    expect(renderProse(tokens)).toBe("Add brown sugar now.");
+  });
+});
+
 describe("round-trip fidelity — the documented, deliberate normalizations", () => {
   it("folds CR/LF in step prose to a single space (a newline is a structural injection)", async () => {
     // Left verbatim, `\n\n` would start a NEW step and `\n== x ==` a new section, so

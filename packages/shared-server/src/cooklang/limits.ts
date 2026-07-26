@@ -118,6 +118,9 @@ import {
  *    values, duplicate keys, unknown keys — with a NAMED defect code each. It also
  *    caps the block BY ARITHMETIC (the key set's size x the per-value maximum), which
  *    is what kills the whole 65 KB H1 family at the door before any value is parsed.
+ *  - H2: a whitespace-only amount or unit (`@a{ %g}`, `~a{ %m}`, `#a{ %g}` — nine
+ *    bytes, `RuntimeError: unreachable`) is refused, because `escapeTokenText` trims
+ *    and collapses so the serializer cannot emit one.
  * Neither claim restores the recognizer to load-bearing status. The bound stands
  * whether these are complete or not; that is the whole point of the pivot, and the
  * H1 payloads are proven bounded with no help from this file at all in
@@ -594,6 +597,29 @@ function isEscapePair(line: string, at: number): boolean {
 }
 
 /**
+ * One `{amount%unit}` segment under recognition: how many characters it carries, and
+ * whether its whitespace is a shape `escapeTokenText` could have produced.
+ */
+type TokenSegment = { chars: number; padded: boolean; endsWithSpace: boolean };
+
+function emptySegment(): TokenSegment {
+  return { chars: 0, padded: false, endsWithSpace: false };
+}
+
+/** `escapeTokenText` trims and collapses, so a LEADING or DOUBLED space is a defect. */
+function takeSegmentChar(segment: TokenSegment, isSpace: boolean): void {
+  if (isSpace && (segment.chars === 0 || segment.endsWithSpace)) segment.padded = true;
+
+  segment.chars += 1;
+  segment.endsWithSpace = isSpace;
+}
+
+/** A non-empty segment whose whitespace survived `escapeTokenText` unchanged. */
+function isSerializedSegment(segment: TokenSegment): boolean {
+  return segment.chars > 0 && !segment.padded && !segment.endsWithSpace;
+}
+
+/**
  * Match a `{amount%unit}` body starting at the `{` in `line`.
  *
  * Returns the index just past the closing `}`, or -1. Rejects exactly the shapes
@@ -601,12 +627,22 @@ function isEscapePair(line: string, at: number): boolean {
  * `{1%}` (`Empty quantity unit`), `{%g}` (no amount) and, for a timer, a body with
  * no `%unit` at all (`Invalid timer quantity`). `{}` IS legal — it is how the
  * serializer writes a multi-word amount-less ingredient (`@sea salt{}`).
+ *
+ * AND IT REJECTS A WHITESPACE-ONLY OR WHITESPACE-PADDED AMOUNT OR UNIT (W3B,
+ * D-27-W3B-07 — H2). `@a{ %g}`, `~a{ %m}`, `#a{ %g}` and `~a{ % }` are NINE-BYTE
+ * inputs that panic the WASM with `RuntimeError: unreachable`, and `f7bcecb8` closed
+ * only the EMPTY case (`{%g}`, `{1%}`). Counting characters was what missed them: a
+ * space counted as a character, so `{ %g}` scored one amount character and passed.
+ * The serializer runs every amount and unit through `escapeTokenText`, which trims
+ * and collapses whitespace, so a leading, trailing or doubled space in either
+ * segment is by construction not serializer output. Internal SINGLE spaces stay
+ * legal — `{1 1/2%cup}` and a `fl oz`-style unit are real serializer output.
  */
 function matchTokenBody(line: string, from: number, requireUnit: boolean): number {
   let index = from + 1;
   let sawPercent = false;
-  let amountChars = 0;
-  let unitChars = 0;
+  const amount = emptySegment();
+  const unit = emptySegment();
 
   for (;;) {
     const char = line[index];
@@ -616,15 +652,16 @@ function matchTokenBody(line: string, from: number, requireUnit: boolean): numbe
     if (char === "\\") {
       if (!isEscapePair(line, index)) return -1;
 
-      if (sawPercent) unitChars += 1;
-      else amountChars += 1;
+      takeSegmentChar(sawPercent ? unit : amount, false);
       index += 2;
       continue;
     }
 
     if (char === "}") {
-      if (sawPercent && (amountChars === 0 || unitChars === 0)) return -1;
-      if (requireUnit && (!sawPercent || amountChars === 0)) return -1;
+      if (sawPercent && !(isSerializedSegment(amount) && isSerializedSegment(unit))) return -1;
+      // `{}` is the amount-less braced form; anything else must be well-shaped.
+      if (!sawPercent && amount.chars > 0 && !isSerializedSegment(amount)) return -1;
+      if (requireUnit && !sawPercent) return -1;
 
       return index + 1;
     }
@@ -638,8 +675,7 @@ function matchTokenBody(line: string, from: number, requireUnit: boolean): numbe
 
     if (COOK_METACHARACTERS.includes(char)) return -1;
 
-    if (sawPercent) unitChars += 1;
-    else amountChars += 1;
+    takeSegmentChar(sawPercent ? unit : amount, /\s/.test(char));
     index += 1;
   }
 }
@@ -660,6 +696,7 @@ function matchTokenBody(line: string, from: number, requireUnit: boolean): numbe
  */
 function matchToken(line: string, at: number): number {
   const sigil = line[at];
+  const name = emptySegment();
   let index = at + 1;
 
   for (;;) {
@@ -669,6 +706,8 @@ function matchToken(line: string, at: number): number {
 
     if (char === "\\") {
       if (!isEscapePair(line, index)) break;
+
+      takeSegmentChar(name, false);
       index += 2;
       continue;
     }
@@ -676,12 +715,17 @@ function matchToken(line: string, at: number): number {
     if (char === "{") {
       // `@{...}` / `#{...}` has no name, and the parser cannot name a component from it
       if (sigil !== "~" && index === at + 1) return -1;
+      // The NAME goes through `escapeTokenText` too, so it is padded-whitespace-free
+      // by construction — same rule as the amount and the unit (H2's class, applied to
+      // all three segments). An EMPTY name is legal only for `~{5%minutes}`.
+      if (name.chars > 0 && !isSerializedSegment(name)) return -1;
 
       return matchTokenBody(line, index, sigil === "~");
     }
 
     if (COOK_METACHARACTERS.includes(char)) break;
 
+    takeSegmentChar(name, /\s/.test(char));
     index += 1;
   }
 

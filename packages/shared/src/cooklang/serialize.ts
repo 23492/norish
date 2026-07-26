@@ -58,6 +58,14 @@ import { normalizeUnit } from "../lib/unit-localization";
  * recognizer can accept exactly that shape and refuse every other YAML construct
  * (anchors, aliases, tags, block scalars, flow collections, comments, multi-document
  * markers) by grammar rather than by prediction.
+ *
+ * A NORMALIZATION HERE ONCE DELETED CHARACTERS THE USER TYPED (W3B, D-27-W3B-08 —
+ * H3). `splitFragment` used to be handed `ref.name.length` as the span to replace,
+ * while the index it replaced at came from a match on the NORMALIZED name — so an
+ * ingredient named `"flour "` made `"Add flour now."` serialize to
+ * `Add @flour{1%cup}now.` and render "Add flournow.". The span is now measured on the
+ * MATCH, in the ORIGINAL string's coordinates (`findNameSpan`). Never reintroduce
+ * `ref.name.length` here; see the docblock on `findNameSpan`.
  */
 
 const SINGLE_WORD_STOP = /[\s@{}\[\]()~#,;:!?.]/;
@@ -112,7 +120,21 @@ function canonicalUnit(unit: string | null | undefined, units?: UnitsMap): strin
   return units ? normalizeUnit(raw, units) : raw;
 }
 
-/** Emit a Cooklang ingredient token `@name{qty%unit}`. */
+/**
+ * Emit a Cooklang ingredient token `@name{qty%unit}`.
+ *
+ * NEITHER THE AMOUNT NOR THE UNIT CAN BE BLANK OR WHITESPACE-PADDED (W3B,
+ * D-27-W3B-07 — H2). `@a{ %g}` — a WHITESPACE-ONLY amount — is nine bytes and it
+ * PANICS the WASM parser with `RuntimeError: unreachable`; `f7bcecb8` closed the
+ * empty case and missed this one. Two composed guarantees keep it unreachable from
+ * here, and both are asserted by tests rather than trusted:
+ *   1. `formatTokenAmount` maps a blank amount to `""`, so it degrades to the
+ *      amount-less form (`@salt` / `@sea salt{}`) instead of `{ }` or `{0}`;
+ *   2. `escapeTokenText` trims and collapses whitespace, so a surviving amount or
+ *      unit can never start or end with whitespace, nor contain a run of it.
+ * A ref is NEVER dropped for this — the projection builds ingredient rows from the
+ * tokens, so dropping one would drop a row.
+ */
 export function formatCooklangIngredient(ref: StructuredIngredientRef, units?: UnitsMap): string {
   const name = escapeTokenText(ref.name);
   const amount = escapeTokenText(formatTokenAmount(ref.amount));
@@ -331,33 +353,83 @@ function buildFrontmatter(recipe: StructuredRecipe): string {
   return `---\n${lines.join("\n")}\n---\n`;
 }
 
+/**
+ * The MATCHED SPAN of an ingredient name inside a prose fragment, in the ORIGINAL
+ * string's coordinates.
+ *
+ * A span, not a bare index, because the two differ: the match is performed against
+ * `normalizeIngredientLinkName(name)` (trimmed, whitespace-collapsed, lowercased),
+ * whose length is NOT `name.length`. Replacing `length` characters is correct;
+ * replacing `name.length` characters DELETED TEXT THE USER TYPED (H3).
+ */
+type NameSpan = { index: number; length: number };
+
+/**
+ * Lowercase `text` while remembering which ORIGINAL code unit each folded code unit
+ * came from, so a match found in the folded string can be reported as a span of the
+ * original.
+ *
+ * `String.prototype.toLowerCase()` is NOT LENGTH-PRESERVING — `"İ"` (LATIN
+ * CAPITAL I WITH DOT ABOVE) lowercases to TWO code units — so folding the whole
+ * string and then using the folded index and the folded length against the original
+ * is off by N for any such character. That is the same class of defect as H3 itself,
+ * reached through a different door, which is why the mapping is explicit here rather
+ * than assumed.
+ *
+ * Folding is done PER CODE UNIT: `origin[j]` is the index in `text` of the character
+ * that produced `folded[j]`, and `origin[folded.length]` is `text.length`, so a span
+ * is always `origin[end] - origin[start]`. A lone surrogate lowercases to itself, so
+ * surrogate pairs survive intact.
+ */
+function foldCase(text: string): { folded: string; origin: number[] } {
+  let folded = "";
+  const origin: number[] = [];
+
+  for (let index = 0; index < text.length; index += 1) {
+    const lower = (text[index] ?? "").toLowerCase();
+
+    folded += lower;
+
+    for (let unit = 0; unit < lower.length; unit += 1) origin.push(index);
+  }
+
+  origin.push(text.length);
+
+  return { folded, origin };
+}
+
 /** case-insensitive, token-consuming, word-ish boundary match of `name` in `text` */
-function findNameIndex(text: string, name: string): number {
-  const hay = text.toLowerCase();
+function findNameSpan(text: string, name: string): NameSpan | null {
+  const { folded, origin } = foldCase(text);
   const needle = normalizeIngredientLinkName(name);
 
   // A BLANK name has no textual anchor, and searching for the empty string would
   // spin forever (`indexOf("", 0)` is always 0, so the loop below never advances).
   // Such a ref cannot be expressed as a token either, so `findCookSourceDefect`
   // refuses the whole source and the recipe keeps its legacy projection.
-  if (needle === "") return -1;
+  if (needle === "") return null;
 
   let from = 0;
 
   for (;;) {
-    const index = hay.indexOf(needle, from);
+    const index = folded.indexOf(needle, from);
 
-    if (index < 0) return -1;
+    if (index < 0) return null;
 
-    const before = index === 0 ? "" : (hay[index - 1] ?? "");
-    const after = hay[index + needle.length] ?? "";
+    const end = index + needle.length;
+    const before = index === 0 ? "" : (folded[index - 1] ?? "");
+    const after = folded[end] ?? "";
     const boundaryBefore = before === "" || /[^a-z0-9]/.test(before);
     const boundaryAfter = after === "" || /[^a-z0-9]/.test(after);
 
     // don't re-tokenise an already-emitted `@token`
-    if (boundaryBefore && boundaryAfter && before !== "@") return index;
+    if (boundaryBefore && boundaryAfter && before !== "@") {
+      const start = origin[index] ?? index;
 
-    from = index + needle.length;
+      return { index: start, length: (origin[end] ?? text.length) - start };
+    }
+
+    from = end;
   }
 }
 
@@ -413,11 +485,14 @@ function serializeStepLine(step: StructuredStep, links: LinkOutcome[], units?: U
 
       if (fragment?.kind !== "prose") continue;
 
-      const index = findNameIndex(fragment.value, ref.name);
+      const span = findNameSpan(fragment.value, ref.name);
 
-      if (index < 0) continue;
+      if (span === null) continue;
 
-      splitFragment(fragments, at, fragment.value, index, ref.name.length, token);
+      // THE SPAN, never `ref.name.length` (H3, D-27-W3B-08): the two differ on any
+      // leading, trailing or internal extra whitespace in the ref name, and the
+      // difference was silently DELETED from the user's prose.
+      splitFragment(fragments, at, fragment.value, span.index, span.length, token);
       placed = true;
       break;
     }
