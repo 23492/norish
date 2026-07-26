@@ -34,18 +34,43 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { RecipePermissionPolicy } from "@norish/config/zod/server-config";
-import type { FullRecipeDTO } from "@norish/shared/contracts";
+import type { CookTokensDTO, FullRecipeDTO } from "@norish/shared/contracts";
+
+import { structuredToCooklang } from "@norish/shared/cooklang";
 
 import { createMockFullRecipe, createMockUser } from "./test-utils";
 
-const SECRET_COOK_SOURCE = [
-  "---",
-  "title: Grandma's Secret Stollen",
-  "norish.system: metric",
-  "---",
-  "Fold the @marzipan{200%gram} into the @dough{1%piece} with the secret spice.",
-  "",
-].join("\n");
+/**
+ * The `.cook` under test is MINTED BY THE REAL SERIALIZER, not hand-written.
+ *
+ * This used to be a hand-written string literal, and that is exactly how it rotted.
+ * Plan 27-04 Task 3 (the H1 root fix) made `buildFrontmatter` quote every
+ * non-numeric scalar UNCONDITIONALLY, and taught `findCookSourceDefect` a closed
+ * frontmatter grammar in which an UNQUOTED value is the defect `frontmatter-value`.
+ * The literal here still said `title: Grandma's Secret Stollen`, so from Task 3
+ * onward the read path CORRECTLY refused it and `parseCookSource` returned `null` —
+ * which the NEVER-BROKEN GUARANTEE turns into a silent legacy fallback rather than
+ * an error, so it surfaced only as 11 `expected null not to be null` failures.
+ *
+ * The fixture was wrong; the code was right. Minting it from `structuredToCooklang`
+ * means this suite now consumes whatever the emitter actually emits, so the two can
+ * never silently disagree again — the same two-way discipline `limits.test.ts` uses
+ * to pin the key set against the recognizer.
+ */
+const SECRET_COOK_SOURCE = structuredToCooklang({
+  name: "Grandma's Secret Stollen",
+  systemUsed: "metric",
+  steps: [
+    {
+      text: "Fold the marzipan into the dough with the secret spice.",
+      order: 0,
+      ingredients: [
+        { name: "marzipan", amount: 200, unit: "gram" },
+        { name: "dough", amount: 1, unit: "piece" },
+      ],
+    },
+  ],
+});
 
 const getRecipeFullMock = vi.hoisted(() => vi.fn());
 const getRecipeOwnerAndHouseholdMock = vi.hoisted(() => vi.fn());
@@ -274,6 +299,39 @@ function expectNoCookLeak(value: unknown): void {
   expect(serialized).not.toContain("cookTokens");
 }
 
+/**
+ * Assert that a PERMITTED read got the tokens the REAL pooled WASM parse produced.
+ *
+ * `not.toBeNull()` alone is NOT enough here, and the reason is the whole point of
+ * this suite. `parseCookSource` resolves `null` for EVERY failure — a refused
+ * source, a bound hit, even a child that could not be spawned — because the
+ * never-broken guarantee turns a parse failure into a legacy fallback rather than
+ * an error. So a `null` on the permitted side is indistinguishable from a working
+ * boundary unless something pins the CONTENT, and an isolation suite whose
+ * permitted side is vacuous proves nothing about its denied side either.
+ *
+ * This pins the exact token stream: the segmentation, the ingredient/text split and
+ * the parsed amounts and units. Nothing but the real parser produces it — the
+ * fixture's `.cook` is a flat string, so these amounts and units exist ONLY because
+ * the WASM in the child process derived them from `@marzipan{200%gram}`.
+ */
+function expectRealCookTokens(tokens: CookTokensDTO | null | undefined): void {
+  expect(tokens).not.toBeNull();
+  expect(tokens).toEqual([
+    {
+      order: 0,
+      section: null,
+      tokens: [
+        { type: "text", value: "Fold the " },
+        { type: "ingredient", name: "marzipan", amount: 200, unit: "gram" },
+        { type: "text", value: " into the " },
+        { type: "ingredient", name: "dough", amount: 1, unit: "piece" },
+        { type: "text", value: " with the secret spice." },
+      ],
+    },
+  ]);
+}
+
 describe("cookSource / cookTokens per-cookbook isolation (HOUSE-06, POLICY-01)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -298,12 +356,7 @@ describe("cookSource / cookTokens per-cookbook isolation (HOUSE-06, POLICY-01)",
 
         expect(recipe).not.toBeNull();
         expect(recipe!.cookSource).toBe(SECRET_COOK_SOURCE);
-        expect(recipe!.cookTokens).not.toBeNull();
-        expect(
-          recipe!.cookTokens!.flatMap((step) =>
-            step.tokens.filter((t) => t.type === "ingredient").map((t) => t.name)
-          )
-        ).toContain("marzipan");
+        expectRealCookTokens(recipe!.cookTokens);
       });
 
       it("gives a MEMBER of the recipe's cookbook the cookSource and cookTokens", async () => {
@@ -311,7 +364,7 @@ describe("cookSource / cookTokens per-cookbook isolation (HOUSE-06, POLICY-01)",
 
         expect(recipe).not.toBeNull();
         expect(recipe!.cookSource).toBe(SECRET_COOK_SOURCE);
-        expect(recipe!.cookTokens).not.toBeNull();
+        expectRealCookTokens(recipe!.cookTokens);
       });
 
       it("denies a member of an UNRELATED cookbook and leaks neither the .cook nor a token", async () => {
@@ -359,7 +412,7 @@ describe("cookSource / cookTokens per-cookbook isolation (HOUSE-06, POLICY-01)",
 
       const recipe = await findRecipeForViewer(MEMBER_OF_A, "recipe-in-a");
 
-      expect(recipe?.cookTokens).not.toBeNull();
+      expectRealCookTokens(recipe?.cookTokens);
     });
   });
 
@@ -390,12 +443,7 @@ describe("cookSource / cookTokens per-cookbook isolation (HOUSE-06, POLICY-01)",
 
           expect(recipe).not.toBeNull();
           expect(recipe!.cookSource).toBe(SECRET_COOK_SOURCE);
-          expect(recipe!.cookTokens).not.toBeNull();
-          expect(
-            recipe!.cookTokens!.flatMap((step) =>
-              step.tokens.filter((t) => t.type === "ingredient").map((t) => t.name)
-            )
-          ).toContain("marzipan");
+          expectRealCookTokens(recipe!.cookTokens);
         });
 
         it("denies a STRANGER and leaks neither the .cook nor a token", async () => {
@@ -527,7 +575,7 @@ describe("cookSource / cookTokens per-cookbook isolation (HOUSE-06, POLICY-01)",
         const recipe = await editableCaller(OWNER).getEditable({ id: RECIPE_IN_A_UUID });
 
         expect(recipe.cookSource).toBe(SECRET_COOK_SOURCE);
-        expect(recipe.cookTokens).not.toBeNull();
+        expectRealCookTokens(recipe.cookTokens);
         expect(parseCookSourceSpy).toHaveBeenCalledTimes(1);
       });
     }
