@@ -66,13 +66,27 @@ async function processNutritionJob(job: Job<NutritionEstimationJobData>): Promis
 
   const estimate = result.data;
 
-  // Update recipe with estimated nutrition
-  await updateRecipeWithRefs(recipe.id, userId, {
-    calories: estimate.calories,
-    fat: estimate.fat.toString(),
-    carbs: estimate.carbs.toString(),
-    protein: estimate.protein.toString(),
-  });
+  // Update recipe with estimated nutrition.
+  //
+  // `unaffected`, and it is load-bearing (COOK-01, VERIFY-3 blocker 5). Nutrition
+  // is not part of a `.cook` — the serializer emits `title`, `servings`,
+  // `time.prep`, `time.cook`, `source` and `norish.system`, and none of the four
+  // fields below reaches it. This job runs right after an import, so reading the
+  // omitted argument as "NULL the projection" deleted the `.cook` of every recipe
+  // that got an estimate, silently. `assertCookUnaffected` in the repository holds
+  // this claim to the four fields: widen the payload and the write throws.
+  await updateRecipeWithRefs(
+    recipe.id,
+    userId,
+    {
+      calories: estimate.calories,
+      fat: estimate.fat.toString(),
+      carbs: estimate.carbs.toString(),
+      protein: estimate.protein.toString(),
+    },
+    undefined,
+    { mode: "unaffected" }
+  );
 
   // Fetch updated recipe and emit event
   const updatedRecipe = await getRecipeFull(recipe.id);

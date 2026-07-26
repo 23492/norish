@@ -35,8 +35,10 @@ export interface ParseRecipeResult {
    * `null` for every non-AI branch: JSON-LD, the python scraper, the legacy
    * parser and structured paste all give a flat step list with NO linkage, and the
    * only way to invent linkage from those is the heuristic name-matcher that D-6 /
-   * D-7 ban from every runtime path (D-27-W3-08). Those recipes are W5 backfill
-   * territory. One code path, one shape, no special case.
+   * D-7 ban from every runtime path (D-27-W3-08). Those recipes would be W5
+   * backfill territory — but W5 is not started and pauses for explicit sign-off,
+   * so today they simply stay on the legacy render path with `cook_source` NULL.
+   * One code path, one shape, no special case.
    */
   cook: CookPayload | null;
 }

@@ -134,7 +134,11 @@ describe("archive importer overwrite behavior", () => {
         name: "Updated Soup",
         image: "/recipes/existing-recipe-id/cover.jpg",
         images: [{ image: "/recipes/existing-recipe-id/gallery.jpg", order: 0 }],
-      })
+      }),
+      undefined,
+      // COOK-01: an archive overwrite replaces name, ingredients and steps from a
+      // `.cook`-less DTO, so any stored source describes the pre-import recipe.
+      { mode: "invalidate" }
     );
     expect(mockCreateRecipeWithRefs).not.toHaveBeenCalled();
     expect(result.imported).toHaveLength(1);

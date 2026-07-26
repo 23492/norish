@@ -67,8 +67,7 @@ function coerceIngredientRefs(raw: unknown): ExtractionIngredientRef[] {
     return [
       {
         name: ref.name,
-        amount:
-          typeof amount === "number" || typeof amount === "string" ? amount : null,
+        amount: typeof amount === "number" || typeof amount === "string" ? amount : null,
         unit: typeof ref.unit === "string" ? ref.unit : null,
       },
     ];
@@ -376,9 +375,7 @@ function startsWithWholeWords(words: string[], prefix: string[]): boolean {
  * recipe and quietly disable this wave.
  */
 function refCoversFlatIngredient(flatWords: string[], refWords: string[]): boolean {
-  return (
-    containsWholeWordRun(flatWords, refWords) || startsWithWholeWords(refWords, flatWords)
-  );
+  return containsWholeWordRun(flatWords, refWords) || startsWithWholeWords(refWords, flatWords);
 }
 
 function toStructuredIngredientRef(ref: ExtractionIngredientRef): StructuredIngredientRef {
@@ -405,9 +402,12 @@ function toStructuredTimerRef(ref: ExtractionTimerRef): StructuredTimerRef {
  *    references. With a `cook`, `deriveProjectionTx` OWNS `recipe_ingredients` and
  *    builds them from the per-step refs, so an unreferenced flat ingredient would
  *    be SILENTLY DELETED from the recipe and from everything the shopping list can
- *    add. Refusing costs nothing (W5's backfill revisits every `cook_source IS
- *    NULL` recipe); losing an ingredient costs a lot. Logged at ERROR with COUNTS
- *    ONLY — an ingredient name is per-cookbook data (T-27-05).
+ *    add. Refusing costs the user nothing TODAY — the recipe keeps its full legacy
+ *    projection — while losing an ingredient costs a lot. It is NOT automatically
+ *    repaired later: W5's backfill would revisit every `cook_source IS NULL`
+ *    recipe, but W5 is not started and pauses for explicit sign-off, so a refusal
+ *    here is where the recipe stays. Logged at ERROR with COUNTS ONLY — an
+ *    ingredient name is per-cookbook data (T-27-05).
  * 3. a size cap breach, and 4. output that does not parse with an empty report —
  *    both decided and logged inside `buildCookPayload`.
  *

@@ -866,6 +866,88 @@ export interface RecipeCookPayload {
   cookTokens: CookTokensDTO;
 }
 
+/**
+ * WHAT THIS WRITE DOES TO `recipes.cook_source` — stated by the caller, not guessed
+ * (Phase 27, COOK-01 — VERIFY-3 blocker 5).
+ *
+ * `cook_source` is a PROJECTION, and its freshness is a property of the write that
+ * happens beside it. Until this type existed, `updateRecipeWithRefs` took an
+ * OPTIONAL `cook?: RecipeCookPayload` and read its absence as "NULL the stale
+ * projection" (D-27-W3-06). That conflated two genuinely different statements:
+ *
+ *   - "I rewrote the recipe from a client payload, so any stored `.cook` is now
+ *     stale" — the recipe editor, which is what D-27-W3-06 was written for; and
+ *   - "I have no opinion about the `.cook`" — every OTHER caller.
+ *
+ * The nutrition-estimation worker is the second kind and got the first behaviour:
+ * it writes four nutrition numbers the `.cook` does not carry, passed no `cook`,
+ * and so silently deleted the freshly minted `.cook` of every imported recipe that
+ * received an estimate. No error, no log, no user-visible signal.
+ *
+ * THE PARAMETER IS REQUIRED, so "forgot to think about it" is a compile error
+ * rather than a silent delete — the same device that closed T-27-07 on
+ * `copyRecipeForSave`, whose `cook` is likewise required and caller-proven. And
+ * `unaffected` is not taken on trust: `assertCookUnaffected` below refuses a write
+ * that claims it while touching a field the `.cook` actually describes.
+ */
+export type RecipeCookWrite =
+  /** A server-side producer minted a new `.cook`; store it and re-derive from it. */
+  | { mode: "replace"; cook: RecipeCookPayload }
+  /** This write rewrites what the `.cook` describes and supplies no new one; NULL it. */
+  | { mode: "invalidate" }
+  /** This write touches nothing the `.cook` describes; leave it exactly as it is. */
+  | { mode: "unaffected" };
+
+/**
+ * Every `FullRecipeUpdateDTO` field the `.cook` DESCRIBES.
+ *
+ * Derived from the serializer, not guessed: `buildFrontmatter`
+ * (`packages/shared/src/cooklang/serialize.ts`) emits `title`, `servings`,
+ * `time.prep`, `time.cook`, `source` and `norish.system`, and the body carries the
+ * step prose with its `@ingredient{amount%unit}` tokens. `totalMinutes` is in
+ * `StructuredRecipe` but has no frontmatter key today; it is listed anyway, because
+ * a conservative entry costs a caller one honest `invalidate` and a missing one
+ * costs a user their `.cook` silently.
+ *
+ * NOT listed, and deliberately so: `description`, `notes`, `image`, `categories`,
+ * `tags`, `images`, `videos`, `calories`, `fat`, `carbs`, `protein`. None of them
+ * reaches the serializer, so a write confined to them cannot make a `.cook` stale.
+ */
+const COOK_DESCRIBED_FIELDS = [
+  "name",
+  "servings",
+  "prepMinutes",
+  "cookMinutes",
+  "totalMinutes",
+  "url",
+  "systemUsed",
+  "recipeIngredients",
+  "steps",
+] as const satisfies readonly (keyof FullRecipeUpdateDTO)[];
+
+/**
+ * Prove a `mode: "unaffected"` claim before any row is written.
+ *
+ * A required parameter forces the caller to DECIDE; this makes the decision
+ * checkable. Without it, `unaffected` would be a second, quieter door to exactly
+ * the staleness D-27-W3-06 exists to prevent — an update that rewrites the
+ * ingredients while keeping a `cook_source` that describes the pre-edit recipe.
+ *
+ * It throws rather than downgrading to `invalidate`: a caller that mis-states its
+ * own write is a programming error, and a repository that quietly "fixes" one is
+ * how the original defect stayed invisible for a whole wave. This runs before the
+ * transaction opens, so nothing is half-written.
+ */
+function assertCookUnaffected(payload: FullRecipeUpdateDTO): void {
+  const touched = COOK_DESCRIBED_FIELDS.filter((field) => payload[field] !== undefined);
+
+  if (touched.length > 0) {
+    throw new Error(
+      `Update claims cook mode "unaffected" but writes ${touched.join(", ")}, which the .cook describes.`
+    );
+  }
+}
+
 export async function createRecipeWithRefs(
   recipeId: string,
   userId: string | null | undefined,
@@ -1022,6 +1104,36 @@ export async function createRecipeWithRefs(
   return finalRecipeId;
 }
 
+/**
+ * Switch the measurement system a recipe is SERVED in (COOK-01 — VERIFY-3 blocker 6).
+ *
+ * A `.cook` carries exactly ONE unit system (D-2, `norish.system` in its
+ * frontmatter), and it is minted for the recipe's `system_used` at the moment it is
+ * written. So `system_used` and the stored source are two halves of one fact, and
+ * this function used to move one of them: after a metric -> US conversion,
+ * `recipes.get` / `getEditable` kept shipping `cookTokens` parsed out of the METRIC
+ * `.cook` for a recipe the UI now calls imperial. No error, no refusal — a silently
+ * wrong read model.
+ *
+ * THE FIX IS IN THE STATEMENT, NOT IN THE CALLER, and that is deliberate. The other
+ * write path takes a caller-supplied `RecipeCookWrite` because only the caller can
+ * know whether its payload made the projection stale. Here there is nothing to ask:
+ * a source written for the other system cannot describe this one, so the row is
+ * left in the only state that is true of it. A parameter would be a decision a
+ * caller could get wrong; a `CASE` cannot be.
+ *
+ * NOT re-minted here. A `.cook` for the target system would need per-step ingredient
+ * linkage in that system, and the recipe holds none: `deriveProjectionTx` writes the
+ * opposite system's ingredient ROWS but never its steps (D-27-W2-05), and
+ * `convertRecipeDataWithAI` returns a flat ingredient list with no per-step refs.
+ * The only linkage that exists is inside the native `.cook` itself. Re-minting from
+ * it would mean re-PARSING a stored source (against §15.5) and then transplanting
+ * refs across AI-rewritten prose by name — a guess, in a path that has zero live
+ * rows today. Minting a `.cook` for a recipe that lacks one is W5's scope; W5 is not
+ * started and pauses for explicit sign-off, so the recipe stays on the legacy render
+ * path until then. That costs the user no data: `cook_source` is a projection of
+ * rows that are all still there.
+ */
 export async function setActiveSystemForRecipe(
   recipeId: string,
   system: MeasurementSystem,
@@ -1035,7 +1147,15 @@ export async function setActiveSystemForRecipe(
 
   const updated = await db
     .update(recipes)
-    .set({ systemUsed: system, version: sql`${recipes.version} + 1` })
+    .set({
+      systemUsed: system,
+      // Read against the PRE-UPDATE row, in the same statement, so there is no
+      // window in which `system_used` and `cook_source` disagree: a switch to the
+      // system the source is already written in keeps it, any other switch clears
+      // it. A separate SELECT would reintroduce exactly the race this replaces.
+      cookSource: sql`CASE WHEN ${recipes.systemUsed} = ${system} THEN ${recipes.cookSource} ELSE NULL END`,
+      version: sql`${recipes.version} + 1`,
+    })
     .where(and(...whereConditions))
     .returning({ id: recipes.id });
 
@@ -1568,8 +1688,8 @@ export async function updateRecipeWithRefs(
   recipeId: string,
   userId: string,
   input: FullRecipeUpdateDTO,
-  version?: number,
-  cook?: RecipeCookPayload
+  version: number | undefined,
+  cookWrite: RecipeCookWrite
 ): Promise<MutationOutcome<void>> {
   const parsed = FullRecipeUpdateSchema.safeParse(input);
 
@@ -1578,6 +1698,9 @@ export async function updateRecipeWithRefs(
   }
 
   const payload = parsed.data;
+  const cook = cookWrite.mode === "replace" ? cookWrite.cook : null;
+
+  if (cookWrite.mode === "unaffected") assertCookUnaffected(payload);
 
   return await db.transaction(async (tx) => {
     // Update recipe base fields
@@ -1603,15 +1726,26 @@ export async function updateRecipeWithRefs(
 
     // Phase 27 (W2): only a server-side producer can set this; see RecipeCookPayload.
     //
-    // D-27-W3-06: an ordinary, no-`cook` update NULLs any stored `.cook`. The recipe
-    // editor saves through here with no linkage (the client has none and never will,
-    // D-27-W2-01), which rewrites the projection from the client payload — so a
-    // retained `cook_source` would describe the PRE-EDIT recipe while `recipes.get`
-    // kept shipping tokens derived from it. That silent staleness is the one
-    // unacceptable outcome: W4's renderer and W6's `0043 NOT NULL` both stand on
-    // "a non-NULL `cook_source` parses cleanly AND describes its recipe". The recipe
-    // simply returns to the legacy path and W5's backfill re-mints it.
-    updateData.cookSource = cook ? cook.cookSource : null;
+    // D-27-W3-06, now stated by the CALLER (see `RecipeCookWrite`): an update that
+    // rewrites what the `.cook` describes and brings no new one NULLs the stored
+    // source. The recipe editor saves through here with no linkage (the client has
+    // none and never will, D-27-W2-01) and rewrites the projection from its own
+    // payload — so a retained `cook_source` would describe the PRE-EDIT recipe while
+    // `recipes.get` kept shipping tokens derived from it. That silent staleness is
+    // the one unacceptable outcome: W4's renderer and W6's `0043 NOT NULL` both
+    // stand on "a non-NULL `cook_source` parses cleanly AND describes its recipe".
+    //
+    // The recipe returns to the legacy render path, which costs the user nothing
+    // TODAY and is not automatically undone: re-minting a `.cook` for a row that
+    // lost one is W5's scope, and W5 is not started and pauses for explicit
+    // sign-off. There is no recovery path in the tree right now — so `invalidate`
+    // must be a caller's deliberate statement, never a default.
+    //
+    // `unaffected` writes nothing here at all, so the stored source survives
+    // byte-identically (`assertCookUnaffected` has already proved the claim).
+    if (cookWrite.mode !== "unaffected") {
+      updateData.cookSource = cook ? cook.cookSource : null;
+    }
 
     updateData.updatedAt = new Date();
 
@@ -1732,7 +1866,9 @@ export async function updateRecipeWithRefs(
 
       // If systemUsed is not provided at top level, infer it from the steps themselves
       if (!systemToUpdate && payload.steps.length > 0) {
-        const inferredSystems = new Set((payload.steps as any[]).map((s) => s.systemUsed).filter(Boolean));
+        const inferredSystems = new Set(
+          (payload.steps as any[]).map((s) => s.systemUsed).filter(Boolean)
+        );
 
         // If all steps use the same system, use that
         if (inferredSystems.size === 1) {

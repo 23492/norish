@@ -190,19 +190,25 @@ describe("Unit Normalization - Create/Edit Recipes", () => {
 
   describe("updateRecipeWithRefs - unit normalization", () => {
     it("should normalize Dutch 'handvol' to canonical 'handful' when updating recipe", async () => {
-      await updateRecipeWithRefs(testRecipeId, testUserId, {
-        systemUsed: "metric",
-        recipeIngredients: [
-          {
-            ingredientId: null,
-            ingredientName: "olie",
-            amount: 1,
-            unit: "handvol", // Dutch term
-            systemUsed: "metric",
-            order: 0,
-          },
-        ],
-      });
+      await updateRecipeWithRefs(
+        testRecipeId,
+        testUserId,
+        {
+          systemUsed: "metric",
+          recipeIngredients: [
+            {
+              ingredientId: null,
+              ingredientName: "olie",
+              amount: 1,
+              unit: "handvol", // Dutch term
+              systemUsed: "metric",
+              order: 0,
+            },
+          ],
+        },
+        undefined,
+        { mode: "invalidate" }
+      );
 
       const ingredients = await getRecipeIngredients(testRecipeId);
 
@@ -211,18 +217,24 @@ describe("Unit Normalization - Create/Edit Recipes", () => {
     });
 
     it("should normalize when updating with ingredientName instead of ingredientId", async () => {
-      await updateRecipeWithRefs(testRecipeId, testUserId, {
-        systemUsed: "metric",
-        recipeIngredients: [
-          {
-            ingredientName: "olie",
-            amount: 1,
-            unit: "scheut", // Dutch term
-            systemUsed: "metric",
-            order: 0,
-          },
-        ],
-      });
+      await updateRecipeWithRefs(
+        testRecipeId,
+        testUserId,
+        {
+          systemUsed: "metric",
+          recipeIngredients: [
+            {
+              ingredientName: "olie",
+              amount: 1,
+              unit: "scheut", // Dutch term
+              systemUsed: "metric",
+              order: 0,
+            },
+          ],
+        },
+        undefined,
+        { mode: "invalidate" }
+      );
 
       const ingredients = await getRecipeIngredients(testRecipeId);
 
@@ -230,35 +242,41 @@ describe("Unit Normalization - Create/Edit Recipes", () => {
     });
 
     it("should normalize multiple ingredients with different locale-specific units", async () => {
-      await updateRecipeWithRefs(testRecipeId, testUserId, {
-        systemUsed: "metric",
-        recipeIngredients: [
-          {
-            ingredientId: null,
-            ingredientName: "suiker",
-            amount: 500,
-            unit: "gr", // Dutch => gram
-            systemUsed: "metric",
-            order: 0,
-          },
-          {
-            ingredientId: null,
-            ingredientName: "olie",
-            amount: 1,
-            unit: "scheut", // Dutch => splash
-            systemUsed: "metric",
-            order: 1,
-          },
-          {
-            ingredientId: null,
-            ingredientName: "noten",
-            amount: 1,
-            unit: "handvol", // Dutch => handful
-            systemUsed: "metric",
-            order: 2,
-          },
-        ],
-      });
+      await updateRecipeWithRefs(
+        testRecipeId,
+        testUserId,
+        {
+          systemUsed: "metric",
+          recipeIngredients: [
+            {
+              ingredientId: null,
+              ingredientName: "suiker",
+              amount: 500,
+              unit: "gr", // Dutch => gram
+              systemUsed: "metric",
+              order: 0,
+            },
+            {
+              ingredientId: null,
+              ingredientName: "olie",
+              amount: 1,
+              unit: "scheut", // Dutch => splash
+              systemUsed: "metric",
+              order: 1,
+            },
+            {
+              ingredientId: null,
+              ingredientName: "noten",
+              amount: 1,
+              unit: "handvol", // Dutch => handful
+              systemUsed: "metric",
+              order: 2,
+            },
+          ],
+        },
+        undefined,
+        { mode: "invalidate" }
+      );
 
       const ingredients = await getRecipeIngredients(testRecipeId);
 

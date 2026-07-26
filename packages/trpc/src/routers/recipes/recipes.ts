@@ -22,10 +22,10 @@ import {
   moveRecipeToHousehold,
   RecipeConvertInputSchema,
   RecipeDeleteInputSchema,
-  RecipeMoveInputSchema,
   RecipeGetInputSchema,
   RecipeImportInputSchema,
   RecipeListInputSchema,
+  RecipeMoveInputSchema,
   RecipeUpdateInputSchema,
   searchRecipesByName,
   setActiveSystemForRecipe,
@@ -64,8 +64,8 @@ import {
   hasTargetSystemProjection,
 } from "./helpers";
 import {
-  randomRecipeInputSchema,
   dinnerSuggestionInputSchema,
+  randomRecipeInputSchema,
   recipeAutocompleteInputSchema,
   recipeIdInputSchema,
   recipeImportBulkInputSchema,
@@ -253,7 +253,12 @@ const update = authedProcedure.input(RecipeUpdateInputSchema).mutation(({ ctx, i
 
   assertRecipeAccess(ctx, id, "edit")
     .then(async () => {
-      const result = await updateRecipeWithRefs(id, ctx.user.id, data, version);
+      // The recipe editor rewrites ingredients and steps from a client payload that
+      // carries no per-step linkage and never will (D-27-W2-01), so a stored `.cook`
+      // would describe the PRE-EDIT recipe. D-27-W3-06, now said out loud.
+      const result = await updateRecipeWithRefs(id, ctx.user.id, data, version, {
+        mode: "invalidate",
+      });
 
       if (result.stale) {
         log.info({ userId: ctx.user.id, recipeId: id, version }, "Ignoring stale recipe update");
@@ -500,7 +505,12 @@ export const importFromUrlsProcedure = authedProcedure
         });
 
         if (result.status === "exists") {
-          return { url, recipeId, status: "exists" as const, existingRecipeId: result.existingRecipeId };
+          return {
+            url,
+            recipeId,
+            status: "exists" as const,
+            existingRecipeId: result.existingRecipeId,
+          };
         }
 
         if (result.status === "duplicate") {

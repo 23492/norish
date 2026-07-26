@@ -329,7 +329,12 @@ async function importRecipeItems(
 
         const overwriteDto = await rehomeArchiveMediaToRecipe(dto, existingId);
 
-        await updateRecipeWithRefs(existingId, overwriteUserId, overwriteDto);
+        // An archive overwrite replaces the whole recipe — name, ingredients and
+        // steps — from a `.cook`-less DTO, so any stored source now describes the
+        // recipe as it was before this import (D-27-W3-06).
+        await updateRecipeWithRefs(existingId, overwriteUserId, overwriteDto, undefined, {
+          mode: "invalidate",
+        });
 
         // Save imported rating if present and user is authenticated
         if (importedRating && userId) {

@@ -20,6 +20,7 @@ import {
   createHousehold,
   createRecipeWithRefs,
   getRecipeFull,
+  setActiveSystemForRecipe,
   updateRecipeWithRefs,
 } from "@norish/db";
 import { db } from "@norish/db/drizzle";
@@ -62,6 +63,18 @@ const COOK_TOKENS: CookTokensDTO = [
     ],
   },
 ];
+
+/**
+ * The unit system a stored `.cook` DECLARES, read off its `norish.system`
+ * frontmatter key (D-2: one `.cook` carries exactly one system).
+ *
+ * Quotes are optional in the pattern on purpose: `5cdfc8aa` made every
+ * non-numeric frontmatter value quoted, and this test's fixture predates that,
+ * so the assertion must read both shapes rather than pin one.
+ */
+function declaredCookSystem(cookSource: string | null): string | null {
+  return cookSource?.match(/^norish\.system: "?([a-z]+)"?\s*$/m)?.[1] ?? null;
+}
 
 function insertPayload(overrides: Partial<FullRecipeInsertDTO> = {}): FullRecipeInsertDTO {
   return {
@@ -124,6 +137,15 @@ describe("W2 write path — the optional server-authored `cook` argument", () =>
     return row?.cookSource ?? null;
   }
 
+  async function systemStateOf(recipeId: string) {
+    const [row] = await getTestDb()
+      .select({ systemUsed: recipes.systemUsed, cookSource: recipes.cookSource })
+      .from(recipes)
+      .where(eq(recipes.id, recipeId));
+
+    return { systemUsed: row?.systemUsed ?? null, cookSource: row?.cookSource ?? null };
+  }
+
   describe("with NO cook argument — behaviour is unchanged (the must_have)", () => {
     it("createRecipeWithRefs leaves cook_source NULL and writes the legacy rows", async () => {
       const recipeId = crypto.randomUUID();
@@ -150,13 +172,19 @@ describe("W2 write path — the optional server-authored `cook` argument", () =>
       const recipeId = crypto.randomUUID();
 
       await createRecipeWithRefs(recipeId, userId, householdId, insertPayload());
-      await updateRecipeWithRefs(recipeId, userId, {
-        name: "Renamed",
-        recipeIngredients: [
-          { ingredientId: null, ingredientName: "flour", amount: 250, unit: "gram", order: 0 },
-        ],
-        systemUsed: "metric",
-      } as never);
+      await updateRecipeWithRefs(
+        recipeId,
+        userId,
+        {
+          name: "Renamed",
+          recipeIngredients: [
+            { ingredientId: null, ingredientName: "flour", amount: 250, unit: "gram", order: 0 },
+          ],
+          systemUsed: "metric",
+        } as never,
+        undefined,
+        { mode: "invalidate" }
+      );
 
       expect(await cookSourceOf(recipeId)).toBeNull();
 
@@ -204,8 +232,8 @@ describe("W2 write path — the optional server-authored `cook` argument", () =>
       expect(await cookSourceOf(recipeId)).toBeNull();
 
       await updateRecipeWithRefs(recipeId, userId, { name: "Now cooked" } as never, undefined, {
-        cookSource: COOK_SOURCE,
-        cookTokens: COOK_TOKENS,
+        mode: "replace",
+        cook: { cookSource: COOK_SOURCE, cookTokens: COOK_TOKENS },
       });
 
       expect(await cookSourceOf(recipeId)).toBe(COOK_SOURCE);
@@ -223,13 +251,19 @@ describe("W2 write path — the optional server-authored `cook` argument", () =>
 
       await createRecipeWithRefs(recipeId, userId, householdId, insertPayload());
 
-      const outcome = await updateRecipeWithRefs(recipeId, userId, {
-        systemUsed: "metric",
-        recipeIngredients: [
-          { ingredientId: null, ingredientName: "egg", amount: 2, unit: "piece", order: 0 },
-          { ingredientId: null, ingredientName: "egg", amount: 1, unit: "piece", order: 1 },
-        ],
-      } as never);
+      const outcome = await updateRecipeWithRefs(
+        recipeId,
+        userId,
+        {
+          systemUsed: "metric",
+          recipeIngredients: [
+            { ingredientId: null, ingredientName: "egg", amount: 2, unit: "piece", order: 0 },
+            { ingredientId: null, ingredientName: "egg", amount: 1, unit: "piece", order: 1 },
+          ],
+        } as never,
+        undefined,
+        { mode: "invalidate" }
+      );
 
       expect(outcome.stale).toBeFalsy();
 
@@ -312,27 +346,33 @@ describe("W2 write path — the optional server-authored `cook` argument", () =>
       // shape that would deadlock a surrogate-key writer against a non-deferrable
       // unique index.
       await expect(
-        updateRecipeWithRefs(recipeId, userId, {
-          systemUsed: "metric",
-          recipeIngredients: [
-            {
-              id: first!.id,
-              ingredientId: null,
-              ingredientName: second!.ingredientName,
-              amount: second!.amount,
-              unit: second!.unit,
-              order: 0,
-            },
-            {
-              id: second!.id,
-              ingredientId: null,
-              ingredientName: first!.ingredientName,
-              amount: first!.amount,
-              unit: first!.unit,
-              order: 1,
-            },
-          ],
-        } as never)
+        updateRecipeWithRefs(
+          recipeId,
+          userId,
+          {
+            systemUsed: "metric",
+            recipeIngredients: [
+              {
+                id: first!.id,
+                ingredientId: null,
+                ingredientName: second!.ingredientName,
+                amount: second!.amount,
+                unit: second!.unit,
+                order: 0,
+              },
+              {
+                id: second!.id,
+                ingredientId: null,
+                ingredientName: first!.ingredientName,
+                amount: first!.amount,
+                unit: first!.unit,
+                order: 1,
+              },
+            ],
+          } as never,
+          undefined,
+          { mode: "invalidate" }
+        )
       ).resolves.toBeDefined();
 
       const rows = await ingredientRows(recipeId);
@@ -653,13 +693,19 @@ describe("W2 write path — the optional server-authored `cook` argument", () =>
 
       expect(await cookSourceOf(recipeId)).toBe(COOK_SOURCE);
 
-      await updateRecipeWithRefs(recipeId, userId, {
-        name: "Edited by hand",
-        systemUsed: "metric",
-        recipeIngredients: [
-          { ingredientId: null, ingredientName: "flour", amount: 250, unit: "gram", order: 0 },
-        ],
-      } as never);
+      await updateRecipeWithRefs(
+        recipeId,
+        userId,
+        {
+          name: "Edited by hand",
+          systemUsed: "metric",
+          recipeIngredients: [
+            { ingredientId: null, ingredientName: "flour", amount: 250, unit: "gram", order: 0 },
+          ],
+        } as never,
+        undefined,
+        { mode: "invalidate" }
+      );
 
       // The invariant W4's renderer and W6's `0043` stand on: a non-NULL
       // cook_source always DESCRIBES the recipe it is attached to.
@@ -685,10 +731,111 @@ describe("W2 write path — the optional server-authored `cook` argument", () =>
         userId,
         { name: "Cooked Pancakes v2", systemUsed: "metric" } as never,
         undefined,
-        { cookSource: nextSource, cookTokens: COOK_TOKENS }
+        { mode: "replace", cook: { cookSource: nextSource, cookTokens: COOK_TOKENS } }
       );
 
       expect(await cookSourceOf(recipeId)).toBe(nextSource);
+    });
+  });
+
+  describe("VERIFY-3 blocker 5 — a write the `.cook` does not describe must KEEP it", () => {
+    it("a nutrition-only update does not delete cook_source", async () => {
+      const recipeId = crypto.randomUUID();
+
+      await createRecipeWithRefs(recipeId, userId, householdId, insertPayload(), {
+        cookSource: COOK_SOURCE,
+        cookTokens: COOK_TOKENS,
+      });
+
+      expect(await cookSourceOf(recipeId)).toBe(COOK_SOURCE);
+
+      // EXACTLY the payload `packages/queue/src/nutrition-estimation/worker.ts`
+      // sends: four nutrition fields, none of which the `.cook` carries.
+      await updateRecipeWithRefs(
+        recipeId,
+        userId,
+        {
+          calories: 512,
+          fat: "12.5",
+          carbs: "60.1",
+          protein: "18.2",
+        } as never,
+        undefined,
+        { mode: "unaffected" }
+      );
+
+      expect(await cookSourceOf(recipeId)).toBe(COOK_SOURCE);
+    });
+
+    it("refuses an `unaffected` claim that rewrites what the `.cook` DOES describe", async () => {
+      const recipeId = crypto.randomUUID();
+
+      await createRecipeWithRefs(recipeId, userId, householdId, insertPayload(), {
+        cookSource: COOK_SOURCE,
+        cookTokens: COOK_TOKENS,
+      });
+
+      await expect(
+        updateRecipeWithRefs(
+          recipeId,
+          userId,
+          {
+            calories: 512,
+            name: "Renamed while claiming nothing changed",
+            recipeIngredients: [
+              { ingredientId: null, ingredientName: "flour", amount: 250, unit: "gram", order: 0 },
+            ],
+          } as never,
+          undefined,
+          { mode: "unaffected" }
+        )
+      ).rejects.toThrow(/unaffected.*name, recipeIngredients/);
+
+      // It throws BEFORE the transaction opens, so the row is untouched.
+      expect(await cookSourceOf(recipeId)).toBe(COOK_SOURCE);
+      expect((await getRecipeFull(recipeId))?.name).toBe("Cooked Pancakes");
+    });
+  });
+
+  describe("VERIFY-3 blocker 6 — a stored `.cook` never describes the WRONG system", () => {
+    it("a metric -> US switch leaves no metric `.cook` on a US recipe", async () => {
+      const recipeId = crypto.randomUUID();
+
+      await createRecipeWithRefs(recipeId, userId, householdId, insertPayload(), {
+        cookSource: COOK_SOURCE,
+        cookTokens: COOK_TOKENS,
+      });
+
+      expect(declaredCookSystem(await cookSourceOf(recipeId))).toBe("metric");
+
+      await setActiveSystemForRecipe(recipeId, "us");
+
+      const row = await systemStateOf(recipeId);
+
+      // THE INVARIANT: whatever `recipes.system_used` says, a non-NULL
+      // `cook_source` must not claim the other system.
+      expect({
+        systemUsed: row.systemUsed,
+        cookSystem: declaredCookSystem(row.cookSource),
+      }).toEqual({ systemUsed: "us", cookSystem: null });
+    });
+
+    it("a switch to the system the `.cook` is already written in KEEPS it", async () => {
+      const recipeId = crypto.randomUUID();
+
+      await createRecipeWithRefs(recipeId, userId, householdId, insertPayload(), {
+        cookSource: COOK_SOURCE,
+        cookTokens: COOK_TOKENS,
+      });
+
+      await setActiveSystemForRecipe(recipeId, "metric");
+
+      const row = await systemStateOf(recipeId);
+
+      expect({ systemUsed: row.systemUsed, cookSource: row.cookSource }).toEqual({
+        systemUsed: "metric",
+        cookSource: COOK_SOURCE,
+      });
     });
   });
 
@@ -729,7 +876,7 @@ describe("W2 write path — the optional server-authored `cook` argument", () =>
         userId,
         { name: "Cooked Pancakes", systemUsed: "metric" } as never,
         undefined,
-        { cookSource: COOK_SOURCE, cookTokens: updatedTokens }
+        { mode: "replace", cook: { cookSource: COOK_SOURCE, cookTokens: updatedTokens } }
       );
 
       const after = (await ingredientRows(recipeId)).filter((r) => r.systemUsed === "metric");

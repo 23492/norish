@@ -76,18 +76,24 @@ describe("Recipe Repository - updateRecipeWithRefs", () => {
       expect(beforeUpdate).toHaveLength(4);
 
       // Act: Update only US ingredients
-      await updateRecipeWithRefs(testRecipeId, testUserId, {
-        systemUsed: "us",
-        recipeIngredients: [
-          {
-            ingredientId: ingredient1.id,
-            amount: "2.5",
-            unit: "cup",
-            order: 0,
-            systemUsed: "us",
-          },
-        ],
-      });
+      await updateRecipeWithRefs(
+        testRecipeId,
+        testUserId,
+        {
+          systemUsed: "us",
+          recipeIngredients: [
+            {
+              ingredientId: ingredient1.id,
+              amount: "2.5",
+              unit: "cup",
+              order: 0,
+              systemUsed: "us",
+            },
+          ],
+        },
+        undefined,
+        { mode: "invalidate" }
+      );
 
       // Assert: Metric ingredients should still exist
       const afterUpdate = await getRecipeIngredients(testRecipeId);
@@ -132,16 +138,22 @@ describe("Recipe Repository - updateRecipeWithRefs", () => {
       expect(beforeUpdate).toHaveLength(4);
 
       // Act: Update only metric steps
-      await updateRecipeWithRefs(testRecipeId, testUserId, {
-        systemUsed: "metric",
-        steps: [
-          {
-            step: "Mix 300g flour with 150g sugar",
-            order: 0,
-            systemUsed: "metric",
-          },
-        ],
-      });
+      await updateRecipeWithRefs(
+        testRecipeId,
+        testUserId,
+        {
+          systemUsed: "metric",
+          steps: [
+            {
+              step: "Mix 300g flour with 150g sugar",
+              order: 0,
+              systemUsed: "metric",
+            },
+          ],
+        },
+        undefined,
+        { mode: "invalidate" }
+      );
 
       // Assert: US steps should still exist
       const afterUpdate = await getRecipeSteps(testRecipeId);
@@ -182,25 +194,31 @@ describe("Recipe Repository - updateRecipeWithRefs", () => {
         order: "0",
       });
 
-      await updateRecipeWithRefs(testRecipeId, testUserId, {
-        systemUsed: "us",
-        recipeIngredients: [
-          {
-            ingredientId: flour.id,
-            amount: "2.5",
-            unit: "cup",
-            order: 0,
-            systemUsed: "metric",
-          },
-        ],
-        steps: [
-          {
-            step: "Mix 2.5 cups flour",
-            order: 0,
-            systemUsed: "metric",
-          },
-        ],
-      });
+      await updateRecipeWithRefs(
+        testRecipeId,
+        testUserId,
+        {
+          systemUsed: "us",
+          recipeIngredients: [
+            {
+              ingredientId: flour.id,
+              amount: "2.5",
+              unit: "cup",
+              order: 0,
+              systemUsed: "metric",
+            },
+          ],
+          steps: [
+            {
+              step: "Mix 2.5 cups flour",
+              order: 0,
+              systemUsed: "metric",
+            },
+          ],
+        },
+        undefined,
+        { mode: "invalidate" }
+      );
 
       const ingredients = await getRecipeIngredients(testRecipeId);
       const metricIngredients = ingredients.filter(
@@ -239,14 +257,20 @@ describe("Recipe Repository - updateRecipeWithRefs", () => {
       });
 
       // Act: Update only the image (without systemUsed)
-      await updateRecipeWithRefs(testRecipeId, testUserId, {
-        images: [
-          {
-            image: "/new-image.jpg",
-            order: 0,
-          },
-        ],
-      });
+      await updateRecipeWithRefs(
+        testRecipeId,
+        testUserId,
+        {
+          images: [
+            {
+              image: "/new-image.jpg",
+              order: 0,
+            },
+          ],
+        },
+        undefined,
+        { mode: "invalidate" }
+      );
 
       // Assert: Metric data should still exist
       const ingredients = await getRecipeIngredients(testRecipeId);
@@ -283,18 +307,24 @@ describe("Recipe Repository - updateRecipeWithRefs", () => {
       // Act: Update ingredients without specifying systemUsed at the TOP LEVEL
       // BUT all ingredients specify systemUsed: "metric"
       // The function should INFER that we're updating metric and PRESERVE US ingredients
-      await updateRecipeWithRefs(testRecipeId, testUserId, {
-        // NO systemUsed here! But it should be inferred from the ingredients
-        recipeIngredients: [
-          {
-            ingredientId: ingredient.id,
-            amount: "300",
-            unit: "g",
-            order: 0,
-            systemUsed: "metric", // This should tell the function we're updating metric
-          },
-        ],
-      });
+      await updateRecipeWithRefs(
+        testRecipeId,
+        testUserId,
+        {
+          // NO systemUsed here! But it should be inferred from the ingredients
+          recipeIngredients: [
+            {
+              ingredientId: ingredient.id,
+              amount: "300",
+              unit: "g",
+              order: 0,
+              systemUsed: "metric", // This should tell the function we're updating metric
+            },
+          ],
+        },
+        undefined,
+        { mode: "invalidate" }
+      );
 
       // Assert: US ingredients should be PRESERVED, only metric should be updated
       const afterUpdate = await getRecipeIngredients(testRecipeId);
@@ -323,10 +353,16 @@ describe("Recipe Repository - updateRecipeWithRefs", () => {
       });
 
       // Act: Update with empty US ingredients array
-      await updateRecipeWithRefs(testRecipeId, testUserId, {
-        systemUsed: "us",
-        recipeIngredients: [],
-      });
+      await updateRecipeWithRefs(
+        testRecipeId,
+        testUserId,
+        {
+          systemUsed: "us",
+          recipeIngredients: [],
+        },
+        undefined,
+        { mode: "invalidate" }
+      );
 
       // Assert: Metric ingredients should still exist
       const afterUpdate = await getRecipeIngredients(testRecipeId);
@@ -342,25 +378,31 @@ describe("Recipe Repository - updateRecipeWithRefs", () => {
 
       // Act & Assert: Trying to update with mixed systems should throw an error
       await expect(
-        updateRecipeWithRefs(testRecipeId, testUserId, {
-          // No systemUsed at top level
-          recipeIngredients: [
-            {
-              ingredientId: ingredient1.id,
-              amount: "250",
-              unit: "g",
-              order: 0,
-              systemUsed: "metric", // One ingredient is metric
-            },
-            {
-              ingredientId: ingredient2.id,
-              amount: "1",
-              unit: "cup",
-              order: 1,
-              systemUsed: "us", // Another is US
-            },
-          ],
-        })
+        updateRecipeWithRefs(
+          testRecipeId,
+          testUserId,
+          {
+            // No systemUsed at top level
+            recipeIngredients: [
+              {
+                ingredientId: ingredient1.id,
+                amount: "250",
+                unit: "g",
+                order: 0,
+                systemUsed: "metric", // One ingredient is metric
+              },
+              {
+                ingredientId: ingredient2.id,
+                amount: "1",
+                unit: "cup",
+                order: 1,
+                systemUsed: "us", // Another is US
+              },
+            ],
+          },
+          undefined,
+          { mode: "invalidate" }
+        )
       ).rejects.toThrow(/Cannot determine which measurement system to update/);
     });
 
@@ -370,39 +412,57 @@ describe("Recipe Repository - updateRecipeWithRefs", () => {
 
       // Act & Assert: Trying to update without any system information should throw
       await expect(
-        updateRecipeWithRefs(testRecipeId, testUserId, {
-          // No systemUsed at top level
-          recipeIngredients: [
-            {
-              ingredientId: ingredient.id,
-              amount: "250",
-              unit: "g",
-              order: 0,
-              // No systemUsed on ingredient either
-            },
-          ],
-        })
+        updateRecipeWithRefs(
+          testRecipeId,
+          testUserId,
+          {
+            // No systemUsed at top level
+            recipeIngredients: [
+              {
+                ingredientId: ingredient.id,
+                amount: "250",
+                unit: "g",
+                order: 0,
+                // No systemUsed on ingredient either
+              },
+            ],
+          },
+          undefined,
+          { mode: "invalidate" }
+        )
       ).rejects.toThrow(/Cannot determine which measurement system to update/);
     });
   });
 
   describe("Basic recipe updates", () => {
     it("should update recipe name and description", async () => {
-      await updateRecipeWithRefs(testRecipeId, testUserId, {
-        name: "Updated Recipe Name",
-        description: "Updated description",
-      });
+      await updateRecipeWithRefs(
+        testRecipeId,
+        testUserId,
+        {
+          name: "Updated Recipe Name",
+          description: "Updated description",
+        },
+        undefined,
+        { mode: "invalidate" }
+      );
 
       // Just ensure it doesn't throw
       expect(true).toBe(true);
     });
 
     it("should update recipe timing fields", async () => {
-      await updateRecipeWithRefs(testRecipeId, testUserId, {
-        prepMinutes: 15,
-        cookMinutes: 45,
-        totalMinutes: 60,
-      });
+      await updateRecipeWithRefs(
+        testRecipeId,
+        testUserId,
+        {
+          prepMinutes: 15,
+          cookMinutes: 45,
+          totalMinutes: 60,
+        },
+        undefined,
+        { mode: "invalidate" }
+      );
 
       // Just ensure it doesn't throw
       expect(true).toBe(true);
@@ -426,18 +486,24 @@ describe("Recipe Repository - updateRecipeWithRefs", () => {
       expect(beforeUpdate).toHaveLength(1);
 
       // Act: Try to add the same ingredient again (should be prevented by onConflictDoNothing)
-      await updateRecipeWithRefs(testRecipeId, testUserId, {
-        systemUsed: "metric",
-        recipeIngredients: [
-          {
-            ingredientId: flour.id,
-            amount: "300",
-            unit: "g",
-            order: 0,
-            systemUsed: "metric",
-          },
-        ],
-      });
+      await updateRecipeWithRefs(
+        testRecipeId,
+        testUserId,
+        {
+          systemUsed: "metric",
+          recipeIngredients: [
+            {
+              ingredientId: flour.id,
+              amount: "300",
+              unit: "g",
+              order: 0,
+              systemUsed: "metric",
+            },
+          ],
+        },
+        undefined,
+        { mode: "invalidate" }
+      );
 
       // Assert: Should only have one ingredient (updated, not duplicated)
       const afterUpdate = await getRecipeIngredients(testRecipeId);
@@ -457,32 +523,44 @@ describe("Recipe Repository - updateRecipeWithRefs", () => {
       const flour = await createTestIngredient({ name: "Flour" });
 
       // Add flour to first recipe
-      await updateRecipeWithRefs(recipe1Id, testUserId, {
-        systemUsed: "metric",
-        recipeIngredients: [
-          {
-            ingredientId: flour.id,
-            amount: "250",
-            unit: "g",
-            order: 0,
-            systemUsed: "metric",
-          },
-        ],
-      });
+      await updateRecipeWithRefs(
+        recipe1Id,
+        testUserId,
+        {
+          systemUsed: "metric",
+          recipeIngredients: [
+            {
+              ingredientId: flour.id,
+              amount: "250",
+              unit: "g",
+              order: 0,
+              systemUsed: "metric",
+            },
+          ],
+        },
+        undefined,
+        { mode: "invalidate" }
+      );
 
       // Add flour to second recipe
-      await updateRecipeWithRefs(recipe2.id, testUserId, {
-        systemUsed: "metric",
-        recipeIngredients: [
-          {
-            ingredientId: flour.id,
-            amount: "500",
-            unit: "g",
-            order: 0,
-            systemUsed: "metric",
-          },
-        ],
-      });
+      await updateRecipeWithRefs(
+        recipe2.id,
+        testUserId,
+        {
+          systemUsed: "metric",
+          recipeIngredients: [
+            {
+              ingredientId: flour.id,
+              amount: "500",
+              unit: "g",
+              order: 0,
+              systemUsed: "metric",
+            },
+          ],
+        },
+        undefined,
+        { mode: "invalidate" }
+      );
 
       // Assert: Each recipe should have its own ingredient link, but reference the same ingredient
       const recipe1Ingredients = await getRecipeIngredients(recipe1Id);
@@ -505,32 +583,44 @@ describe("Recipe Repository - updateRecipeWithRefs", () => {
       const sugar = await createTestIngredient({ name: "Sugar" });
 
       // Add sugar in metric system
-      await updateRecipeWithRefs(testRecipeId, testUserId, {
-        systemUsed: "metric",
-        recipeIngredients: [
-          {
-            ingredientId: sugar.id,
-            amount: "200",
-            unit: "g",
-            order: 0,
-            systemUsed: "metric",
-          },
-        ],
-      });
+      await updateRecipeWithRefs(
+        testRecipeId,
+        testUserId,
+        {
+          systemUsed: "metric",
+          recipeIngredients: [
+            {
+              ingredientId: sugar.id,
+              amount: "200",
+              unit: "g",
+              order: 0,
+              systemUsed: "metric",
+            },
+          ],
+        },
+        undefined,
+        { mode: "invalidate" }
+      );
 
       // Add sugar in US system
-      await updateRecipeWithRefs(testRecipeId, testUserId, {
-        systemUsed: "us",
-        recipeIngredients: [
-          {
-            ingredientId: sugar.id,
-            amount: "1",
-            unit: "cup",
-            order: 0,
-            systemUsed: "us",
-          },
-        ],
-      });
+      await updateRecipeWithRefs(
+        testRecipeId,
+        testUserId,
+        {
+          systemUsed: "us",
+          recipeIngredients: [
+            {
+              ingredientId: sugar.id,
+              amount: "1",
+              unit: "cup",
+              order: 0,
+              systemUsed: "us",
+            },
+          ],
+        },
+        undefined,
+        { mode: "invalidate" }
+      );
 
       // Assert: Should have 2 recipe_ingredients entries (one per system), but both reference the same ingredient
       const ingredients = await getRecipeIngredients(testRecipeId);
