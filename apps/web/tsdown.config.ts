@@ -1,7 +1,57 @@
+import { existsSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { defineConfig } from "tsdown";
 
+const here = dirname(fileURLToPath(import.meta.url));
+const outDir = resolve(here, "../../dist-server");
+
+/**
+ * Phase 27 (COOK-01 / W3B, D-27-W3B-09) — THE COOKLANG PARSE CHILD ENTRY.
+ *
+ * `noExternal: [/^@norish\//]` below INLINES every `@norish/*` module into
+ * `dist-server/index.mjs`, including `@norish/shared-server/cooklang/pool`. The
+ * pool `fork`s a sibling file, and a sibling reference inside an inlined module
+ * is NOT an import — rolldown cannot see it, so without an explicit entry the
+ * child would never be emitted.
+ *
+ * WHY THIS NEEDS A BUILD-TIME ASSERTION AND NOT A RUNTIME ONE (T-27-09). If the
+ * chunk is missing, production spawns nothing, every parse resolves `null`, every
+ * recipe quietly renders on the legacy path, and NOTHING THROWS — no user reports
+ * it and no log screams. A silent, invisible loss of the whole feature. So the
+ * build FAILS rather than warns.
+ *
+ * The entry is NAMED (object form) so the emitted chunk is exactly
+ * `parse-worker.mjs`. With the array form, rolldown derives output paths from the
+ * common root of all entries, and an entry outside `apps/web` would push
+ * `server/index.ts` down to `apps/web/server/index.mjs` and move the server
+ * bundle out from under the Dockerfile.
+ */
+const parseWorkerEntry = resolve(
+  here,
+  "../../packages/shared-server/src/cooklang/parse-worker.ts"
+);
+
 export default defineConfig({
-  entry: ["server/index.ts"],
+  entry: {
+    index: "server/index.ts",
+    "parse-worker": parseWorkerEntry,
+  },
+  hooks: {
+    "build:done": () => {
+      const emitted = resolve(outDir, "parse-worker.mjs");
+
+      if (!existsSync(emitted)) {
+        throw new Error(
+          `Phase 27 (D-27-W3B-09): ${emitted} was NOT emitted. The Cooklang parse ` +
+            `pool forks that file; without it every parse silently resolves null and ` +
+            `every recipe renders on the legacy path with no error. Failing the build ` +
+            `rather than shipping an invisible regression.`
+        );
+      }
+    },
+  },
   format: ["esm"],
   outDir: "../../dist-server",
   tsconfig: "./tsconfig.server.json",
