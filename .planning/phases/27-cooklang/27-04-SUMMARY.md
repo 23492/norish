@@ -1407,3 +1407,138 @@ preconditions, two of which did not exist when it was scoped.
    carrying W3 starts writing real `cook_source` rows through the new serializer, which is
    exactly when §15.5's re-serialize prerequisite and the `pool-cpu` / `pool-timeout`
    watch become real rather than precautionary.
+
+---
+
+# 16. POST-WAVE DEFECT: the 11 `cook-tokens-isolation` reds were a STALE FIXTURE
+
+`packages/trpc` measured **326/337**. All 11 reds were in
+`packages/trpc/__tests__/recipes/cook-tokens-isolation.test.ts`, every one of them
+`AssertionError: expected null not to be null` on `cookTokens`. It reproduced with
+nothing else running, so it was correctly treated as a genuine defect rather than
+test pollution. It was genuine — but it was in the TEST'S INPUT, not in the code.
+
+## 16.1 THE ROOT CAUSE, AND THE EVIDENCE THAT PROVES IT
+
+The suite's `.cook` was a **hand-written string literal** carrying UNQUOTED
+frontmatter scalars:
+
+```
+---
+title: Grandma's Secret Stollen
+norish.system: metric
+---
+```
+
+§ Task 3 (the H1 root fix) made `buildFrontmatter` quote every non-numeric scalar
+**unconditionally**, and taught `findCookSourceDefect` a closed grammar in which
+`VALUE := quoted` for every key outside `COOK_FRONTMATTER_NUMERIC_KEYS`. From Task 3
+onward this literal is **not something norish's serializer could have written**, and
+the read path refuses it — exactly as designed.
+
+Measured inside `packages/trpc`'s own vitest environment, on the real modules:
+
+```
+DIAG byteBreach=null
+DIAG defect={"defect":"frontmatter-value","offset":11}
+DIAG parseCookSource=NULL
+```
+
+`offset: 11` is `4 + len("title") + 2` — the first byte of the `title` VALUE. The
+refusal is logged by the real `parserLogger` as
+`reason: "not-serializer-shaped", defect: "frontmatter-value", offset: 11, bytes: 139`.
+
+The same source with the two values quoted, in the same environment, in the same run:
+
+```
+DIAG quoted defect=null
+DIAG quoted parseCookSource=[{"order":0,"section":null,"tokens":[
+  {"type":"text","value":"Fold the "},
+  {"type":"ingredient","name":"marzipan","amount":200,"unit":"gram"}, ... ]}]
+```
+
+**This refutes every mechanical hypothesis.** The failure is NOT child-entry
+resolution, NOT a `.ts`/`.mjs` mismatch, NOT a missing loader, NOT a stale hardlink
+farm, and NOT an env difference in that suite. `parseCookSource` never reached the
+pool at all: `findCookSourceDefect` is checked FIRST, as defence in depth, and it
+returned a defect. The tests took **132 ms** in total for 35 tests — far too fast
+for eleven child spawns, which was the first clue that no spawn was ever attempted.
+
+The pool is healthy under `packages/trpc`. Sampling the process table during the
+green run catches the child directly:
+
+```
+PID 4165134  PPID 4164333
+/usr/local/bin/node --max-old-space-size=256 \
+  /opt/norish-src/packages/shared-server/src/cooklang/parse-worker.ts
+```
+
+The sibling-extension rule (`parse-worker${extname(here) || ".js"}`) correctly
+resolves `.ts` in the source context and the 256 MB heap bound is applied. The prior
+agent's `.mjs` fix is intact and needed no further work. Independently,
+`shares.test.ts` in the same package has always driven a frontmatter-less `.cook`
+through the real pool and has always been green.
+
+## 16.2 PRODUCTION IS **NOT** AFFECTED
+
+Stated plainly, because it bears on a deploy decision:
+
+- The emitter and the recognizer **agree**. `structuredToCooklang` quotes; the
+  recognizer requires quotes. Only the hand-written test string disagreed with both.
+  This is precisely §15.9's point 2 — the two halves of one contract — and here the
+  contract held; a stale third party had copied one half by hand.
+- The live DB carries **6 recipes and ZERO non-null `cook_source`** (`select
+  count(cook_source) from recipes` -> `0`), and **0** rows with unquoted frontmatter.
+  There is no pre-T3 `.cook` anywhere on live to be refused.
+- Nothing is deployed: `norish:live` is still `516c52576a5f…`, and the live DB is at
+  migration **42**.
+
+The residual risk this DOES flag is §15.5's re-serialize prerequisite, already
+recorded: any `.cook` minted by a PRE-Task-3 serializer is now correctly refused on
+read and falls back to the full legacy projection. That is the never-broken guarantee
+working, it loses the user nothing, and on live there are no such rows.
+
+## 16.3 THE FIX — FIXTURE, NOT CODE, AND NOT A RE-QUOTED LITERAL
+
+No production file was touched. **Zero** changes to `COOK_LIMITS`, `COOK_BOUNDS`,
+`COOK_FRONTMATTER_KEYS`, the escaping, the CPU gate or the tsdown build gate.
+
+1. `SECRET_COOK_SOURCE` is now **minted by the real serializer**
+   (`structuredToCooklang`) rather than hand-written. Re-quoting the literal would
+   have fixed the symptom and left the next grammar change to rot it again; minting
+   it means the suite consumes whatever the emitter actually emits. Same two-way
+   discipline `limits.test.ts` uses to pin the key set against the recognizer.
+2. The permitted side was **strengthened, not weakened**. `expect(cookTokens)
+   .not.toBeNull()` cannot tell a working boundary from a refused parse, a bound hit
+   or a failed spawn — all four resolve `null`. A new `expectRealCookTokens` pins the
+   exact token stream, including `amount: 200, unit: "gram"` values that exist ONLY
+   because the WASM in the child derived them from `@marzipan{200%gram}`. Every
+   permitted-side assertion now routes through it. The denied side is untouched.
+
+## 16.4 VERIFICATION
+
+| gate | expected | result |
+| --- | --- | --- |
+| `@norish/trpc` test | 337 | **337 passed / 32 files** |
+| the 11 tests pass via the REAL pooled parse | not a mock, not a tolerated null | **child fork captured in the process table**; tokens pinned to parsed amounts/units |
+| `@norish/shared-server` test | 546 | **546 passed / 22 files** |
+| `@norish/shared` test | 319 | **319 passed / 15 files** |
+| `@norish/api` test | 408 | **408 passed / 30 files** |
+| `@norish/queue` test | 121 | **121 passed / 17 files** |
+| `@norish/db` test | 179 | **179 passed / 23 files** |
+| real `tsc --noEmit -p packages/trpc/tsconfig.json` | EXIT 0 | **EXIT 0**, zero output |
+| DB migration | 42 | **42** applied on live |
+| deployed image | unchanged | **`516c52576a5f…`**, nothing deployed |
+
+## 16.5 ONE THING THE DIRECTOR SHOULD KNOW
+
+**A hand-written fixture is an unversioned third copy of a contract.** §15.9 framed
+the emitter and the recognizer as two halves that must move together; this defect
+shows the halves moved together correctly and a hand-copied literal in a THIRD
+package silently did not. The isolation suite is the only place a `.cook` was typed
+by hand and then required to parse, and it is now minted. One other hand-written
+`.cook` remains, in `packages/db/__tests__/.../cook-write-path.test.ts`, and it is
+deliberately left alone: it hands the repository `cookSource` AND `cookTokens` as
+literal payloads and asserts storage round-trips, so its bytes are opaque and never
+parsed. It is not wrong — but if W4/W5 ever make that suite parse, it will need the
+same treatment.
