@@ -59,7 +59,7 @@ export const subSheetStyles = StyleSheet.create({
     color: "#fff",
   },
   gradientFill: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   actionRow: {
     flexDirection: "row",

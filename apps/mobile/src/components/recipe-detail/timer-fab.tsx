@@ -401,7 +401,7 @@ const styles = StyleSheet.create({
 
   // Collapsed content (overlaid inside the morphing container)
   collapsedContent: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",

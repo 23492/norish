@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   actionPressable: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   circleButton: {
     width: CIRCLE_SIZE,

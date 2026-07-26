@@ -30,7 +30,7 @@ export const styles = StyleSheet.create({
     height: 110,
   },
   slotImageFill: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   slotBody: {
     paddingHorizontal: 10,

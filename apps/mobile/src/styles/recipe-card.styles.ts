@@ -6,7 +6,7 @@ export const styles = StyleSheet.create({
     aspectRatio: 16 / 11,
   },
   imageFill: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   heartOverlay: {
     position: "absolute",

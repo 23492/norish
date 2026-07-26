@@ -28,10 +28,14 @@ type ActiveTab = "dashboard" | "groceries" | "search" | "calendar" | "profile";
 
 function useActiveTab(): { tab: ActiveTab; isRecipeDetail: boolean } {
   const segments = useSegments();
-  // segments[0] = '(tabs)', segments[1] = tab name
-  const tab = (segments[1] as ActiveTab | undefined) ?? "dashboard";
+  // segments[0] = '(tabs)', segments[1] = tab name. `useSegments()` without an
+  // explicit type param resolves to a union of tuples of different lengths (one
+  // per typed route under this layout), so a literal numeric index is invalid
+  // for the shorter members; `.at()` is bounds-safe across the whole union and
+  // preserves the existing "out of range -> undefined" behavior.
+  const tab = (segments.at(1) as ActiveTab | undefined) ?? "dashboard";
   // segments[2] = 'recipe' when on /(tabs)/dashboard/recipe/[id]
-  const isRecipeDetail = tab === "dashboard" && segments[2] === "recipe";
+  const isRecipeDetail = tab === "dashboard" && segments.at(2) === "recipe";
   return { tab, isRecipeDetail };
 }
 
