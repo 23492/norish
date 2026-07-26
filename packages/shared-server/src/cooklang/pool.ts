@@ -66,19 +66,33 @@ import { COOK_BOUNDS } from "./limits";
  *    `SIGKILL`s the child once `cookParseCpuMs` is spent. `SIGKILL` needs no
  *    cooperation from V8 and none from the WASM, which is what makes it trustworthy.
  *
- * THREE BOUNDS, NONE REDUNDANT:
+ * THE MEMORY BOUND IS THE CHILD'S RSS, NOT `--max-old-space-size` (D-27-W3B-14,
+ * superseding the memory half of D-27-W3B-03). This module used to claim that a
+ * 256 MB `--max-old-space-size` "catches the report-explosion family's 839 MB-1.65
+ * GB balloon". It does not: that flag caps V8's OLD GENERATION, and the parser
+ * allocates in WASM LINEAR MEMORY, which the flag has no authority over. A child
+ * forked exactly as `spawnChild` forks one measured **899 MB of RSS at the instant
+ * the 1 500 ms CPU gate fired** and **2 273 MB** if left to run — and dropping the
+ * flag entirely (`execArgv: []`) left the whole cooklang suite green, so the bound
+ * had no teeth either. The parent therefore samples the child's `VmRSS` from
+ * `/proc/<pid>/status` on the SAME poll as the CPU counter and `SIGKILL`s the child
+ * on a REAL, MEASURED resident-set budget. See `./limits` for the calibration.
+ *
+ * FOUR BOUNDS, NONE REDUNDANT:
  *  - `cookParseCpuMs` (1 500 ms of the CHILD's CPU) — the computation bound. Kills
- *    every measured hostile family: H1's frontmatter recursion burns 22 759 ms of
- *    CPU, the `"#" x 8192` report explosion 12 222 ms, the round-1 bypass 4 895 ms.
+ *    H1's frontmatter recursion, which burns 22 759 ms of CPU at a FLAT 6 MB and is
+ *    therefore invisible to every memory bound there is.
+ *  - `cookParseRssMb` (512 MB of the CHILD's resident set) — the memory bound. It
+ *    is what actually stops the ballooning families: `"#" x 8192` and the round-1
+ *    bypass cross it at 630 ms / 642 ms of child CPU, well before the CPU gate.
  *  - `cookParseWallCeilingMs` (8 000 ms) — a BACKSTOP for a child stuck WITHOUT
  *    burning CPU (a hang, a lost IPC reply), which the CPU gate cannot see because
  *    the counter does not advance. Deliberately generous: a blocked-but-idle child
  *    is not a DoS amplifier, it just occupies one pool slot, and
  *    `cookParseQueueTimeoutMs` plus terminate-and-replace already handle that.
- *  - `cookParseHeapMb` (256 MB), enforced by the child's own
- *    `--max-old-space-size`. This is what catches the report-explosion family's
- *    839 MB-1.65 GB balloon, and it is MORE important now that the wall-clock
- *    ceiling is 8 s rather than 1 s.
+ *  - `cookParseOldSpaceMb` (256 MB), the child's own `--max-old-space-size`. V8's
+ *    old generation ONLY. Kept as a second line — an old-space OOM aborts the child
+ *    (`SIGABRT`, parent alive) — and no longer billed as the memory bound.
  *
  * WHY A CHILD PROCESS AND NOT `worker_threads` + `resourceLimits`. Measured, not
  * assumed: `maxOldGenerationSizeMb: 64` on the round-1 bypass payload produced
@@ -99,8 +113,9 @@ import { COOK_BOUNDS } from "./limits";
  * request-serving event loop.
  *
  * FAILURE IS FREE FOR THE USER — THE NEVER-BROKEN GUARANTEE. Every failure mode
- * here (time bound, heap bound, crash, WASM trap, malformed envelope, a child
- * that will not spawn, a saturated pool) resolves `null`. `null` means no `cook`
+ * here (CPU gate, RSS gate, wall backstop, old-space abort, crash, WASM trap,
+ * malformed envelope, a child that will not spawn, a saturated pool) resolves
+ * `null`. `null` means no `cook`
  * argument, so the FULL legacy projection is written and the import SUCCEEDS; on
  * the read path it means `cookTokens: null` and the legacy render. This function
  * NEVER throws and NEVER hangs.
@@ -113,7 +128,10 @@ import { COOK_BOUNDS } from "./limits";
 /** A child that has hit a bound, crashed or misbehaved is never reused. */
 type RetireReason =
   | "pool-cpu"
+  /** The parent measured the child's RSS past `cookParseRssMb` and killed it. */
+  | "pool-rss"
   | "pool-timeout"
+  /** The child aborted itself on a V8 OLD-SPACE OOM (`cookParseOldSpaceMb`). */
   | "pool-heap"
   | "pool-crash"
   | "pool-bad-envelope"
@@ -131,6 +149,12 @@ type Outcome =
        * (a pid that is already gone, or a host without `/proc/<pid>/schedstat`).
        */
       cpuMs: number | null;
+      /**
+       * The child's RESIDENT SET as last sampled, in MB, or `null` when it could
+       * not be read (a pid that is already gone, or a host without
+       * `/proc/<pid>/status`).
+       */
+      rssMb: number | null;
     };
 
 type InFlight = {
@@ -162,6 +186,8 @@ let waiters: Waiter[] = [];
 let nextRequestId = 1;
 /** The CPU cost of the most recent parse that ran long enough to be sampled. */
 let lastSampledCpuMs: number | null = null;
+/** The child RSS of the most recent parse that ran long enough to be sampled. */
+let lastSampledRssMb: number | null = null;
 
 /**
  * THE PRIMARY GATE'S MEASUREMENT: how much CPU this child has consumed, in ms.
@@ -187,15 +213,15 @@ let lastSampledCpuMs: number | null = null;
  * The helper-thread CPU that this therefore does NOT count was measured at
  * <=0.6x of the main-thread figure on every shape probed (hostile shapes: 0.003x,
  * 0.04x, 0.06x), so the child's TOTAL CPU is bounded at roughly
- * `1.6 x cookParseCpuMs`, and the 256 MB heap bound independently caps the
- * allocation that drives GC work in the first place.
+ * `1.6 x cookParseCpuMs`, and `cookParseRssMb` independently caps the allocation
+ * that drives GC work in the first place.
  *
  * RETURNS `null` RATHER THAN THROWING, and the caller then falls through to the
  * wall-clock backstop. Two ways that happens: the pid is already gone (a race with
  * the child exiting — expected and harmless), or the host has no
  * `/proc/<pid>/schedstat` at all. The latter is not Linux, so it is not production
  * (the deployed artefact is a Linux container on LXC 110); on such a host the parse
- * is bounded by `cookParseWallCeilingMs` and `cookParseHeapMb` only, which is
+ * is bounded by `cookParseWallCeilingMs` and `cookParseOldSpaceMb` only, which is
  * strictly weaker and is stated rather than hidden.
  */
 function readChildCpuMs(pid: number): number | null {
@@ -205,6 +231,60 @@ function readChildCpuMs(pid: number): number | null {
     const nanoseconds = Number(end === -1 ? raw.trim() : raw.slice(0, end));
 
     return Number.isFinite(nanoseconds) ? nanoseconds / 1e6 : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * THE MEMORY BOUND'S MEASUREMENT: this child's RESIDENT SET, in MB
+ * (D-27-W3B-14 — VERIFY-3 blocker 1).
+ *
+ * `/proc/<pid>/status`'s `VmRSS` line reports the resident set IN KILOBYTES.
+ * `/proc/<pid>/statm` is cheaper (24.35 µs against 33.61 µs, 20 000 iterations
+ * warm) but reports PAGES, and converting pages to bytes means assuming
+ * `sysconf(_SC_PAGESIZE)` — a value **Node exposes nowhere**, and 4 KiB is not
+ * universal (arm64 ships 16 KiB and 64 KiB kernels). That is exactly the assumption
+ * D-27-W3B-03a refused to make about `sysconf(_SC_CLK_TCK)` when it chose
+ * `schedstat` over `utime`+`stime`, and a silently 16x-wrong memory bound is a
+ * worse outcome than 9 µs. `VmRSS` needs no such assumption.
+ *
+ * WHY RSS AND NOT `--max-old-space-size`. That flag caps V8's OLD GENERATION. The
+ * WASM parser allocates in LINEAR MEMORY, which the flag does not govern, so a
+ * `--max-old-space-size=256` child was measured at **899 MB of RSS at the instant
+ * the CPU gate fired** and **2 273 MB** unbounded. RSS is the number the OOM killer
+ * and the container limit act on, it covers linear memory, V8's heap, the returned
+ * JSON string and the binary, and — like the CPU counter, and unlike wall clock —
+ * it is a function of the work performed rather than of host load.
+ *
+ * ABSOLUTE, NOT A DELTA FROM THE START OF THE PARSE. A delta would measure "growth
+ * caused by this parse" and would let a child that has already drifted high stay
+ * there; the container sees the absolute figure. The drift is bounded and was
+ * MEASURED to a plateau rather than assumed: a fresh child sits at 73.5 MB, and
+ * after 1 050 heavy parses (25 x 64 KiB `@a{1%g} ` + 25 x `"#p " x 21845` + 100
+ * realistic, twelve times over) it plateaus at 175.2 MB — WASM linear memory is
+ * never returned to the OS, so the floor is permanent but flat. `cookParseRssMb`
+ * is calibrated against that plateau, not against a fresh child.
+ *
+ * `null` RATHER THAN A THROW, exactly as `readChildCpuMs`: a pid already gone, or a
+ * host with no `/proc/<pid>/status`. On such a host this bound is simply absent and
+ * `cookParseOldSpaceMb` plus the CPU gate carry it, which is strictly weaker and is
+ * stated rather than hidden. Production is a Linux container on LXC 110.
+ */
+function readChildRssMb(pid: number): number | null {
+  try {
+    const raw = readFileSync(`/proc/${pid}/status`, "latin1");
+    const at = raw.indexOf("\nVmRSS:");
+
+    if (at < 0) return null;
+
+    const end = raw.indexOf(" kB", at);
+
+    if (end < 0) return null;
+
+    const kilobytes = Number(raw.slice(at + "\nVmRSS:".length, end).trim());
+
+    return Number.isFinite(kilobytes) ? kilobytes / 1_024 : null;
   } catch {
     return null;
   }
@@ -289,6 +369,7 @@ function retire(target: PoolChild, reason: RetireReason): void {
       reason: reason === "pool-shutdown" ? "pool-crash" : reason,
       elapsedMs: Math.round(performance.now() - flight.startedAt),
       cpuMs: lastSampledCpuMs,
+      rssMb: lastSampledRssMb,
     });
   }
 
@@ -326,9 +407,13 @@ function spawnChild(): PoolChild | null {
 
   try {
     child = fork(resolveWorkerEntry(), [], {
-      // The HEAP bound. Passing `execArgv` explicitly also stops the parent's own
-      // flags (vitest's, for instance) from leaking into the child.
-      execArgv: [`--max-old-space-size=${COOK_BOUNDS.cookParseHeapMb}`],
+      // V8's OLD-GENERATION cap, and NOTHING MORE (D-27-W3B-14). It is NOT the
+      // memory bound — the parser allocates in WASM linear memory, which this flag
+      // does not govern; `cookParseRssMb`, sampled by the parent, is the memory
+      // bound. Kept because an old-space OOM aborts the child with the parent
+      // alive. Passing `execArgv` explicitly also stops the parent's own flags
+      // (vitest's, for instance) from leaking into the child.
+      execArgv: [`--max-old-space-size=${COOK_BOUNDS.cookParseOldSpaceMb}`],
       // stdout and stderr are DISCARDED, not piped: a WASM panic writes to
       // stderr and nothing the child prints may reach a shared log stream
       // (T-27-05). `ipc` is the only channel.
@@ -393,8 +478,9 @@ function spawnChild(): PoolChild | null {
   });
 
   child.on("exit", (code, signal) => {
-    // A V8 fatal OOM aborts: `code=null signal=SIGABRT` (measured), or exit 134
-    // where the signal is not reported. That is the HEAP bound doing its job.
+    // A V8 fatal OLD-SPACE OOM aborts: `code=null signal=SIGABRT` (measured), or
+    // exit 134 where the signal is not reported. That is `cookParseOldSpaceMb`
+    // doing its job — the second line, not the memory bound (D-27-W3B-14).
     const heap = signal === "SIGABRT" || code === 134;
 
     retire(entry, heap ? "pool-heap" : "pool-crash");
@@ -554,14 +640,15 @@ function runRequest(target: PoolChild, src: string, scale?: number): Promise<Out
     const cpuAtStart = readChildCpuMs(target.pid);
 
     lastSampledCpuMs = null;
+    lastSampledRssMb = null;
 
-    let cpuTimer: NodeJS.Timeout | null = null;
+    let sampleTimer: NodeJS.Timeout | null = null;
     let wallTimer: NodeJS.Timeout | null = null;
 
     const stopTimers = (): void => {
-      if (cpuTimer !== null) {
-        clearTimeout(cpuTimer);
-        cpuTimer = null;
+      if (sampleTimer !== null) {
+        clearTimeout(sampleTimer);
+        sampleTimer = null;
       }
 
       if (wallTimer !== null) {
@@ -571,20 +658,33 @@ function runRequest(target: PoolChild, src: string, scale?: number): Promise<Out
     };
 
     /**
-     * THE PRIMARY GATE. A recursive `setTimeout` rather than a `setInterval` so a
-     * slow sample can never queue up behind itself.
+     * THE TWO MEASURED GATES, ON ONE POLL: the child's CPU time and its resident
+     * set. A recursive `setTimeout` rather than a `setInterval` so a slow sample can
+     * never queue up behind itself.
+     *
+     * ONE LOOP, TWO AXES, BY DESIGN (D-27-W3B-14). The memory bound rides the timer
+     * the CPU gate already pays for, so it costs no extra scheduling and it can
+     * never disagree with the CPU gate about when a child was last observed.
      *
      * IT COSTS NOTHING IN THE COMMON CASE. The first sample is scheduled
      * `cookParseCpuPollMs` (25 ms) out, and a pooled round trip is ~0.97 ms, so for
      * every real recipe this timer is created and cleared without ever firing —
      * measured at ZERO polls for both a 437-byte fixture and a 64 KiB realistic
-     * recipe. When it does fire, one sample costs ~30 µs.
+     * recipe. When it does fire, the pair costs ~58 µs (23.62 + 33.61 µs, 20 000
+     * iterations warm).
+     *
+     * CPU IS CHECKED FIRST because it is the PRIMARY gate and the only one that can
+     * see H1's flat-6-MB recursion at all. In practice the two never race: the
+     * ballooning families cross `cookParseRssMb` at ~630 ms of CPU, 2.4x before the
+     * CPU budget, and H1 never moves the RSS needle.
      */
-    const sampleCpu = (): void => {
+    const sampleChild = (): void => {
       const cpuNow = readChildCpuMs(target.pid);
       const cpuMs = cpuNow === null || cpuAtStart === null ? null : cpuNow - cpuAtStart;
+      const rssMb = readChildRssMb(target.pid);
 
       if (cpuMs !== null) lastSampledCpuMs = Math.round(cpuMs);
+      if (rssMb !== null) lastSampledRssMb = Math.round(rssMb);
 
       if (cpuMs !== null && cpuMs > COOK_BOUNDS.cookParseCpuMs) {
         stopTimers();
@@ -593,6 +693,7 @@ function runRequest(target: PoolChild, src: string, scale?: number): Promise<Out
           reason: "pool-cpu",
           elapsedMs: Math.round(performance.now() - startedAt),
           cpuMs: Math.round(cpuMs),
+          rssMb: lastSampledRssMb,
         });
         // `SIGKILL` needs no cooperation from V8 or from the WASM, which is the
         // whole reason it is trustworthy against a synchronous parse.
@@ -601,10 +702,28 @@ function runRequest(target: PoolChild, src: string, scale?: number): Promise<Out
         return;
       }
 
-      cpuTimer = setTimeout(sampleCpu, COOK_BOUNDS.cookParseCpuPollMs);
+      // THE MEMORY BOUND. ABSOLUTE, not a delta from the start of this parse: the
+      // container and the OOM killer act on the absolute figure, and the child's
+      // idle floor was measured to PLATEAU at 175.2 MB over 1 050 heavy parses, so
+      // an absolute budget cannot drift into false refusals.
+      if (rssMb !== null && rssMb > COOK_BOUNDS.cookParseRssMb) {
+        stopTimers();
+        settle({
+          ok: false,
+          reason: "pool-rss",
+          elapsedMs: Math.round(performance.now() - startedAt),
+          cpuMs: lastSampledCpuMs,
+          rssMb: Math.round(rssMb),
+        });
+        retire(target, "pool-rss");
+
+        return;
+      }
+
+      sampleTimer = setTimeout(sampleChild, COOK_BOUNDS.cookParseCpuPollMs);
     };
 
-    cpuTimer = setTimeout(sampleCpu, COOK_BOUNDS.cookParseCpuPollMs);
+    sampleTimer = setTimeout(sampleChild, COOK_BOUNDS.cookParseCpuPollMs);
 
     // THE WALL-CLOCK BACKSTOP. Only reachable by a child that is stuck WITHOUT
     // burning CPU, because a child that IS burning CPU is killed by the gate above
@@ -613,7 +732,13 @@ function runRequest(target: PoolChild, src: string, scale?: number): Promise<Out
       const elapsedMs = Math.round(performance.now() - startedAt);
 
       stopTimers();
-      settle({ ok: false, reason: "pool-timeout", elapsedMs, cpuMs: lastSampledCpuMs });
+      settle({
+        ok: false,
+        reason: "pool-timeout",
+        elapsedMs,
+        cpuMs: lastSampledCpuMs,
+        rssMb: lastSampledRssMb,
+      });
       retire(target, "pool-timeout");
     }, COOK_BOUNDS.cookParseWallCeilingMs);
 
@@ -634,7 +759,7 @@ function runRequest(target: PoolChild, src: string, scale?: number): Promise<Out
         { module: "cooklang", reason: "pool-crash", pid: target.pid, err },
         "Could not send to the Cooklang parse child; keeping the legacy projection"
       );
-      settle({ ok: false, reason: "pool-crash", elapsedMs: 0, cpuMs: null });
+      settle({ ok: false, reason: "pool-crash", elapsedMs: 0, cpuMs: null, rssMb: null });
       retire(target, "pool-crash");
     }
   });
@@ -681,11 +806,14 @@ function toCookTokens(steps: RawCookStepTokens[], units?: UnitsMap): CookTokensD
 function breachedBound(
   reason: RetireReason | "pool-saturated" | "pool-spawn-failed",
   elapsedMs: number,
-  cpuMs: number | null
+  cpuMs: number | null,
+  rssMb: number | null
 ): { bound: string | null; limit: number | null; measured: number | null } {
   switch (reason) {
     case "pool-cpu":
       return { bound: "cookParseCpuMs", limit: COOK_BOUNDS.cookParseCpuMs, measured: cpuMs };
+    case "pool-rss":
+      return { bound: "cookParseRssMb", limit: COOK_BOUNDS.cookParseRssMb, measured: rssMb };
     case "pool-timeout":
       return {
         bound: "cookParseWallCeilingMs",
@@ -693,7 +821,14 @@ function breachedBound(
         measured: elapsedMs,
       };
     case "pool-heap":
-      return { bound: "cookParseHeapMb", limit: COOK_BOUNDS.cookParseHeapMb, measured: null };
+      // The child aborted itself on a V8 OLD-SPACE OOM. `measured` is `null`
+      // because the breach is observed as a `SIGABRT`, not as a number we hold —
+      // unlike `pool-rss`, where the parent measured the figure it refused.
+      return {
+        bound: "cookParseOldSpaceMb",
+        limit: COOK_BOUNDS.cookParseOldSpaceMb,
+        measured: null,
+      };
     default:
       return { bound: null, limit: null, measured: null };
   }
@@ -770,7 +905,12 @@ export async function parseInPool(
         return null;
       }
 
-      const breached = breachedBound(outcome.reason, outcome.elapsedMs, outcome.cpuMs);
+      const breached = breachedBound(
+        outcome.reason,
+        outcome.elapsedMs,
+        outcome.cpuMs,
+        outcome.rssMb
+      );
 
       log.warn(
         {
@@ -781,10 +921,15 @@ export async function parseInPool(
           // WHICH NUMBER ACTUALLY BREACHED, beside the limit it breached — so an
           // operator reading `pool-cpu` can see how far over budget the row was,
           // and so a test can assert the gate measured what it refused instead of
-          // trusting that it did. `null` only for the heap bound, whose breach is
+          // trusting that it did. `null` only for `pool-heap`, whose breach is
           // observed as the child's `SIGABRT` and is not a number we hold.
           measured: breached.measured,
           cpuMs: outcome.cpuMs,
+          // BOTH measured axes travel on every bound hit, not just the one that
+          // fired: `pool-timeout` with `cpuMs` near zero is a stuck child, and
+          // `pool-cpu` with a high `rssMb` is a different production signal from
+          // `pool-cpu` at a flat 85 MB (H1's shape).
+          rssMb: outcome.rssMb,
           elapsedMs: outcome.elapsedMs,
           bytes,
           pid: target.pid,
@@ -852,6 +997,19 @@ export function cookParsePoolPidsForTests(): number[] {
  */
 export function cookParseLastCpuMsForTests(): number | null {
   return lastSampledCpuMs;
+}
+
+/**
+ * The child RSS the memory gate last SAMPLED, in MB, or `null` if the most recent
+ * parse finished before the first 25 ms sample (which is every normal recipe).
+ *
+ * For `pool.test.ts` only, and it is the counterpart of
+ * `cookParseLastCpuMsForTests`: it lets the suite assert that the worst LEGITIMATE
+ * shapes stay far inside `cookParseRssMb` using the same number the gate decides
+ * with, rather than a second reader of `/proc` that could drift from it.
+ */
+export function cookParseLastRssMbForTests(): number | null {
+  return lastSampledRssMb;
 }
 
 /**

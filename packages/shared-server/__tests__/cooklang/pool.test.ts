@@ -54,6 +54,7 @@ import { COOK_BOUNDS, findCookSourceDefect } from "../../src/cooklang/limits";
 import {
   cookParseChildCpuMsForTests,
   cookParseLastCpuMsForTests,
+  cookParseLastRssMbForTests,
   cookParsePoolPidsForTests,
   parseInPool,
   shutdownCookParsePool,
@@ -161,12 +162,15 @@ const HOSTILE: {
   source: string;
   measured: string;
   /**
-   * `pure-cpu` means the shape allocates almost nothing (H1 runs at a FLAT 6 MB), so
-   * the heap bound provably cannot be what stops it and the reason is pinned exactly.
-   * `cpu-or-heap` shapes balloon into the hundreds of MB, so either gate is a
-   * correct outcome and pinning one would be asserting an implementation accident.
+   * `pure-cpu` means the shape allocates almost nothing (H1 was re-measured here at
+   * a FLAT 79-85 MB of child RSS across a 1 505 ms parse), so no memory bound can
+   * be what stops it and the reason is pinned exactly.
+   * `balloons` shapes climb into the hundreds of MB, so `pool-rss` is the expected
+   * outcome and the CPU gate / wall backstop remain correct outcomes under enough
+   * contention — pinning one at the shipped defaults would be asserting a property
+   * of the box (§15.3).
    */
-  kills: "pure-cpu" | "cpu-or-heap";
+  kills: "pure-cpu" | "balloons";
 }[] = [
   {
     name: "H1 — 65 400 unbalanced `[` in frontmatter",
@@ -196,18 +200,18 @@ const HOSTILE: {
     name: "report explosion — `\"#\" x 8192` (8 KiB IN, 839 MB peak)",
     source: "#".repeat(8_192),
     measured: "839 MB peak RSS in-process from an 8 KiB input; 12 222 ms of CHILD CPU",
-    kills: "cpu-or-heap",
+    kills: "balloons",
   },
   {
     name: "round-1 bypass — 16 x 3 996 chars of `@a{1%}`",
     source: Array.from({ length: 16 }, () => "@a{1%} ".repeat(571).slice(0, 3_996)).join("\n\n"),
     measured: "7 821 ms and 1 650 MB in-process; 4 895 ms of CHILD CPU; ZERO malformed in round 1",
-    kills: "cpu-or-heap",
+    kills: "balloons",
   },
 ];
 
 /** Every retire reason that means "a resource bound did its job". */
-const BOUND_REASONS = ["pool-cpu", "pool-timeout", "pool-heap"] as const;
+const BOUND_REASONS = ["pool-cpu", "pool-rss", "pool-timeout", "pool-heap"] as const;
 
 /**
  * The two worst shapes that are LEGITIMATE and must therefore still SUCCEED.
@@ -272,11 +276,33 @@ describe("COOK_BOUNDS", () => {
       cookParseCpuMs: 1_500,
       cookParseCpuPollMs: 25,
       cookParseWallCeilingMs: 8_000,
-      cookParseHeapMb: 256,
+      cookParseRssMb: 512,
+      cookParseOldSpaceMb: 256,
       cookParsePoolSize: 2,
       cookParseQueueTimeoutMs: 1_000,
       cookParseReadyTimeoutMs: 2_000,
     });
+  });
+
+  /**
+   * THE MEMORY BOUND IS A BOUND ON RSS, AND ITS NAME SAYS SO (D-27-W3B-14).
+   *
+   * `cookParseHeapMb: 256` was described in three separate places as what "catches
+   * the report-explosion family's 839 MB-1.65 GB balloon". It could not:
+   * `--max-old-space-size` caps V8's OLD GENERATION and the parser allocates in
+   * WASM linear memory, so the same child measured 899 MB of RSS at the instant the
+   * CPU gate fired and 2 273 MB unbounded. This pins the two apart by NAME so the
+   * conflation cannot come back through a rename.
+   */
+  it("names the V8 old-space flag for what it sets, and the memory bound for what it bounds", () => {
+    expect(Object.keys(COOK_BOUNDS)).toContain("cookParseRssMb");
+    expect(Object.keys(COOK_BOUNDS)).not.toContain("cookParseHeapMb");
+    // The measured worst-legitimate peak is 152.9 MB and the idle plateau 175.2 MB,
+    // so the memory budget must stay comfortably above the old-space flag — if it
+    // ever fell below it, the flag would be unreachable and `pool-heap` dead code.
+    expect(COOK_BOUNDS.cookParseRssMb).toBeGreaterThan(COOK_BOUNDS.cookParseOldSpaceMb);
+    // Worst-case transient across the pool, stated as arithmetic rather than prose.
+    expect(COOK_BOUNDS.cookParsePoolSize * COOK_BOUNDS.cookParseRssMb).toBe(1_024);
   });
 
   /**
@@ -529,6 +555,7 @@ describe("THE BOUND, on the exact inputs that refuted rounds 1 and 2", () => {
               bound?: string;
               measured?: number | null;
               cpuMs?: number | null;
+              rssMb?: number | null;
             }
         )
         .find((fields) =>
@@ -549,13 +576,20 @@ describe("THE BOUND, on the exact inputs that refuted rounds 1 and 2", () => {
       // machine, which is exactly the mistake D-27-W3B-03a exists to stop repeating.
       //
       // So this test asserts what is true on EVERY box, and the teeth are (a) the
-      // per-reason number, (b) the discrimination `pool-heap` cannot pass for a
-      // flat-6-MB shape, and (c) proof the child was COMPUTING rather than stuck. The
-      // CPU gate itself is pinned deterministically two tests below, with the
-      // backstop lifted out of the way.
+      // per-reason number, (b) the discrimination that a MEMORY reason cannot pass
+      // for a flat-85-MB shape, and (c) proof the child was COMPUTING rather than
+      // stuck. The CPU gate and the RSS gate are each pinned deterministically
+      // below, with the backstop lifted out of the way.
       if (hit?.reason === "pool-cpu") {
         expect(hit?.bound).toBe("cookParseCpuMs");
         expect(hit?.measured ?? 0).toBeGreaterThanOrEqual(COOK_BOUNDS.cookParseCpuMs);
+      } else if (hit?.reason === "pool-rss") {
+        // Only a shape that actually allocates can breach the memory bound. H1 was
+        // measured at a flat 79-85 MB across its whole 1 505 ms parse, so this
+        // branch reaching a `pure-cpu` row would mean the RSS reader is broken.
+        expect(entry.kills).toBe("balloons");
+        expect(hit?.bound).toBe("cookParseRssMb");
+        expect(hit?.measured ?? 0).toBeGreaterThanOrEqual(COOK_BOUNDS.cookParseRssMb);
       } else if (hit?.reason === "pool-timeout") {
         expect(hit?.bound).toBe("cookParseWallCeilingMs");
         expect(hit?.measured ?? 0).toBeGreaterThanOrEqual(COOK_BOUNDS.cookParseWallCeilingMs);
@@ -564,10 +598,22 @@ describe("THE BOUND, on the exact inputs that refuted rounds 1 and 2", () => {
         // sampler is broken, which is the failure this branch must not absorb.
         expect(hit?.cpuMs ?? 0).toBeGreaterThan(COOK_BOUNDS.cookParseCpuMs * 0.5);
       } else {
-        // H1 runs at a FLAT 6 MB, so the heap bound provably cannot be what stopped
-        // it; only the ballooning shapes may report `pool-heap`.
-        expect(entry.kills).toBe("cpu-or-heap");
+        // H1 runs at a FLAT 85 MB, so no memory bound can be what stopped it; only
+        // the ballooning shapes may reach a V8 old-space abort.
+        expect(entry.kills).toBe("balloons");
         expect(hit?.reason).toBe("pool-heap");
+      }
+
+      // BOTH measured axes travel on EVERY bound hit, whichever one fired — that is
+      // what makes a production `pool-cpu` at 85 MB distinguishable from a
+      // `pool-cpu` at 500 MB. A hostile row that ran long enough to hit a bound has
+      // necessarily been sampled at least once, so neither may be `null` here.
+      expect(hit?.cpuMs ?? null).not.toBeNull();
+      expect(hit?.rssMb ?? null).not.toBeNull();
+      // And the memory bound is never breached silently: no reported RSS may sit
+      // above the budget without `pool-rss` being the reason.
+      if ((hit?.rssMb ?? 0) > COOK_BOUNDS.cookParseRssMb) {
+        expect(hit?.reason).toBe("pool-rss");
       }
 
       // All wall clock can honestly say is THAT IT DID NOT HANG. A tighter ceiling
@@ -595,7 +641,7 @@ describe("THE BOUND, on the exact inputs that refuted rounds 1 and 2", () => {
     // Six of those exceeds vitest's 30 s file timeout, and a test that dies on the
     // harness timeout proves nothing — the file docblock's own rule. The parent
     // surviving all six is asserted by the sweep above, which drives every row.
-    for (const entry of HOSTILE.filter((candidate) => candidate.kills === "cpu-or-heap")) {
+    for (const entry of HOSTILE.filter((candidate) => candidate.kills === "balloons")) {
       expect(await parseInPool(entry.source, units)).toBeNull();
     }
 
@@ -651,6 +697,70 @@ describe("THE BOUND, on the exact inputs that refuted rounds 1 and 2", () => {
   });
 
   /**
+   * THE MEMORY GATE, PINNED ON A REAL ARTEFACT AND DETERMINISTICALLY
+   * (D-27-W3B-14 — VERIFY-3 blocker 1).
+   *
+   * WHAT THIS REPLACES. `cookParseHeapMb: 256` — the child's
+   * `--max-old-space-size` — was billed in three places as what "catches the
+   * report-explosion family's 839 MB-1.65 GB balloon". It never did:
+   * `--max-old-space-size` caps V8's OLD GENERATION, and the parser allocates in
+   * WASM LINEAR MEMORY, which that flag has no authority over. Re-measured on this
+   * box, forking the real child exactly as `./pool` does: **899 MB of RSS at the
+   * instant the 1 500 ms CPU gate fired**, **2 273 MB** if left to run. And the
+   * mutation that settled it: `execArgv: []` — no heap flag at all — left the whole
+   * cooklang suite green. The flag had no teeth anywhere.
+   *
+   * WHY THIS TEST IS DETERMINISTIC RATHER THAN LOAD-DEPENDENT. RSS and CPU are both
+   * functions of the work performed, so their ORDER is arithmetic, not luck: this
+   * payload was measured crossing 512 MB at **630 ms of child CPU**, 2.4x before the
+   * 1 500 ms CPU budget could be spent, on every run. The one gate that could
+   * pre-empt it is the 8 000 ms WALL backstop under heavy contention (§15.3), so the
+   * backstop is lifted to 60 s through its env lever — exactly as the sibling
+   * CPU-gate test does — and then only the memory bound can fire.
+   *
+   * ITS ANTI-VACUITY IS THE MEASURED FIGURE ITSELF: 512 MB is 3.3x the worst
+   * LEGITIMATE peak (152.9 MB) and 2.9x the child's idle plateau (175.2 MB), so a
+   * gate that fired at a number in that range would fail this test rather than pass
+   * it, and a gate that never fired would leave `hit` undefined.
+   */
+  it("pins the MEMORY gate on the report-explosion artefact with the wall backstop lifted (deterministic)", async () => {
+    vi.stubEnv("NORISH_COOK_PARSE_WALL_CEILING_MS", "60000");
+    vi.resetModules();
+
+    const memoryBounded = await import("../../src/cooklang/pool");
+    const ballooning = HOSTILE.find((entry) => entry.kills === "balloons")!;
+
+    try {
+      expect(await memoryBounded.parseInPool(ballooning.source, units)).toBeNull();
+
+      const hit = warnSpy.mock.calls
+        .map(
+          (call) =>
+            call[0] as { reason?: string; bound?: string; measured?: number | null; cpuMs?: number | null }
+        )
+        .find((fields) => fields.reason === "pool-rss");
+
+      expect(hit).toBeDefined();
+      expect(hit?.bound).toBe("cookParseRssMb");
+      expect(hit?.measured ?? 0).toBeGreaterThanOrEqual(COOK_BOUNDS.cookParseRssMb);
+      // THE OVERSHOOT IS BOUNDED BY ONE POLL INTERVAL OF ALLOCATION, measured at
+      // <= 39 MB across both ballooning families. 128 MB is ~3x that, and it is what
+      // makes this a BOUND rather than an observation: at 2 273 MB unbounded, an
+      // ungated child would blow straight past this ceiling.
+      expect(hit?.measured ?? Number.POSITIVE_INFINITY).toBeLessThan(
+        COOK_BOUNDS.cookParseRssMb + 128
+      );
+      // IT WAS THE MEMORY GATE AND NOT THE CPU GATE IN DISGUISE: the child was
+      // killed with most of its CPU budget still unspent (measured 630 ms of 1 500).
+      expect(hit?.cpuMs ?? Number.POSITIVE_INFINITY).toBeLessThan(COOK_BOUNDS.cookParseCpuMs);
+    } finally {
+      memoryBounded.shutdownCookParsePool();
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
+  });
+
+  /**
    * THE BOUND MUST NOT REFUSE WHAT PARSES TODAY — AT THE SHIPPED DEFAULTS.
    *
    * The previous version of this test could not make that claim. Under
@@ -682,6 +792,18 @@ describe("THE BOUND, on the exact inputs that refuted rounds 1 and 2", () => {
 
       // REAL HEADROOM, on the axis that does not move with host load.
       expect(cpuMs ?? Number.POSITIVE_INFINITY).toBeLessThan(COOK_BOUNDS.cookParseCpuMs * 0.6);
+
+      // AND THE SAME CLAIM ON THE MEMORY AXIS (D-27-W3B-14). These shapes were
+      // measured peaking at 120.3 MB and 152.9 MB against a 512 MB budget; the
+      // child's own idle plateau is 175.2 MB. Anything that made a legitimate parse
+      // approach the memory bound — a copy of the payload, a leak, a raised
+      // `maxCookSourceBytes` without re-measuring — fails here BEFORE it can start
+      // refusing real recipes in production.
+      const rssMb = cookParseLastRssMbForTests();
+
+      expect(rssMb).not.toBeNull();
+      expect(rssMb ?? 0).toBeGreaterThan(0);
+      expect(rssMb ?? Number.POSITIVE_INFINITY).toBeLessThan(COOK_BOUNDS.cookParseRssMb * 0.6);
     }
   );
 });
@@ -1008,7 +1130,7 @@ describe("SATURATION DEGRADES, IT NEVER HANGS (R3, T-27-01d)", () => {
 });
 
 describe("LOGS CARRY COUNTS, CODES AND A PID — NEVER PROSE (T-27-05)", () => {
-  it("logs a bound hit with reason/bound/limit/measured/cpuMs/elapsedMs/bytes/pid and no recipe text", async () => {
+  it("logs a bound hit with reason/bound/limit/measured/cpuMs/rssMb/elapsedMs/bytes/pid and no recipe text", async () => {
     // The H1 shape, carrying distinctive prose and an ingredient name so the
     // absence assertions below have something real to look for.
     const source = `---\ntitle: "Grandmother's Secret Cassoulet"\na: ${"[".repeat(
@@ -1037,6 +1159,14 @@ describe("LOGS CARRY COUNTS, CODES AND A PID — NEVER PROSE (T-27-05)", () => {
     );
     expect((boundCall?.[0] as { cpuMs: number }).cpuMs).toBeGreaterThanOrEqual(
       COOK_BOUNDS.cookParseCpuMs
+    );
+    // `rssMb` travels beside `cpuMs` on EVERY bound hit, including a CPU one: an
+    // operator seeing `pool-cpu` needs to know whether the child was also near the
+    // memory budget. This shape is measured FLAT at 79-85 MB, which is exactly why
+    // the CPU gate — not the memory gate — is what refuses it.
+    expect((boundCall?.[0] as { rssMb: number }).rssMb).toBeGreaterThan(0);
+    expect((boundCall?.[0] as { rssMb: number }).rssMb).toBeLessThan(
+      COOK_BOUNDS.cookParseRssMb
     );
     expect((boundCall?.[0] as { elapsedMs: number }).elapsedMs).toBeGreaterThan(0);
     expect((boundCall?.[0] as { bytes: number }).bytes).toBe(

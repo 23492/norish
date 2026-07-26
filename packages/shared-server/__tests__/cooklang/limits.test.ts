@@ -1188,6 +1188,7 @@ describe("the hostile corpus — adversarial input sized AT the cap", () => {
     "pool-cpu",
     "pool-timeout",
     "pool-heap",
+    "pool-rss",
     "pool-crash",
     "pool-bad-envelope",
     "pool-saturated",

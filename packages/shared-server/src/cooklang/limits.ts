@@ -22,8 +22,9 @@ import {
  * end of this comment — and it is void in a way that matters, because acting on it
  * is what produced two refuted mitigations. The hard guarantee is a RESOURCE BOUND
  * on the parse itself (`COOK_BOUNDS` below, enforced by `./pool`: a 1 500 ms
- * CHILD-CPU `SIGKILL` gate, an 8 000 ms wall-clock BACKSTOP and a 256 MB heap
- * bound, in a pooled child process). The caps and the recognizer here
+ * CHILD-CPU `SIGKILL` gate, a 512 MB CHILD-RSS `SIGKILL` gate, an 8 000 ms
+ * wall-clock BACKSTOP and a 256 MB V8 old-space flag, in a pooled child process).
+ * The caps and the recognizer here
  * run FIRST and still earn their place — they stop a known-bad source from costing
  * a process round trip, they feed W5's confidence signal, and they are why a real
  * recipe never comes near a bound — but a gap in them now costs one refused or
@@ -207,7 +208,41 @@ function boundFromEnv(name: string, fallback: number): number {
  * refusal that costs only a legacy render today becomes an IMPORT FAILURE then. A
  * contention-flaky bound is a latent W6 defect.
  *
- * ─── THE THREE BOUNDS, AND WHY NONE IS REDUNDANT ───────────────────────────
+ * ─── WHY THE MEMORY BOUND IS RSS AND NOT `--max-old-space-size` ────────────
+ *
+ * D-27-W3B-14 (VERIFY-3 blocker 1), superseding the memory half of D-27-W3B-03.
+ *
+ * `cookParseHeapMb: 256` USED TO BE DESCRIBED HERE, AND IN §3/§11/§13.3 OF THE
+ * PLAN'S SUMMARY, AS WHAT "CATCHES THE REPORT-EXPLOSION FAMILY'S 839 MB-1.65 GB
+ * BALLOON", WITH A CONTAINER SIZED AGAINST A "~628 MB" WORST-CASE TRANSIENT.
+ * NEITHER WAS TRUE. `--max-old-space-size` caps V8's OLD GENERATION. The parser's
+ * allocation lives in **WASM LINEAR MEMORY**, which that flag has no authority
+ * over, and the report crosses the boundary as a string that lands in large-object
+ * space. Measured on this box (LXC 110, Node v22.22.3), forking the real child
+ * exactly as `./pool` does, WITH the 256 MB flag on:
+ *
+ * | payload                          | RSS at the 1 500 ms CPU gate | unbounded peak |
+ * |----------------------------------|-----------------------------:|---------------:|
+ * | `"#" x 8192` (report explosion)  |                       899 MB |       2 273 MB |
+ *
+ * The decisive test was a MUTATION: replacing `execArgv: ['--max-old-space-size=
+ * 256']` with `execArgv: []` left **331/331** cooklang tests green. A bound with no
+ * teeth anywhere in the suite, and the wrong subsystem in its rationale.
+ *
+ * SO THE MEMORY BOUND IS NOW MEASURED, NOT DECLARED. The parent already samples
+ * the child's CPU counter every `cookParseCpuPollMs`; it now reads
+ * `/proc/<pid>/status` on the SAME poll and `SIGKILL`s the child when its RESIDENT
+ * SET passes `cookParseRssMb`. RSS is the figure the OOM killer and the container
+ * limit actually see, it covers WASM linear memory, V8's heap, the JSON string and
+ * the binary itself, and — like the CPU counter and unlike wall clock — it is a
+ * function of the work performed rather than of what else the box is doing.
+ *
+ * The 256 MB `--max-old-space-size` is KEPT and RENAMED to `cookParseOldSpaceMb`,
+ * because that is precisely and only what it sets. It remains a real second line —
+ * a V8 old-space OOM aborts the child (`SIGABRT`, reason `pool-heap`) — but it is
+ * no longer described as the memory bound, and no number attributed to it any more.
+ *
+ * ─── THE FOUR BOUNDS, AND WHY NONE IS REDUNDANT ────────────────────────────
  *
  *  1. `cookParseCpuMs` (1 500 ms) — THE PRIMARY GATE. The child cannot police
  *     itself: the WASM parse is a single synchronous call that can never check a
@@ -227,12 +262,36 @@ function boundFromEnv(name: string, fallback: number): number {
  *     worst legitimate shape's IDLE wall clock (830 ms) and still above the
  *     6 264 ms measured under the 11.6x single-core starvation above — i.e. above a
  *     condition harsher than four-core LXC 110 can present.
- *  3. `cookParseHeapMb` (256 MB) — unchanged, and MORE load-bearing than before.
- *     `"#" x 8192` (an **8 KiB** input) peaks at **839 MB** and the round-1 bypass
- *     at **1 650 MB**. The heap bound was measured to fire at 6-12 s rather than the
- *     predicted ~285 ms, so it is not the gate that fires first — but it is the only
- *     thing standing between a hostile row and a 1.65 GB balloon now that the
- *     wall-clock ceiling has risen to 8 s. Do not treat it as redundant.
+ *  3. `cookParseRssMb` (512 MB) — THE MEMORY BOUND, and it is the gate that fires
+ *     FIRST on every ballooning family. Sampled by the parent from
+ *     `/proc/<pid>/status` on the CPU poll and enforced by `SIGKILL`. Measured here,
+ *     against the real child: a healthy child sits at **73.5 MB** after its warm-up
+ *     handshake and plateaus at **175.2 MB** after 1 050 heavy parses (WASM linear
+ *     memory is never returned to the OS, so this floor is permanent and was
+ *     measured to a plateau, not extrapolated). The worst LEGITIMATE single parse
+ *     peaks at **152.9 MB** (`"#p " x 21845`) and **120.3 MB** (64 KiB of
+ *     `@a{1%g} `). 512 MB is **2.9x** over the plateau and **3.3x** over the worst
+ *     legitimate peak — the same headroom rule `cookParseCpuMs` uses. The two
+ *     ballooning hostile families cross it at **630 ms / 642 ms of CHILD CPU**,
+ *     i.e. 2.4x BEFORE the CPU gate could fire, so this is the gate that decides
+ *     them.
+ *  4. `cookParseOldSpaceMb` (256 MB) — the child's `--max-old-space-size`, and
+ *     NOTHING MORE. It bounds V8's OLD GENERATION only; it does not govern WASM
+ *     linear memory, which is where the parser allocates. See the section above for
+ *     the measurements that retired its former billing as "the heap bound". It is
+ *     kept because a V8 old-space OOM aborts the child (`SIGABRT` -> `pool-heap`,
+ *     parent alive) and that is a genuine second line for the one hole
+ *     `cookParseRssMb` has — a single allocation larger than one poll interval —
+ *     but it is not what bounds this child's memory.
+ *
+ *     STATED PLAINLY, BECAUSE IT WOULD OTHERWISE READ AS A GAP: this flag has NO
+ *     TEETH IN THE SUITE, and cannot have. Replacing it with `execArgv: []` leaves
+ *     all 334 cooklang tests green — re-measured after D-27-W3B-14, exactly as it
+ *     did before. That is now the EXPECTED result rather than the finding it was in
+ *     VERIFY-3: the RSS gate fires at 512 MB, so no test payload can reach a V8
+ *     old-space OOM at all. The difference is that the memory guarantee no longer
+ *     rests on this flag, and the gate it does rest on goes red the moment it is
+ *     disabled (3 tests, `pool.test.ts`).
  *
  * WHY 1 500 ms OF CPU. Measured against the worst LEGITIMATE shapes, not guessed.
  * A sweep of every shape that reaches the 64 KiB `cook_source` cap — the two above
@@ -251,10 +310,24 @@ function boundFromEnv(name: string, fallback: number): number {
  * the worst legitimate shape pays ~20 samples ≈ 0.6 ms and a hostile parse ~60
  * samples ≈ 1.8 ms.
  *
+ * WHY THE RSS POLL IS THE SAME 25 ms. One `/proc/<pid>/status` read costs 33.61 µs
+ * against the `schedstat` read's 23.62 µs (20 000 iterations, warm), and it fires
+ * zero times for any real recipe for the same reason. Its resolution sets the OVERSHOOT:
+ * the gate can miss by at most one poll interval of allocation, measured at
+ * **<= 39 MB** across both ballooning families (largest single-sample jump: 87 ->
+ * 104 -> 125 -> ... -> 399 -> 438 -> 477 MB). A single very large allocation could
+ * overshoot by its own size; `cookParseOldSpaceMb` and the CPU gate are the
+ * backstops for that, and it is stated rather than hidden.
+ *
  * WHY POOL SIZE 2. Not throughput (one child serves ~1 000 parses/s) —
  * HEAD-OF-LINE BLOCKING. With one child, a single bounded-out parse would delay
- * every queued read. Worst-case transient memory is
- * `cookParsePoolSize x cookParseHeapMb`.
+ * every queued read.
+ *
+ * WORST-CASE TRANSIENT MEMORY, HONESTLY: `cookParsePoolSize x (cookParseRssMb +
+ * one poll interval of allocation)` = `2 x (512 + 39)` = **~1 102 MB**. The "~628
+ * MB" figure in §11/§15.6 of the plan's summary is superseded: it was
+ * `2 x cookParseHeapMb` plus slack, and `cookParseHeapMb` never bounded RSS. The
+ * pre-D-27-W3B-14 truth was ~1.8 GB across two slots and formally UNBOUNDED.
  *
  * Each value is env-overridable for operational headroom. Raising one is a
  * deliberate act with a recorded reason, never a guess.
@@ -272,8 +345,19 @@ export const COOK_BOUNDS = {
    * burning CPU, which the CPU gate cannot see. NOT the computation bound.
    */
   cookParseWallCeilingMs: boundFromEnv("NORISH_COOK_PARSE_WALL_CEILING_MS", 8_000),
-  /** The child's `--max-old-space-size`, in MB. */
-  cookParseHeapMb: boundFromEnv("NORISH_COOK_PARSE_HEAP_MB", 256),
+  /**
+   * THE MEMORY BOUND: MB of the child's RESIDENT SET, sampled by the parent from
+   * `/proc/<pid>/status` on the CPU poll and enforced by `SIGKILL`. RSS is what the
+   * OOM killer and the container limit see, and — unlike `--max-old-space-size` —
+   * it covers the WASM linear memory the parser actually allocates in.
+   */
+  cookParseRssMb: boundFromEnv("NORISH_COOK_PARSE_RSS_MB", 512),
+  /**
+   * The child's `--max-old-space-size`, in MB — V8's OLD GENERATION and nothing
+   * else. NOT the memory bound (`cookParseRssMb` is); see the docblock above for
+   * the measurements that retired that claim.
+   */
+  cookParseOldSpaceMb: boundFromEnv("NORISH_COOK_PARSE_OLD_SPACE_MB", 256),
   /** Children in the pool. Lazily spawned; a process that never parses spawns none. */
   cookParsePoolSize: boundFromEnv("NORISH_COOK_PARSE_POOL_SIZE", 2),
   /** Wall-clock ms a request may wait for a free child before degrading to `null`. */

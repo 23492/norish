@@ -56,15 +56,21 @@ import { parseInPool } from "./pool";
  *     ANYTHING THAT REACHES THE PARSER IS BOUNDED, WHATEVER WROTE IT.
  *
  * Every parse runs in a pooled child process under a **1 500 ms CHILD-CPU gate**
- * (`SIGKILL` from the parent, sampled from `/proc/<pid>/schedstat`), an 8 000 ms
+ * and a **512 MB CHILD-RSS gate** (both `SIGKILL` from the parent, sampled from
+ * `/proc/<pid>/schedstat` and `/proc/<pid>/status` on one 25 ms poll), an 8 000 ms
  * wall-clock BACKSTOP for a child that is stuck without burning CPU, and a 256 MB
- * heap bound (the child's own `--max-old-space-size`). A bound hit kills and
- * replaces the child and resolves `null`. The primary gate is CPU rather than wall
- * clock because wall clock conflates the threat with unrelated host load, and was
- * measured refusing legitimate recipes under contention (D-27-W3B-03a, superseding
- * the 1 000 ms wall-clock bound this comment used to describe). See `./limits` for
- * the three bounds and `./pool` for the measurements behind them and for why the
- * mechanism is a child process rather than a worker thread.
+ * V8 old-space flag. A bound hit kills and replaces the child and resolves `null`.
+ *
+ * The primary gate is CPU rather than wall clock because wall clock conflates the
+ * threat with unrelated host load, and was measured refusing legitimate recipes
+ * under contention (D-27-W3B-03a, superseding the 1 000 ms wall-clock bound this
+ * comment used to describe). The MEMORY bound is the child's resident set rather
+ * than `--max-old-space-size` because that flag caps V8's old generation only and
+ * the parser allocates in WASM linear memory — the same child measured 899 MB of
+ * RSS with the flag set (D-27-W3B-14, superseding the "256 MB heap bound" this
+ * comment also used to describe). See `./limits` for the four bounds and `./pool`
+ * for the measurements behind them and for why the mechanism is a child process
+ * rather than a worker thread.
  *
  * THE BYTE CAP AND `findCookSourceDefect` STAY, AND THEY ARE STILL CHECKED FIRST
  * — as DEFENCE IN DEPTH, not as the guarantee. They keep a known-bad source from
