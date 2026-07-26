@@ -370,9 +370,18 @@ Structural conversions beyond `await`:
 **`packages/shared-server/src/cooklang/parse-worker.ts`** — the child entry. Nothing
 else in `packages/` or `apps/`.
 
-Test files that reference it: **none** after this plan (the `limits.test.ts` mock was
-replaced by the pool mock). `pool.test.ts` reads the source as *text* for the static
-assertion; it does not import it.
+**Test-file importers: exactly ONE, and it is justified.**
+`packages/shared-server/__tests__/cooklang/round-trip.test.ts` constructs the real
+`CooklangParser` itself, deliberately — it is the **independent oracle** for the
+serializer → parser → projection contract, and routing it through `parseCookSource`
+would have it checking our own pool against itself. Its inputs are the five committed
+fixtures. `limits.test.ts`'s WASM mock is gone (replaced by the pool mock).
+`pool.test.ts` reads the child source as *text*; it does not import it.
+
+Both lists are pinned by static assertions that walk the real tree — production
+files **and**, in a separate assertion, test files. Excluding `__tests__` from the
+sweep (which my first version did) would have let a second importer appear in a test
+unnoticed.
 
 ### ⚠ A hard constraint discovered empirically — READ BEFORE EDITING THE CHILD
 

@@ -581,6 +581,49 @@ describe("`@cooklang/cooklang` is imported by exactly ONE source file", () => {
     expect(importers).toEqual(["packages/shared-server/src/cooklang/parse-worker.ts"]);
   });
 
+  /**
+   * TEST-FILE importers are enumerated too, and JUSTIFIED ONE BY ONE. Excluding
+   * `__tests__` from the sweep above would let a second importer appear in a test
+   * without anyone noticing, and a test that reaches the WASM directly is outside
+   * the bound — legitimate for an independent oracle, not for anything else.
+   */
+  it("names the TEST-file importers, each with a stated reason", () => {
+    const testImporters: string[] = [];
+
+    const walk = (dir: string): void => {
+      for (const entry of readdirSync(dir)) {
+        if (entry === "node_modules" || entry === "dist" || entry === ".turbo") continue;
+        if (entry === ".cache" || entry === ".next") continue;
+
+        const full = join(dir, entry);
+
+        if (statSync(full).isDirectory()) {
+          walk(full);
+          continue;
+        }
+
+        if (!/\.(test|spec)\.tsx?$/.test(entry)) continue;
+        if (/from\s+["']@cooklang\/cooklang["']/.test(readFileSync(full, "utf8"))) {
+          testImporters.push(relative(repoRoot, full));
+        }
+      }
+    };
+
+    walk(join(repoRoot, "packages"));
+    walk(join(repoRoot, "apps"));
+
+    // JUSTIFICATION, the only one on this list:
+    // `round-trip.test.ts` constructs the real `CooklangParser` itself, on purpose.
+    // It is the INDEPENDENT ORACLE for the serializer -> parser -> projection
+    // contract: if it went through `parseCookSource` it would be checking our own
+    // pool against itself. Being outside the bound is acceptable in a test whose
+    // inputs are the five committed fixtures, and it is what keeps the round-trip
+    // suite from becoming self-referential.
+    expect(testImporters.sort()).toEqual([
+      "packages/shared-server/__tests__/cooklang/round-trip.test.ts",
+    ]);
+  });
+
   it("the child entry imports NOTHING from `@norish/*` at runtime", () => {
     // Established empirically: the pool forks this file as a raw `.ts`, and raw
     // Node cannot load `@norish/*` source because those packages use extensionless
