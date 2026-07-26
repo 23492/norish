@@ -1,8 +1,41 @@
 // @vitest-environment node
+/**
+ * `migrateGalleryImages` — the boot-time recipe-image URL migration.
+ *
+ * WHAT THIS FILE ASSERTS is a pure rewrite contract: given rows carrying legacy
+ * image URLs and a real uploads directory, which URLs get rewritten and which are
+ * refused because the file is not on disk. Nothing here is about time.
+ *
+ * ⚠ THE SUBJECT IS IMPORTED AT FILE SCOPE, ONCE — DO NOT MOVE IT BACK INTO A TEST
+ * OR A HOOK. It used to be `await import()`ed inside each test, behind
+ * `vi.resetModules()` + a per-test `vi.doMock` of the uploads dir. That charged the
+ * transform and evaluation of the whole `@norish/db/repositories/recipes` graph to
+ * the per-test wall budget: **2 747 ms measured against vitest's default 5 000 ms
+ * `testTimeout`, i.e. 1.8x of headroom**, on a quantity §13.1 of
+ * `27-04-SUMMARY.md` measured inflating **7.5x-11.6x under host load**. It failed
+ * `Test timed out in 5000ms` in 3 of 3 full-suite runs under contention and passed
+ * every time in isolation — the same wall-clock-under-contention disease
+ * D-27-W3B-03a diagnosed for the parse bound and §15.3 for the pool's latency
+ * assertion. The cure is theirs: take the load-dependent quantity OUT of what is
+ * being bounded, do not re-budget it. A top-level `await import` runs during file
+ * COLLECTION, which neither `testTimeout` nor `hookTimeout` bounds, and it runs
+ * once instead of once per test. Every mock seam and every assertion below is
+ * unchanged; what changed is only where the module load is accounted.
+ *
+ * Consequences of importing once, both deliberate:
+ *   - ONE uploads dir for the file, created synchronously before the import so the
+ *     `SERVER_CONFIG` mock can be static (the subject freezes `RECIPES_DIR` at
+ *     module load). `beforeEach` re-creates an empty `<uploadsDir>/recipes`, which
+ *     is the only state either test reads, so the tests stay isolated.
+ *   - no `vi.resetModules()`: the subject holds no module-level mutable state, only
+ *     the frozen `RECIPES_DIR`, and re-evaluating the graph per test was the cost
+ *     this file exists to stop paying.
+ */
+import { mkdtempSync } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockInfo = vi.fn();
 const mockWarn = vi.fn();
@@ -35,26 +68,35 @@ vi.mock("@norish/db/drizzle", () => ({
   },
 }));
 
+/**
+ * Created synchronously, before the subject is imported, because the subject
+ * freezes `RECIPES_DIR = join(SERVER_CONFIG.UPLOADS_DIR, "recipes")` at module
+ * load. The `vi.mock` factory above reads this binding when the subject pulls
+ * `@norish/config/env-config-server` in, which is on the `await import` below —
+ * after this line, so there is no temporal-dead-zone hazard.
+ */
+const uploadsDir = mkdtempSync(path.join(os.tmpdir(), "norish-migrate-images-"));
+
+vi.mock("@norish/config/env-config-server", () => ({
+  SERVER_CONFIG: {
+    MASTER_KEY: "QmFzZTY0RW5jb2RlZE1hc3RlcktleU1pbjMyQ2hhcnM=",
+    UPLOADS_DIR: uploadsDir,
+  },
+}));
+
+const { migrateGalleryImages } = await import("@norish/api/startup/migrate-gallery-images");
+
 describe("migrateGalleryImages", () => {
-  let uploadsDir: string;
   let selectResults: unknown[][];
   const updates: Array<{ table: unknown; values: unknown }> = [];
 
   beforeEach(async () => {
-    vi.resetModules();
     vi.clearAllMocks();
     updates.length = 0;
     selectResults = [];
 
-    uploadsDir = await fs.mkdtemp(path.join(os.tmpdir(), "norish-migrate-images-"));
+    await fs.rm(path.join(uploadsDir, "recipes"), { recursive: true, force: true });
     await fs.mkdir(path.join(uploadsDir, "recipes"), { recursive: true });
-
-    vi.doMock("@norish/config/env-config-server", () => ({
-      SERVER_CONFIG: {
-        MASTER_KEY: "QmFzZTY0RW5jb2RlZE1hc3RlcktleU1pbjMyQ2hhcnM=",
-        UPLOADS_DIR: uploadsDir,
-      },
-    }));
 
     mockSelect.mockImplementation(() => ({
       from: () => ({
@@ -71,8 +113,7 @@ describe("migrateGalleryImages", () => {
     }));
   });
 
-  afterEach(async () => {
-    vi.doUnmock("@norish/config/env-config-server");
+  afterAll(async () => {
     await fs.rm(uploadsDir, { recursive: true, force: true });
   });
 
@@ -92,8 +133,6 @@ describe("migrateGalleryImages", () => {
         },
       ],
     ];
-
-    const { migrateGalleryImages } = await import("@norish/api/startup/migrate-gallery-images");
 
     await migrateGalleryImages();
 
@@ -146,8 +185,6 @@ describe("migrateGalleryImages", () => {
         },
       ],
     ];
-
-    const { migrateGalleryImages } = await import("@norish/api/startup/migrate-gallery-images");
 
     await migrateGalleryImages();
 
