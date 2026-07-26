@@ -72,7 +72,10 @@ export function createUseConvertMutation({
           }
 
           if (context?.didSwitchLocally) {
-            queryClient.setQueryData(context.detailQueryKey, context.previousRecipe);
+            queryClient.setQueryData<FullRecipeDTO | null>(
+              context.detailQueryKey,
+              context.previousRecipe
+            );
           }
 
           queryClient.invalidateQueries({ queryKey: context?.detailQueryKey ?? detailQueryKey });

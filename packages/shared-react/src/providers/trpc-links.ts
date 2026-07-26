@@ -210,10 +210,10 @@ function createHttpFormDataMutationLink(
   });
 }
 
-function createHttpTransportLink<TRouter extends AnyTRPCRouter>(
+function createHttpTransportLink(
   getBaseUrl: () => string,
   getHeaders: () => HTTPHeaders
-): TRPCLink<TRouter> {
+): TRPCLink<any> {
   return splitLink({
     condition: (op) => op.type === "mutation",
     true: splitLink({
