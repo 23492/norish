@@ -129,7 +129,7 @@ export const COOK_LIMITS = {
 /**
  * Read a positive-integer operational override, or fall back to the calibrated
  * default. A malformed or non-positive value is IGNORED rather than honoured:
- * `NORISH_COOK_PARSE_TIMEOUT_MS=0` must not silently disable the bound.
+ * `NORISH_COOK_PARSE_CPU_MS=0` must not silently disable the bound.
  */
 function boundFromEnv(name: string, fallback: number): number {
   const raw = process.env[name];
@@ -142,54 +142,121 @@ function boundFromEnv(name: string, fallback: number): number {
 }
 
 /**
- * THE RESOURCE BOUND ON THE PARSE (Phase 27, W3B — D-27-W3B-03).
+ * THE RESOURCE BOUND ON THE PARSE (Phase 27, W3B — D-27-W3B-03a, superseding
+ * D-27-W3B-03).
  *
  * A SEPARATE object from `COOK_LIMITS` on purpose: those nine are INPUT-SHAPE
- * caps and they are unchanged by the W3B pivot. These four are the RESOURCE
- * bound, which is what the guarantee now rests on. Enforced by
- * `./pool` — the wall-clock bound by `SIGKILL` from the parent (OS-guaranteed,
- * needs no V8 cooperation), the heap bound by the child's own
- * `--max-old-space-size` (contained to the child; the parent survives).
+ * caps and they are unchanged by the W3B pivot. These are the RESOURCE bound,
+ * which is what the guarantee now rests on. All of it is enforced by `./pool`.
  *
- * TWO MEASURED FAILURE FAMILIES, ONE BOUND EACH. NEITHER IS REDUNDANT:
- *  - REPORT EXPLOSION (quadratic diagnostics): `"#" x 8192` — an **8 KiB** input
- *    — peaks at **839 MB**; the round-1 bypass payload (16 x 3 996 chars of
- *    `@a{1%}`, 63 952 B) reached **1 650 MB** in 7 821 ms. Allocation rate across
- *    every hostile shape probed is bounded at ~0.9 MB/ms, so 256 MB is reached at
- *    ~285 ms — BEFORE the time bound. The HEAP bound catches this family.
- *  - YAML RECURSION (H1): `---\na: ${"[".repeat(65400)}\n---\nstep\n` parses for
- *    **24 557 / 38 511 ms** at a flat **6 MB**. Invisible to a memory bound. The
- *    TIME bound catches this family.
+ * ─── WHY THE PRIMARY GATE IS CPU TIME AND NOT WALL CLOCK ───────────────────
  *
- * WHY 1 000 ms. Measured against the worst LEGITIMATE shapes, not guessed:
- * 64 KiB of `@a{1%g} ` cost **648 ms** and `"#p " x 21845` cost **694 ms** on the
- * verify box, a realistic recipe 0.6-17 ms, the five committed fixtures ~0.6 ms.
- * 1 000 ms is 1.44x over the highest recorded legitimate worst case and ~59x over
- * a realistic recipe, so NOTHING THAT PARSES TODAY STARTS FAILING — the
- * never-broken guarantee outranks a tighter number. It is also 2x UNDER the
- * plan's 2 000 ms budget, so the hostile-corpus assertion stays true by
- * construction.
+ * D-27-W3B-03 bounded ONE PARSE BY WALL CLOCK at 1 000 ms, chosen deliberately
+ * above the worst legitimate shapes (648 / 694 ms measured idle) so that nothing
+ * which parses today would start failing. It was then MEASURED TO FLIP: in the
+ * full `@norish/shared-server` run (~20 vitest workers) those same legitimate
+ * shapes took **1 238 ms and 1 137 ms of WALL CLOCK and were REFUSED**, while the
+ * work they performed had not changed at all. On LXC 110 the web server, the queue
+ * workers and Postgres share four cores, so that is reachable in production.
  *
- * WHY 256 MB. ~7.8x over the worst ACCEPTED shape's measured peak (33 MB) and
- * ~85x over a realistic recipe.
+ * The root cause is that WALL CLOCK CONFLATES THE THREAT WITH UNRELATED HOST LOAD.
+ * A pathological parse burns CPU. A legitimate parse under contention burns the
+ * same small amount of CPU and only inflates in ELAPSED time. Any number on the
+ * wall-clock axis is therefore wrong on some box: 1 000 ms refuses real recipes
+ * here, and 2 000 ms would refuse them on a busier host. Measured on this box, by
+ * pinning the child and ten spinners to one core:
+ *
+ * | worst ACCEPTED shape        | wall idle | wall starved  | CPU idle | CPU starved |
+ * |-----------------------------|----------:|--------------:|---------:|------------:|
+ * | 64 KiB of `@a{1%g} `        | 351-449   | 4 096-5 085   | 328-373  | 328-373     |
+ * | `"#p " x 21845`             | 483-830   | 5 537-6 264   | 453-506  | 452-506     |
+ *
+ * Wall clock inflated **7.5x-11.6x**. The CPU figure did not move: it is flat
+ * within ±3% across an order of magnitude of host load. That is the axis the bound
+ * belongs on, and it is why this is a root-cause fix rather than a retune.
+ *
+ * This matters MORE from W6 on, not less: W6 makes `cook_source` NOT NULL, so a
+ * refusal that costs only a legacy render today becomes an IMPORT FAILURE then. A
+ * contention-flaky bound is a latent W6 defect.
+ *
+ * ─── THE THREE BOUNDS, AND WHY NONE IS REDUNDANT ───────────────────────────
+ *
+ *  1. `cookParseCpuMs` (1 500 ms) — THE PRIMARY GATE. The child cannot police
+ *     itself: the WASM parse is a single synchronous call that can never check a
+ *     timer, which is the whole reason this pivot exists. So the PARENT samples the
+ *     child's own CPU counter from `/proc/<pid>/schedstat` every
+ *     `cookParseCpuPollMs` and `SIGKILL`s it when the budget is spent. Measured
+ *     hostile cost, on the artefacts that refuted rounds 1 and 2: H1's 65 KB
+ *     `[`-repeat frontmatter burns **22 759 ms** of CPU, `"#" x 8192` **12 222 ms**,
+ *     the round-1 bypass **4 895 ms**. All three are killed after 1 500 ms.
+ *  2. `cookParseWallCeilingMs` (8 000 ms) — A BACKSTOP, NOT A COMPUTATION BOUND.
+ *     Its only job is a child that is stuck WITHOUT burning CPU: a hang, a lost IPC
+ *     reply, a child descheduled forever. The CPU gate can never see that case
+ *     because the counter does not advance. It is deliberately GENEROUS because a
+ *     blocked-but-idle child is not a DoS amplifier — it occupies one pool slot,
+ *     `cookParseQueueTimeoutMs` stops anything queueing behind it, and
+ *     D-27-W3B-10's terminate-and-replace disposes of it. 8 000 ms is 9.6x the
+ *     worst legitimate shape's IDLE wall clock (830 ms) and still above the
+ *     6 264 ms measured under the 11.6x single-core starvation above — i.e. above a
+ *     condition harsher than four-core LXC 110 can present.
+ *  3. `cookParseHeapMb` (256 MB) — unchanged, and MORE load-bearing than before.
+ *     `"#" x 8192` (an **8 KiB** input) peaks at **839 MB** and the round-1 bypass
+ *     at **1 650 MB**. The heap bound was measured to fire at 6-12 s rather than the
+ *     predicted ~285 ms, so it is not the gate that fires first — but it is the only
+ *     thing standing between a hostile row and a 1.65 GB balloon now that the
+ *     wall-clock ceiling has risen to 8 s. Do not treat it as redundant.
+ *
+ * WHY 1 500 ms OF CPU. Measured against the worst LEGITIMATE shapes, not guessed.
+ * A sweep of every shape that reaches the 64 KiB `cook_source` cap — the two above
+ * plus timers, prose, headings, 200x4 000-char steps, 600 ingredient refs and real
+ * frontmatter — puts the worst legitimate CPU cost at **506 ms**. 1 500 ms is
+ * **2.96x** over that, ~88x over a realistic 448-byte recipe (17 ms) and ~2 500x
+ * over a committed fixture. It is also LOWER in absolute terms than the wall-clock
+ * worst case a hostile row could previously hold a child for, so the bound got
+ * tighter against the threat while getting 3x safer for real recipes.
+ *
+ * WHY THE POLL IS 25 ms. Resolution: a hostile parse overshoots the budget by at
+ * most one interval, 1.7% of 1 500 ms. Cost: the poll is a `setTimeout` that is
+ * cleared before it ever fires for any normal parse — a pooled round trip is
+ * ~0.97 ms and a 64 KiB realistic recipe ~15 ms, both measured to fire ZERO polls.
+ * When it does fire, one sample costs **30 µs** (measured, 20 000 iterations), so
+ * the worst legitimate shape pays ~20 samples ≈ 0.6 ms and a hostile parse ~60
+ * samples ≈ 1.8 ms.
  *
  * WHY POOL SIZE 2. Not throughput (one child serves ~1 000 parses/s) —
  * HEAD-OF-LINE BLOCKING. With one child, a single bounded-out parse would delay
- * every queued read by up to `cookParseTimeoutMs`. Worst-case transient memory is
+ * every queued read. Worst-case transient memory is
  * `cookParsePoolSize x cookParseHeapMb`.
  *
  * Each value is env-overridable for operational headroom. Raising one is a
  * deliberate act with a recorded reason, never a guess.
  */
 export const COOK_BOUNDS = {
-  /** Wall-clock ms for ONE parse, enforced by `SIGKILL` from the parent. */
-  cookParseTimeoutMs: boundFromEnv("NORISH_COOK_PARSE_TIMEOUT_MS", 1_000),
+  /**
+   * THE PRIMARY GATE: ms of the child's own CPU time for ONE parse, sampled by the
+   * parent from `/proc/<pid>/schedstat` and enforced by `SIGKILL`.
+   */
+  cookParseCpuMs: boundFromEnv("NORISH_COOK_PARSE_CPU_MS", 1_500),
+  /** How often the parent samples the child's CPU counter while a parse is in flight. */
+  cookParseCpuPollMs: boundFromEnv("NORISH_COOK_PARSE_CPU_POLL_MS", 25),
+  /**
+   * The WALL-CLOCK BACKSTOP for one parse. Catches a child that is stuck without
+   * burning CPU, which the CPU gate cannot see. NOT the computation bound.
+   */
+  cookParseWallCeilingMs: boundFromEnv("NORISH_COOK_PARSE_WALL_CEILING_MS", 8_000),
   /** The child's `--max-old-space-size`, in MB. */
   cookParseHeapMb: boundFromEnv("NORISH_COOK_PARSE_HEAP_MB", 256),
   /** Children in the pool. Lazily spawned; a process that never parses spawns none. */
   cookParsePoolSize: boundFromEnv("NORISH_COOK_PARSE_POOL_SIZE", 2),
   /** Wall-clock ms a request may wait for a free child before degrading to `null`. */
   cookParseQueueTimeoutMs: boundFromEnv("NORISH_COOK_PARSE_QUEUE_TIMEOUT_MS", 1_000),
+  /**
+   * Wall-clock ms a request may wait for a COLD child's warm-up handshake. Kept at
+   * the 2 000 ms this used to be derived as (`queueTimeout + parseTimeout`) so the
+   * cold-spawn path is unchanged by D-27-W3B-03a: ~8x the measured 200-243 ms cold
+   * spawn, and a BOUND — if it expires the request degrades to `null`, never hangs.
+   */
+  cookParseReadyTimeoutMs: boundFromEnv("NORISH_COOK_PARSE_READY_TIMEOUT_MS", 2_000),
 } as const;
 
 export type CookLimitBreach = {

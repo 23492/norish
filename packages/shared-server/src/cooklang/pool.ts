@@ -14,6 +14,7 @@ import type {
 } from "./parse-worker";
 
 import { fork, type ChildProcess } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -47,16 +48,37 @@ import { COOK_BOUNDS } from "./limits";
  * and `RuntimeError: unreachable` on NINE BYTES. So the parse itself is bounded,
  * and recognizer completeness stops being load-bearing.
  *
- * TWO BOUNDS, ONE PER MEASURED FAILURE FAMILY. NEITHER IS REDUNDANT:
- *  - `cookParseTimeoutMs` (1 000 ms), enforced by `SIGKILL` FROM THE PARENT.
- *    OS-guaranteed; it needs no cooperation from V8 and none from the WASM.
- *    Measured to take effect in 16 ms mid-parse. This is what catches the
- *    YAML-recursion family, which burns 24-38 s of pure CPU at a flat 6 MB and is
- *    therefore INVISIBLE to a memory bound.
+ * THE PRIMARY GATE IS THE CHILD'S CPU TIME, NOT WALL CLOCK (D-27-W3B-03a,
+ * superseding D-27-W3B-03). This is the part most likely to be "simplified" back
+ * into a bug, so the reason is stated here as well as in `./limits`:
+ *
+ *  - A wall-clock bound CONFLATES THE THREAT WITH UNRELATED HOST LOAD. The
+ *    original 1 000 ms wall-clock bound was set deliberately above the worst
+ *    legitimate shapes (648 / 694 ms idle) and was then MEASURED to refuse those
+ *    same shapes at 1 137 / 1 238 ms in the full shared-server run, because wall
+ *    clock inflates under contention while the work performed does not. Pinning the
+ *    child and ten spinners to one core inflated wall clock **7.5x-11.6x** while the
+ *    child's CPU cost stayed flat within **±3%**. Every point on the wall-clock axis
+ *    is wrong on some box; CPU time is the axis the threat actually lives on.
+ *  - THE CHILD CANNOT SELF-POLICE. `parser.parse()` is one synchronous WASM call;
+ *    it can never check a timer. That is the whole reason for this pivot. So the
+ *    PARENT samples `/proc/<pid>/schedstat` every `cookParseCpuPollMs` and
+ *    `SIGKILL`s the child once `cookParseCpuMs` is spent. `SIGKILL` needs no
+ *    cooperation from V8 and none from the WASM, which is what makes it trustworthy.
+ *
+ * THREE BOUNDS, NONE REDUNDANT:
+ *  - `cookParseCpuMs` (1 500 ms of the CHILD's CPU) — the computation bound. Kills
+ *    every measured hostile family: H1's frontmatter recursion burns 22 759 ms of
+ *    CPU, the `"#" x 8192` report explosion 12 222 ms, the round-1 bypass 4 895 ms.
+ *  - `cookParseWallCeilingMs` (8 000 ms) — a BACKSTOP for a child stuck WITHOUT
+ *    burning CPU (a hang, a lost IPC reply), which the CPU gate cannot see because
+ *    the counter does not advance. Deliberately generous: a blocked-but-idle child
+ *    is not a DoS amplifier, it just occupies one pool slot, and
+ *    `cookParseQueueTimeoutMs` plus terminate-and-replace already handle that.
  *  - `cookParseHeapMb` (256 MB), enforced by the child's own
- *    `--max-old-space-size`. This is what catches the report-explosion family,
- *    which a time bound would only catch after it had already allocated
- *    gigabytes.
+ *    `--max-old-space-size`. This is what catches the report-explosion family's
+ *    839 MB-1.65 GB balloon, and it is MORE important now that the wall-clock
+ *    ceiling is 8 s rather than 1 s.
  *
  * WHY A CHILD PROCESS AND NOT `worker_threads` + `resourceLimits`. Measured, not
  * assumed: `maxOldGenerationSizeMb: 64` on the round-1 bypass payload produced
@@ -90,6 +112,7 @@ import { COOK_BOUNDS } from "./limits";
 
 /** A child that has hit a bound, crashed or misbehaved is never reused. */
 type RetireReason =
+  | "pool-cpu"
   | "pool-timeout"
   | "pool-heap"
   | "pool-crash"
@@ -99,12 +122,22 @@ type RetireReason =
 type Outcome =
   | { ok: true; steps: RawCookStepTokens[]; reportEmpty: boolean }
   | { ok: false; reason: "parse-threw"; error: string }
-  | { ok: false; reason: RetireReason | "pool-saturated" | "pool-spawn-failed"; elapsedMs: number };
+  | {
+      ok: false;
+      reason: RetireReason | "pool-saturated" | "pool-spawn-failed";
+      elapsedMs: number;
+      /**
+       * The child's CPU cost as last sampled, or `null` when it could not be read
+       * (a pid that is already gone, or a host without `/proc/<pid>/schedstat`).
+       */
+      cpuMs: number | null;
+    };
 
 type InFlight = {
   id: number;
   startedAt: number;
-  timer: NodeJS.Timeout;
+  /** Cancels BOTH the CPU poll and the wall-clock backstop. */
+  stopTimers: () => void;
   settle: (outcome: Outcome) => void;
 };
 
@@ -127,6 +160,55 @@ type Waiter = {
 let children: PoolChild[] = [];
 let waiters: Waiter[] = [];
 let nextRequestId = 1;
+/** The CPU cost of the most recent parse that ran long enough to be sampled. */
+let lastSampledCpuMs: number | null = null;
+
+/**
+ * THE PRIMARY GATE'S MEASUREMENT: how much CPU this child has consumed, in ms.
+ *
+ * `/proc/<pid>/schedstat` field 1 is the task's `sum_exec_runtime` IN NANOSECONDS.
+ * It was chosen over `/proc/<pid>/stat`'s `utime`+`stime` after measuring both, for
+ * three reasons:
+ *
+ *  1. RESOLUTION. `schedstat` is nanoseconds. `utime`/`stime` are USER_HZ clock
+ *     ticks — 10 ms granularity — and would additionally require assuming
+ *     `sysconf(_SC_CLK_TCK)`, which Node exposes nowhere.
+ *  2. IT MEASURES THE THREAT AND NOTHING ELSE. `schedstat` reports the MAIN
+ *     THREAD, which is exactly where 100% of the hostile computation lives:
+ *     `parser.parse()` is one synchronous, single-threaded WASM call, and so is
+ *     the `JSON.parse` of its report. `utime`+`stime` aggregate the whole thread
+ *     group, so they also charge V8's PARALLEL GC helper threads — measured at
+ *     **690 ms against a 346 ms main thread** for one and the same 64 KiB parse.
+ *     That makes the thread-group figure a function of how many cores happen to be
+ *     free, which is the very coupling this decision exists to remove.
+ *  3. IT IS THE STABLE FIGURE. Across an 11.6x wall-clock inflation the main-thread
+ *     figure moved by ±3%.
+ *
+ * The helper-thread CPU that this therefore does NOT count was measured at
+ * <=0.6x of the main-thread figure on every shape probed (hostile shapes: 0.003x,
+ * 0.04x, 0.06x), so the child's TOTAL CPU is bounded at roughly
+ * `1.6 x cookParseCpuMs`, and the 256 MB heap bound independently caps the
+ * allocation that drives GC work in the first place.
+ *
+ * RETURNS `null` RATHER THAN THROWING, and the caller then falls through to the
+ * wall-clock backstop. Two ways that happens: the pid is already gone (a race with
+ * the child exiting — expected and harmless), or the host has no
+ * `/proc/<pid>/schedstat` at all. The latter is not Linux, so it is not production
+ * (the deployed artefact is a Linux container on LXC 110); on such a host the parse
+ * is bounded by `cookParseWallCeilingMs` and `cookParseHeapMb` only, which is
+ * strictly weaker and is stated rather than hidden.
+ */
+function readChildCpuMs(pid: number): number | null {
+  try {
+    const raw = readFileSync(`/proc/${pid}/schedstat`, "latin1");
+    const end = raw.indexOf(" ");
+    const nanoseconds = Number(end === -1 ? raw.trim() : raw.slice(0, end));
+
+    return Number.isFinite(nanoseconds) ? nanoseconds / 1e6 : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Where the child entry lives: the SIBLING of this module, with the extension
@@ -200,12 +282,13 @@ function retire(target: PoolChild, reason: RetireReason): void {
   const flight = target.inFlight;
 
   if (flight) {
-    clearTimeout(flight.timer);
+    flight.stopTimers();
     target.inFlight = null;
     flight.settle({
       ok: false,
       reason: reason === "pool-shutdown" ? "pool-crash" : reason,
       elapsedMs: Math.round(performance.now() - flight.startedAt),
+      cpuMs: lastSampledCpuMs,
     });
   }
 
@@ -294,7 +377,7 @@ function spawnChild(): PoolChild | null {
     // retired by then, so this cannot be mistaken for the current request.
     if (!flight || flight.id !== message.id) return;
 
-    clearTimeout(flight.timer);
+    flight.stopTimers();
     entry.inFlight = null;
 
     flight.settle(
@@ -422,12 +505,17 @@ function acquire(): Promise<PoolChild | "pool-saturated" | "pool-spawn-failed"> 
  * number conflated the two. A cold spawn is `fork` + WASM instantiate + a warm-up
  * parse, measured at 200-243 ms idle — but on a loaded box (a full test run, a busy
  * container) it is several times that, and at 1 000 ms a request was observed to
- * give up on a perfectly healthy child and lose its tokens. The sum of the two
- * existing bounds is ~8x the measured cold spawn, introduces no new knob, and is
- * still a BOUND: if it expires the request resolves `null`, so it can degrade but
- * it can never hang.
+ * give up on a perfectly healthy child and lose its tokens. 2 000 ms is ~8x the
+ * measured cold spawn and is still a BOUND: if it expires the request resolves
+ * `null`, so it can degrade but it can never hang.
+ *
+ * IT IS NOW ITS OWN NAMED BOUND (D-27-W3B-03a). It used to be DERIVED as
+ * `cookParseQueueTimeoutMs + cookParseTimeoutMs`, which happened to equal 2 000 ms.
+ * Once the parse bound became an 8 000 ms wall-clock BACKSTOP that derivation would
+ * silently have stretched the cold-spawn wait to 9 000 ms — a real latency
+ * regression smuggled in by an unrelated change. Same value, stated explicitly.
  */
-const READY_TIMEOUT_MS = COOK_BOUNDS.cookParseQueueTimeoutMs + COOK_BOUNDS.cookParseTimeoutMs;
+const READY_TIMEOUT_MS = COOK_BOUNDS.cookParseReadyTimeoutMs;
 
 function waitReady(target: PoolChild): Promise<boolean> {
   if (target.ready) return Promise.resolve(true);
@@ -463,16 +551,73 @@ function runRequest(target: PoolChild, src: string, scale?: number): Promise<Out
     };
 
     const startedAt = performance.now();
-    const timer = setTimeout(() => {
+    const cpuAtStart = readChildCpuMs(target.pid);
+
+    lastSampledCpuMs = null;
+
+    let cpuTimer: NodeJS.Timeout | null = null;
+    let wallTimer: NodeJS.Timeout | null = null;
+
+    const stopTimers = (): void => {
+      if (cpuTimer !== null) {
+        clearTimeout(cpuTimer);
+        cpuTimer = null;
+      }
+
+      if (wallTimer !== null) {
+        clearTimeout(wallTimer);
+        wallTimer = null;
+      }
+    };
+
+    /**
+     * THE PRIMARY GATE. A recursive `setTimeout` rather than a `setInterval` so a
+     * slow sample can never queue up behind itself.
+     *
+     * IT COSTS NOTHING IN THE COMMON CASE. The first sample is scheduled
+     * `cookParseCpuPollMs` (25 ms) out, and a pooled round trip is ~0.97 ms, so for
+     * every real recipe this timer is created and cleared without ever firing —
+     * measured at ZERO polls for both a 437-byte fixture and a 64 KiB realistic
+     * recipe. When it does fire, one sample costs ~30 µs.
+     */
+    const sampleCpu = (): void => {
+      const cpuNow = readChildCpuMs(target.pid);
+      const cpuMs = cpuNow === null || cpuAtStart === null ? null : cpuNow - cpuAtStart;
+
+      if (cpuMs !== null) lastSampledCpuMs = Math.round(cpuMs);
+
+      if (cpuMs !== null && cpuMs > COOK_BOUNDS.cookParseCpuMs) {
+        stopTimers();
+        settle({
+          ok: false,
+          reason: "pool-cpu",
+          elapsedMs: Math.round(performance.now() - startedAt),
+          cpuMs: Math.round(cpuMs),
+        });
+        // `SIGKILL` needs no cooperation from V8 or from the WASM, which is the
+        // whole reason it is trustworthy against a synchronous parse.
+        retire(target, "pool-cpu");
+
+        return;
+      }
+
+      cpuTimer = setTimeout(sampleCpu, COOK_BOUNDS.cookParseCpuPollMs);
+    };
+
+    cpuTimer = setTimeout(sampleCpu, COOK_BOUNDS.cookParseCpuPollMs);
+
+    // THE WALL-CLOCK BACKSTOP. Only reachable by a child that is stuck WITHOUT
+    // burning CPU, because a child that IS burning CPU is killed by the gate above
+    // long before this fires. See `./limits` for why it is deliberately generous.
+    wallTimer = setTimeout(() => {
       const elapsedMs = Math.round(performance.now() - startedAt);
 
-      // THE TIME BOUND. `SIGKILL` needs no cooperation from V8 or from the WASM,
-      // which is the whole reason it is trustworthy against a synchronous parse.
-      settle({ ok: false, reason: "pool-timeout", elapsedMs });
+      stopTimers();
+      settle({ ok: false, reason: "pool-timeout", elapsedMs, cpuMs: lastSampledCpuMs });
       retire(target, "pool-timeout");
-    }, COOK_BOUNDS.cookParseTimeoutMs);
+    }, COOK_BOUNDS.cookParseWallCeilingMs);
 
-    target.inFlight = { id, startedAt, timer, settle };
+    target.inFlight = { id, startedAt, stopTimers, settle };
 
     const request: CookParseRequest = {
       id,
@@ -483,13 +628,13 @@ function runRequest(target: PoolChild, src: string, scale?: number): Promise<Out
     try {
       target.child.send(request);
     } catch (err) {
-      clearTimeout(timer);
+      stopTimers();
       target.inFlight = null;
       log.error(
         { module: "cooklang", reason: "pool-crash", pid: target.pid, err },
         "Could not send to the Cooklang parse child; keeping the legacy projection"
       );
-      settle({ ok: false, reason: "pool-crash", elapsedMs: 0 });
+      settle({ ok: false, reason: "pool-crash", elapsedMs: 0, cpuMs: null });
       retire(target, "pool-crash");
     }
   });
@@ -530,7 +675,32 @@ function toCookTokens(steps: RawCookStepTokens[], units?: UnitsMap): CookTokensD
 }
 
 /**
- * Parse a `.cook` source in a pooled child process, under both bounds.
+ * Which bound a retired request breached, the value it was allowed, and the value
+ * that was actually measured against it (T-27-05: numbers and codes, never prose).
+ */
+function breachedBound(
+  reason: RetireReason | "pool-saturated" | "pool-spawn-failed",
+  elapsedMs: number,
+  cpuMs: number | null
+): { bound: string | null; limit: number | null; measured: number | null } {
+  switch (reason) {
+    case "pool-cpu":
+      return { bound: "cookParseCpuMs", limit: COOK_BOUNDS.cookParseCpuMs, measured: cpuMs };
+    case "pool-timeout":
+      return {
+        bound: "cookParseWallCeilingMs",
+        limit: COOK_BOUNDS.cookParseWallCeilingMs,
+        measured: elapsedMs,
+      };
+    case "pool-heap":
+      return { bound: "cookParseHeapMb", limit: COOK_BOUNDS.cookParseHeapMb, measured: null };
+    default:
+      return { bound: null, limit: null, measured: null };
+  }
+}
+
+/**
+ * Parse a `.cook` source in a pooled child process, under all three bounds.
  *
  * THE ONLY WAY TO REACH THE WASM PARSER. Resolves `null` for every failure and
  * never rejects; see the module docblock for why `null` costs the user nothing.
@@ -600,22 +770,21 @@ export async function parseInPool(
         return null;
       }
 
+      const breached = breachedBound(outcome.reason, outcome.elapsedMs, outcome.cpuMs);
+
       log.warn(
         {
           module: "cooklang",
           reason: outcome.reason,
-          bound:
-            outcome.reason === "pool-timeout"
-              ? "cookParseTimeoutMs"
-              : outcome.reason === "pool-heap"
-                ? "cookParseHeapMb"
-                : null,
-          limit:
-            outcome.reason === "pool-timeout"
-              ? COOK_BOUNDS.cookParseTimeoutMs
-              : outcome.reason === "pool-heap"
-                ? COOK_BOUNDS.cookParseHeapMb
-                : null,
+          bound: breached.bound,
+          limit: breached.limit,
+          // WHICH NUMBER ACTUALLY BREACHED, beside the limit it breached — so an
+          // operator reading `pool-cpu` can see how far over budget the row was,
+          // and so a test can assert the gate measured what it refused instead of
+          // trusting that it did. `null` only for the heap bound, whose breach is
+          // observed as the child's `SIGABRT` and is not a number we hold.
+          measured: breached.measured,
+          cpuMs: outcome.cpuMs,
           elapsedMs: outcome.elapsedMs,
           bytes,
           pid: target.pid,
@@ -669,4 +838,18 @@ export function shutdownCookParsePool(): void {
 /** Live child pids. For the pool's own tests (laziness, terminate-and-replace). */
 export function cookParsePoolPidsForTests(): number[] {
   return children.filter((candidate) => !candidate.retired).map((candidate) => candidate.pid);
+}
+
+/**
+ * The CPU cost the gate last SAMPLED, in ms, or `null` if the most recent parse
+ * finished before the first 25 ms sample (which is every normal recipe).
+ *
+ * For `pool.test.ts` only, and it exists to make one specific assertion possible:
+ * that the worst LEGITIMATE shapes stay inside `cookParseCpuMs` **on a loaded box**.
+ * Asserting that on WALL CLOCK is what made the previous suite go red in the full
+ * run and green in isolation. Asserting it on the number the gate actually decides
+ * with is contention-invariant, which is the entire point of D-27-W3B-03a.
+ */
+export function cookParseLastCpuMsForTests(): number | null {
+  return lastSampledCpuMs;
 }

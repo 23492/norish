@@ -10,9 +10,24 @@
  * pure CPU at a flat 6 MB) and `RuntimeError: unreachable` on nine bytes. So the
  * PARSE is bounded, and this file is the proof.
  *
- * EVERY TIMING ASSERTION HERE MEASURES ELAPSED WALL-CLOCK TIME EXPLICITLY, and
- * never leans on vitest's own timeout. A test that dies on the harness timeout
- * proves nothing about the bound: it proves the harness has a timeout.
+ * THE PRIMARY GATE IS THE CHILD'S CPU TIME, NOT WALL CLOCK (D-27-W3B-03a). That
+ * changes what a bound test may honestly assert, and it is worth stating up front
+ * because getting it wrong is what made the previous version of this file red in the
+ * full run and green in isolation:
+ *
+ *  - A "the bound fired within N ms of WALL CLOCK" assertion is a measurement OF THE
+ *    MACHINE. Under contention a hostile row takes longer in elapsed time to burn its
+ *    CPU budget, so any tight wall-clock ceiling on a hostile input is flaky by
+ *    construction. Those assertions now bound only `cookParseWallCeilingMs` — i.e.
+ *    they assert "it did not hang", which is all wall clock can honestly say.
+ *  - The assertions WITH TEETH are on the number the gate actually decides with: the
+ *    CPU cost it sampled, which was measured flat within ±3% across an 11.6x
+ *    wall-clock inflation. Those are contention-invariant.
+ *  - `stub-parse-worker.mjs` makes the CPU-versus-wall-clock distinction
+ *    DETERMINISTIC in both directions, with no reliance on host load at all.
+ *
+ * No timing assertion here leans on vitest's own timeout. A test that dies on the
+ * harness timeout proves nothing about the bound: it proves the harness has one.
  *
  * THE ASSERTIONS WITH THE MOST TEETH are the ones fed inputs that were MEASURED
  * to cost 6-38 seconds or gigabytes of RSS in-process. They are also fed WITHOUT
@@ -22,7 +37,9 @@
  */
 
 import type { UnitsMap } from "@norish/config/zod/server-config";
+import { type ChildProcess, fork } from "node:child_process";
 import { readdirSync, readFileSync, statSync } from "node:fs";
+import { availableParallelism } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -34,10 +51,17 @@ import { structuredToCooklang } from "@norish/shared/cooklang";
 import { fixtures } from "../../../shared/__tests__/cooklang/fixtures";
 import { COOK_BOUNDS } from "../../src/cooklang/limits";
 import {
+  cookParseLastCpuMsForTests,
   cookParsePoolPidsForTests,
   parseInPool,
   shutdownCookParsePool,
 } from "../../src/cooklang/pool";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const STUB_WORKER = join(HERE, "stub-parse-worker.mjs");
+
+/** The bound D-27-W3B-03a replaced, quoted so the tests can show it would have refused. */
+const SUPERSEDED_WALL_BOUND_MS = 1_000;
 
 const units = defaultUnits as UnitsMap;
 
@@ -91,50 +115,79 @@ Season with @salt{1%teaspoon} and @black pepper{1%teaspoon}, then toss with @bas
  * has teeth: without the bound, each of these inputs holds a request-serving
  * thread for seconds, or balloons a heap into the gigabytes.
  */
-const HOSTILE: { name: string; source: string; measured: string }[] = [
+const HOSTILE: {
+  name: string;
+  source: string;
+  measured: string;
+  /**
+   * `pure-cpu` means the shape allocates almost nothing (H1 runs at a FLAT 6 MB), so
+   * the heap bound provably cannot be what stops it and the reason is pinned exactly.
+   * `cpu-or-heap` shapes balloon into the hundreds of MB, so either gate is a
+   * correct outcome and pinning one would be asserting an implementation accident.
+   */
+  kills: "pure-cpu" | "cpu-or-heap";
+}[] = [
   {
     name: "H1 — 65 400 unbalanced `[` in frontmatter",
     source: `---\na: ${"[".repeat(65_400)}\n---\nstep\n`,
-    measured: "24 557 ms / 38 511 ms in-process, 131 218-byte report, flat 6 MB",
+    measured: "24 557 ms / 38 511 ms in-process; 22 759 ms of CHILD CPU, flat 6 MB",
+    kills: "pure-cpu",
   },
   {
     name: "H1 — balanced 25 000-deep `[`/`]` in frontmatter",
     source: `---\na: ${"[".repeat(25_000)}${"]".repeat(25_000)}\n---\nstep\n`,
     measured: "4 838 ms in-process",
+    kills: "pure-cpu",
   },
   {
     name: "H1 — balanced 30 000-deep `[`/`]` in frontmatter",
     source: `---\na: ${"[".repeat(30_000)}${"]".repeat(30_000)}\n---\nstep\n`,
     measured: "8 256 ms in-process",
+    kills: "pure-cpu",
   },
   {
     name: "H1 — `{`-nesting variant in frontmatter",
     source: `---\na: ${"{".repeat(30_000)}${"}".repeat(30_000)}\n---\nstep\n`,
     measured: "10 489 ms in-process",
+    kills: "pure-cpu",
   },
   {
     name: "report explosion — `\"#\" x 8192` (8 KiB IN, 839 MB peak)",
     source: "#".repeat(8_192),
-    measured: "839 MB peak RSS in-process from an 8 KiB input",
+    measured: "839 MB peak RSS in-process from an 8 KiB input; 12 222 ms of CHILD CPU",
+    kills: "cpu-or-heap",
   },
   {
     name: "round-1 bypass — 16 x 3 996 chars of `@a{1%}`",
     source: Array.from({ length: 16 }, () => "@a{1%} ".repeat(571).slice(0, 3_996)).join("\n\n"),
-    measured: "7 821 ms and 1 650 MB RSS in-process; scored ZERO malformed by round 1",
+    measured: "7 821 ms and 1 650 MB in-process; 4 895 ms of CHILD CPU; ZERO malformed in round 1",
+    kills: "cpu-or-heap",
   },
 ];
 
-/** The two worst shapes that are LEGITIMATE and must therefore still SUCCEED. */
-const WORST_ACCEPTED: { name: string; source: string; measured: string }[] = [
+/** Every retire reason that means "a resource bound did its job". */
+const BOUND_REASONS = ["pool-cpu", "pool-timeout", "pool-heap"] as const;
+
+/**
+ * The two worst shapes that are LEGITIMATE and must therefore still SUCCEED.
+ *
+ * `cpuMs` is the CHILD CPU cost measured on this box across 13 runs each, IDLE and
+ * again with the child and ten spinners pinned to a single core. The wall figures
+ * moved by 7.5x-11.6x between those two conditions; these did not move at all, and
+ * that is the measurement D-27-W3B-03a rests on.
+ */
+const WORST_ACCEPTED: { name: string; source: string; measured: string; cpuMs: string }[] = [
   {
     name: "64 KiB of `@a{1%g} ` — the worst accepted ingredient shape",
     source: "@a{1%g} ".repeat(Math.floor(65_536 / 8)),
-    measured: "648 ms on the verify box",
+    measured: "648 ms on the verify box; wall 351-449 ms idle, 4 096-5 085 ms starved",
+    cpuMs: "328-373 ms idle, 328-373 ms starved",
   },
   {
     name: "`\"#p \" x 21845` — the worst accepted cookware shape",
     source: "#p ".repeat(21_845),
-    measured: "694 ms on the verify box",
+    measured: "694 ms on the verify box; wall 483-830 ms idle, 5 537-6 264 ms starved",
+    cpuMs: "453-506 ms idle, 452-506 ms starved",
   },
 ];
 
@@ -173,13 +226,28 @@ describe("the pool is LAZY and SHARED (D-27-W3B-10)", () => {
 });
 
 describe("COOK_BOUNDS", () => {
-  it("declares the four W3B bounds at their calibrated defaults", () => {
+  it("declares the W3B bounds at their calibrated defaults (D-27-W3B-03a)", () => {
     expect(COOK_BOUNDS).toEqual({
-      cookParseTimeoutMs: 1_000,
+      cookParseCpuMs: 1_500,
+      cookParseCpuPollMs: 25,
+      cookParseWallCeilingMs: 8_000,
       cookParseHeapMb: 256,
       cookParsePoolSize: 2,
       cookParseQueueTimeoutMs: 1_000,
+      cookParseReadyTimeoutMs: 2_000,
     });
+  });
+
+  /**
+   * The two numbers only make sense together, and getting their ORDER wrong would
+   * quietly turn the wall-clock backstop back into the computation bound — which is
+   * the defect D-27-W3B-03a exists to remove. Asserted, not left to review.
+   */
+  it("keeps the wall-clock ceiling a BACKSTOP: comfortably above the CPU budget", () => {
+    expect(COOK_BOUNDS.cookParseWallCeilingMs).toBeGreaterThan(COOK_BOUNDS.cookParseCpuMs * 4);
+    // 25 ms against 1 500 ms is 1.7% of overshoot, and coarse enough to fire zero
+    // polls for any real recipe (~0.97 ms pooled, ~15 ms for a 64 KiB one).
+    expect(COOK_BOUNDS.cookParseCpuPollMs).toBeLessThan(COOK_BOUNDS.cookParseCpuMs / 40);
   });
 
   it("is SEPARATE from the nine input caps — the W3B pivot changed none of them", async () => {
@@ -304,14 +372,41 @@ describe("THE BOUND, on the exact inputs that refuted rounds 1 and 2", () => {
    * of these passes for one reason only — the parse was bounded.
    */
   it.each(HOSTILE.map((entry) => [entry.name, entry] as const))(
-    "resolves null in under 1 500 ms on %s",
+    "resolves null, with the gate reporting the CPU it refused, on %s",
     async (_name, entry) => {
       const startedAt = performance.now();
       const tokens = await parseInPool(entry.source, units);
       const elapsed = performance.now() - startedAt;
 
       expect(tokens).toBeNull();
-      expect(elapsed).toBeLessThan(1_500);
+
+      const hit = warnSpy.mock.calls
+        .map((call) => call[0] as { reason?: string; bound?: string; measured?: number | null })
+        .find((fields) =>
+          BOUND_REASONS.includes(fields.reason as (typeof BOUND_REASONS)[number])
+        );
+
+      expect(hit).toBeDefined();
+
+      // THE ASSERTION WITH TEETH, and it is contention-invariant: whichever gate
+      // fired, the number it measured actually reached the number it allows. The
+      // heap bound is the one breach that is observed as a `SIGABRT` rather than as
+      // a figure we hold, so it reports `measured: null` — which is why the reason
+      // itself is pinned below rather than left open.
+      if (entry.kills === "pure-cpu") {
+        // H1 runs at a FLAT 6 MB, so `pool-heap` is impossible, and 1 500 ms of CPU
+        // inside an 8 000 ms ceiling needs only 19% of one core — so `pool-timeout`
+        // is impossible on any box that can run this suite at all.
+        expect(hit?.reason).toBe("pool-cpu");
+        expect(hit?.bound).toBe("cookParseCpuMs");
+        expect(hit?.measured ?? 0).toBeGreaterThanOrEqual(COOK_BOUNDS.cookParseCpuMs);
+      } else {
+        expect(["pool-cpu", "pool-heap"]).toContain(hit?.reason);
+      }
+
+      // All wall clock can honestly say is THAT IT DID NOT HANG. A tighter ceiling
+      // here would be measuring the machine — see the file docblock.
+      expect(elapsed).toBeLessThan(COOK_BOUNDS.cookParseWallCeilingMs + 2_000);
     }
   );
 
@@ -341,60 +436,277 @@ describe("THE BOUND, on the exact inputs that refuted rounds 1 and 2", () => {
   });
 
   /**
-   * THE BOUND MUST NOT REFUSE WHAT PARSES TODAY — and this is the assertion that
-   * found the one real never-broken RISK in this design. READ THIS BEFORE RETUNING
-   * `cookParseTimeoutMs`.
+   * THE BOUND MUST NOT REFUSE WHAT PARSES TODAY — AT THE SHIPPED DEFAULTS.
    *
-   * These two shapes are LEGITIMATE. `cookParseTimeoutMs` was set at 1 000 ms
-   * deliberately ABOVE their measured cost (648 ms / 694 ms) so that nothing which
-   * parses today starts failing.
+   * The previous version of this test could not make that claim. Under
+   * D-27-W3B-03's 1 000 ms WALL-CLOCK bound these two legitimate shapes were
+   * measured at 1 137 ms and 1 238 ms in the full shared-server run and were
+   * REFUSED, so the test had to raise the bound through its env lever and could only
+   * assert the weaker "not INHERENTLY refused".
    *
-   * MEASURED HERE, AND THE HEADROOM IS THINNER THAN IT LOOKS. On an IDLE box these
-   * parse in 331-784 ms and 425-485 ms — comfortably inside the bound. But under
-   * heavy CPU contention (the full shared-server run, ~20 vitest workers) the SAME
-   * parses were measured at **1 137 ms and 1 238 ms** and were KILLED BY THE BOUND.
-   * The bound is wall-clock, and wall clock inflates under contention while the
-   * actual work does not. At 1.3-1.4x headroom that is enough to flip.
-   *
-   * SO THIS TEST ASSERTS WHAT IS ACTUALLY TRUE, AND NOT MORE. It proves the shapes
-   * are not INHERENTLY refused — not by the recognizer, not by the heap bound, and
-   * not because the parse itself got slower — by running them with the bound raised
-   * through its supported env lever. It deliberately does NOT assert that they always
-   * fit inside 1 000 ms, because on a contended box they do not, and a test that
-   * claimed otherwise would be measuring the machine.
-   *
-   * THE RESIDUAL RISK IS REAL AND IS THE DIRECTOR'S CALL, recorded in 27-04-SUMMARY:
-   * on a loaded LXC 110 (web server + queue workers + Postgres) the worst legitimate
-   * `.cook` shapes CAN be refused, costing those recipes their `cook_source`. The
-   * answer if that shows up in the field is to RAISE `NORISH_COOK_PARSE_TIMEOUT_MS`
-   * deliberately with the number recorded — never to remove the bound, and never to
-   * loosen this test.
+   * Under D-27-W3B-03a there is no env lever and no weaker claim: the shapes are
+   * asserted to parse under the DEFAULT `cookParseCpuMs`, and the headroom is
+   * asserted on the CPU figure the gate actually decides with (measured 328-506 ms
+   * against a 1 500 ms budget) rather than on elapsed time.
    */
   it.each(WORST_ACCEPTED.map((entry) => [entry.name, entry] as const))(
-    "is not INHERENTLY refused — the worst ACCEPTED shape still parses: %s",
+    "parses the worst ACCEPTED shape at the SHIPPED defaults, with CPU headroom: %s",
     async (_name, entry) => {
-      vi.stubEnv("NORISH_COOK_PARSE_TIMEOUT_MS", "20000");
-      vi.resetModules();
+      const tokens = await parseInPool(entry.source, units);
 
-      const raised = await import("../../src/cooklang/pool");
+      expect(tokens).not.toBeNull();
+      expect(() => CookTokensSchema.parse(tokens)).not.toThrow();
 
-      try {
-        const startedAt = performance.now();
-        const tokens = await raised.parseInPool(entry.source, units);
-        const elapsed = performance.now() - startedAt;
+      const cpuMs = cookParseLastCpuMsForTests();
 
-        // A legitimate shape must not be refused by the RECOGNIZER or the HEAP
-        // bound, and must not have become pathologically slow.
-        expect(tokens).not.toBeNull();
-        expect(() => CookTokensSchema.parse(tokens)).not.toThrow();
-        expect(elapsed).toBeLessThan(5_000);
-      } finally {
-        raised.shutdownCookParsePool();
-        vi.unstubAllEnvs();
-        vi.resetModules();
-      }
+      // NOT VACUOUS: these shapes run for hundreds of ms, so the 25 ms poll MUST
+      // have sampled them. A `null` here would mean the gate never looked, and the
+      // headroom assertion below would then be checking nothing.
+      expect(cpuMs).not.toBeNull();
+      expect(cpuMs ?? 0).toBeGreaterThan(0);
+
+      // REAL HEADROOM, on the axis that does not move with host load.
+      expect(cpuMs ?? Number.POSITIVE_INFINITY).toBeLessThan(COOK_BOUNDS.cookParseCpuMs * 0.6);
     }
   );
+});
+
+/**
+ * THE NEVER-BROKEN PROPERTY MUST HOLD UNDER CONTENTION — D-27-W3B-03a's whole
+ * reason for existing. Two tests, because the claim has two halves and only one of
+ * them can be proven without involving the host scheduler.
+ */
+describe("NEVER-BROKEN UNDER CONTENTION (D-27-W3B-03a)", () => {
+  /**
+   * HALF ONE — THE MECHANISM, PROVEN DETERMINISTICALLY.
+   *
+   * A stub child that sleeps for 3 000 ms burns essentially no CPU. D-27-W3B-03's
+   * 1 000 ms wall-clock bound would have killed it at 1 000 ms; a CPU gate must not
+   * touch it. This is the CPU-versus-wall-clock distinction with the scheduler taken
+   * completely out of the picture — no load to manufacture, nothing to flake.
+   */
+  it("does NOT refuse a parse that elapses 3 s of WALL CLOCK while burning no CPU", async () => {
+    vi.stubEnv("NORISH_COOK_PARSE_WORKER_PATH", STUB_WORKER);
+    vi.stubEnv("STUB_MODE", "sleep");
+    vi.stubEnv("STUB_MS", "3000");
+    vi.resetModules();
+
+    const sleeping = await import("../../src/cooklang/pool");
+
+    try {
+      const startedAt = performance.now();
+      const tokens = await sleeping.parseInPool("Add @flour{200%gram}.\n", units);
+      const elapsed = performance.now() - startedAt;
+
+      // The parse SUCCEEDED, and the stub's own step came back — so this is a real
+      // round trip and not an accidental `null` that happens to look like success.
+      expect(tokens).not.toBeNull();
+      expect(tokens?.[0]?.tokens?.[1]).toEqual({
+        type: "ingredient",
+        name: "flour",
+        amount: 200,
+        unit: "gram",
+      });
+
+      // ANTI-VACUITY: it really did elapse past the superseded 1 000 ms bound. If
+      // the stub had replied immediately this assertion would fail and the test
+      // could not pass by proving nothing.
+      expect(elapsed).toBeGreaterThan(SUPERSEDED_WALL_BOUND_MS);
+      expect(elapsed).toBeGreaterThan(2_900);
+
+      // And no bound was logged at all.
+      const reasons = warnSpy.mock.calls.map((call) => (call[0] as { reason?: string })?.reason);
+
+      for (const reason of BOUND_REASONS) expect(reasons).not.toContain(reason);
+    } finally {
+      sleeping.shutdownCookParsePool();
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
+  });
+
+  /**
+   * THE OTHER DIRECTION, and it is what stops the test above from being a licence to
+   * do nothing: a stub that BLOCKS its event loop burning CPU — exactly as the
+   * synchronous WASM parse does, so no timer inside it could ever rescue it — must be
+   * killed once the budget is spent, and the gate must report the CPU it measured.
+   */
+  it("DOES refuse a parse that burns CPU past the budget, and says how much", async () => {
+    vi.stubEnv("NORISH_COOK_PARSE_WORKER_PATH", STUB_WORKER);
+    vi.stubEnv("STUB_MODE", "burn");
+    vi.stubEnv("STUB_MS", "6000");
+    vi.resetModules();
+
+    const burning = await import("../../src/cooklang/pool");
+
+    try {
+      const tokens = await burning.parseInPool("Add @flour{200%gram}.\n", units);
+
+      expect(tokens).toBeNull();
+
+      const hit = warnSpy.mock.calls
+        .map((call) => call[0] as { reason?: string; bound?: string; measured?: number | null })
+        .find((fields) => fields.reason === "pool-cpu");
+
+      expect(hit).toBeDefined();
+      expect(hit?.bound).toBe("cookParseCpuMs");
+      expect(hit?.measured ?? 0).toBeGreaterThanOrEqual(COOK_BOUNDS.cookParseCpuMs);
+      // The 25 ms poll must not have overshot by more than one interval plus slack.
+      expect(hit?.measured ?? 0).toBeLessThan(COOK_BOUNDS.cookParseCpuMs + 200);
+    } finally {
+      burning.shutdownCookParsePool();
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
+  });
+
+  /**
+   * HALF TWO — THE REAL SHAPES, ON A REALLY LOADED BOX.
+   *
+   * WHAT THIS ASSERTS, AND WHAT IT DOES NOT. It spawns `2 x availableParallelism()`
+   * busy-loop processes and then parses BOTH worst legitimate shapes with the real
+   * WASM child. It asserts three things:
+   *
+   *  1. Both shapes still parse. That is the never-broken property under load.
+   *  2. The CPU the gate measured stayed inside 60% of the budget — the number that
+   *     is invariant to whatever else the box is doing.
+   *  3. THE CONTENTION WAS REAL, twice over: the wall/CPU ratio diverged by at least
+   *     1.5x, and at least one shape elapsed past the superseded 1 000 ms wall-clock
+   *     bound — i.e. would have been REFUSED by D-27-W3B-03 and is not now.
+   *
+   * (3) is what keeps this from being a green test that proves nothing: if the
+   * spinners fail to bite, the ratio assertion FAILS rather than passing quietly.
+   *
+   * It does NOT assert any particular elapsed time, because that is a property of the
+   * host and not of this code. It also does not claim to reproduce the exact 20-worker
+   * vitest contention from 27-04-SUMMARY §3b; it manufactures its own, which measured
+   * HARSHER (7.5x-11.6x wall inflation against §3b's ~2.5x).
+   */
+  it("parses BOTH worst legitimate shapes while the box is saturated with spinners", async () => {
+    const spinners: ChildProcess[] = [];
+    /**
+     * 3x the core count is calibrated, not picked: it leaves the parse child roughly
+     * a quarter of a core, which on the measured CPU costs (328-506 ms) puts elapsed
+     * time at ~1.3-2.0 s — past the superseded 1 000 ms bound with margin, and still
+     * ~4x under `cookParseWallCeilingMs` so the BACKSTOP cannot fire and turn this
+     * into a flaky test in the full run.
+     */
+    const spinnerCount = Math.max(6, availableParallelism() * 3);
+
+    // Warm the pool BEFORE loading the box, so a cold spawn is not what is measured.
+    expect(await parseInPool(REALISTIC, units)).not.toBeNull();
+
+    for (let index = 0; index < spinnerCount; index += 1) {
+      spinners.push(
+        fork(STUB_WORKER, [], {
+          env: { ...process.env, STUB_MODE: "burn", STUB_MS: "45000" },
+          stdio: ["ignore", "ignore", "ignore", "ipc"],
+          serialization: "json",
+        })
+      );
+    }
+
+    try {
+      // Each spinner blocks its own event loop for 45 s the moment it is asked.
+      for (const spinner of spinners) spinner.send({ id: 1, src: "x" });
+
+      // Let the scheduler actually get loaded before measuring.
+      await new Promise((done) => setTimeout(done, 500));
+
+      const observed: { name: string; wallMs: number; cpuMs: number }[] = [];
+
+      for (const entry of WORST_ACCEPTED) {
+        const startedAt = performance.now();
+        const tokens = await parseInPool(entry.source, units);
+        const wallMs = performance.now() - startedAt;
+        const cpuMs = cookParseLastCpuMsForTests();
+
+        // (1) THE NEVER-BROKEN PROPERTY, under load.
+        expect(tokens).not.toBeNull();
+        expect(() => CookTokensSchema.parse(tokens)).not.toThrow();
+
+        // (2) Decided on the contention-invariant axis, with headroom.
+        expect(cpuMs).not.toBeNull();
+        expect(cpuMs ?? Number.POSITIVE_INFINITY).toBeLessThan(
+          COOK_BOUNDS.cookParseCpuMs * 0.6
+        );
+
+        observed.push({ name: entry.name, wallMs, cpuMs: cpuMs ?? 0 });
+      }
+
+      // (3) THE CONTENTION WAS REAL — otherwise (1) and (2) prove nothing.
+      const worstRatio = Math.max(...observed.map((row) => row.wallMs / row.cpuMs));
+      const worstWall = Math.max(...observed.map((row) => row.wallMs));
+
+      expect(worstRatio).toBeGreaterThan(1.5);
+      expect(worstWall).toBeGreaterThan(SUPERSEDED_WALL_BOUND_MS);
+    } finally {
+      for (const spinner of spinners) spinner.kill("SIGKILL");
+    }
+  });
+});
+
+/**
+ * THE WALL-CLOCK BACKSTOP, RE-PROVEN UNDER THE NEW GATE. It is no longer the
+ * computation bound, but it is still the only thing that catches a child stuck
+ * WITHOUT burning CPU — a hang, a lost IPC reply, a child descheduled forever — and
+ * the CPU gate is structurally blind to that case because the counter never advances.
+ *
+ * Proven with the SLEEPING stub (zero CPU, unbounded wall clock) and the ceiling
+ * lowered through its supported env lever, so the mechanism is exercised in 1.2 s
+ * instead of 8. The value being 8 000 ms in production is asserted separately in the
+ * `COOK_BOUNDS` block; what is proven here is that the backstop FIRES, retires the
+ * child, and costs the user nothing.
+ */
+describe("THE WALL-CLOCK BACKSTOP catches a child stuck WITHOUT burning CPU", () => {
+  it("resolves null with reason pool-timeout, and the next parse still succeeds", async () => {
+    vi.stubEnv("NORISH_COOK_PARSE_WORKER_PATH", STUB_WORKER);
+    vi.stubEnv("STUB_MODE", "sleep");
+    vi.stubEnv("STUB_MS", "30000");
+    vi.stubEnv("NORISH_COOK_PARSE_WALL_CEILING_MS", "1200");
+    vi.resetModules();
+
+    const stuck = await import("../../src/cooklang/pool");
+
+    try {
+      const startedAt = performance.now();
+      const pending = stuck.parseInPool("Add @flour{200%gram}.\n", units);
+
+      // Identify the doomed child WHILE it is stuck, so terminate-and-replace can be
+      // asserted against a known pid rather than inferred.
+      await new Promise((done) => setTimeout(done, 400));
+
+      const doomed = stuck.cookParsePoolPidsForTests();
+
+      expect(doomed).toHaveLength(1);
+
+      const tokens = await pending;
+      const elapsed = performance.now() - startedAt;
+
+      expect(tokens).toBeNull();
+
+      // ANTI-VACUITY: it waited out the ceiling rather than failing at the door.
+      expect(elapsed).toBeGreaterThan(1_100);
+      // And it did NOT wait out the child's 30 s sleep.
+      expect(elapsed).toBeLessThan(10_000);
+
+      const hit = warnSpy.mock.calls
+        .map((call) => call[0] as { reason?: string; bound?: string; measured?: number | null })
+        .find((fields) => fields.reason === "pool-timeout");
+
+      expect(hit).toBeDefined();
+      expect(hit?.bound).toBe("cookParseWallCeilingMs");
+      expect(hit?.measured ?? 0).toBeGreaterThanOrEqual(1_200);
+
+      // TERMINATE AND REPLACE (D-27-W3B-10) holds for the backstop too: the stuck
+      // pid is gone from the pool the moment the ceiling fired.
+      expect(stuck.cookParsePoolPidsForTests()).not.toContain(doomed[0]);
+    } finally {
+      stuck.shutdownCookParsePool();
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
+  });
 });
 
 describe("TERMINATE AND REPLACE — a bounded-out child is never reused", () => {
@@ -467,9 +779,12 @@ describe("SATURATION DEGRADES, IT NEVER HANGS (R3, T-27-01d)", () => {
     expect(results).toHaveLength(concurrency);
     expect(results.every((result) => result === null)).toBe(true);
 
-    // Bounded queue + bounded parse. NONE of them may hang.
+    // Bounded queue + bounded parse. NONE of them may hang. The ceiling is the sum
+    // of the two bounds actually on this path: the queue wait, then the CPU gate.
+    // (The 8 000 ms wall backstop cannot be reached — these payloads burn CPU, so the
+    // gate above kills each child at 1 500 ms of it.)
     expect(elapsed).toBeLessThan(
-      COOK_BOUNDS.cookParseTimeoutMs + COOK_BOUNDS.cookParseQueueTimeoutMs + 2_000
+      COOK_BOUNDS.cookParseQueueTimeoutMs + COOK_BOUNDS.cookParseCpuMs * 2 + 3_000
     );
 
     // And the pool still works afterwards.
@@ -478,7 +793,7 @@ describe("SATURATION DEGRADES, IT NEVER HANGS (R3, T-27-01d)", () => {
 });
 
 describe("LOGS CARRY COUNTS, CODES AND A PID — NEVER PROSE (T-27-05)", () => {
-  it("logs a bound hit with reason/bound/limit/elapsedMs/bytes/pid and no recipe text", async () => {
+  it("logs a bound hit with reason/bound/limit/measured/cpuMs/elapsedMs/bytes/pid and no recipe text", async () => {
     // The H1 shape, carrying distinctive prose and an ingredient name so the
     // absence assertions below have something real to look for.
     const source = `---\ntitle: "Grandmother's Secret Cassoulet"\na: ${"[".repeat(
@@ -489,16 +804,25 @@ describe("LOGS CARRY COUNTS, CODES AND A PID — NEVER PROSE (T-27-05)", () => {
     expect(warnSpy).toHaveBeenCalled();
 
     const boundCall = warnSpy.mock.calls.find(
-      (call) => (call[0] as { reason?: string })?.reason === "pool-timeout"
+      (call) => (call[0] as { reason?: string })?.reason === "pool-cpu"
     );
 
     expect(boundCall).toBeDefined();
     expect(boundCall?.[0]).toMatchObject({
       module: "cooklang",
-      reason: "pool-timeout",
-      bound: "cookParseTimeoutMs",
-      limit: COOK_BOUNDS.cookParseTimeoutMs,
+      reason: "pool-cpu",
+      bound: "cookParseCpuMs",
+      limit: COOK_BOUNDS.cookParseCpuMs,
     });
+    // `measured` and `cpuMs` are what an operator needs to tell "this row is 20x over
+    // budget" from "this row is marginal", and they are what makes a `pool-cpu` rate
+    // in production actionable rather than just alarming.
+    expect((boundCall?.[0] as { measured: number }).measured).toBeGreaterThanOrEqual(
+      COOK_BOUNDS.cookParseCpuMs
+    );
+    expect((boundCall?.[0] as { cpuMs: number }).cpuMs).toBeGreaterThanOrEqual(
+      COOK_BOUNDS.cookParseCpuMs
+    );
     expect((boundCall?.[0] as { elapsedMs: number }).elapsedMs).toBeGreaterThan(0);
     expect((boundCall?.[0] as { bytes: number }).bytes).toBe(
       Buffer.byteLength(source, "utf8")

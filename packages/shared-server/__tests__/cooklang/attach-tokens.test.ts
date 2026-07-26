@@ -17,6 +17,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { UnitsMap } from "@norish/config/zod/server-config";
 import defaultUnits from "@norish/config/units.default.json";
 import { CookTokensSchema } from "@norish/shared/contracts/zod";
+import { COOK_BOUNDS } from "../../src/cooklang/limits";
 import { shutdownCookParsePool } from "../../src/cooklang/pool";
 
 const warnSpy = vi.fn();
@@ -118,12 +119,12 @@ describe("withCookTokens under a resource bound (T-27-01, never-broken)", () => 
   });
 
   /**
-   * The H1 artefact, which cost 24 557 / 38 511 ms in-process. It is fed with the
-   * recognizer BYPASSED — `findCookSourceDefect` is stubbed to `null` — so nothing
-   * here can pass because a gate refused the input. The only reason this returns at
-   * all is the wall-clock bound.
+   * The H1 artefact, which cost 24 557 / 38 511 ms in-process and burns 22 759 ms of
+   * CHILD CPU. It is fed with the recognizer BYPASSED — `findCookSourceDefect` is
+   * stubbed to `null` — so nothing here can pass because a gate refused the input.
+   * The only reason this returns at all is the CPU gate (D-27-W3B-03a).
    */
-  it("degrades to cookTokens: null with a warn, bounded, when the parse hits the TIME bound", async () => {
+  it("degrades to cookTokens: null with a warn, bounded, when the parse hits the CPU gate", async () => {
     vi.resetModules();
     vi.doMock("../../src/cooklang/limits", async () => {
       const actual =
@@ -146,18 +147,29 @@ describe("withCookTokens under a resource bound (T-27-01, never-broken)", () => 
       // Did not throw, did not hang, and the row still renders — on the legacy path.
       expect(result.cookTokens).toBeNull();
       expect(result.id).toBe("poisoned-row");
-      expect(elapsed).toBeLessThan(3_000);
+      // Wall clock can only honestly say IT DID NOT HANG: under contention this row
+      // takes longer in ELAPSED time to burn its CPU budget, and asserting a tight
+      // elapsed ceiling on a hostile input is what made the previous suite flaky.
+      expect(elapsed).toBeLessThan(COOK_BOUNDS.cookParseWallCeilingMs + 2_000);
       expect(warnSpy).toHaveBeenCalled();
 
-      // ANTI-VACUITY: this row is only `null` because the BOUND fired. If the
+      // ANTI-VACUITY: this row is only `null` because the GATE fired. If the
       // `findCookSourceDefect` stub had not taken effect, the recognizer would have
       // refused it at the door in microseconds and this test would have "passed"
-      // while proving nothing about the bound. Spending ~1 000 ms is the evidence
-      // that the parse really was attempted and really was cut off.
-      expect(elapsed).toBeGreaterThan(900);
+      // while proving nothing about the bound. Burning the CPU budget takes AT LEAST
+      // that long in elapsed time on any box, so this floor is both sound and safe.
+      expect(elapsed).toBeGreaterThan(COOK_BOUNDS.cookParseCpuMs * 0.9);
       expect(
         warnSpy.mock.calls.some(
-          (call) => (call[0] as { reason?: string })?.reason === "pool-timeout"
+          (call) => (call[0] as { reason?: string })?.reason === "pool-cpu"
+        )
+      ).toBe(true);
+      // And the gate reported the CPU it refused, not merely that it refused.
+      expect(
+        warnSpy.mock.calls.some(
+          (call) =>
+            (call[0] as { reason?: string })?.reason === "pool-cpu" &&
+            ((call[0] as { measured?: number }).measured ?? 0) >= COOK_BOUNDS.cookParseCpuMs
         )
       ).toBe(true);
 
