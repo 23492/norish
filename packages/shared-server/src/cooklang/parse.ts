@@ -7,6 +7,21 @@ import { checkCookSourceLimits, findCookSourceDefect } from "./limits";
 import { parseInPool } from "./pool";
 
 /**
+ * The pool's lifecycle helper, re-exported HERE and not from `./pool` itself.
+ *
+ * `./cooklang/pool` is no longer an exported subpath of `@norish/shared-server`
+ * (D-27-W3B-15 — VERIFY-3 blocker 4): a module that reaches the WASM must not be
+ * importable from another package, or the "single caller" discipline this design
+ * leans on is a convention rather than a boundary. But other packages' suites do
+ * legitimately need to tear the pool down — vitest will not exit while a child
+ * process lives — and that is a LIFECYCLE concern, not a parsing one.
+ *
+ * So the door re-exports it and the pool stays sealed: a suite gets
+ * `shutdownCookParsePool` without `parseInPool` coming along with it.
+ */
+export { shutdownCookParsePool } from "./pool";
+
+/**
  * Server-only `.cook` -> `cookTokens` read model (Phase 27, W1; bounded in W3B).
  *
  * Lives in `@norish/shared-server` and NOT in `@norish/shared` (D-27-W1-01):

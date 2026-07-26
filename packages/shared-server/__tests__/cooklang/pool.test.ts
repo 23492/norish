@@ -57,6 +57,7 @@ import {
   cookParseLastRssMbForTests,
   cookParsePoolPidsForTests,
   parseInPool,
+  parseInPoolBelowTheRecognizerForTests,
   shutdownCookParsePool,
 } from "../../src/cooklang/pool";
 
@@ -542,7 +543,7 @@ describe("THE BOUND, on the exact inputs that refuted rounds 1 and 2", () => {
     "resolves null, with the gate reporting the CPU it refused, on %s",
     async (_name, entry) => {
       const startedAt = performance.now();
-      const tokens = await parseInPool(entry.source, units);
+      const tokens = await parseInPoolBelowTheRecognizerForTests(entry.source, units);
       const elapsed = performance.now() - startedAt;
 
       expect(tokens).toBeNull();
@@ -642,7 +643,7 @@ describe("THE BOUND, on the exact inputs that refuted rounds 1 and 2", () => {
     // harness timeout proves nothing — the file docblock's own rule. The parent
     // surviving all six is asserted by the sweep above, which drives every row.
     for (const entry of HOSTILE.filter((candidate) => candidate.kills === "balloons")) {
-      expect(await parseInPool(entry.source, units)).toBeNull();
+      expect(await parseInPoolBelowTheRecognizerForTests(entry.source, units)).toBeNull();
     }
 
     const growthMb = (process.memoryUsage().heapUsed - before) / 1_048_576;
@@ -677,7 +678,7 @@ describe("THE BOUND, on the exact inputs that refuted rounds 1 and 2", () => {
     try {
       const startedAt = performance.now();
 
-      expect(await bounded.parseInPool(HOSTILE[0]!.source, units)).toBeNull();
+      expect(await bounded.parseInPoolBelowTheRecognizerForTests(HOSTILE[0]!.source, units)).toBeNull();
 
       const hit = warnSpy.mock.calls
         .map((call) => call[0] as { reason?: string; bound?: string; measured?: number | null })
@@ -731,7 +732,7 @@ describe("THE BOUND, on the exact inputs that refuted rounds 1 and 2", () => {
     const ballooning = HOSTILE.find((entry) => entry.kills === "balloons")!;
 
     try {
-      expect(await memoryBounded.parseInPool(ballooning.source, units)).toBeNull();
+      expect(await memoryBounded.parseInPoolBelowTheRecognizerForTests(ballooning.source, units)).toBeNull();
 
       const hit = warnSpy.mock.calls
         .map(
@@ -1068,7 +1069,7 @@ describe("TERMINATE AND REPLACE — a bounded-out child is never reused", () => 
     const doomed = await warmToExactlyOneChild();
     const hostile = HOSTILE[0]!;
 
-    expect(await parseInPool(hostile.source, units)).toBeNull();
+    expect(await parseInPoolBelowTheRecognizerForTests(hostile.source, units)).toBeNull();
 
     // Gone from the pool the moment the bound fired — not merely "eventually".
     expect(cookParsePoolPidsForTests()).not.toContain(doomed);
@@ -1088,7 +1089,7 @@ describe("TERMINATE AND REPLACE — a bounded-out child is never reused", () => 
   it("survives a child killed EXTERNALLY mid-flight and answers with null", async () => {
     const doomed = await warmToExactlyOneChild();
     const hostile = HOSTILE[0]!;
-    const pending = parseInPool(hostile.source, units);
+    const pending = parseInPoolBelowTheRecognizerForTests(hostile.source, units);
 
     // The H1 payload parses for 24-38 s, so 150 ms in it is reliably mid-flight —
     // this exercises the crash path, NOT the time bound.
@@ -1108,7 +1109,7 @@ describe("SATURATION DEGRADES, IT NEVER HANGS (R3, T-27-01d)", () => {
     const startedAt = performance.now();
 
     const results = await Promise.all(
-      Array.from({ length: concurrency }, () => parseInPool(hostile!.source, units))
+      Array.from({ length: concurrency }, () => parseInPoolBelowTheRecognizerForTests(hostile!.source, units))
     );
 
     const elapsed = performance.now() - startedAt;
@@ -1137,7 +1138,7 @@ describe("LOGS CARRY COUNTS, CODES AND A PID — NEVER PROSE (T-27-05)", () => {
       65_000
     )}\n---\nFold the @duck confit{2%gram} into the beans.\n`;
 
-    expect(await parseInPool(source, units)).toBeNull();
+    expect(await parseInPoolBelowTheRecognizerForTests(source, units)).toBeNull();
     expect(warnSpy).toHaveBeenCalled();
 
     const boundCall = warnSpy.mock.calls.find(
@@ -1188,7 +1189,7 @@ describe("LOGS CARRY COUNTS, CODES AND A PID — NEVER PROSE (T-27-05)", () => {
 
     await Promise.all(
       Array.from({ length: COOK_BOUNDS.cookParsePoolSize + 4 }, () =>
-        parseInPool(hostile!.source, units)
+        parseInPoolBelowTheRecognizerForTests(hostile!.source, units)
       )
     );
 
@@ -1209,40 +1210,55 @@ describe("LOGS CARRY COUNTS, CODES AND A PID — NEVER PROSE (T-27-05)", () => {
  * they add is OUTSIDE the bound and outside the two doors — which is precisely the
  * regression this whole plan exists to make impossible.
  */
-describe("`@cooklang/cooklang` is imported by exactly ONE source file", () => {
-  const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 
-  /** Every source file under `packages/` and `apps/`, excluding tests. */
-  function sourceFiles(): string[] {
-    const found: string[] = [];
+/**
+ * Every `.ts`/`.tsx` file under `packages/` and `apps/`, walked over the REAL tree
+ * rather than derived from an import graph, so nothing can hide behind a dynamic
+ * specifier. `kind: "source"` skips `__tests__` and `*.test.ts`; `kind: "test"`
+ * keeps only `*.test.ts` / `*.spec.ts`.
+ */
+function repoFiles(kind: "source" | "test"): string[] {
+  const found: string[] = [];
 
-    const walk = (dir: string): void => {
-      for (const entry of readdirSync(dir)) {
-        if (entry === "node_modules" || entry === "dist" || entry === ".turbo") continue;
-        if (entry === ".cache" || entry === ".next" || entry === "__tests__") continue;
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir)) {
+      if (entry === "node_modules" || entry === "dist" || entry === ".turbo") continue;
+      if (entry === ".cache" || entry === ".next") continue;
+      if (kind === "source" && entry === "__tests__") continue;
 
-        const full = join(dir, entry);
+      const full = join(dir, entry);
 
-        if (statSync(full).isDirectory()) {
-          walk(full);
-          continue;
-        }
-
-        if (/\.tsx?$/.test(entry) && !/\.(test|spec)\.tsx?$/.test(entry)) found.push(full);
+      if (statSync(full).isDirectory()) {
+        walk(full);
+        continue;
       }
-    };
 
-    walk(join(repoRoot, "packages"));
-    walk(join(repoRoot, "apps"));
+      if (!/\.tsx?$/.test(entry)) continue;
 
-    return found;
-  }
+      const isTest = /\.(test|spec)\.tsx?$/.test(entry);
 
+      if (kind === "test" ? isTest : !isTest) found.push(full);
+    }
+  };
+
+  walk(join(repoRoot, "packages"));
+  walk(join(repoRoot, "apps"));
+
+  return found;
+}
+
+/** The repo-relative paths of every file in `kind` whose text matches `pattern`. */
+function filesMatching(kind: "source" | "test", pattern: RegExp): string[] {
+  return repoFiles(kind)
+    .filter((file) => pattern.test(readFileSync(file, "utf8")))
+    .map((file) => relative(repoRoot, file))
+    .sort();
+}
+
+describe("`@cooklang/cooklang` is imported by exactly ONE source file", () => {
   it("names the importer, so the number cannot drift silently", () => {
-    const importers = sourceFiles()
-      .filter((file) => /from\s+["']@cooklang\/cooklang["']/.test(readFileSync(file, "utf8")))
-      .map((file) => relative(repoRoot, file))
-      .sort();
+    const importers = filesMatching("source", /from\s+["']@cooklang\/cooklang["']/);
 
     // EXACTLY ONE. Not "one plus the old one": `parse.ts` reaches the parser only
     // through the pool now, so a second entry in this list means someone opened a
@@ -1257,29 +1273,7 @@ describe("`@cooklang/cooklang` is imported by exactly ONE source file", () => {
    * the bound — legitimate for an independent oracle, not for anything else.
    */
   it("names the TEST-file importers, each with a stated reason", () => {
-    const testImporters: string[] = [];
-
-    const walk = (dir: string): void => {
-      for (const entry of readdirSync(dir)) {
-        if (entry === "node_modules" || entry === "dist" || entry === ".turbo") continue;
-        if (entry === ".cache" || entry === ".next") continue;
-
-        const full = join(dir, entry);
-
-        if (statSync(full).isDirectory()) {
-          walk(full);
-          continue;
-        }
-
-        if (!/\.(test|spec)\.tsx?$/.test(entry)) continue;
-        if (/from\s+["']@cooklang\/cooklang["']/.test(readFileSync(full, "utf8"))) {
-          testImporters.push(relative(repoRoot, full));
-        }
-      }
-    };
-
-    walk(join(repoRoot, "packages"));
-    walk(join(repoRoot, "apps"));
+    const testImporters = filesMatching("test", /from\s+["']@cooklang\/cooklang["']/);
 
     // JUSTIFICATION, the only one on this list:
     // `round-trip.test.ts` constructs the real `CooklangParser` itself, on purpose.
@@ -1288,9 +1282,7 @@ describe("`@cooklang/cooklang` is imported by exactly ONE source file", () => {
     // pool against itself. Being outside the bound is acceptable in a test whose
     // inputs are the five committed fixtures, and it is what keeps the round-trip
     // suite from becoming self-referential.
-    expect(testImporters.sort()).toEqual([
-      "packages/shared-server/__tests__/cooklang/round-trip.test.ts",
-    ]);
+    expect(testImporters).toEqual(["packages/shared-server/__tests__/cooklang/round-trip.test.ts"]);
   });
 
   it("the child entry imports NOTHING from `@norish/*` at runtime", () => {
@@ -1307,6 +1299,141 @@ describe("`@cooklang/cooklang` is imported by exactly ONE source file", () => {
     const valueImports = [...child.matchAll(/^import\s+(?!type\s)(.*?)from\s+["'](.+?)["']/gms)];
 
     expect(valueImports.map((match) => match[2])).toEqual(["@cooklang/cooklang"]);
+  });
+});
+
+/**
+ * THE POOL IS NOT A THIRD DOOR — D-27-W3B-15, VERIFY-3 blocker 4.
+ *
+ * The one-importer assertions above cover `@cooklang/cooklang` itself. They do NOT
+ * cover THIS MODULE, and that gap was the defect: `./cooklang/pool` was a PUBLIC
+ * subpath of `@norish/shared-server`, it carried no byte cap and no recognizer of
+ * its own, and the "only `./parse` may call it" rule lived in a comment. One
+ * legitimate caller and nothing stopping a second.
+ *
+ * Three assertions, deliberately independent, because each closes a different half
+ * of the hole: the subpath is gone, the production caller list is pinned, and the
+ * below-the-recognizer entry's callers are enumerated and justified. The style is
+ * the one above — walk the REAL tree, name the files, so drift fails a test rather
+ * than review.
+ */
+describe("`./cooklang/pool` is reachable only through `./cooklang/parse` (D-27-W3B-15)", () => {
+  it("is NOT an exported subpath of @norish/shared-server", () => {
+    const manifest = JSON.parse(
+      readFileSync(join(repoRoot, "packages/shared-server/package.json"), "utf8")
+    ) as { exports: Record<string, string> };
+
+    // The door is exported; the room behind it is not. Re-adding this entry would
+    // make `parseInPool` importable from `@norish/api`, `@norish/queue`,
+    // `@norish/trpc` and `apps/web` again.
+    expect(Object.keys(manifest.exports)).not.toContain("./cooklang/pool");
+    expect(manifest.exports["./cooklang/parse"]).toBe("./src/cooklang/parse.ts");
+  });
+
+  it("names every PRODUCTION file that imports the pool module", () => {
+    const importers = filesMatching("source", /from\s+["'][^"']*\/pool["']/);
+
+    // EXACTLY ONE, and it is the door. `./build-payload` and `./attach-tokens`
+    // reach the parser through `./parse`; a second entry here means a code path to
+    // the WASM that skips the byte cap and the recognizer.
+    expect(importers).toEqual(["packages/shared-server/src/cooklang/parse.ts"]);
+  });
+
+  /**
+   * TEST-FILE importers are enumerated too, for the same reason the WASM sweep
+   * enumerates its own: leaving them out would let a second caller appear inside a
+   * test without anyone noticing. Every entry here is IN `@norish/shared-server`
+   * and reaches the module by relative path — no package outside can, because the
+   * subpath is gone.
+   */
+  it("names every TEST file that imports the pool module, and none is outside this package", () => {
+    const importers = filesMatching("test", /from\s+["'][^"']*\/pool["']/);
+
+    // All eight are the cooklang suites, and seven of them import only
+    // `shutdownCookParsePool` — vitest will not exit while a child process lives
+    // (R4). `pool.test.ts` is the pool's own suite.
+    expect(importers).toEqual([
+      "packages/shared-server/__tests__/cooklang/attach-tokens.test.ts",
+      "packages/shared-server/__tests__/cooklang/build-payload.test.ts",
+      "packages/shared-server/__tests__/cooklang/limits.test.ts",
+      "packages/shared-server/__tests__/cooklang/parse.test.ts",
+      "packages/shared-server/__tests__/cooklang/pool.test.ts",
+      "packages/shared-server/__tests__/cooklang/round-trip-fidelity.test.ts",
+      "packages/shared-server/__tests__/cooklang/round-trip.test.ts",
+    ]);
+
+    for (const file of importers) {
+      expect(file.startsWith("packages/shared-server/")).toBe(true);
+    }
+  });
+
+  /**
+   * The below-the-recognizer entry is the one thing in this module that can reach
+   * the WASM with a source `findCookSourceDefect` would refuse. It exists for the
+   * bound-only proofs and for nothing else, so its callers are enumerated by name.
+   */
+  it("names every caller of the below-the-recognizer entry, each with a stated reason", () => {
+    const pattern = /parseInPoolBelowTheRecognizerForTests/;
+    const sources = filesMatching("source", pattern);
+    const tests = filesMatching("test", pattern);
+
+    // Its DECLARATION is the only production occurrence: no production code calls
+    // it, and the export exists purely so the two suites below can.
+    expect(sources).toEqual(["packages/shared-server/src/cooklang/pool.ts"]);
+
+    // JUSTIFICATIONS, one per entry:
+    //  - `limits.test.ts` drives the three H2 `RuntimeError: unreachable` trap
+    //    shapes past the recognizer, to prove the CHILD BOUNDARY contains them and
+    //    not merely that the recognizer refuses them (§14.2);
+    //  - `pool.test.ts` drives the H1 family, the report explosion and the round-1
+    //    bypass past it, which is the entire point of this file — a bound proven
+    //    only on inputs the recognizer already refuses proves nothing about the
+    //    bound.
+    expect(tests).toEqual([
+      "packages/shared-server/__tests__/cooklang/limits.test.ts",
+      "packages/shared-server/__tests__/cooklang/pool.test.ts",
+    ]);
+  });
+
+  /**
+   * AND THE DOOR REALLY ENFORCES, which is what makes the list above a boundary
+   * rather than a naming convention. Both preconditions are asserted on the
+   * function itself, with no `./parse` in front of it.
+   */
+  it("refuses a source the recognizer rejects, and one over the byte cap, without spawning", async () => {
+    const pidsBefore = cookParsePoolPidsForTests();
+
+    // The H1 artefact: `findCookSourceDefect` refuses it, so the door must too.
+    expect(await parseInPool(HOSTILE[0]!.source, units)).toBeNull();
+    expect(
+      errorSpy.mock.calls.some(
+        (call) =>
+          (call[0] as { reason?: string; door?: string })?.reason === "not-serializer-shaped" &&
+          (call[0] as { door?: string })?.door === "pool"
+      )
+    ).toBe(true);
+
+    errorSpy.mockClear();
+
+    // Over the byte cap, and otherwise perfectly serializer-shaped, so ONLY the
+    // cap can refuse it. `boundedParse` applies it to BOTH entries, so the
+    // below-the-recognizer door cannot bypass it either.
+    const oversize = "Mix @flour{1%gram}.\n".repeat(4_000);
+
+    expect(Buffer.byteLength(oversize, "utf8")).toBeGreaterThan(65_536);
+    expect(findCookSourceDefect(oversize)).toBeNull();
+    expect(await parseInPoolBelowTheRecognizerForTests(oversize, units)).toBeNull();
+    expect(
+      errorSpy.mock.calls.some(
+        (call) =>
+          (call[0] as { reason?: string })?.reason === "input-too-large" &&
+          (call[0] as { limit?: string })?.limit === "maxCookSourceBytes" &&
+          (call[0] as { door?: string })?.door === "pool"
+      )
+    ).toBe(true);
+
+    // NEITHER refusal cost a child: both are decided before `acquire()`.
+    expect(cookParsePoolPidsForTests()).toEqual(pidsBefore);
   });
 });
 

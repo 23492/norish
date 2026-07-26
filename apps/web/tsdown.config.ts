@@ -11,7 +11,9 @@ const outDir = resolve(here, "../../dist-server");
  * Phase 27 (COOK-01 / W3B, D-27-W3B-09) — THE COOKLANG PARSE CHILD ENTRY.
  *
  * `noExternal: [/^@norish\//]` below INLINES every `@norish/*` module into
- * `dist-server/index.mjs`, including `@norish/shared-server/cooklang/pool`. The
+ * `dist-server/index.mjs`, including the pool — which since D-27-W3B-15 is no
+ * longer an exported subpath and is pulled in through
+ * `@norish/shared-server/cooklang/parse`, the only door to it. The
  * pool `fork`s a sibling file, and a sibling reference inside an inlined module
  * is NOT an import — rolldown cannot see it, so without an explicit entry the
  * child would never be emitted.

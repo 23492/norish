@@ -22,7 +22,7 @@ import { normalizeUnit } from "@norish/shared/lib/unit-localization";
 
 import { parserLogger as log } from "../logger";
 
-import { COOK_BOUNDS } from "./limits";
+import { COOK_BOUNDS, COOK_LIMITS, findCookSourceDefect } from "./limits";
 
 /**
  * THE RESOURCE BOUND ON THE WASM PARSE (Phase 27, W3B — T-27-01).
@@ -835,22 +835,43 @@ function breachedBound(
 }
 
 /**
- * Parse a `.cook` source in a pooled child process, under all three bounds.
+ * Parse a `.cook` source in a pooled child process, under all four bounds, with
+ * the BYTE CAP enforced here and the recognizer left to the caller.
  *
- * THE ONLY WAY TO REACH THE WASM PARSER. Resolves `null` for every failure and
- * never rejects; see the module docblock for why `null` costs the user nothing.
- *
- * NOT A DOOR. This is deliberately NOT the place the byte cap and
- * `findCookSourceDefect` are enforced — those belong to `./parse` and
- * `./build-payload`, which are the two and only two doors. No production code
- * outside `./parse` may call this.
+ * PRIVATE. `parseInPool` (recognizer enforced) and
+ * `parseInPoolBelowTheRecognizerForTests` (recognizer deliberately skipped) are the
+ * only two ways in, and both of them come through here, so the byte cap has no
+ * bypass at all.
  */
-export async function parseInPool(
+async function boundedParse(
   src: string,
   units?: UnitsMap,
   scale?: number
 ): Promise<CookTokensDTO | null> {
   const bytes = Buffer.byteLength(src, "utf8");
+
+  // THE BYTE CAP, ENFORCED BY THE DOOR ITSELF (D-27-W3B-15 — VERIFY-3 blocker 4).
+  // `./parse` and `./build-payload` check it too and refuse before they ever get
+  // here, so on the shipped path this costs one `Buffer.byteLength` comparison and
+  // never fires. It exists because the previous arrangement made "nobody calls the
+  // pool without checking first" a CONVENTION, and a convention is not a bound. It
+  // is ERROR level precisely because reaching it means a caller skipped `./parse`.
+  if (bytes > COOK_LIMITS.maxCookSourceBytes) {
+    log.error(
+      {
+        module: "cooklang",
+        reason: "input-too-large",
+        limit: "maxCookSourceBytes",
+        measured: bytes,
+        allowed: COOK_LIMITS.maxCookSourceBytes,
+        door: "pool",
+      },
+      "Cooklang source reached the pool over the byte cap; refusing to parse"
+    );
+
+    return null;
+  }
+
   const acquired = await acquire();
 
   if (acquired === "pool-saturated") {
@@ -953,6 +974,98 @@ export async function parseInPool(
   } finally {
     release(target);
   }
+}
+
+/**
+ * Parse a `.cook` source in a pooled child process, under all four bounds.
+ *
+ * THE ONLY WAY TO REACH THE WASM PARSER. Resolves `null` for every failure and
+ * never rejects; see the module docblock for why `null` costs the user nothing.
+ *
+ * ============================================================================
+ * IT IS A DOOR NOW, AND IT ENFORCES ITS OWN PRECONDITIONS (D-27-W3B-15).
+ * ============================================================================
+ *
+ * The previous version of this docblock said "NOT A DOOR … no production code
+ * outside `./parse` may call this", and NOTHING ENFORCED THAT. This module was a
+ * public subpath (`@norish/shared-server/cooklang/pool`), it carried no byte cap
+ * and no recognizer of its own, and the static one-importer assertion covers
+ * `@cooklang/cooklang`, not this specifier — so a second caller could have appeared
+ * unrecognized and reached the WASM with neither gate in front of it. "No
+ * production code may" is a convention; a convention is not a boundary
+ * (VERIFY-3 blocker 4). Three things changed, and they are independent:
+ *
+ *  1. THE SUBPATH IS GONE from `package.json`'s `exports`, so nothing outside
+ *     `@norish/shared-server` can import this module at all. The lifecycle helper
+ *     other packages' test suites genuinely need is re-exported from `./parse`.
+ *  2. THE DOOR ENFORCES. `boundedParse` applies `maxCookSourceBytes` to EVERY
+ *     entry, and this function additionally applies `findCookSourceDefect`. Both
+ *     are checked again in `./parse` and `./build-payload` — the same deliberate
+ *     double-check `build-payload` already does against `parseCookSource`, and on
+ *     the shipped path the second run is one already-refused-nothing pass over
+ *     <= 64 KiB.
+ *  3. THE CALLER LIST IS PINNED by a static assertion in `pool.test.ts` that walks
+ *     the real tree, in the same style as the `@cooklang/cooklang` one-importer
+ *     assertion, so a second caller fails a test rather than review.
+ *
+ * THE BOUND-ONLY TEST METHODOLOGY IS PRESERVED, AND MADE VISIBLE.
+ * `pool.test.ts` and `limits.test.ts` deliberately drive hostile sources PAST the
+ * recognizer, because that is the only way to prove the bound is what stops them
+ * rather than the recognizer. They call `parseInPoolBelowTheRecognizerForTests`,
+ * whose name states exactly which gate it skips and who may use it, instead of
+ * this door silently being that thing for everybody.
+ */
+export async function parseInPool(
+  src: string,
+  units?: UnitsMap,
+  scale?: number
+): Promise<CookTokensDTO | null> {
+  const defect = findCookSourceDefect(src);
+
+  if (defect) {
+    // ERROR level, and deliberately so: `./parse` and `./build-payload` both run
+    // this check and refuse first, so reaching it means a caller came in around
+    // them. Counts, codes and an OFFSET only — never the source (T-27-05).
+    log.error(
+      {
+        module: "cooklang",
+        reason: "not-serializer-shaped",
+        defect: defect.defect,
+        offset: defect.offset,
+        bytes: typeof src === "string" ? Buffer.byteLength(src, "utf8") : 0,
+        door: "pool",
+      },
+      "Cooklang source reached the pool without passing the recognizer; refusing to parse"
+    );
+
+    return null;
+  }
+
+  return boundedParse(src, units, scale);
+}
+
+/**
+ * The pool WITHOUT the recognizer in front of it — the byte cap and all four
+ * resource bounds still apply.
+ *
+ * FOR THE BOUND-ONLY PROOFS, AND FOR NOTHING ELSE. `pool.test.ts` exists to prove
+ * that the H1 frontmatter recursion, the report explosion and the round-1 bypass
+ * are stopped BY THE BOUND. Feeding them through `parseInPool` would prove only
+ * that `findCookSourceDefect` refuses them, which is a different (and already
+ * separately tested) claim — and it is exactly the confusion that let round 2 ship
+ * a recognizer as if it were a guarantee.
+ *
+ * It is named for what it skips so that a second caller is visible in review, and
+ * its caller list is PINNED by a static assertion in `pool.test.ts` that walks the
+ * real tree. It is not reachable from outside `@norish/shared-server`: this module
+ * is no longer an exported subpath (D-27-W3B-15).
+ */
+export function parseInPoolBelowTheRecognizerForTests(
+  src: string,
+  units?: UnitsMap,
+  scale?: number
+): Promise<CookTokensDTO | null> {
+  return boundedParse(src, units, scale);
 }
 
 /**

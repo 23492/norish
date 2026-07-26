@@ -914,7 +914,10 @@ describe("recipe share procedures", () => {
  * suite spawns child processes. Vitest will not exit while one lives.
  */
 afterAll(async () => {
-  const { shutdownCookParsePool } = await import("@norish/shared-server/cooklang/pool");
+  // From `./cooklang/parse`, not `./cooklang/pool`: the pool is no longer an
+  // exported subpath (D-27-W3B-15), so nothing outside `@norish/shared-server` can
+  // reach `parseInPool`. The door re-exports the lifecycle helper.
+  const { shutdownCookParsePool } = await import("@norish/shared-server/cooklang/parse");
 
   shutdownCookParsePool();
 });

@@ -116,7 +116,7 @@ const {
 } = await import("../../src/cooklang/limits");
 const { parseCookSource } = await import("../../src/cooklang/parse");
 const { buildCookPayload } = await import("../../src/cooklang/build-payload");
-const { parseInPool } = await import("../../src/cooklang/pool");
+const { parseInPoolBelowTheRecognizerForTests } = await import("../../src/cooklang/pool");
 
 /** A minimal, always-valid structured recipe to mutate one field of at a time. */
 function recipeWith(overrides: Partial<StructuredRecipe>): StructuredRecipe {
@@ -655,16 +655,25 @@ describe("findCookSourceDefect — a whitespace-only amount or unit (H2)", () =>
 
   /**
    * BELT AND BRACES: the trap is contained by the CHILD BOUNDARY as well as by the
-   * recognizer. `parseInPool` is called DIRECTLY, so nothing here can pass because a
-   * recognizer refused the input — the same discipline `pool.test.ts` uses for H1.
+   * recognizer. `parseInPoolBelowTheRecognizerForTests` is called DIRECTLY, so
+   * nothing here can pass because a recognizer refused the input — the same
+   * discipline `pool.test.ts` uses for H1. The entry point is named for the gate it
+   * skips (D-27-W3B-15): the door proper, `parseInPool`, would refuse these three
+   * shapes at `findCookSourceDefect` and this test would then be proving the
+   * recognizer rather than the containment.
    */
   it("the `unreachable` trap is contained by the child process, with the recognizer bypassed", async () => {
     for (const source of ["@a{ %g}\n", "~a{ %m}\n", "#a{ %g}\n"]) {
-      await expect(parseInPool(source, units), source).resolves.toBeNull();
+      await expect(
+        parseInPoolBelowTheRecognizerForTests(source, units),
+        source
+      ).resolves.toBeNull();
     }
 
     // The parent is alive and the pool still works afterwards.
-    expect(await parseInPool("Mix @flour{1%gram}.\n", units)).not.toBeNull();
+    expect(
+      await parseInPoolBelowTheRecognizerForTests("Mix @flour{1%gram}.\n", units)
+    ).not.toBeNull();
   });
 });
 
