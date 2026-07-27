@@ -31,3 +31,31 @@ export function formatTokenAmount(amount: number | string | null | undefined): s
 
   return String(numberAmount).replace(/\.?0+$/, "");
 }
+
+/**
+ * The candidate/token key both the heuristic ingredient-link markup and the
+ * Cooklang token render model (`@norish/shared/cooklang`) use to identify an
+ * ingredient: `${systemUsed}:${normalizedName}`. Moved down from
+ * `ingredient-links.ts` in Phase 27 W4 (D-27-W4-12) so the pure render model
+ * can build the SAME `norish-ingredient:` key the heuristic path emits,
+ * without `@norish/shared` importing `@norish/shared-react`.
+ */
+export function getIngredientLinkCandidateKey(input: {
+  ingredientName: string;
+  systemUsed: string;
+}): string {
+  return `${input.systemUsed}:${normalizeIngredientLinkName(input.ingredientName)}`;
+}
+
+/**
+ * Characters that would let a hostile ingredient/timer name break out of a
+ * markdown link label (`[label](href)`): `[`, `]` close/open a new link,
+ * `\` escapes the following character. Escaping these keeps a name like
+ * `flour](javascript:alert(1))` inert — it renders as literal label text,
+ * never a second link with an attacker-chosen href.
+ */
+const MARKDOWN_LABEL_ESCAPE = /[\\[\]]/g;
+
+export function escapeMarkdownLabel(label: string): string {
+  return label.replace(MARKDOWN_LABEL_ESCAPE, "\\$&");
+}

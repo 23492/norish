@@ -1,5 +1,7 @@
 import {
+  escapeMarkdownLabel,
   formatTokenAmount,
+  getIngredientLinkCandidateKey,
   normalizeIngredientLinkName,
 } from "@norish/shared/lib/ingredient-token";
 
@@ -7,6 +9,11 @@ import {
 // serializer can reuse it; re-exported here so every existing consumer of
 // `@norish/shared-react/text/ingredient-links` is unaffected.
 export { normalizeIngredientLinkName };
+
+// Moved down into @norish/shared (Phase 27 W4, D-27-W4-12) so the Cooklang
+// render model can build the SAME `norish-ingredient:` key this heuristic
+// path emits; re-exported here so every existing consumer is unaffected.
+export { getIngredientLinkCandidateKey };
 
 export type IngredientLinkSource = {
   ingredientName: string;
@@ -27,14 +34,6 @@ export type IngredientLinkCandidate = {
 };
 
 const SINGLE_WORD_STOP_CHARS = /[\s@{}\[\](),;:!?.]/;
-const MARKDOWN_LABEL_ESCAPE = /[\\\[\]]/g;
-
-export function getIngredientLinkCandidateKey(input: {
-  ingredientName: string;
-  systemUsed: string;
-}): string {
-  return `${input.systemUsed}:${normalizeIngredientLinkName(input.ingredientName)}`;
-}
 
 export function createIngredientLinkCandidates(
   ingredients: IngredientLinkSource[],
@@ -231,10 +230,7 @@ function toIngredientMarkdownLink(
   candidate: IngredientLinkCandidate,
   amountLabel?: string
 ): string {
-  const label = formatIngredientLinkLabel(candidate.ingredientName, amountLabel).replace(
-    MARKDOWN_LABEL_ESCAPE,
-    "\\$&"
-  );
+  const label = escapeMarkdownLabel(formatIngredientLinkLabel(candidate.ingredientName, amountLabel));
   const href = `norish-ingredient:${encodeURIComponent(candidate.key)}`;
 
   return `[${label}](${href})`;

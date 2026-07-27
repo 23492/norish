@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import defaultTimerKeywords from "@norish/config/timer-keywords.default.json";
 
-import { parseTimerDurations } from "./timer-parser";
+import { parseTimerDurations, timerUnitSeconds } from "./timer-parser";
 
 describe("parseTimerDurations", () => {
   describe("default keywords", () => {
@@ -266,5 +266,42 @@ describe("parseTimerDurations", () => {
       expect(matches).toHaveLength(1);
       expect(matches[0].durationSeconds).toBe(20 * 60);
     });
+  });
+});
+
+// Phase 27 (COOK-01) W4, D-27-W4-12 — `timerUnitSeconds` is the
+// keyword->multiplier resolution `parseTimerDurations` already used,
+// extracted so the Cooklang token render model can reuse it. These tests
+// are ADDITIVE only; no assertion above was edited, which is the proof the
+// prose path kept its REPLACE semantics while the token path gained UNION.
+describe("timerUnitSeconds", () => {
+  it("resolves the built-in English defaults when no keywords are configured", () => {
+    expect(timerUnitSeconds("hours")).toBe(3600);
+    expect(timerUnitSeconds("minutes")).toBe(60);
+    expect(timerUnitSeconds("seconds")).toBe(1);
+    expect(timerUnitSeconds("unknown-unit")).toBeUndefined();
+  });
+
+  it("REPLACE mode (default): a configured category replaces the built-in one wholesale", () => {
+    const keywords = { hours: ["uur"], minutes: ["minuut"], seconds: ["seconde"] };
+
+    expect(timerUnitSeconds("uur", keywords)).toBe(3600);
+    // English is gone in replace mode -- "hours" no longer resolves.
+    expect(timerUnitSeconds("hours", keywords)).toBeUndefined();
+  });
+
+  it("UNION mode: configured keywords add to (not replace) the built-in English defaults", () => {
+    const keywords = { hours: ["uur"], minutes: ["minuut"], seconds: ["seconde"] };
+
+    expect(timerUnitSeconds("uur", keywords, { union: true })).toBe(3600);
+    // English survives alongside the configured word.
+    expect(timerUnitSeconds("hours", keywords, { union: true })).toBe(3600);
+  });
+
+  it("UNION mode: a configured keyword wins a collision with a built-in default", () => {
+    // "h" is a built-in HOUR keyword; configure it as a MINUTE keyword instead.
+    const keywords = { minutes: ["h"] };
+
+    expect(timerUnitSeconds("h", keywords, { union: true })).toBe(60);
   });
 });

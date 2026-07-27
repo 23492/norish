@@ -12,6 +12,85 @@ export type TimerKeywords = {
   seconds?: string[];
 };
 
+type TimerUnitCategory = keyof TimerKeywords;
+
+const DEFAULT_HOUR_KEYWORDS = ["hour", "hours", "hr", "hrs", "h"];
+const DEFAULT_MINUTE_KEYWORDS = ["minute", "minutes", "min", "mins", "m"];
+const DEFAULT_SECOND_KEYWORDS = ["second", "seconds", "sec", "secs", "s"];
+
+const DEFAULT_KEYWORDS_BY_CATEGORY: Record<TimerUnitCategory, string[]> = {
+  hours: DEFAULT_HOUR_KEYWORDS,
+  minutes: DEFAULT_MINUTE_KEYWORDS,
+  seconds: DEFAULT_SECOND_KEYWORDS,
+};
+
+const SECONDS_PER_UNIT: Record<TimerUnitCategory, number> = {
+  hours: 3600,
+  minutes: 60,
+  seconds: 1,
+};
+
+const TIMER_UNIT_CATEGORIES: TimerUnitCategory[] = ["hours", "minutes", "seconds"];
+
+/**
+ * Resolve a single time-unit keyword (e.g. "minutes", "uur") to its
+ * seconds-per-unit multiplier, against the multilingual `timerKeywords`
+ * config. Extracted from `parseTimerDurations`'s inline keyword->multiplier
+ * map (Phase 27 W4, D-27-W4-12) so the Cooklang token render model
+ * (`cookTimerDurationMs`) can resolve the SAME config without a second copy
+ * of this table.
+ *
+ * Two resolution modes:
+ * - `union: false` (default) — REPLACE semantics, exactly what
+ *   `parseTimerDurations` has always done: a configured category list
+ *   REPLACES the built-in English one wholesale. Correct for scanning
+ *   prose, which is written in the deployment's configured language.
+ * - `union: true` — the configured lists are UNIONED with the built-in
+ *   English defaults (config wins on a collision). Required for a Cooklang
+ *   token unit: `CookTimerToken.unit` is an unlocalized Cooklang TIME unit
+ *   ("minutes", "hours"), not a norish canonical unit, and REPLACE
+ *   semantics would make a `timerKeywords.hours` configured to non-English
+ *   words silently miss every `~{n%hours}` token and fall back to the
+ *   `?? 60` (minutes) default — a silent 60x error.
+ *
+ * Returns `undefined` when the unit matches no category in either mode;
+ * callers apply their own fallback (`?? 60`, matching historical
+ * behaviour).
+ */
+export function timerUnitSeconds(
+  unit: string,
+  keywords?: TimerKeywords,
+  options?: { union?: boolean }
+): number | undefined {
+  const normalizedUnit = unit.toLowerCase();
+  const map = new Map<string, number>();
+
+  if (options?.union) {
+    for (const category of TIMER_UNIT_CATEGORIES) {
+      for (const kw of DEFAULT_KEYWORDS_BY_CATEGORY[category]) {
+        map.set(kw.toLowerCase(), SECONDS_PER_UNIT[category]);
+      }
+    }
+    // Configured keywords are applied SECOND, so they win any collision
+    // with a built-in default (e.g. a deployment that maps "h" to minutes).
+    for (const category of TIMER_UNIT_CATEGORIES) {
+      for (const kw of keywords?.[category] ?? []) {
+        map.set(kw.toLowerCase(), SECONDS_PER_UNIT[category]);
+      }
+    }
+  } else {
+    for (const category of TIMER_UNIT_CATEGORIES) {
+      const list = keywords?.[category] ?? DEFAULT_KEYWORDS_BY_CATEGORY[category];
+
+      for (const kw of list) {
+        map.set(kw.toLowerCase(), SECONDS_PER_UNIT[category]);
+      }
+    }
+  }
+
+  return map.get(normalizedUnit);
+}
+
 /**
  * Parse timer durations from text using configurable keywords
  *
@@ -36,23 +115,12 @@ export function parseTimerDurations(text: string, keywords?: TimerKeywords): Tim
   const matches: TimerMatch[] = [];
   const matchedRanges: Array<{ start: number; end: number }> = [];
 
-  // Build keyword groups with their multipliers
-  const hourKeywords = keywords?.hours ?? ["hour", "hours", "hr", "hrs", "h"];
-  const minuteKeywords = keywords?.minutes ?? ["minute", "minutes", "min", "mins", "m"];
-  const secondKeywords = keywords?.seconds ?? ["second", "seconds", "sec", "secs", "s"];
-
-  // Combine all keywords and create a mapping to multipliers
-  const keywordToMultiplier = new Map<string, number>();
-
-  hourKeywords.forEach((kw) => {
-    keywordToMultiplier.set(kw.toLowerCase(), 3600);
-  });
-  minuteKeywords.forEach((kw) => {
-    keywordToMultiplier.set(kw.toLowerCase(), 60);
-  });
-  secondKeywords.forEach((kw) => {
-    keywordToMultiplier.set(kw.toLowerCase(), 1);
-  });
+  // Build keyword groups (still needed for the regex and the colon-format
+  // unit-after-check below; the multiplier LOOKUP itself now goes through
+  // `timerUnitSeconds`, D-27-W4-12, so the token render path can reuse it).
+  const hourKeywords = keywords?.hours ?? DEFAULT_HOUR_KEYWORDS;
+  const minuteKeywords = keywords?.minutes ?? DEFAULT_MINUTE_KEYWORDS;
+  const secondKeywords = keywords?.seconds ?? DEFAULT_SECOND_KEYWORDS;
 
   const allKeywords = [...hourKeywords, ...minuteKeywords, ...secondKeywords];
   const timeUnits = allKeywords.map((kw) => kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
@@ -191,8 +259,8 @@ export function parseTimerDurations(text: string, keywords?: TimerKeywords): Tim
         }
       }
 
-      // Look up the multiplier for this keyword
-      const multiplier = keywordToMultiplier.get(unit) ?? 60; // Default to minutes
+      // Look up the multiplier for this keyword (REPLACE semantics, unchanged)
+      const multiplier = timerUnitSeconds(unit, keywords) ?? 60; // Default to minutes
 
       // Use the maximum value if it's a range, otherwise use the primary number
       const duration = rangeStart !== null ? Math.max(rangeStart, primaryNumber) : primaryNumber;

@@ -26,3 +26,25 @@ export {
   serializeWithReport,
   structuredToCooklang,
 } from "./serialize";
+
+/**
+ * Pure Cooklang token RENDER model (Phase 27, W4). Projects the `cookTokens`
+ * DTO into ordered, numbered, section-aware, servings-scaled steps that
+ * both web and mobile render from. See `./render.ts` for the full contract.
+ */
+export type {
+  CookRenderFormat,
+  CookRenderIngredientToken,
+  CookRenderScaleOptions,
+  CookRenderStep,
+  CookRenderTextToken,
+  CookRenderTimer,
+  CookRenderTimerToken,
+  CookRenderToken,
+} from "./render";
+export {
+  cookStepTimers,
+  cookStepToMarkdown,
+  cookTimerDurationMs,
+  resolveCookRenderSteps,
+} from "./render";
