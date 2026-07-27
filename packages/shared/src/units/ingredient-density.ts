@@ -15,11 +15,20 @@ import { DENSITY_TABLE } from "./density-table";
  *     beats "sugar", "whole wheat flour" beats "flour").
  *
  * Names are normalized first: lowercased, punctuation → spaces, a small set of
- * neutral prep descriptors (fresh/chopped/melted/…) stripped, whitespace
- * collapsed. Identity-bearing words (whole, brown, white, ground, …) are kept.
+ * neutral prep descriptors stripped, whitespace collapsed. Identity-bearing
+ * words (whole, brown, white, ground, …) are kept.
+ *
+ * The stopword list is BILINGUAL (English + Dutch, Phase 27 W5-PREP) — this
+ * fork's live install is authored in Dutch, and `27-W5-PREP-DENSITY-MEASUREMENT.md`
+ * found most Dutch density misses were an English-only prep-word list stripping
+ * nothing from a Dutch name, not a missing USDA figure. `kokend` (boiling) and
+ * `vloeibaar`/`vloeibare` (liquid) have no direct English-list counterpart and
+ * were added because the measurement named them (`kokend water`, `vloeibare
+ * honing`).
  */
 
 const PREP_DESCRIPTORS = new Set([
+  // ── English ──
   "fresh",
   "organic",
   "raw",
@@ -40,6 +49,43 @@ const PREP_DESCRIPTORS = new Set([
   "cup",
   "tbsp",
   "tsp",
+  // ── Dutch (Phase 27 W5-PREP, D-27-W5P-07) ──
+  "vers",
+  "verse",
+  "biologisch",
+  "biologische",
+  "rauw",
+  "rauwe",
+  "gehakt",
+  "gehakte",
+  "fijngehakt",
+  "fijngehakte",
+  "gesneden",
+  "geplet",
+  "geplette",
+  "gesmolten",
+  "gesnipperd",
+  "gesnipperde",
+  "geraspt",
+  "geraspte",
+  "koud",
+  "koude",
+  "warme",
+  "heet",
+  "hete",
+  "zacht",
+  "zachte",
+  "kokend",
+  "kokende",
+  "vloeibaar",
+  "vloeibare",
+  "kamertemperatuur",
+  "kopje",
+  "kopjes",
+  "eetlepel",
+  "eetlepels",
+  "theelepel",
+  "theelepels",
 ]);
 
 /** Normalize an ingredient name for density matching. */
