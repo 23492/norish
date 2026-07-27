@@ -16,7 +16,7 @@ export type {
   UnitDimension,
   UnitSystem,
 } from "./types";
-export { convertToSystem, convertToUnit, deriveConversion } from "./convert-measure";
+export { convertToSystem, convertToUnit, deriveConversion, roundQuantity } from "./convert-measure";
 export {
   CANONICAL_UNIT_MAP,
   convertSymbolOf,

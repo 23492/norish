@@ -23,6 +23,7 @@ export const CANONICAL_UNIT_MAP: Readonly<Record<string, UnitDef>> = {
   gram: { convertUnit: "g", dimension: "mass" },
   ounce: { convertUnit: "oz", dimension: "mass" },
   pound: { convertUnit: "lb", dimension: "mass" },
+  kilogram: { convertUnit: "kg", dimension: "mass" },
   // ── volume ──
   milliliter: { convertUnit: "ml", dimension: "volume" },
   centiliter: { convertUnit: "cl", dimension: "volume" },
@@ -31,6 +32,8 @@ export const CANONICAL_UNIT_MAP: Readonly<Record<string, UnitDef>> = {
   teaspoon: { convertUnit: "tsp", dimension: "volume" },
   tablespoon: { convertUnit: "tbsp", dimension: "volume" },
   cup: { convertUnit: "cup", dimension: "volume" },
+  fluid_ounce: { convertUnit: "fl oz", dimension: "volume" },
+  pint: { convertUnit: "pint", dimension: "volume" },
   // ── length ──
   centimeter: { convertUnit: "cm", dimension: "length" },
   // ── temperature (not an ingredient unit, but supported for step-level °C↔°F) ──
@@ -59,6 +62,13 @@ const UNIT_SYNONYMS: Readonly<Record<string, string>> = {
   lbs: "pound",
   pound: "pound",
   pounds: "pound",
+  kg: "kilogram",
+  kilo: "kilogram",
+  kilos: "kilogram",
+  kilogram: "kilogram",
+  kilograms: "kilogram",
+  kilogramme: "kilogram",
+  kilogrammes: "kilogram",
   ml: "milliliter",
   milliliter: "milliliter",
   milliliters: "milliliter",
@@ -81,6 +91,19 @@ const UNIT_SYNONYMS: Readonly<Record<string, string>> = {
   tablespoons: "tablespoon",
   cup: "cup",
   cups: "cup",
+  // NOTE: do NOT add `oz`/`fl` variants here — `ounce` already owns `oz` and
+  // `bottle` already owns `fl`/`fl.` (Danish *flaske*); `resolveCanonicalUnit`
+  // returns the first entry that matches (<risks> R5).
+  "fl oz": "fluid_ounce",
+  "fl. oz.": "fluid_ounce",
+  "fl.oz.": "fluid_ounce",
+  floz: "fluid_ounce",
+  "fluid ounce": "fluid_ounce",
+  "fluid ounces": "fluid_ounce",
+  fluid_ounce: "fluid_ounce",
+  pint: "pint",
+  pints: "pint",
+  pt: "pint",
   cm: "centimeter",
   centimeter: "centimeter",
   centimetre: "centimeter",

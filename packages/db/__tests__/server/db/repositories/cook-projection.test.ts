@@ -177,10 +177,12 @@ describe("deriveProjectionTx (COOK-01 / W2)", () => {
 
       expect(Number(metric?.amount)).toBe(200);
       expect(metric?.unit).toBe("gram");
-      // 200 g -> ounces (same dimension, no density needed).
-      expect(us?.unit).toBe("ounce");
-      expect(Number(us?.amount)).toBeGreaterThan(6);
-      expect(Number(us?.amount)).toBeLessThan(8);
+      // D-27-W5P-01: flour has a real density, so a US-targeted MASS crosses
+      // into volume instead of staying mass -> ounce — a US cook measures
+      // flour by volume, and the crossing is gated on a real density entry
+      // (never fabricated). 200 g / 125 g-per-cup = 1.6 cup exactly.
+      expect(us?.unit).toBe("cup");
+      expect(Number(us?.amount)).toBe(1.6);
     });
 
     it("converts a VOLUME within its own dimension — no density is ever invented", async () => {

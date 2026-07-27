@@ -394,7 +394,11 @@ describe("structuredToCooklang — no whitespace-only amount or unit (H2)", () =
             order: 0,
             ingredients: [
               { name: "flour", amount: "1 1/2", unit: "cup" },
-              { name: "milk", amount: 8, unit: "fl oz" },
+              // A unit `normalizeUnit` does NOT recognize (unlike `fl oz`, which
+              // Phase 27 W5-PREP made a real canonical `fluid_ounce` alternate —
+              // see `vocabulary.test.ts` — so it no longer demonstrates an
+              // UNRECOGNIZED multi-word unit round-tripping its internal space).
+              { name: "milk", amount: 8, unit: "generous glug" },
             ],
           },
         ],
@@ -403,7 +407,7 @@ describe("structuredToCooklang — no whitespace-only amount or unit (H2)", () =
     );
 
     expect(cook).toContain("@flour{1 1/2%cup}");
-    expect(cook).toContain("@milk{8%fl oz}");
+    expect(cook).toContain("@milk{8%generous glug}");
   });
 
   it("a blank amount keeps the reference and reports it as placed", () => {
