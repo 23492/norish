@@ -1,4 +1,5 @@
 import { initCaldavSync } from "@norish/api/caldav/event-listener";
+import { backfillCookSource } from "@norish/api/startup/backfill-cook-source";
 import { createServer } from "@norish/api/startup/http-server";
 import { runStartupMaintenanceCleanup } from "@norish/api/startup/maintenance-cleanup";
 import { migrateGalleryImages } from "@norish/api/startup/migrate-gallery-images";
@@ -32,6 +33,9 @@ async function main() {
   log.info("-".repeat(50));
 
   await migrateGalleryImages();
+  log.info("-".repeat(50));
+
+  await backfillCookSource();
   log.info("-".repeat(50));
 
   await initializeVideoProcessing();
