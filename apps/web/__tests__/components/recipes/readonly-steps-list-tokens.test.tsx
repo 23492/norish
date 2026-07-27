@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import "@testing-library/jest-dom";
@@ -152,6 +152,42 @@ describe("ReadonlyStepsList — Cooklang token branch (Phase 27 W4, T2)", () => 
     expect(screen.getByText(/Chop the onions\./)).toBeInTheDocument();
     expect(createIngredientLinkCandidatesMock).toHaveBeenCalled();
     expect(parseTimerDurationsMock).toHaveBeenCalled();
+  });
+
+  it("keeps the token ingredient chip on a step marked DONE (W2 — verifier warning)", () => {
+    const cookSteps = resolveCookRenderSteps(TOKEN_STEPS, {
+      baseServings: 4,
+      servings: 4,
+      systemUsed: "metric",
+    });
+
+    render(
+      <ReadonlyStepsList
+        cookSteps={cookSteps}
+        enableTimers
+        interactive
+        ingredients={[]}
+        recipeId="r1"
+        recipeName="R"
+        steps={LEGACY_STEPS_PAIRED}
+        systemUsed="metric"
+      />
+    );
+
+    expect(screen.getByText("brown sugar (200 g)")).toBeInTheDocument();
+
+    // Marking the step done swaps `InstructionComponent` for the plain
+    // `SmartMarkdownRenderer` branch. Without the fix that branch renders
+    // raw prose with `ingredientCandidates: undefined` — the projection's
+    // prose has no `@name{amount}` markers for `applyIngredientLinkMarkup`
+    // to match, so the chip disappears entirely on a done token step even
+    // though the legacy (non-token) done step keeps its chip.
+    const [firstStepButton] = screen.getAllByRole("button");
+
+    fireEvent.click(firstStepButton);
+
+    expect(screen.getByText("brown sugar (200 g)")).toBeInTheDocument();
+    expect(screen.queryByText("sugar (200 g)")).toBeNull();
   });
 
   it("falls back to the legacy branch in full on a cookSteps/step count mismatch", () => {

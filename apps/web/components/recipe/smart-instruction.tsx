@@ -21,7 +21,7 @@ import { useUnitFormatter } from "@/hooks/use-unit-formatter";
  * `data-ingredient-link-key` anchors resolve to the exact same key the legacy
  * heuristic path would have produced for the same ingredient.
  */
-function cookStepIngredientCandidates(cookStep: CookRenderStep): IngredientLinkCandidate[] {
+export function cookStepIngredientCandidates(cookStep: CookRenderStep): IngredientLinkCandidate[] {
   return cookStep.tokens
     .filter((token): token is CookRenderIngredientToken => token.type === "ingredient")
     .map((token, order) => {

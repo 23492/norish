@@ -5,12 +5,15 @@ import type { IngredientLinkCandidate } from "@norish/shared-react/text";
 
 import React, { Fragment, useMemo, useState } from "react";
 import Image from "next/image";
+import { useTranslations } from "next-intl";
 import { CheckIcon } from "@heroicons/react/16/solid";
+import { cookStepToMarkdown } from "@norish/shared/cooklang";
 import { createIngredientLinkCandidates } from "@norish/shared-react/text";
 
-import { SmartInstruction } from "@/components/recipe/smart-instruction";
+import { cookStepIngredientCandidates, SmartInstruction } from "@/components/recipe/smart-instruction";
 import ImageLightbox from "@/components/shared/image-lightbox";
 import SmartMarkdownRenderer from "@/components/shared/smart-markdown-renderer";
+import { useUnitFormatter } from "@/hooks/use-unit-formatter";
 
 type StepLike = {
   step: string;
@@ -78,6 +81,8 @@ export function ReadonlyStepsList({
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxImages, setLightboxImages] = useState<{ src: string; alt?: string }[]>([]);
   const [lightboxInitialIndex, setLightboxInitialIndex] = useState(0);
+  const { formatAmountUnit } = useUnitFormatter();
+  const t = useTranslations("common");
 
   const toggle = (i: number) => {
     if (!interactive) {
@@ -170,6 +175,27 @@ export function ReadonlyStepsList({
             useCookBranch && cookStep?.isSectionStart && cookStep.section
               ? cookStep.section
               : null;
+          // The non-interactive render path (done step, non-interactive list,
+          // or timers disabled) bypasses `InstructionComponent` and renders
+          // `SmartMarkdownRenderer` directly. `InstructionComponent`
+          // (`SmartInstruction`) derives its own text/candidates from
+          // `cookStep` internally, but this branch must do the same — passing
+          // raw `s.step` + `undefined` candidates here would drop every
+          // ingredient chip a token-bearing step's done state used to lose
+          // (W4 warning W2): the projection's prose has no `@name{amount}`
+          // markers for `applyIngredientLinkMarkup` to match, so only tokens
+          // derived via `cookStepToMarkdown`/`cookStepIngredientCandidates`
+          // can produce a chip here.
+          const resolvedStaticText = cookStep
+            ? cookStepToMarkdown(cookStep, {
+                ingredientAmountLabel: (tok) => formatAmountUnit(tok.amount, tok.unit),
+                timerLabel: (timer) =>
+                  timer.name ?? t("timer.step_fallback_label", { step: currentStepNumber }),
+              })
+            : s.step;
+          const resolvedStaticCandidates = cookStep
+            ? cookStepIngredientCandidates(cookStep)
+            : ingredientCandidates;
 
           const stepRow = (
             <li>
@@ -220,8 +246,8 @@ export function ReadonlyStepsList({
                     ) : (
                       <SmartMarkdownRenderer
                         disableLinks={interactive && isDone}
-                        ingredientCandidates={ingredientCandidates}
-                        text={s.step}
+                        ingredientCandidates={resolvedStaticCandidates}
+                        text={resolvedStaticText}
                         onIngredientPress={onIngredientPress}
                       />
                     )}
