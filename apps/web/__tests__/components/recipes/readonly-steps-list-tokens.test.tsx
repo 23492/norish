@@ -7,6 +7,7 @@ import { ReadonlyStepsList } from "@/components/recipes/readonly-steps-list";
 
 import { resolveCookRenderSteps } from "@norish/shared/cooklang";
 import { createIngredientLinkCandidates } from "@norish/shared-react/text";
+import { parseTimerDurations } from "@norish/shared/lib/timer-parser";
 
 vi.mock("@norish/shared/lib/logger", () => ({
   createClientLogger: () => () => ({ warn: () => {} }),
@@ -20,8 +21,14 @@ vi.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
 }));
 
+// Phase 27 W4, T5: timers enabled so the parseTimerDurations non-invocation
+// proof below is real (a disabled timerConfig short-circuits BEFORE the
+// prose-scan call on either branch, which would make the legacy-branch
+// assertion vacuous). `hours`/`minutes`/`seconds` stay empty — this suite's
+// step prose contains no timer phrase, so the scan runs and finds nothing,
+// exactly like today's byte-for-byte legacy render.
 vi.mock("@/hooks/config", () => ({
-  useTimersEnabledQuery: () => ({ timersEnabled: false }),
+  useTimersEnabledQuery: () => ({ timersEnabled: true }),
   useTimerKeywordsQuery: () => ({
     timerKeywords: { enabled: true, hours: [], minutes: [], seconds: [] },
   }),
@@ -46,7 +53,22 @@ vi.mock("@norish/shared-react/text", async (importOriginal) => {
   };
 });
 
+// The recipe-detail half of D-27-W4-01's non-invocation proof (Phase 27 W4,
+// T5): `parseTimerDurations` must be exactly as uncalled on the token
+// branch as `createIngredientLinkCandidates` is, and still called on the
+// legacy branch. Spied, not stubbed, so real (empty) timer output is
+// unaffected.
+vi.mock("@norish/shared/lib/timer-parser", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@norish/shared/lib/timer-parser")>();
+
+  return {
+    ...actual,
+    parseTimerDurations: vi.fn(actual.parseTimerDurations),
+  };
+});
+
 const createIngredientLinkCandidatesMock = vi.mocked(createIngredientLinkCandidates);
+const parseTimerDurationsMock = vi.mocked(parseTimerDurations);
 
 const TOKEN_STEPS: Parameters<typeof resolveCookRenderSteps>[0] = [
   {
@@ -73,6 +95,7 @@ const LEGACY_STEPS_PAIRED = [
 describe("ReadonlyStepsList — Cooklang token branch (Phase 27 W4, T2)", () => {
   beforeEach(() => {
     createIngredientLinkCandidatesMock.mockClear();
+    parseTimerDurationsMock.mockClear();
   });
 
   it("renders every step from tokens: the token's own amount/unit and section heading, and never calls the heuristic", () => {
@@ -102,6 +125,9 @@ describe("ReadonlyStepsList — Cooklang token branch (Phase 27 W4, T2)", () => 
     expect(screen.queryByText("sugar (400 g)")).toBeNull();
     expect(screen.getByRole("heading", { level: 3, name: "Sauce" })).toBeInTheDocument();
     expect(createIngredientLinkCandidatesMock).not.toHaveBeenCalled();
+    // D-27-W4-01, second heuristic: the prose timer scan is exactly as dead
+    // as the ingredient-candidate scan on the token branch.
+    expect(parseTimerDurationsMock).not.toHaveBeenCalled();
   });
 
   it("keeps the legacy #-heading render byte-for-byte when cookSteps is absent", () => {
@@ -125,6 +151,7 @@ describe("ReadonlyStepsList — Cooklang token branch (Phase 27 W4, T2)", () => 
     expect(screen.getByRole("heading", { level: 3, name: "Prep" })).toBeInTheDocument();
     expect(screen.getByText(/Chop the onions\./)).toBeInTheDocument();
     expect(createIngredientLinkCandidatesMock).toHaveBeenCalled();
+    expect(parseTimerDurationsMock).toHaveBeenCalled();
   });
 
   it("falls back to the legacy branch in full on a cookSteps/step count mismatch", () => {
@@ -149,5 +176,6 @@ describe("ReadonlyStepsList — Cooklang token branch (Phase 27 W4, T2)", () => 
     // "Sauce" section heading, and the heuristic runs for both rows.
     expect(screen.queryByRole("heading", { level: 3, name: "Sauce" })).toBeNull();
     expect(createIngredientLinkCandidatesMock).toHaveBeenCalled();
+    expect(parseTimerDurationsMock).toHaveBeenCalled();
   });
 });

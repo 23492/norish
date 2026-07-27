@@ -9,6 +9,7 @@ import {
   FullRecipeInsertSchema,
   FullRecipeSchema,
   FullRecipeUpdateSchema,
+  PublicRecipeViewSchema,
   RecipeDashboardSchema,
 } from "@norish/shared/contracts/zod";
 
@@ -322,5 +323,68 @@ describe("recipe write inputs reject the `0041` columns (D-27-W2-02)", () => {
     });
 
     expect(parsed).not.toHaveProperty("cookSource");
+  });
+});
+
+/**
+ * Phase 27 W4, T5 — the "unchanged-surface" re-assertion D-27-W4-08 requires:
+ * the public share page's own DTO must NEVER gain a `cook*` key. Unlike
+ * `RecipeDashboardSchema` (W2), nothing previously codified this as a test —
+ * it was "verified at plan-check time" by reading the schema, which the
+ * plan's own truths table calls out as insufficient ("re-asserted by a
+ * test, not by inspection"). This closes that gap.
+ */
+describe("PublicRecipeViewSchema carries no cook* key (Phase 27 W4, D-27-W4-08)", () => {
+  function legacyPublicRecipePayload() {
+    return {
+      name: "Simple Pancakes",
+      description: null,
+      notes: null,
+      url: null,
+      image: null,
+      servings: 4,
+      prepMinutes: null,
+      cookMinutes: null,
+      totalMinutes: null,
+      systemUsed: "metric" as const,
+      calories: null,
+      fat: null,
+      carbs: null,
+      protein: null,
+      author: null,
+    };
+  }
+
+  it("parses today's public share payload with no cook* keys supplied", () => {
+    const parsed = PublicRecipeViewSchema.parse(legacyPublicRecipePayload());
+
+    expect(parsed.name).toBe("Simple Pancakes");
+  });
+
+  it("declares NO cook* key in its shape — the schema itself, not a hand-picked payload", () => {
+    const shape = Object.keys(PublicRecipeViewSchema.shape);
+
+    // `cookMinutes` is a pre-existing, unrelated recipe field (predates
+    // Phase 27) — the Phase 27 W4 family is `cookSource`/`cookTokens`/
+    // `cookConfidence`/`cookReviewNeeded`, none of which may appear here.
+    expect(shape).not.toContain("cookSource");
+    expect(shape).not.toContain("cookTokens");
+    expect(shape).not.toContain("cookConfidence");
+    expect(shape).not.toContain("cookReviewNeeded");
+    // Pinned per the plan's own count: 21 keys, ending at `videos` — a
+    // silently ADDED key would move this number.
+    expect(shape).toHaveLength(21);
+    expect(shape.at(-1)).toBe("videos");
+  });
+
+  it("strips a cook* key even if a caller accidentally supplies one — the public DTO never carries it through", () => {
+    const parsed = PublicRecipeViewSchema.parse({
+      ...legacyPublicRecipePayload(),
+      cookSource: "Whisk the @flour{200%gram}.\n",
+      cookTokens: [{ order: 0, section: null, tokens: [] }],
+    });
+
+    expect(parsed).not.toHaveProperty("cookSource");
+    expect(parsed).not.toHaveProperty("cookTokens");
   });
 });

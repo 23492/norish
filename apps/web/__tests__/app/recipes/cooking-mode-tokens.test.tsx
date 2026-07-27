@@ -11,6 +11,7 @@ import type { ResolvedCookingModeStep } from "@/app/(app)/recipes/[id]/component
 import type { CookRenderStep } from "@norish/shared/cooklang";
 
 import { createIngredientLinkCandidates } from "@norish/shared-react/text";
+import { parseTimerDurations } from "@norish/shared/lib/timer-parser";
 
 vi.mock("@norish/shared/lib/logger", () => ({
   createClientLogger: () => () => ({ warn: () => {} }),
@@ -96,7 +97,22 @@ vi.mock("@norish/shared-react/text", async (importOriginal) => {
   };
 });
 
+// The second half of D-27-W4-01's non-invocation proof (Phase 27 W4, T5):
+// `parseTimerDurations` — the prose timer scan — must be exactly as dead on
+// the token branch as `createIngredientLinkCandidates` is. Spied (not
+// stubbed) so the legacy branch's real behaviour (and its rendered timer
+// chips, asserted elsewhere in this suite) is unaffected.
+vi.mock("@norish/shared/lib/timer-parser", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@norish/shared/lib/timer-parser")>();
+
+  return {
+    ...actual,
+    parseTimerDurations: vi.fn(actual.parseTimerDurations),
+  };
+});
+
 const createIngredientLinkCandidatesMock = vi.mocked(createIngredientLinkCandidates);
+const parseTimerDurationsMock = vi.mocked(parseTimerDurations);
 
 const LEGACY_STEPS: ResolvedCookingModeStep[] = [
   {
@@ -162,19 +178,22 @@ describe("Cooking mode — Cooklang token branch (Phase 27 W4, T3)", () => {
 
   beforeEach(() => {
     createIngredientLinkCandidatesMock.mockClear();
+    parseTimerDurationsMock.mockClear();
   });
 
   describe("CookingModeTabs — the zero-heuristic-call proof (D-27-W4-01)", () => {
-    it("never calls createIngredientLinkCandidates when cookSteps is present", () => {
+    it("never calls createIngredientLinkCandidates OR parseTimerDurations when cookSteps is present", () => {
       render(<CookingModeTabs {...tabsProps({ cookSteps: PASTA_SAUCE_COOK_STEPS })} />);
 
       expect(createIngredientLinkCandidatesMock).not.toHaveBeenCalled();
+      expect(parseTimerDurationsMock).not.toHaveBeenCalled();
     });
 
-    it("calls createIngredientLinkCandidates on the legacy branch (cookSteps: null)", () => {
+    it("calls createIngredientLinkCandidates AND parseTimerDurations on the legacy branch (cookSteps: null)", () => {
       render(<CookingModeTabs {...tabsProps({ cookSteps: null })} />);
 
       expect(createIngredientLinkCandidatesMock).toHaveBeenCalled();
+      expect(parseTimerDurationsMock).toHaveBeenCalled();
     });
   });
 
@@ -201,6 +220,10 @@ describe("Cooking mode — Cooklang token branch (Phase 27 W4, T3)", () => {
       // own duration — never merged into one.
       expect(screen.getByText("TIMER:r1-s0-0:pasta:600000")).toBeInTheDocument();
       expect(screen.getByText("TIMER:r1-s0-1:sauce:1500000")).toBeInTheDocument();
+
+      // Both timer chips resolved from `cookStepTimers`, never from a prose
+      // scan of "Boil the pasta and simmer the sauce." (D-27-W4-01).
+      expect(parseTimerDurationsMock).not.toHaveBeenCalled();
     });
 
     it("falls back to the translated step label for an unnamed timer token — no hard-coded English literal", () => {
@@ -260,6 +283,9 @@ describe("Cooking mode — Cooklang token branch (Phase 27 W4, T3)", () => {
 
       expect(screen.getByText("Prep")).toBeInTheDocument();
       expect(screen.getByText(/Chop the onions\./)).toBeInTheDocument();
+      // The legacy branch is still the one that scans prose for timers —
+      // the heuristic survives until W6 (D-27-W4-01).
+      expect(parseTimerDurationsMock).toHaveBeenCalled();
     });
   });
 });

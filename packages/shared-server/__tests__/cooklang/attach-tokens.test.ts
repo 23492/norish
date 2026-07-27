@@ -12,6 +12,9 @@
  * `packages/trpc/__tests__/recipes/cook-tokens-isolation.test.ts`.
  */
 
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { dirname, join, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { UnitsMap } from "@norish/config/zod/server-config";
@@ -253,4 +256,71 @@ describe("withCookTokens under a resource bound (T-27-01, never-broken)", () => 
  */
 afterAll(() => {
   shutdownCookParsePool();
+});
+
+/**
+ * EXACTLY TWO IMPORTERS OF `withCookTokens` (Phase 27 W4, T5).
+ *
+ * `withCookTokens` has no authorization of its own — HOUSE-06 is enforced entirely
+ * by its CALL-SITE POSITION, strictly after the access gate
+ * (`cook-tokens-isolation.test.ts` proves that behaviourally). A THIRD importer
+ * would be a new door onto `cookTokens` this suite has never scoped, so the count
+ * is pinned the same way `pool.test.ts:1330` pins the WASM's one importer — walked
+ * over the real tree, not trusted to review.
+ */
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
+
+function repoSourceFiles(): string[] {
+  const found: string[] = [];
+
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir)) {
+      if (entry === "node_modules" || entry === "dist" || entry === ".turbo") continue;
+      if (entry === ".cache" || entry === ".next" || entry === "__tests__") continue;
+
+      const full = join(dir, entry);
+
+      if (statSync(full).isDirectory()) {
+        walk(full);
+        continue;
+      }
+
+      if (!/\.tsx?$/.test(entry) || /\.(test|spec)\.tsx?$/.test(entry)) continue;
+
+      found.push(full);
+    }
+  };
+
+  walk(join(repoRoot, "packages"));
+  walk(join(repoRoot, "apps"));
+
+  return found;
+}
+
+describe("`withCookTokens` is imported by exactly TWO source files (Phase 27 W4, D-27-W4-01/T-27-W4-01)", () => {
+  it("names both importers, so a third door onto cookTokens cannot appear silently", () => {
+    const importers = repoSourceFiles()
+      .filter((file) => /from\s+["']@norish\/shared-server\/cooklang\/attach-tokens["']/.test(readFileSync(file, "utf8")))
+      .map((file) => relative(repoRoot, file))
+      .sort();
+
+    expect(importers).toEqual([
+      "packages/trpc/src/routers/recipes/helpers.ts",
+      "packages/trpc/src/routers/recipes/recipes.ts",
+    ]);
+  });
+
+  it("both importers call `withCookTokens(` strictly AFTER their own access-gate comment", () => {
+    for (const relPath of [
+      "packages/trpc/src/routers/recipes/helpers.ts",
+      "packages/trpc/src/routers/recipes/recipes.ts",
+    ]) {
+      const lines = readFileSync(join(repoRoot, relPath), "utf8").split("\n");
+      const gateLine = lines.findIndex((line) => line.includes("HOUSE-06"));
+      const callLine = lines.findIndex((line) => line.includes("withCookTokens("));
+
+      expect(gateLine).toBeGreaterThanOrEqual(0);
+      expect(callLine).toBeGreaterThan(gateLine);
+    }
+  });
 });
