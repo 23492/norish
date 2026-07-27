@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { genericOAuth } from "better-auth/plugins";
 
@@ -16,6 +16,27 @@ import { genericOAuth } from "better-auth/plugins";
 // precedence in the callback. These tests lock in that shape and assert the config passes the
 // sign-in validity predicate AND that the authorize URL is api.workos.com (NOT *.authkit.app,
 // the WRONG Connect surface that produced "application not found").
+//
+// THE SUBJECT IMPORT IS HOISTED TO FILE SCOPE (27-04-FIX-GATES §FAIL-2, the third instance
+// of the G1/G4 disease D-27-W3B-03a: charging module transform/evaluation to the per-test
+// wall budget). Measured cold import of "@norish/auth" behind these same mocks: ~700 ms even
+// idle; under contention the FIRST test's `await import()` blew past the file's 5 000 ms
+// default `testTimeout` (`Test timed out in 5000ms`, measured 5 660 ms one run, 7 720 ms /
+// 5 027 ms for the first two tests under 20 manufactured spinners — see FIX-GATES for the
+// full repro). Nothing in this file asserts anything about time, so a bigger timeout would
+// only have picked a different point on the same curve. The import now runs once, during file
+// COLLECTION, which neither `testTimeout` nor `hookTimeout` bounds.
+//
+// `vi.resetModules()` was checked, not assumed, before being dropped (the trap G4 warned
+// about — verifying "no isolation lost" for one file does not prove it for the next).
+// `buildWorkOSProviders` (auth.ts) calls `getCachedWorkOSProvider()` INLINE, at call time,
+// on every invocation — it memoizes nothing at module scope. The mocked
+// `getCachedWorkOSProvider` here is `() => workosCacheValue`, a closure over this file's own
+// module-scoped `let`, so it always reads whatever `workosCacheValue` was most recently set
+// to, regardless of when `@norish/auth` was imported relative to that assignment. A single
+// hoisted import therefore observes each test's own `workosCacheValue` correctly with no
+// re-import needed. The real per-test isolation was never module identity — it is
+// `beforeEach`'s `vi.clearAllMocks()` + fresh `workosCacheValue = null`, both kept verbatim.
 
 let workosCacheValue:
   | { clientId?: string; apiKey?: string; isOverridden?: boolean }
@@ -58,6 +79,8 @@ vi.mock("@norish/shared-server/logger", () => ({
   createLogger: () => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() }),
 }));
 
+const { buildWorkOSProviders } = await import("@norish/auth");
+
 const CLIENT_ID = "client_123";
 const API_KEY = "sk_test_abc";
 const AUTHORIZE_URL = "https://api.workos.com/user_management/authorize";
@@ -69,28 +92,19 @@ describe("buildWorkOSProviders", () => {
     workosCacheValue = null;
   });
 
-  afterEach(() => {
-    vi.resetModules();
-  });
-
   it("returns no provider when WorkOS is not configured", async () => {
     workosCacheValue = null;
-    const { buildWorkOSProviders } = await import("@norish/auth");
 
     expect(buildWorkOSProviders()).toEqual([]);
   });
 
   it("returns no provider when only the clientId is set (no apiKey)", async () => {
     workosCacheValue = { clientId: CLIENT_ID, apiKey: undefined };
-    const { buildWorkOSProviders } = await import("@norish/auth");
-
     expect(buildWorkOSProviders()).toEqual([]);
   });
 
   it("builds a first-party AuthKit genericOAuth provider (api.workos.com authorize + tokenUrl placeholder)", async () => {
     workosCacheValue = { clientId: CLIENT_ID, apiKey: API_KEY };
-    const { buildWorkOSProviders } = await import("@norish/auth");
-
     const providers = buildWorkOSProviders();
 
     expect(providers).toHaveLength(1);
@@ -120,8 +134,6 @@ describe("buildWorkOSProviders", () => {
 
   it("getToken exchanges the code at the WorkOS authenticate endpoint and preserves the raw response", async () => {
     workosCacheValue = { clientId: CLIENT_ID, apiKey: API_KEY };
-    const { buildWorkOSProviders } = await import("@norish/auth");
-
     const workosResponse = {
       access_token: "at_xyz",
       refresh_token: "rt_xyz",
@@ -161,8 +173,6 @@ describe("buildWorkOSProviders", () => {
 
   it("getToken throws when the WorkOS authenticate call fails", async () => {
     workosCacheValue = { clientId: CLIENT_ID, apiKey: API_KEY };
-    const { buildWorkOSProviders } = await import("@norish/auth");
-
     const fetchMock = vi.fn(async () => ({
       ok: false,
       status: 401,
@@ -183,8 +193,6 @@ describe("buildWorkOSProviders", () => {
 
   it("getUserInfo maps the WorkOS user profile to norish user fields", async () => {
     workosCacheValue = { clientId: CLIENT_ID, apiKey: API_KEY };
-    const { buildWorkOSProviders } = await import("@norish/auth");
-
     const user = await buildWorkOSProviders()[0].getUserInfo({
       raw: {
         user: {
@@ -209,8 +217,6 @@ describe("buildWorkOSProviders", () => {
 
   it("getUserInfo falls back to the email for the name and returns null when no user is present", async () => {
     workosCacheValue = { clientId: CLIENT_ID, apiKey: API_KEY };
-    const { buildWorkOSProviders } = await import("@norish/auth");
-
     const provider = buildWorkOSProviders()[0];
 
     // No names -> name falls back to email; unverified email -> emailVerified false; no picture -> undefined image.
@@ -232,8 +238,6 @@ describe("buildWorkOSProviders", () => {
 
   it("produces a config better-auth accepts at /sign-in/oauth2 with an api.workos.com authorize URL (no INVALID_OAUTH_CONFIGURATION, not the Connect surface)", async () => {
     workosCacheValue = { clientId: CLIENT_ID, apiKey: API_KEY };
-    const { buildWorkOSProviders } = await import("@norish/auth");
-
     const config = buildWorkOSProviders();
     const plugin = genericOAuth({ config });
     const stored = plugin.options.config.find((c: any) => c.providerId === "workos");
