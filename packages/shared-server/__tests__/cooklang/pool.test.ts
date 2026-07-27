@@ -416,18 +416,87 @@ describe("a real recipe round-trips through the process boundary", () => {
     }
   );
 
-  it("each committed fixture completes in under 50 ms once the pool is warm", async () => {
+  /**
+   * WHY THIS IS NOT A WALL-CLOCK 50 ms ANY MORE (27-04-FIX-GATES §FAIL-1). It had
+   * the exact D-27-W3B-03a disease R2 (below) was rewritten around, sitting 14
+   * lines above that very docblock: `expect(performance.now() - startedAt).
+   * toBeLessThan(50)` failed at **50.03 ms** in the full-suite run under host
+   * contention, green 3/3 in isolation and green 3/3 under 8 spinners in
+   * isolation — the signature of a wall-clock instrument, not a real regression.
+   * Raising 50 to 100 would have been the same retune this phase already
+   * rejected once; the property this test protects — a WARM pool costs the
+   * SAME (near-zero) marginal work for every committed fixture, i.e. no
+   * fixture-specific slow path and no per-fixture respawn — has nothing to do
+   * with wall clock and everything to do with (a) the pool staying warm and
+   * (b) CPU per round trip.
+   *
+   * (a) is asserted directly and non-vacuously: the pool's live pid SET is
+   * captured before the loop and compared for referential equality after —
+   * a respawn (the exact regression R2's docblock cites: "making release()
+   * retire its child... turns this test RED") changes that set, with no
+   * timing involved at all.
+   *
+   * (b) is CPU per round trip, in both processes, mirroring R2's instrument —
+   * with two DIFFERENT ceilings, because the two axes have measurably
+   * different noise floors on THIS box:
+   *
+   *  - `childCpuMs` (the child's own `/proc/<pid>/schedstat` reading, the same
+   *    number the production gate decides with) is rock-stable: 0.85-1.66 ms
+   *    across 8 full-package runs, isolated and under real vitest full-suite
+   *    worker contention alike — this is §13.1's "CPU did not move" reproduced
+   *    on the read path. 10 ms is ~6-12x that observed worst.
+   *  - `parentCpuMs` (`process.cpuUsage()` on the TEST RUNNER's own process) is
+   *    the noisier of the two, because under a genuine full-package run this
+   *    process is itself one of several vitest workers sharing 4 cores, and
+   *    V8's GC bookkeeping on a contended box does show up as this process's
+   *    own consumed ticks. Measured worst observed across 8 full-`pnpm test`
+   *    runs (not isolated — the exact condition that broke the old wall-clock
+   *    version): 0.85-14.63 ms. A single-shot 10 ms ceiling (no averaging, unlike
+   *    R2's 100-iteration mean) failed once at 10.036 ms during calibration — a
+   *    real, reproduced false refusal, not a hypothetical one. 50 ms is ~3.4x
+   *    that observed worst, matching this repo's own headroom convention
+   *    (`cookParseRssMb`'s 2.67x, `cookParseCpuMs`'s ~3x).
+   *
+   * A lost-pool regression (a fresh 200-243 ms respawn) still blows through
+   * both ceilings by 4-20x, and the pid-identity check above catches that
+   * exact regression directly and unconditionally regardless of either number.
+   */
+  it("each committed fixture costs bounded CPU on a warm, UNCHANGED pool", async () => {
     // Warm first: the ~200 ms lazy spawn is a one-off and is not what this measures.
     await parseInPool(REALISTIC, units);
 
+    const pidsBeforeLoop = cookParsePoolPidsForTests();
+    const [pid] = pidsBeforeLoop;
+
+    expect(typeof pid).toBe("number");
+
     for (const fixture of fixtures) {
       const source = structuredToCooklang(fixture.recipe, units);
-      const startedAt = performance.now();
+      const childCpuBefore = cookParseChildCpuMsForTests(pid!);
+      const parentCpuBefore = process.cpuUsage();
 
       await parseInPool(source, units);
 
-      expect(performance.now() - startedAt).toBeLessThan(50);
+      const parentCpuDelta = process.cpuUsage(parentCpuBefore);
+      const parentCpuMs = (parentCpuDelta.user + parentCpuDelta.system) / 1_000;
+      const childCpuAfter = cookParseChildCpuMsForTests(pid!);
+      const childCpuMs =
+        childCpuBefore === null || childCpuAfter === null ? null : childCpuAfter - childCpuBefore;
+
+      // THE WORK, on the axis that measures the test runner's own process —
+      // noisier under real multi-worker contention than the child's schedstat
+      // reading below, so it gets more headroom (see the docblock above).
+      expect(parentCpuMs).toBeLessThan(50);
+      // `null` only on a host without `/proc/<pid>/schedstat`, which is not
+      // production. This is the SAME number the production gate decides
+      // with, and it is the axis §13.1 measured flat under contention.
+      expect(childCpuMs ?? 0).toBeLessThan(10);
     }
+
+    // THE POOL STAYED WARM: no fixture triggered a respawn (a real regression —
+    // e.g. `release()` retiring its child — changes this set; a wall-clock
+    // ceiling could only ever infer that indirectly and inconsistently).
+    expect(cookParsePoolPidsForTests()).toEqual(pidsBeforeLoop);
   });
 
   /**
