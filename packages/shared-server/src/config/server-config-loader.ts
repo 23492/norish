@@ -26,13 +26,8 @@ import defaultContentIndicators from "@norish/config/content-indicators.default.
 import { SERVER_CONFIG } from "@norish/config/env-config-server";
 import defaultRecurrenceConfig from "@norish/config/recurrence-config.default.json";
 import defaultTimerKeywords from "@norish/config/timer-keywords.default.json";
-import defaultUnits from "@norish/config/units.default.json";
-import {
-  DEFAULT_RECIPE_PERMISSION_POLICY,
-  ServerConfigKeys,
-  UnitsConfigSchema,
-  UnitsMapSchema,
-} from "@norish/config/zod/server-config";
+import { resolveUnitsMap } from "@norish/config/units-config";
+import { DEFAULT_RECIPE_PERMISSION_POLICY, ServerConfigKeys } from "@norish/config/zod/server-config";
 import { getConfig } from "@norish/db/repositories/server-config";
 import { DEFAULT_LOCALE } from "@norish/i18n/config";
 import { getBundledLocales } from "@norish/i18n/locales";
@@ -56,28 +51,7 @@ export async function isRegistrationEnabled(): Promise<boolean> {
 export async function getUnits(): Promise<UnitsMap> {
   const value = await getConfig<unknown>(ServerConfigKeys.UNITS);
 
-  const wrapped = UnitsConfigSchema.safeParse(value);
-
-  if (wrapped.success) {
-    return wrapped.data.units;
-  }
-
-  const legacyWrapped =
-    typeof value === "object" && value !== null && "units" in value && "isOverwritten" in value
-      ? UnitsMapSchema.safeParse((value as { units: unknown }).units)
-      : null;
-
-  if (legacyWrapped?.success) {
-    return legacyWrapped.data;
-  }
-
-  const legacy = UnitsMapSchema.safeParse(value);
-
-  if (legacy.success) {
-    return legacy.data;
-  }
-
-  return defaultUnits as UnitsMap;
+  return resolveUnitsMap(value);
 }
 
 /**

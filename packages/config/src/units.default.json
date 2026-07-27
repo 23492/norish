@@ -4388,5 +4388,217 @@
       "centimètre",
       "centimètres"
     ]
+  },
+  "kilogram": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "kg"
+      },
+      {
+        "locale": "de",
+        "name": "kg"
+      },
+      {
+        "locale": "nl",
+        "name": "kg"
+      },
+      {
+        "locale": "ko",
+        "name": "kg"
+      },
+      {
+        "locale": "da",
+        "name": "kg"
+      },
+      {
+        "locale": "it",
+        "name": "kg"
+      },
+      {
+        "locale": "fr",
+        "name": "kg"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "kilograms"
+      },
+      {
+        "locale": "de",
+        "name": "kg"
+      },
+      {
+        "locale": "nl",
+        "name": "kilogram"
+      },
+      {
+        "locale": "ko",
+        "name": "킬로그램"
+      },
+      {
+        "locale": "da",
+        "name": "kg"
+      },
+      {
+        "locale": "it",
+        "name": "kg"
+      },
+      {
+        "locale": "fr",
+        "name": "kilogrammes"
+      }
+    ],
+    "alternates": [
+      "kg",
+      "kg.",
+      "kilo",
+      "kilos",
+      "kilogram",
+      "kilograms",
+      "kilogramm",
+      "kilogramme",
+      "kilogrammes",
+      "킬로그램",
+      "chilogrammo",
+      "chilogrammi"
+    ]
+  },
+  "fluid_ounce": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "fl oz"
+      },
+      {
+        "locale": "de",
+        "name": "fl oz"
+      },
+      {
+        "locale": "nl",
+        "name": "fl oz"
+      },
+      {
+        "locale": "ko",
+        "name": "액량 온스"
+      },
+      {
+        "locale": "da",
+        "name": "fl oz"
+      },
+      {
+        "locale": "it",
+        "name": "fl oz"
+      },
+      {
+        "locale": "fr",
+        "name": "fl oz"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "fluid ounces"
+      },
+      {
+        "locale": "de",
+        "name": "fl oz"
+      },
+      {
+        "locale": "nl",
+        "name": "fl oz"
+      },
+      {
+        "locale": "ko",
+        "name": "액량 온스"
+      },
+      {
+        "locale": "da",
+        "name": "fl oz"
+      },
+      {
+        "locale": "it",
+        "name": "fl oz"
+      },
+      {
+        "locale": "fr",
+        "name": "fl oz"
+      }
+    ],
+    "alternates": [
+      "fl oz",
+      "fl. oz.",
+      "fl.oz.",
+      "floz",
+      "fluid ounce",
+      "fluid ounces",
+      "fluid_ounce",
+      "vloeibare ounce",
+      "액량 온스"
+    ]
+  },
+  "pint": {
+    "short": [
+      {
+        "locale": "en",
+        "name": "pt"
+      },
+      {
+        "locale": "de",
+        "name": "pt"
+      },
+      {
+        "locale": "nl",
+        "name": "pt"
+      },
+      {
+        "locale": "ko",
+        "name": "파인트"
+      },
+      {
+        "locale": "da",
+        "name": "pt"
+      },
+      {
+        "locale": "it",
+        "name": "pt"
+      },
+      {
+        "locale": "fr",
+        "name": "pt"
+      }
+    ],
+    "plural": [
+      {
+        "locale": "en",
+        "name": "pints"
+      },
+      {
+        "locale": "de",
+        "name": "pt"
+      },
+      {
+        "locale": "nl",
+        "name": "pint"
+      },
+      {
+        "locale": "ko",
+        "name": "파인트"
+      },
+      {
+        "locale": "da",
+        "name": "pt"
+      },
+      {
+        "locale": "it",
+        "name": "pt"
+      },
+      {
+        "locale": "fr",
+        "name": "pintes"
+      }
+    ],
+    "alternates": ["pint", "pints", "pt", "pt.", "파인트", "pinta", "pinte"]
   }
 }

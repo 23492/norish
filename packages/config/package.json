@@ -8,6 +8,7 @@
     "./crypto": "./src/crypto.ts",
     "./env-config-server": "./src/env-config-server.ts",
     "./zod/server-config": "./src/zod/server-config.ts",
+    "./units-config": "./src/units-config.ts",
     "./content-indicators.default.json": "./src/content-indicators.default.json",
     "./recurrence-config.default.json": "./src/recurrence-config.default.json",
     "./timer-keywords.default.json": "./src/timer-keywords.default.json",

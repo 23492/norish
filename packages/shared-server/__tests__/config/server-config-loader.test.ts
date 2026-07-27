@@ -239,73 +239,61 @@ describe("getUnits", () => {
     vi.resetModules();
   });
 
-  it("returns wrapped units from config", async () => {
+  // D-27-W5P-05: the stored map wins per key, but a key present only in the
+  // FILE (e.g. a canonical unit added after this install was seeded) still
+  // falls through — `resolveUnitsMap` merges the file defaults UNDER the
+  // stored map instead of the old wrapped-only-wins-and-nothing-else-appears
+  // behavior. So a stored map with exactly one key (`cup`) now returns every
+  // other unit from the file, with `cup` overridden by the stored value.
+  it("returns wrapped units from config, merged with file defaults", async () => {
+    const storedCup = {
+      short: [{ locale: "en", name: "cup" }],
+      plural: [{ locale: "en", name: "cups" }],
+      alternates: ["cups"],
+    };
+
     mockGetConfig.mockResolvedValue({
-      units: {
-        cup: {
-          short: [{ locale: "en", name: "cup" }],
-          plural: [{ locale: "en", name: "cups" }],
-          alternates: ["cups"],
-        },
-      },
+      units: { cup: storedCup },
       isOverridden: true,
     });
 
     const { getUnits } = await import("@norish/shared-server/config/server-config-loader");
     const result = await getUnits();
 
-    expect(result).toEqual({
-      cup: {
-        short: [{ locale: "en", name: "cup" }],
-        plural: [{ locale: "en", name: "cups" }],
-        alternates: ["cups"],
-      },
-    });
+    expect(result).toEqual({ ...defaultUnits, cup: storedCup });
   });
 
-  it("returns legacy flat units map from config", async () => {
-    mockGetConfig.mockResolvedValue({
-      cup: {
-        short: [{ locale: "en", name: "cup" }],
-        plural: [{ locale: "en", name: "cups" }],
-        alternates: ["cups"],
-      },
-    });
+  it("returns legacy flat units map from config, merged with file defaults", async () => {
+    const storedCup = {
+      short: [{ locale: "en", name: "cup" }],
+      plural: [{ locale: "en", name: "cups" }],
+      alternates: ["cups"],
+    };
+
+    mockGetConfig.mockResolvedValue({ cup: storedCup });
 
     const { getUnits } = await import("@norish/shared-server/config/server-config-loader");
     const result = await getUnits();
 
-    expect(result).toEqual({
-      cup: {
-        short: [{ locale: "en", name: "cup" }],
-        plural: [{ locale: "en", name: "cups" }],
-        alternates: ["cups"],
-      },
-    });
+    expect(result).toEqual({ ...defaultUnits, cup: storedCup });
   });
 
-  it("returns legacy wrapped units map from config", async () => {
+  it("returns legacy wrapped units map from config, merged with file defaults", async () => {
+    const storedCup = {
+      short: [{ locale: "en", name: "cup" }],
+      plural: [{ locale: "en", name: "cups" }],
+      alternates: ["cups"],
+    };
+
     mockGetConfig.mockResolvedValue({
-      units: {
-        cup: {
-          short: [{ locale: "en", name: "cup" }],
-          plural: [{ locale: "en", name: "cups" }],
-          alternates: ["cups"],
-        },
-      },
+      units: { cup: storedCup },
       isOverwritten: true,
     });
 
     const { getUnits } = await import("@norish/shared-server/config/server-config-loader");
     const result = await getUnits();
 
-    expect(result).toEqual({
-      cup: {
-        short: [{ locale: "en", name: "cup" }],
-        plural: [{ locale: "en", name: "cups" }],
-        alternates: ["cups"],
-      },
-    });
+    expect(result).toEqual({ ...defaultUnits, cup: storedCup });
   });
 
   it("falls back to default units when config is missing", async () => {
