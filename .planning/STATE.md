@@ -22,7 +22,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-12)
 
 **Core value:** Reliable recipe import & management for Kiran's groups, incl. bot-protected sources, with no extra setup vs upstream.
-**Current focus (2026-07-27):** **Phase 27 (Cooklang) W0–W4 remain the 5 of 7 main waves DEPLOYED to live; the W5-PREP prerequisite work (plan `27-06`) is now ALSO deployed.** Live `norish-app` runs image **`sha256:e216d3303bc23e1953792ddc78ca0ccfc4ec37d7bc77b3a564f428fd0c3d71df`** (previous `sha256:4427ffbf2ecf8e7972852dcfe5db770359f774d051a12758ba4647f6e1ede822`), rollback tag `norish:rollback-20260727-pre-27-06`, DB unchanged at migration **42** (W5-PREP shipped no `.sql`; confirmed no `0042*` leaked into the image — W5's backfill is still gated). Health PASS at cutover (0 restarts, migration count still 42, both public endpoints green on the stack's actually-exposed port **3000** — port 80 is not exposed, and a health check phrased without a port will always refuse, which false-alarmed one verification pass this session), zero `level>=50` log lines, memory settled **~372–374.8 MiB** (within 27-04's historical 374–395 MiB range). Backup verified restorable at **231 TOC objects**. W5-PREP's code contribution: `kilogram`/`fluid_ounce`/`pint` canonical units, a single-site `roundQuantity` rounding rule, and a bilingual (English+Dutch) density-table alias pass — closing 2 of W5's 3 hard prerequisites (D-27-W3-07's flagship regression, `250 g flour` → `8.81849 ounce`, is now `2 cup`). **W5 (the live-data backfill, migration `0042`, plan `27-07`) is IN PROGRESS: Kiran signed off 2026-07-27, and Tasks 1–3 (the DB write half, the seeder/runner, migration `0042` + boot wiring) are now CODE-COMPLETE on `main` — commits `0d770c65`/`0af791f8`/`e56bad7f`.** Task 4 (the live run itself) is a separate `checkpoint:human-verify` gated task, deliberately NOT executed by the T1-3 executor, and remains the only outstanding step: verified-restorable `pg_dump` → `docker:build` → deploy → PRE/POST postcheck diff → boot log's single "Cooklang backfill complete" line. See the 2026-07-27 session-log top entry (T1-3) and the entry beneath it (W5-PREP deploy) for full detail, incl. the two-independent-agent confirmation and the port-80 false-alarm note.
+**Current focus (2026-07-27):** **Phase 27 (Cooklang) W0–W4 remain the 5 of 7 main waves DEPLOYED to live; the W5-PREP prerequisite work (plan `27-06`) is now ALSO deployed.** Live `norish-app` runs image **`sha256:e216d3303bc23e1953792ddc78ca0ccfc4ec37d7bc77b3a564f428fd0c3d71df`** (previous `sha256:4427ffbf2ecf8e7972852dcfe5db770359f774d051a12758ba4647f6e1ede822`), rollback tag `norish:rollback-20260727-pre-27-06`, DB unchanged at migration **42** (W5-PREP shipped no `.sql`; confirmed no `0042*` leaked into the image — W5's backfill is still gated). Health PASS at cutover (0 restarts, migration count still 42, both public endpoints green on the stack's actually-exposed port **3000** — port 80 is not exposed, and a health check phrased without a port will always refuse, which false-alarmed one verification pass this session), zero `level>=50` log lines, memory settled **~372–374.8 MiB** (within 27-04's historical 374–395 MiB range). Backup verified restorable at **231 TOC objects**. W5-PREP's code contribution: `kilogram`/`fluid_ounce`/`pint` canonical units, a single-site `roundQuantity` rounding rule, and a bilingual (English+Dutch) density-table alias pass — closing 2 of W5's 3 hard prerequisites (D-27-W3-07's flagship regression, `250 g flour` → `8.81849 ounce`, is now `2 cup`). **W5 (the live-data backfill, migration `0042`, plan `27-07`) is IN PROGRESS: Kiran signed off 2026-07-27, and Tasks 1–3 (the DB write half, the seeder/runner, migration `0042` + boot wiring) are now CODE-COMPLETE on `main` — commits `0d770c65`/`0af791f8`/`e56bad7f`.** An independent verifier then reviewed Tasks 1-3 before Task 4 and returned a **NO-GO** with 3 BLOCKER gaps (`27-07-VERIFICATION.md`): G1 (`checks/0042-postcheck.sql` measured the wrong grocery-link column, making its safety check unsatisfiable), G2 (no guard against silent `steps`/`step_images` loss — 3 real legacy-prose shapes collapse the derived step count), G3 (`backfillCookSource()` could still throw and cost the boot). **All three are now CLOSED** by a fix pass — commits `ab996d47` (G1), `8d056c9c` (G3), `17d19abd` (G2) — each with independent adversarial proof (RED-without-fix, byte-identical revert), all hard gates re-verified green at or above baseline (`@norish/api` 436, `@norish/db` 203, `@norish/shared` 564 unchanged). Task 4 (the live run itself) is STILL a separate `checkpoint:human-verify` gated task, deliberately NOT executed by either the T1-3 executor or the fix-pass executor, and remains the only outstanding step: verified-restorable `pg_dump` → `docker:build` → deploy → PRE/POST postcheck diff → boot log's single "Cooklang backfill complete" line. Two data-quality findings (appended ingredient names in step prose; opposite-system amount rewriting) were explicitly ACCEPTED by Kiran as designed (Architecture §8) and are not blockers. See the 2026-07-27 session-log top entry (the fix pass), the entry beneath it (T1-3) and the one beneath that (W5-PREP deploy) for full detail.
 
 **Historical focus (2026-07-24):** **This session shipped 5 phases to live in sequence, then designed + planned + de-risked + started building Phase 27.** **Live to date, in order:** Phase 21 (UI/media polish, `9659fecfc478`) → 23 (cookbook move, `6106a50f6ad0`) → 24 (bulk import + progress, `7fed8a7ba89a`) → 25 (household shopping list + aisles, `8895dec71f5f`, migration `0040`, DB 40 → 41) → 26 (dinner suggester, `082924a3d0a5`, migration 41 → 41 no-op). Live `norish-app` now runs image **`082924a3d0a5`**, DB at migration 41, `main == origin/main` (tip `a4f9c2a5`). **Phase 27 (Cooklang) is now UNBLOCKED and IN PROGRESS as a full-native rebuild** — `.cook` becomes the single source of truth, `steps`/`recipe_ingredients` demote to a derived projection, the heuristic `SmartInstruction`/`applyIngredientLinkMarkup` layer is deleted (no permanent fallback), units = OSS `convert` (MIT) + a USDA density table (decisions in `27-DECISIONS.md`, plan `f638424e`, extraction prompt validated 38/38 against real DeepSeek `e54f9d79`). **W0 (deterministic units subsystem) is CODE-COMPLETE + pushed `a4f9c2a5`**, gates green; **W1 is next**; **W5 (the live-data backfill, migration `0042`) MUST PAUSE for Kiran's explicit sign-off** before running, per the Phase-22.4/25 migration discipline. **Outstanding for the next session:** (1) Phase 27 W1→W6 remain, W5 gated on sign-off; (2) W0 follow-ups before later waves — add `kilogram`/`fl oz`/`pint` canonical unit IDs (W2), expand the ~29-ingredient USDA density table before W5 (measure the flag rate on out-of-table volume-authored ingredients first); (3) the Camoufox scrape leg is unproven — the E2E harness fell back to plain fetch, needs a run from inside the docker network against a bot-walled AH.nl recipe; (4) ~~live DeepSeek extraction is still unconfigured (`AI_API_KEY` empty)~~ **RESOLVED / CORRECTED 2026-07-26: live's `ai_config` has held a DeepSeek key since 2026-06-15 (set via the Admin UI) and it is now env-backed — `AI_API_KEY` in `/opt/norish/.env`, untracked, `chmod 600`, verified present. So AI extraction IS live-configured and W3 will NOT be inert once deployed**; (5) rotate the DeepSeek key pasted into this session's transcript (confirmed NOT in the git tree, only in the gitignored harness `.env`); (6) the vault milestone-log promotion lag — Phase 21–26 deploy captures are staged in `_raw/captures/` awaiting the nightly cron, `norish-feature-roadmap` still shows 2026-07-21. See the 2026-07-24 session-log top bullet for the consolidated hand-off, and the individual deploy/W0 bullets beneath it for full detail.
 
@@ -31,6 +31,56 @@ See: .planning/PROJECT.md (updated 2026-06-12)
 **Historical focus (superseded — kept for context):** Phase 4 — Recipe sharing (SHARE-01 + RATE-01) both code-complete; Phases 2/3/5/6 also code-complete, human-verify pending.
 
 ## Session log — 2026-07-27
+
+- **✅ PHASE 27 WAVE W5 (plan `27-07`) POST-VERIFICATION FIX PASS: ALL 3 BLOCKER GAPS
+  CLOSED, NOT YET DEPLOYED.** An independent verifier (`27-07-VERIFICATION.md`,
+  goal-backward, FORCE stance) reviewed Tasks 1-3 before Task 4 and returned **NO-GO**
+  with 3 BLOCKER gaps out of 9 must-have truths. This fix pass closes all three, each
+  with its own commit and independent adversarial proof:
+  - **G1** — `checks/0042-postcheck.sql`'s PRE/POST sections selected `groceries.id`
+    under the alias `recipe_ingredient_id_at_risk` instead of
+    `groceries.recipe_ingredient_id` — a different uuid space, so the POST anti-join
+    (joined against `recipe_ingredients.id`) returned every row as "missing"
+    regardless of whether anything actually broke. Fixed to select the correct
+    column; proven by constructing the real orphan case against Postgres and showing
+    the corrected anti-join returns exactly that row. `ab996d47`.
+  - **G2** — the grocery-link guard was real, but there was no equivalent guard for
+    `steps`: `syncProjectedStepsTx` tail-trims surplus rows positionally, and
+    `step_images.step_id` is `ON DELETE CASCADE`. Driving the real
+    seeder→serializer→WASM-parser→`computeCookProjection` chain found three legacy
+    step shapes that silently collapse the derived step count (a trailing `#`
+    heading with no body, two consecutive headings losing the first one's text, a
+    whitespace-only step). Added `StepWouldBeLostError` in the same
+    snapshot-before/derive/recheck-after/throw-and-rollback shape as the grocery
+    guard, on the backfill path only (`syncProjectedStepsTx` itself untouched).
+    Proven at two layers: db-level tests with hand-built collapsed `cookTokens`
+    proving the ABORT + rollback (steps and `step_images` intact), and api-level
+    tests driving the REAL chain proving the TRIGGER (derived count < native count).
+    A 4th adversarial weakening (the new guard) plus re-runs of the original 3 (W5-W1
+    grocery throw, W5-W2 sticky-OR, W5-W3 isolation `eq`) all turned RED and reverted
+    byte-identical. `17d19abd`.
+  - **G3** — `getUnits()`/`listRecipeIdsWithoutCookSource()` sat outside the
+    per-recipe try/catch, so `backfillCookSource()` could itself reject —
+    contradicting R4, the "NEVER THROWS" docstring, and the unguarded call site
+    (`main().catch(() => process.exit(1))`). Fixed both ends: the setup calls now run
+    inside the same guard (returning zeroed counts, logging `reason: "setup-failed"`
+    on failure), and the call site in `apps/web/server/index.ts` is now wrapped in
+    its own try/catch as defense in depth. Proven with tests making each setup call
+    reject and asserting the function still resolves. `8d056c9c`.
+
+  **Gates re-verified green, at or above baseline:** `@norish/api` test **436** (430
+  baseline + 6), `@norish/db` test **203** (198 baseline + 5), `@norish/shared` test
+  **564** (unchanged), `pnpm typecheck` **17/17**, real `tsc --noEmit` in `packages/api`
+  clean, lint 0 errors at baseline warnings (`db` 62 / `api` 97 / `shared` 45),
+  `check-workspace-imports.mjs` EXIT 0, `build:server` EXIT 0, `git diff pnpm-lock.yaml`
+  EMPTY, `deps:cycles` only the pre-existing documented cycle. **Task 4 (THE LIVE RUN)
+  was NOT executed in this fix pass either** — no docker build, no deploy, no live
+  stack or live DB access; it remains a separate deploy agent's job. Two data-quality
+  findings the verifier also raised (appended ingredient names in step prose;
+  opposite-system amount rewriting by `deriveConversion`) were explicitly ACCEPTED by
+  Kiran as designed (Architecture §8, D-27-W5-07) and are recorded, not fixed, not
+  reopened. Full record: `.planning/phases/27-cooklang/27-07-SUMMARY.md` (Post-
+  Verification Fix Pass section) and `.planning/phases/27-cooklang/27-07-VERIFICATION.md`.
 
 - **✅ PHASE 27 WAVE W5 (plan `27-07`) TASKS 1–3 ARE CODE-COMPLETE, NOT YET DEPLOYED.**
   Executed by a sequential executor on `main` (no worktree), commits in landing order:

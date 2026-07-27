@@ -459,6 +459,29 @@ Canonical refs: `.planning/phases/26-whats-for-dinner-suggester/` (CONTEXT, 26-0
     recorded:** the D-27-W3-07 measurement now reports **15 of 35** ingredient unit
     differences (was 18/35 at W3) — non-zero on every fixture, so dual-system extraction
     stays KEPT; the switch decision is NOT reopened here. Summary: `27-07-SUMMARY.md`.
+  - **UPDATE 2026-07-27 (later still): 27-07 POST-VERIFICATION FIX PASS — ALL 3 BLOCKER
+    GAPS CLOSED, still NOT deployed.** An independent verifier reviewed Tasks 1-3 before
+    Task 4 and returned NO-GO with 3 BLOCKER gaps (`27-07-VERIFICATION.md`). `ab996d47`
+    (G1 — `checks/0042-postcheck.sql` selected `groceries.id` instead of
+    `groceries.recipe_ingredient_id` under the `recipe_ingredient_id_at_risk` alias,
+    making the POST anti-join's "zero rows" safety check unsatisfiable; fixed, proven by
+    constructing the real orphan case against Postgres) → `8d056c9c` (G3 —
+    `backfillCookSource()` could still reject because `getUnits()`/
+    `listRecipeIdsWithoutCookSource()` sat outside the per-recipe try/catch, contradicting
+    R4 and the unguarded `main().catch(process.exit(1))` call site; both ends fixed) →
+    `17d19abd` (G2 — no guard against silent `steps`/`step_images` loss: 3 real legacy step
+    shapes — a trailing `#` heading, two consecutive headings, a whitespace-only step —
+    collapse the derived step count past `syncProjectedStepsTx`'s positional tail-trim,
+    cascading `step_images`; added `StepWouldBeLostError` in the same snapshot/derive/
+    recheck/throw-and-rollback shape as the grocery-link guard, proven both by a db-level
+    rollback test per shape and an api-level test driving the REAL chain to show the
+    collapse is genuine). Gates re-verified: `@norish/db` **203** (198 + 5), `@norish/api`
+    **436** (430 + 6), `@norish/shared` **564** (unchanged); all 4 adversarial weakenings
+    (the 3 original + 1 new) turned RED and reverted byte-identical. Two data-quality
+    findings the verifier also raised (appended ingredient names in step prose;
+    opposite-system amount rewriting) were explicitly ACCEPTED by Kiran as designed
+    (Architecture §8) and are not reopened. **Task 4 STILL not executed** — nothing
+    touched live. Summary: `27-07-SUMMARY.md` (Post-Verification Fix Pass section).
   - **W5 Task 4 / W6: NOT STARTED.** **Task 4** = the live run itself — verified-restorable
     `pg_dump` → `docker:build` → deploy → PRE/POST postcheck diff → the boot log's single
     "Cooklang backfill complete" line — owned by a separate deploy agent, not the T1-3
