@@ -24,6 +24,7 @@ export function CookingModeTabs({
   recipeSystemUsed,
   showIngredientsTitle,
   steps,
+  cookSteps,
   highlightedIngredientKey,
   ingredientListRef,
   onClose,
@@ -33,9 +34,13 @@ export function CookingModeTabs({
   onStepChange,
   onTabChange,
 }: CookingModeTabsProps) {
+  // D-27-W4-01: the heuristic must never run on the token branch — the call
+  // itself has to live INSIDE the branch (not memoized unconditionally) so
+  // the zero-call assertion in the token-branch suite is real.
   const ingredientCandidates = useMemo(
-    () => createIngredientLinkCandidates(displayIngredients, recipeSystemUsed),
-    [displayIngredients, recipeSystemUsed]
+    () =>
+      cookSteps == null ? createIngredientLinkCandidates(displayIngredients, recipeSystemUsed) : [],
+    [cookSteps, displayIngredients, recipeSystemUsed]
   );
 
   return (
@@ -59,6 +64,7 @@ export function CookingModeTabs({
       >
         <CookingStepView
           activeStep={activeStep}
+          cookSteps={cookSteps}
           ingredientCandidates={ingredientCandidates}
           recipeId={recipeId}
           recipeName={recipeName}

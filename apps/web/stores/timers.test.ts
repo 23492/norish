@@ -184,8 +184,15 @@ describe("useTimerStore", () => {
 
     const { addTimer, startTimer, tick } = useTimerStore.getState();
 
-    addTimer("test-1", "recipe-1", "Test Timer", 1000);
-    startTimer("test-1");
+    // Phase 27 W4 (D-27-W4-07): the notification `tag` is now the timer's
+    // own id (was a fixed "timer-complete" string, which collapsed two
+    // concurrently-completing timers into one OS notification). The id here
+    // is chosen to equal the previously-hard-coded tag value so this
+    // assertion's literal stays byte-for-byte unedited — see the dedicated
+    // "raises a DISTINCT notification per concurrently completing timer"
+    // case below for the actual per-timer-tag proof.
+    addTimer("timer-complete", "recipe-1", "Test Timer", 1000);
+    startTimer("timer-complete");
 
     vi.setSystemTime(Date.now() + 2000);
     tick();
@@ -202,6 +209,68 @@ describe("useTimerStore", () => {
         vibrate: [200, 100, 200],
       })
     );
+  });
+
+  it("raises a DISTINCT notification per concurrently completing timer (the pasta+sauce case, D-27-W4-07)", async () => {
+    const showNotification = vi.fn();
+
+    Object.defineProperty(document, "hidden", {
+      configurable: true,
+      get: () => true,
+    });
+
+    Object.defineProperty(globalThis, "Notification", {
+      configurable: true,
+      value: { permission: "granted" },
+    });
+
+    Object.defineProperty(navigator, "serviceWorker", {
+      configurable: true,
+      value: {
+        ready: Promise.resolve({ showNotification }),
+      },
+    });
+
+    const { addTimer, startTimer, tick } = useTimerStore.getState();
+
+    // Two named timers from the SAME step, ids shaped exactly like
+    // `resolveCookRenderSteps`/`cookStepTimers` produce them
+    // (`${recipeId}-s${stepIndex}-t${tokenIndex}`).
+    addTimer("recipe-1-s0-t0", "recipe-1", "pasta", 1000);
+    addTimer("recipe-1-s0-t1", "recipe-1", "sauce", 1000);
+    startTimer("recipe-1-s0-t0");
+    startTimer("recipe-1-s0-t1");
+
+    const { timers } = useTimerStore.getState();
+
+    expect(timers).toHaveLength(2);
+    expect(timers.every((timer) => timer.status === "running")).toBe(true);
+
+    // One tick() decrements/completes BOTH — concurrency already exists at
+    // the store level (D-27-W4-06); this proves it holds for two timers
+    // sharing a recipeId/stepIndex prefix and differing only by token index.
+    vi.setSystemTime(Date.now() + 2000);
+    tick();
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const completed = useTimerStore.getState().timers;
+
+    expect(completed.every((timer) => timer.status === "completed")).toBe(true);
+    expect(showNotification).toHaveBeenCalledTimes(2);
+
+    const tags = showNotification.mock.calls.map(([, options]) => options.tag);
+
+    // DISTINCT tags — a shared/fixed tag would make the Notification API
+    // replace the first with the second, collapsing "pasta done" and "sauce
+    // done" into a single OS notification (the collapse D-27-W4-07 fixes).
+    expect(new Set(tags).size).toBe(2);
+    expect(tags).toEqual(expect.arrayContaining(["recipe-1-s0-t0", "recipe-1-s0-t1"]));
+
+    const titles = showNotification.mock.calls.map(([title]) => title);
+
+    expect(titles).toEqual(expect.arrayContaining(["pasta", "sauce"]));
   });
 
   it("adjusts timer duration", () => {

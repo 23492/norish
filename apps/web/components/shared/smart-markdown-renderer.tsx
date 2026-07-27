@@ -6,6 +6,7 @@ import type { TimerKeywords, TimerMatch } from "@norish/shared/lib/timer-parser"
 
 import ReactMarkdown from "react-markdown";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import {
   applyIngredientLinkMarkup,
   isIngredientLinkHref,
@@ -64,13 +65,16 @@ export default function SmartMarkdownRenderer({
   timerConfig,
   onIngredientPress,
 }: SmartMarkdownRendererProps) {
+  const t = useTranslations("common");
   const resolvedLinkMode: SmartMarkdownLinkMode = disableLinks
     ? "disabled"
     : (linkMode ?? "private");
   const candidateByKey = new Map(
     ingredientCandidates.map((candidate) => [candidate.key, candidate])
   );
-  const timerFallbackLabel = `Step ${(timerConfig?.stepIndex ?? 0) + 1} Timer`;
+  const timerFallbackLabel = t("timer.step_fallback_label", {
+    step: (timerConfig?.stepIndex ?? 0) + 1,
+  });
   const isTokenTimerBranch = timerConfig?.tokens !== undefined;
   const timerMatches = isTokenTimerBranch ? [] : parseTimerMatches(text, timerConfig);
   const timerByHrefKey = isTokenTimerBranch

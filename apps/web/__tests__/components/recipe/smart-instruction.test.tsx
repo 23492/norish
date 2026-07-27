@@ -9,6 +9,15 @@ vi.mock("@norish/shared/lib/logger", () => ({
   createClientLogger: () => () => ({ warn: () => {} }),
 }));
 
+// SmartMarkdownRenderer now reads the timer fallback label via
+// useTranslations("common") (Phase 27 W4, T3, D-27-W4-06) instead of a
+// hard-coded English string — this suite renders without a next-intl
+// provider, so the hook needs a mock the same way @/hooks/use-unit-formatter
+// is already mocked below for the identical reason (T2).
+vi.mock("next-intl", () => ({
+  useTranslations: () => (key: string) => key,
+}));
+
 vi.mock("@/hooks/config", () => ({
   useTimersEnabledQuery: () => ({ timersEnabled: false }),
   useTimerKeywordsQuery: () => ({

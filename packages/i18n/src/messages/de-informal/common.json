@@ -228,6 +228,7 @@
     "notification_title": "Timer abgelaufen",
     "notification_body": "{label} ist fertig!",
     "notifications_disabled": "Benachrichtigungen sind deaktiviert",
-    "notifications_disabled_hint": "Aktiviere Benachrichtigungen in deinen Browser-Einstellungen, um Hinweise zu erhalten, wenn Timer im Hintergrund ablaufen."
+    "notifications_disabled_hint": "Aktiviere Benachrichtigungen in deinen Browser-Einstellungen, um Hinweise zu erhalten, wenn Timer im Hintergrund ablaufen.",
+    "step_fallback_label": "Timer für Schritt {step}"
   }
 }

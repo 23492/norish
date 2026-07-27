@@ -228,6 +228,7 @@
     "notification_title": "Temporizador finalizado",
     "notification_body": "{label} ha terminado!",
     "notifications_disabled": "Las notificaciones están desactivadas",
-    "notifications_disabled_hint": "Activa las notificaciones en la configuración de tu navegador para recibir alertas cuando los temporizadores terminen en segundo plano."
+    "notifications_disabled_hint": "Activa las notificaciones en la configuración de tu navegador para recibir alertas cuando los temporizadores terminen en segundo plano.",
+    "step_fallback_label": "Temporizador del paso {step}"
   }
 }

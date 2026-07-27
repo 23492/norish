@@ -227,6 +227,7 @@
     "notification_title": "Timer ferdig",
     "notification_body": "{label} er ferdig!",
     "notifications_disabled": "Varsler er deaktivert",
-    "notifications_disabled_hint": "Aktiver varsler i nettleserinnstillingene for å motta alarmer når timere avsluttes i bakgrunnen."
+    "notifications_disabled_hint": "Aktiver varsler i nettleserinnstillingene for å motta alarmer når timere avsluttes i bakgrunnen.",
+    "step_fallback_label": "Timer for trinn {step}"
   }
 }

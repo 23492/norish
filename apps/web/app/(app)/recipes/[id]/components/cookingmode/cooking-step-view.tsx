@@ -5,6 +5,7 @@ import { BookOpenIcon, ChevronDownIcon, ChevronUpIcon } from "@heroicons/react/2
 import { Button, Chip, Meter, ScrollShadow, Surface, Tooltip } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
+import type { CookRenderStep } from "@norish/shared/cooklang";
 import type { IngredientLinkCandidate } from "@norish/shared-react/text";
 
 import type { ResolvedCookingModeStep } from "./cooking-mode-steps";
@@ -16,6 +17,12 @@ type CookingStepViewProps = {
   recipeId: string;
   recipeName: string;
   steps: ResolvedCookingModeStep[];
+  /**
+   * Cooklang token render steps (Phase 27 W4, D-27-W4-01/13), paired 1:1
+   * with `steps` by position (both already exclude headings). `null` (the
+   * common case until W5's backfill) keeps the legacy heuristic render.
+   */
+  cookSteps: CookRenderStep[] | null;
   ingredientCandidates: IngredientLinkCandidate[];
   onIngredientPress?: (candidate: IngredientLinkCandidate) => void;
   onStepChange: (step: number) => void;
@@ -26,6 +33,7 @@ export function CookingStepView({
   recipeId,
   recipeName,
   steps,
+  cookSteps,
   ingredientCandidates,
   onIngredientPress,
   onStepChange,
@@ -33,6 +41,13 @@ export function CookingStepView({
   const tCookMode = useTranslations("recipes.cookMode");
   const tCommon = useTranslations("common.actions");
   const step = steps[activeStep];
+  const cookStep = cookSteps?.[activeStep];
+  // D-27-W4-05: on the token branch the sticky heading chip comes from the
+  // paired token step's own `section` (carried on every step of that
+  // section, reproducing the legacy `heading` field's "applies to following
+  // steps" stickiness — `isSectionStart` is the detail list's concern, not
+  // this chip's), not from the legacy `#`-sniffed `heading` field.
+  const headingChip = cookSteps != null ? (cookStep?.section ?? null) : step?.heading;
   const totalSteps = steps.length;
   const progressValue = totalSteps > 0 ? ((activeStep + 1) / totalSteps) * 100 : 0;
   const previousDisabled = activeStep <= 0;
@@ -60,10 +75,10 @@ export function CookingStepView({
                 {step.stepNumber}
               </div>
               <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-                {step.heading ? (
+                {headingChip ? (
                   <Chip color="accent" variant="soft">
                     <BookOpenIcon className="size-4 translate-y-px" />
-                    <Chip.Label>{step.heading}</Chip.Label>
+                    <Chip.Label>{headingChip}</Chip.Label>
                   </Chip>
                 ) : null}
               </div>
@@ -71,6 +86,7 @@ export function CookingStepView({
 
             <div className="text-foreground min-w-0 text-2xl leading-relaxed font-medium md:text-3xl md:leading-relaxed">
               <SmartInstruction
+                cookStep={cookStep}
                 recipeId={recipeId}
                 recipeName={recipeName}
                 stepIndex={step.originalIndex}

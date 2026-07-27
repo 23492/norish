@@ -9,7 +9,7 @@ const logger = createClientLogger("timers");
  * Show an OS notification via the service worker when a timer completes
  * while the app is in the background (document.hidden === true).
  */
-function showTimerNotification(timer: { label: string; recipeName?: string }) {
+function showTimerNotification(timer: { id: string; label: string; recipeName?: string }) {
   try {
     if (
       typeof document === "undefined" ||
@@ -28,7 +28,11 @@ function showTimerNotification(timer: { label: string; recipeName?: string }) {
         registration.showNotification(title, {
           body: "Timer complete!",
           icon: "/android-chrome-192x192.png",
-          tag: "timer-complete",
+          // Per-timer tag (D-27-W4-07): a fixed tag collapses two
+          // concurrently-completing named timers (the pasta+sauce case)
+          // into ONE OS notification, since the Notification API replaces a
+          // displayed notification sharing the same tag.
+          tag: timer.id,
           renotify: true,
           requireInteraction: true,
           vibrate: [200, 100, 200],

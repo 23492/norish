@@ -9,6 +9,8 @@ import { FireIcon } from "@heroicons/react/20/solid";
 import { Button, Modal } from "@heroui/react";
 import { useTranslations } from "next-intl";
 
+import { resolveCookRenderSteps } from "@norish/shared/cooklang";
+
 import type { CookingModeTab } from "./types";
 import { useRecipeContextRequired } from "../../context";
 import { resolveCookingModeSteps } from "./cooking-mode-steps";
@@ -30,7 +32,7 @@ type CookingModeProps = {
 const SWIPE_THRESHOLD = 56;
 
 export default function CookingMode({ className = "", fullWidth = false }: CookingModeProps) {
-  const { adjustedIngredients, recipe } = useRecipeContextRequired();
+  const { adjustedIngredients, currentServings, recipe } = useRecipeContextRequired();
   const { disable, enable, isActive, isSupported } = useWakeLockContext();
   const tDetail = useTranslations("recipes.detail");
   const isDesktop = useIsDesktopCookingMode();
@@ -44,6 +46,19 @@ export default function CookingMode({ className = "", fullWidth = false }: Cooki
     () => resolveCookingModeSteps(recipe.steps ?? [], recipe.systemUsed ?? "metric"),
     [recipe.steps, recipe.systemUsed]
   );
+  // D-27-W4-13: pair the paired-by-position non-heading `resolveCookingModeSteps`
+  // rows with the token steps; a count mismatch means a stale projection —
+  // fall back to the legacy branch for the WHOLE recipe, computed once here
+  // rather than per step (D-27-W4-13's plan text).
+  const cookSteps = useMemo(() => {
+    const resolved = resolveCookRenderSteps(recipe.cookTokens, {
+      baseServings: recipe.servings,
+      servings: currentServings,
+      systemUsed: recipe.systemUsed ?? "metric",
+    });
+
+    return resolved != null && resolved.length === steps.length ? resolved : null;
+  }, [currentServings, recipe.cookTokens, recipe.servings, recipe.systemUsed, steps.length]);
   const displayIngredients =
     adjustedIngredients?.length > 0 ? adjustedIngredients : recipe.recipeIngredients;
   const currentStep = clampStep(activeStep, steps.length);
@@ -178,6 +193,7 @@ export default function CookingMode({ className = "", fullWidth = false }: Cooki
     recipeServings: recipe.servings,
     recipeSystemUsed: recipe.systemUsed ?? "metric",
     steps,
+    cookSteps,
     highlightedIngredientKey,
     ingredientListRef,
     onClose: close,

@@ -7,6 +7,15 @@ import SmartMarkdownRenderer from "@/components/shared/smart-markdown-renderer";
 
 import { createIngredientLinkCandidates } from "@norish/shared-react/text";
 
+// SmartMarkdownRenderer now reads the timer fallback label via
+// useTranslations("common") (Phase 27 W4, T3, D-27-W4-06) instead of a
+// hard-coded English string — this suite renders without a next-intl
+// provider, so the hook needs a mock the same way its sibling suites
+// already mock @/hooks/use-unit-formatter for the same reason (T2).
+vi.mock("next-intl", () => ({
+  useTranslations: () => (key: string) => key,
+}));
+
 vi.mock("@/components/recipe/timer-chip", () => ({
   TimerChip: ({ originalText }: { originalText: string }) => <span>timer:{originalText}</span>,
 }));

@@ -228,6 +228,7 @@
     "notification_title": "Timer zakończony",
     "notification_body": "{label} gotowe!",
     "notifications_disabled": "Powiadomienia są wyłączone",
-    "notifications_disabled_hint": "Włącz powiadomienia w przeglądarce, aby otrzymywać alerty gdy timer skończy działać w tle."
+    "notifications_disabled_hint": "Włącz powiadomienia w przeglądarce, aby otrzymywać alerty gdy timer skończy działać w tle.",
+    "step_fallback_label": "Timer – krok {step}"
   }
 }

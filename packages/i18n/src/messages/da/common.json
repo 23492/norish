@@ -228,6 +228,7 @@
     "notification_title": "Timer færdig",
     "notification_body": "{label} er færdig!",
     "notifications_disabled": "Notifikationer er deaktiveret",
-    "notifications_disabled_hint": "Aktiver notifikationer i dine browserindstillinger for at modtage alarmer, når timere afsluttes i baggrunden."
+    "notifications_disabled_hint": "Aktiver notifikationer i dine browserindstillinger for at modtage alarmer, når timere afsluttes i baggrunden.",
+    "step_fallback_label": "Trin {step} Timer"
   }
 }

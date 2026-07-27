@@ -11,6 +11,24 @@ vi.mock("@norish/shared/lib/logger", () => ({
   createClientLogger: () => () => ({ warn: () => {} }),
 }));
 
+// SmartMarkdownRenderer now reads the timer fallback label via
+// useTranslations("common") (Phase 27 W4, T3, D-27-W4-06) instead of a
+// hard-coded English string — this suite renders without a next-intl
+// provider, so the hook needs a mock. The one existing assertion that
+// depends on the fallback text ("still renders from prose when no cookStep
+// is supplied" below, asserting "TIMER:Step 1 Timer:600000") is preserved
+// UNEDITED by having this mock reproduce the real `en` string via
+// interpolation rather than echoing the bare key.
+vi.mock("next-intl", () => ({
+  useTranslations: () => (key: string, values?: Record<string, unknown>) => {
+    if (key === "timer.step_fallback_label") {
+      return `Step ${values?.step} Timer`;
+    }
+
+    return key;
+  },
+}));
+
 const DEFAULT_TIMER_KEYWORDS = {
   enabled: true,
   hours: ["hour", "hours"],

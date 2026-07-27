@@ -228,6 +228,7 @@
     "notification_title": "Timer afgelopen",
     "notification_body": "{label} is klaar!",
     "notifications_disabled": "Meldingen zijn uitgeschakeld",
-    "notifications_disabled_hint": "Schakel meldingen in via je browserinstellingen om waarschuwingen te ontvangen wanneer timers op de achtergrond aflopen."
+    "notifications_disabled_hint": "Schakel meldingen in via je browserinstellingen om waarschuwingen te ontvangen wanneer timers op de achtergrond aflopen.",
+    "step_fallback_label": "Timer voor stap {step}"
   }
 }
