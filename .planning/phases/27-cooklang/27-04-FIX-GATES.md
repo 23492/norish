@@ -782,3 +782,373 @@ image and DB migration untouched.
 - The unrelated `cook-payload.test.ts` failure observed once under 20-spinner
   contention during the BEFORE reproduction is out of this file's scope and was
   not chased; it did not recur in any of the five AFTER contended runs.
+
+---
+
+## §FAIL-1 — the wall-clock 50 ms in `pool.test.ts`, this plan's own file
+
+**Scope:** `packages/shared-server/__tests__/cooklang/pool.test.ts`, one test.
+No production source touched. `pnpm-lock.yaml`, root `package.json`,
+`pnpm-workspace.yaml`, `packages/db/src/migrations/` and `meta/_journal.json`
+untouched. Nothing pushed, nothing deployed. Live image still `516c52576a5f`,
+DB still at migration **42**.
+
+### Reproduction (BEFORE the fix)
+
+The failing assertion, as recorded by VERIFY-4:
+
+```
+FAIL __tests__/cooklang/pool.test.ts > a real recipe round-trips through the process
+     boundary > each committed fixture completes in under 50 ms once the pool is warm
+AssertionError: expected 50.03161200000068 to be less than 50
+```
+
+**Calibration.** This box is a noisy shared Proxmox host: `uptime` showed load
+averages of **8-23 with zero spinners of mine running**, fluctuating from other
+agents' real activity (a concurrent `pnpm typecheck`/`pnpm lint` was observed
+mid-session). Plain busy-loop spinners spread across all 4 cores (the
+G1/G4 methodology, tried at 4, 6, 8, 10, 20) reliably perturbed OTHER
+cooklang tests (see below) but did not reliably reproduce THIS specific
+50 ms overshoot — its own headroom (50 ms against a ~14 ms idle round trip,
+3.5x) is tighter than the wall-clock tests G1/G4 fixed, but the pool's request
+queue and CPU/RSS gates absorb generic multi-core noise reasonably well.
+**Reproduction required §13.1's own methodology — pinning to a single core**
+(`taskset -c 0`), not just adding spinners: 10 busy-loop spinners AND the
+`pnpm test` process itself pinned to core 0 (starving the pool's child and the
+test runner onto one core together). That reproduced the exact signature
+immediately and drastically:
+
+```
+FAIL __tests__/cooklang/pool.test.ts > a real recipe round-trips through the process
+     boundary > each committed fixture completes in under 50 ms once the pool is warm
+AssertionError: expected 2082.502443999998 to be less than 50
+```
+
+**10 spinners pinned to a single core, used.** (Not "8 spinners" — this
+assertion's margin is thinner than G1/G4's files, and generic multi-core
+spinners were not sufficient; single-core starvation, matching §13.1's own
+contention methodology, was.) The same run collaterally broke several OTHER
+pool.test.ts/limits.test.ts/attach-tokens.test.ts assertions and eventually
+degraded into repeated `pool-spawn-failed` — expected and stated rather than
+hidden: single-core starvation this severe is far beyond anything the CPU/RSS
+gates are designed to absorb (§B.2 of VERIFY-4 already documents that above
+~5.3x contention the wall backstop legitimately pre-empts the CPU gate), and
+it is not the methodology used for the AFTER validation below.
+
+### Root cause
+
+Identical shape to D-27-W3B-03a (§13, §15.3) and the docblock sitting 14 lines
+below this very test: `expect(performance.now() - startedAt).toBeLessThan(50)`
+measures the **box**, not the work. A pooled round trip's wall-clock time is a
+function of how many vitest workers and external processes are competing for
+4 cores; CPU consumed by the parse is not. Nothing in this test asserts
+anything about time as a *property of the recipe* — it exists to prove a warm
+pool costs near-zero marginal work per committed fixture and never respawns a
+child mid-loop. Neither of those properties is a wall-clock property.
+
+### The fix, and why it is not a bandaid
+
+Raising 50 to 100 (or any bigger constant) would have been the retune this
+phase already rejected explicitly, in the very docblock this test sits under.
+Instead the test now asserts the two things it actually protects, on
+contention-invariant instruments:
+
+1. **The pool never respawns across the fixture loop.** `cookParsePoolPidsForTests()`
+   is captured before the loop and compared with `toEqual` after — a discrete,
+   non-timing signal. This is the exact regression R2's own docblock (14 lines
+   below) names as the reason the old wall-clock floor existed: *"Making
+   `release()` retire its child... turns this test RED... The floor would have
+   caught it too... as the sibling fixture round trip demonstrates"* — this test
+   **is** that sibling, and it now catches the same regression directly instead
+   of via wall-clock inference.
+2. **CPU per round trip, in both processes, mirroring R2's own instrument** —
+   with two DIFFERENT ceilings, calibrated from real measurement rather than
+   guessed:
+   - `childCpuMs` (the child's own `/proc/<pid>/schedstat` reading — the SAME
+     number the production gate decides with) is rock-stable: **0.85-1.66 ms**
+     across 8 full-package runs, isolated and under real vitest full-suite
+     worker contention alike. Ceiling: **10 ms**, ~6-12x that observed worst.
+   - `parentCpuMs` (`process.cpuUsage()` on the test runner's own process) is
+     measurably noisier under GENUINE full-package contention (this process is
+     one of several vitest workers sharing 4 cores) even though it is nominally
+     contention-invariant: observed **0.85-14.63 ms** across 8 full `pnpm test`
+     runs (not isolated). **A first attempt at a 10 ms ceiling on this axis
+     genuinely false-refused once during calibration** (`expected 10.036 to be
+     less than 10`), which is itself useful evidence — it is a REAL measured
+     number, not a hypothetical, and it is why the ceiling was recalibrated
+     rather than picked from the idle-only measurement. Ceiling: **50 ms**,
+     ~3.4x the observed worst (matching this repo's own headroom convention —
+     `cookParseRssMb`'s 2.67x, `cookParseCpuMs`'s ~3x).
+
+A lost-pool regression (a fresh 200-243 ms respawn) still blows through both
+ceilings by 4-20x, and the pid-identity check catches it directly regardless
+of either number.
+
+### Evidence (AFTER)
+
+Isolated, idle:
+
+```
+Test Files  1 passed (1)
+Tests  1 passed | 44 skipped (45)
+```
+
+CPU measurements (throwaway PROBE, deleted before the final fix; the numbers
+are recorded here, not the probe):
+
+| condition | parentCpuMs range | childCpuMs range |
+|---|---:|---:|
+| isolated, idle/ambient (single-file `-t` runs) | 0.76-3.24 | 1.30-2.34 |
+| **full `pnpm test`, 8 runs (real multi-worker contention)** | **0.85-14.63** | **0.85-1.66** |
+
+**Non-vacuity by mutation** (each applied to `packages/shared-server/src/cooklang/{pool,parse-worker}.ts`,
+confirmed RED, reverted by reverse edit — never `git checkout`, verified
+`cmp` + `md5sum` + `git diff --exit-code` clean after every one):
+
+| # | mutation | result |
+|---|---|---|
+| M1 | `release()`: `target.busy = false` → `retire(target, "pool-shutdown")` (the exact regression R2's docblock names) | RED: `expected 'undefined' to be 'number'` — no live child after warm-up, pid-identity check never even reached |
+| M2 | `parse-worker.ts`: busy-loop ~20 ms of CPU in the CHILD before `parser.parse(...)` | RED: `expected 19.33... to be less than 10` on `childCpuMs` |
+| M3 | `pool.ts`: busy-loop ~60 ms of CPU in the PARENT at the top of `parseInPool` | RED: `expected 6X.XX to be less than 50` on `parentCpuMs` |
+
+All three mutations reverted; `md5sum` matched the pre-mutation hash for both
+files, `cmp` reported IDENTICAL, `git diff --exit-code` was empty for both.
+No mutation was ever staged or committed.
+
+**5 consecutive contended full-package runs, 0 failures** — real full-`pnpm
+test` multi-worker contention (22 files, 554 tests, concurrently, the exact
+condition VERIFY-4 named as the trigger: *"the trigger is full-suite vitest
+worker load plus external CPU pressure"*), ambient load 7-9 at the time:
+
+```
+RUN 1  Test Files 22 passed (22)   Tests 554 passed (554)
+RUN 2  Test Files 22 passed (22)   Tests 554 passed (554)
+RUN 3  Test Files 22 passed (22)   Tests 554 passed (554)
+RUN 4  Test Files 22 passed (22)   Tests 554 passed (554)
+RUN 5  Test Files 22 passed (22)   Tests 554 passed (554)
+```
+
+**Additionally, layering 8 external busy-loop spinners on top** (beyond
+real full-suite contention alone): the target test **never failed in any of
+5 runs** (confirmed both in the full-package runs and in 3 isolated `-t` reruns
+under the same 8 spinners, each 1/1 passed). Several OTHER, PRE-EXISTING tests
+DID fail intermittently under this heavier combined load — named here rather
+than hidden:
+
+- `build-payload.test.ts > buildCookPayload > the happy path > mints a clean,
+  self-validating .cook for "pancakes"` and its stored-source-invariant sibling
+- `limits.test.ts > the hostile corpus — adversarial input sized AT the cap >
+  neither throws nor exceeds 2000 ms on well-formed cookware at maximum density`
+- `pool.test.ts > NEVER-BROKEN UNDER CONTENTION (D-27-W3B-03a) > parses BOTH
+  worst legitimate shapes while the box is saturated with spinners` (itself a
+  contention test, internally spawning 8 spinners of its own — doubly-saturated
+  by an external 8 more)
+- `pool.test.ts > SATURATION DEGRADES, IT NEVER HANGS (R3, T-27-01d) > resolves
+  every one of poolSize + 4 concurrent bound-hitting requests`
+
+**None of these is FAIL-1, none is touched by this diff, and none regressed
+by this diff** — every one is a wall-clock-bounded assertion elsewhere in this
+plan's own pre-existing test surface, several of them ABOUT contention
+specifically, that this box's genuinely severe ambient noise (other agents'
+real concurrent work, confirmed via `ps aux`) can push past its own designed
+headroom when MORE synthetic load is added on top. `limits.test.ts`'s hostile-
+corpus test failed once even on a bare idle-ish `pnpm test` with zero added
+spinners, purely from ambient host noise — recorded here as an honest
+observation for the director, not chased (test files only, and these are
+outside FAIL-1/FAIL-2's scope).
+
+**Before → after cost and headroom, on the property that actually matters
+(no per-fixture respawn, bounded CPU):**
+
+| | BEFORE (wall clock) | AFTER (CPU + pid-identity) |
+|---|---|---|
+| instrument | `performance.now()` delta, 50 ms ceiling | `childCpuMs` ≤10 ms, `parentCpuMs` ≤50 ms, pid-set equality |
+| measured under real contention | **50.03-2082.50 ms** (contention-dependent, unbounded) | **childCpuMs 0.85-1.66 ms, parentCpuMs 0.85-14.63 ms** (flat, ≤17x spread vs. wall clock's >40x under far milder contention) |
+| headroom | 3.5x idle, **negative under any real contention** | childCpuMs ~6-12x, parentCpuMs ~3.4x, BOTH measured under genuine full-suite contention, not idle |
+
+### Commit
+
+`test(27-04): assert the pool-warm fixture round trip on CPU and pid-identity, not wall clock`
+— `packages/shared-server/__tests__/cooklang/pool.test.ts` only.
+
+---
+
+## §FAIL-2 — the third `await import()`-in-test instance, `packages/auth`
+
+**Scope:** `packages/auth/__tests__/auth/workos-provider.test.ts`, one file.
+No production source touched (verified: `packages/auth/src/auth.ts` was read
+and mutated only transiently for non-vacuity proof, then reverted — see
+below). `pnpm-lock.yaml`, root `package.json`, `pnpm-workspace.yaml`,
+`packages/db/src/migrations/` and `meta/_journal.json` untouched. This file is
+pre-existing and outside plan 27-04's own file set (`packages/auth` has an
+empty diffstat across the 47/48-commit range) — authorised as a follow-up by
+the task brief, using the exact G1/G4 cure.
+
+### Reproduction (BEFORE the fix)
+
+Isolated, idle, `--reporter=verbose`: the first test alone measured **721 ms**
+(cold import of `@norish/auth` behind these mocks), i.e. already ~14% of the
+file's default 5 000 ms `testTimeout` with zero contention.
+
+**Calibration.** Per the task brief's own note, this box's ambient load
+fluctuates 11-21 with no synthetic load; **20 busy-loop spinners across all 4
+cores** (matching G4's own calibration for this exact box) reproduced the
+signature on the FIRST attempt:
+
+```
+FAIL __tests__/auth/workos-provider.test.ts > buildWorkOSProviders >
+     returns no provider when WorkOS is not configured
+Error: Test timed out in 5000ms.
+ ❯ __tests__/auth/workos-provider.test.ts:76:3
+
+FAIL __tests__/auth/workos-provider.test.ts > buildWorkOSProviders >
+     returns no provider when only the clientId is set (no apiKey)
+Error: Test timed out in 5000ms.
+```
+
+Exact per-test times from the reporter: **7 720 ms** and **5 027 ms** (both
+over the 5 000 ms budget) for the first two of the file's 8 in-test
+`await import("@norish/auth")` calls. `Test Files 1 failed | 7 passed (8)`,
+`Tests 2 failed | 131 passed (133)`. **20 spinners, used** — reproduced
+immediately, matching G1/G4's own experience that this box needs 20 (not 8)
+for a reliable, clean reproduction.
+
+### Root cause
+
+Structurally identical to `migrate-gallery-images.test.ts` (§G1) and
+`import-flow.test.ts` (§G4): the subject (`@norish/auth`, i.e. the whole
+`auth.ts` barrel) is `await import()`ed **inside every one of the 8 tests**,
+behind a per-test `vi.resetModules()` in `afterEach`. That charges the
+transform + evaluation of `auth.ts` — which imports `better-auth`, its
+plugins, and (mocked-out, but still resolved) the db/redis/queue/repo seams —
+to the per-test wall budget, eight times over. Nothing in this file asserts
+anything about time; every assertion is about provider shape, token exchange,
+or user-info mapping.
+
+### Why `vi.resetModules()` was checked, not assumed, before being dropped
+
+This is the exact trap the task named: G4 verified "no isolation lost" for
+`import-flow.test.ts` and that conclusion does not transfer automatically.
+Read directly from the source (`packages/auth/src/auth.ts:216-219`,
+`packages/auth/src/index.ts` — a one-line `export * from "./auth"` barrel):
+
+- `buildWorkOSProviders()`'s body calls `getCachedWorkOSProvider()` **inline,
+  at call time, on every invocation** (`auth.ts:219`). `workosProvider` is a
+  fresh local `const` per call — nothing about the provider is memoized at
+  module-eval time, and no top-level call to `buildWorkOSProviders` (or its
+  siblings) exists anywhere in `auth.ts` — they run only lazily inside
+  `createBetterAuth()`, itself only built on first property access of the
+  exported `auth` Proxy, which this test file never touches.
+- The mocked `getCachedWorkOSProvider` (this test file's own
+  `vi.mock("@norish/auth/provider-cache", ...)`, line 24-32) is
+  `() => workosCacheValue` — a closure over the file's own module-scoped
+  `let workosCacheValue`, reading its CURRENT value at call time, not a value
+  captured when the mock was constructed.
+- Therefore a hoisted, once-only import of `@norish/auth` still observes each
+  test's own `workosCacheValue` correctly, because the read happens inside
+  `buildWorkOSProviders()` at the moment it's CALLED (inside each `it`), not
+  at the moment the module was imported. Real per-test isolation was always
+  `beforeEach`'s `vi.clearAllMocks()` + fresh `workosCacheValue = null` — both
+  act on the mock functions/module-scoped variable, not on module identity,
+  and both are kept byte-for-byte unchanged.
+- Confirmed by mutation, not just by reading the code (below): neutering the
+  `clientId && apiKey` guard reddened BOTH of the two tests that exercise it
+  (`workosCacheValue = null` and `workosCacheValue = { clientId, apiKey:
+  undefined }`), each independently, proving the per-test reset of
+  `workosCacheValue` still isolates those two cases from each other with no
+  module re-import between them.
+
+### The fix, and why it is not a bandaid
+
+The G1/G4 cure, applied verbatim:
+
+- `const { buildWorkOSProviders } = await import("@norish/auth");` moved to
+  **file scope**, immediately after the last `vi.mock()` call and before
+  `describe(...)`. Runs once, during file **COLLECTION**, which neither
+  `testTimeout` nor `hookTimeout` bounds.
+- The 8 per-test `const { buildWorkOSProviders } = await import(...)` lines
+  removed; every call site now uses the module-scope binding.
+- `afterEach(() => { vi.resetModules(); })` removed (see isolation analysis
+  above — checked, not assumed).
+- `beforeEach`'s `vi.clearAllMocks()` + `workosCacheValue = null`, and every
+  assertion in every one of the 8 tests, are byte-for-byte unchanged. No
+  coverage was traded.
+- A docblock records the measurement, the cause, and — the specific point the
+  task asked to be re-derived rather than copied — why dropping
+  `vi.resetModules()` is safe HERE, so a future reader cannot silently
+  re-nest the import without re-proving the argument for this file.
+
+### Non-vacuity by mutation
+
+`packages/auth/src/auth.ts:221`, `if (workosProvider?.clientId &&
+workosProvider?.apiKey)` → `if (true || (workosProvider?.clientId &&
+workosProvider?.apiKey))`:
+
+```
+Test Files  1 failed | 7 passed (8)
+Tests  2 failed | 131 passed (133)
+```
+
+Exactly the two tests that exercise the guard went RED — `returns no provider
+when WorkOS is not configured` and `returns no provider when only the
+clientId is set (no apiKey)` — each with a real diff (`toEqual([])` vs. an
+array containing the WorkOS provider object). Reverted by reverse edit;
+`md5sum` matched the pre-mutation hash, `cmp` reported IDENTICAL, `git diff
+--exit-code -- packages/auth/src/auth.ts` was empty. No mutation was ever
+staged or committed.
+
+### Isolation re-proved, not assumed, after removing `resetModules()`
+
+- **3/3 `--sequence.shuffle` runs green** (8/8 each time).
+- **Each of the 8 tests passes alone** (`vitest run … -t "<name>"`, one at a
+  time, all 8 checked individually) — no test depends on a side effect left
+  by another.
+
+### Evidence (AFTER)
+
+Isolated, idle, `--reporter=verbose`:
+
+```
+✓ returns no provider when WorkOS is not configured                    5ms
+✓ returns no provider when only the clientId is set (no apiKey)        1ms
+✓ builds a first-party AuthKit genericOAuth provider …                 3ms
+✓ getToken exchanges the code …                                        2ms
+✓ getToken throws when the WorkOS authenticate call fails              3ms
+✓ getUserInfo maps the WorkOS user profile …                           1ms
+✓ getUserInfo falls back to the email …                                1ms
+✓ produces a config better-auth accepts …                              2ms
+```
+
+**First test: 721 ms cold / 7 720 ms under 20-spinner contention → 5 ms.**
+Headroom against the file's unraised 5 000 ms default `testTimeout` went from
+**already-negative under contention (7 720 ms > 5 000 ms) to ~1 000x.**
+
+**5 consecutive full `@norish/auth` runs under the identical 20-spinner
+contention that produced the BEFORE failure:**
+
+```
+RUN 1  Test Files 8 passed (8)   Tests 133 passed (133)
+RUN 2  Test Files 8 passed (8)   Tests 133 passed (133)
+RUN 3  Test Files 8 passed (8)   Tests 133 passed (133)
+RUN 4  Test Files 8 passed (8)   Tests 133 passed (133)
+RUN 5  Test Files 8 passed (8)   Tests 133 passed (133)
+```
+
+**0 timeouts, 5/5 contended runs, 133/133 each time.** Three consecutive
+**idle** full `@norish/auth` runs: 133/133 each.
+
+`tsc --noEmit -p .` (real gate, `include: ["src"]`, tests excluded — the same
+repo-wide convention G4 documented): **EXIT 0, zero output**, both before and
+after. `eslint --flag unstable_native_nodejs_ts_config
+__tests__/auth/workos-provider.test.ts`: **EXIT 0**, 0 errors (1 warning,
+"File ignored" — the same repo-wide `**/__tests__/**` ignore G3 documented,
+unchanged). `pnpm lint` for `@norish/auth`: **EXIT 0**, 0 errors.
+
+No `as any`, `@ts-ignore`, `@ts-expect-error`, or type widening added. No
+`pnpm install` run, no lockfile touched. `git status` shows only
+`packages/auth/__tests__/auth/workos-provider.test.ts` modified.
+
+### Commit
+
+`test(auth): hoist the workos-provider subject import out of the per-test wall budget`
+— `packages/auth/__tests__/auth/workos-provider.test.ts` only.
