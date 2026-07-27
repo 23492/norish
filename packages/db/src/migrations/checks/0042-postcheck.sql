@@ -27,7 +27,12 @@ SELECT count(*) AS groceries_with_recipe_ingredient_link
 FROM "groceries"
 WHERE "recipe_ingredient_id" IS NOT NULL;
 
-SELECT "id" AS recipe_ingredient_id_at_risk
+-- [0042-postcheck:pre-ids] -- G1 fix: this MUST select `recipe_ingredient_id`,
+-- not `id`. `groceries.id` is a different uuid space from
+-- `recipe_ingredients.id`; selecting it under this alias made the POST
+-- anti-join compare the wrong column and return every row as "missing"
+-- regardless of whether anything actually broke.
+SELECT "recipe_ingredient_id" AS recipe_ingredient_id_at_risk
 FROM "groceries"
 WHERE "recipe_ingredient_id" IS NOT NULL
 ORDER BY "id";
@@ -71,14 +76,20 @@ SELECT count(*) AS groceries_with_recipe_ingredient_link
 FROM "groceries"
 WHERE "recipe_ingredient_id" IS NOT NULL;
 
-SELECT "id" AS recipe_ingredient_id_at_risk
+-- [0042-postcheck:post-ids] -- same G1 fix as PRE (2): `recipe_ingredient_id`,
+-- not `id`.
+SELECT "recipe_ingredient_id" AS recipe_ingredient_id_at_risk
 FROM "groceries"
 WHERE "recipe_ingredient_id" IS NOT NULL
 ORDER BY "id";
 
--- The anti-join: every id from PRE (2) must still exist. A non-empty result here
--- is the failure mode the grocery-link guard exists to prevent -- it means a
--- link that existed PRE is gone POST.
+-- [0042-postcheck:post-antijoin] -- the anti-join: every id from PRE (2) must
+-- still exist as a `recipe_ingredients.id` row. A non-empty result here is the
+-- failure mode the grocery-link guard exists to prevent -- it means a link
+-- that existed PRE is gone POST. Proven to actually catch a loss (not just
+-- read correctly) by
+-- `packages/db/__tests__/server/db/migrations/0042-backfill-cook-source.test.ts`,
+-- which constructs exactly this orphan case against real Postgres.
 --
 -- Paste the PRE id list into the VALUES list below before running POST.
 -- SELECT v.id
