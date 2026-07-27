@@ -28,6 +28,90 @@ See: .planning/PROJECT.md (updated 2026-06-12)
 
 **Historical focus (superseded — kept for context):** Phase 4 — Recipe sharing (SHARE-01 + RATE-01) both code-complete; Phases 2/3/5/6 also code-complete, human-verify pending.
 
+## Session log — 2026-07-27
+
+- **🚀 PHASE 27 W3B (plan `27-04`, "bound the WASM parse") DEPLOYED TO LIVE.** New
+  live image **`sha256:704aa6b60b3365dde1894e94a52204f7e8b33c5350b8cd141ce97d61e42c465e`**;
+  previous live image `sha256:516c52576a5f…`. **Rollback tag:
+  `norish:rollback-20260727-pre-27-04`.** This is the deploy VERIFY-3 blocked
+  (2026-07-26 entry, six open blockers) and VERIFY-4 (fourth independent
+  adversarial verification, `27-04-VERIFY-4.md`) then cleared with a **PASS**.
+  **Migration delta: 42 → 42 — no migration in this range**, `meta/_journal.json`
+  untouched (still 42 entries, last `0041_add_cook_source`). **Pushed
+  `faa13d8e..fbe2cfa7 main -> main`, 52 commits; `main == origin/main`.**
+  **Backup:** `/home/claude/norish-backups/norish-live-20260727-020830-pre-27-04.dump`,
+  verified restorable inside `norish-db` at **231 TOC objects**.
+  **Health at cutover — PASS:** `Migrations complete` in the startup log, container
+  healthy, **0 restarts**, local + public `/api/v1/health` → `{status:ok, db:ok}`,
+  local `/` → 307, public `https://norish.knoppsmart.com/` → 307, zero
+  `level>=40` log lines, **zero `pool-*` bound reasons** observed in ~10 minutes.
+  **Memory:** `norish-app` settled **374 → 395 MiB** (old image baseline was
+  226 MiB) — the new pooled-child-process parse path costs real, but modest,
+  steady-state memory.
+  - **What shipped, in one line:** T-27-01 (the WASM-parser DoS) stopped being an
+    input-shape guarantee and became a **resource bound** — every `.cook` parse
+    now runs in a pooled child process the parent can `SIGKILL`, gated primarily
+    on the child's **CPU time** (`cookParseCpuMs: 1_500`, sampled from
+    `/proc/<pid>/schedstat`) with an 8 000 ms wall-clock backstop and a
+    `cookParseRssMb: 512` memory gate, plus three root-cause fixes to the
+    frontmatter recognizer, a 9-byte WASM panic, and a serializer that had been
+    deleting user text (H1/H2/H3). Full mechanism: `27-04-SUMMARY.md` §13/§14.
+  - **VERIFY-3's six blockers and three gate problems are ALL CLOSED**, each at
+    the root, each independently re-verified by VERIFY-4 rather than taken on
+    faith: (1) the heap flag was never a memory bound — replaced with a real
+    measured-RSS gate (`43b5e1b7`); (2) the stale unquoted test fixture that had
+    been silently bypassing its own recognizer — re-minted from the real
+    serializer (`2232d3e5`); (3) two vacuous test assertions — now assert the
+    real outcome (`ea242ed0`); (4) `parseInPool`'s unenforced third door — closed,
+    no public subpath, every deep-import variant now `ERR_PACKAGE_PATH_NOT_EXPORTED`
+    (`388650b2`); (5) and (6) the two USER-VISIBLE write-path bugs (nutrition
+    estimation silently NULLing a fresh `cook_source`; a metric↔US switch serving
+    the wrong system's `.cook`) — both root-fixed in one commit (`ff289ae6`),
+    the CLEAR-not-remint decision for (6) independently confirmed correct (no
+    step-linkage column exists outside the native `.cook`). The three gate
+    problems: the flaky `migrate-gallery-images.test.ts` (`bd6b3071`), the
+    genuinely-red `pnpm typecheck` from duplicate `@tanstack/query-core` /
+    `better-auth` installs — fixed as a `pnpm-workspace.yaml` override plus a
+    lockfile refresh, **not** the `package.json#pnpm.overrides` location VERIFY-3
+    prescribed, which would have silently dropped five existing overrides
+    (`9cf78c18`), and a stray `no-console` eslint-disable (`c3a3e73e`). Full
+    index with commits: `27-04-SUMMARY.md` "RESOLUTION" section.
+  - **VERIFY-4 is the SECOND CONSECUTIVE round to find no bypass of T-27-01** —
+    it attacked the doors blockers 1/4 moved and confirmed the single-importer
+    property in the **shipped bundle**, not just statically. It surfaced two
+    contention-only test flakes, both fixed and neither ever capable of blocking
+    the deploy (the image build runs no tests): `pool.test.ts`'s own bare
+    wall-clock assertion — the exact defect class this whole plan exists to cure,
+    found in this plan's own new file (`9211b256`) — and a third,
+    previously-unflagged instance of the flaky-module-load disease in
+    `packages/auth` (`528889d8`, pre-existing, out of this plan's scope). It also
+    corrected several record claims (now indexed in `27-04-SUMMARY.md` §0):
+    the RSS-gate headroom is **2.67x** against a warmed child, not the 3.3x
+    computed against a fresh one; `cookParseOldSpaceMb` (renamed from
+    `cookParseHeapMb`) is **decoration** in the test suite — `execArgv: []`
+    leaves 339/339 green, the RSS/CPU gates are what have teeth; container sizing
+    is **~1 102 MB**, superseding both 628 MB and 512 MB; and the `TRPCLink<any>`
+    widening VERIFY-3 called pre-existing was actually added in-range by
+    `bba2943e` — all five instances since removed (`ff13ab6b`).
+  - **Open items a fresh session should track (full detail in `27-04-SUMMARY.md`
+    "Additional queued follow-ups"):** a **new, previously-unrecorded W6
+    prerequisite** — `setActiveSystemForRecipe` clearing `cook_source` on a
+    metric↔US switch becomes a hard failure once `cook_source` is NOT NULL,
+    joining the existing 8 000 ms wall-backstop prerequisite; RSS-gate behaviour
+    under **severe** memory pressure is untested (VERIFY-4 aborted a probe to
+    protect the host); **six of seventeen** `typecheck` legs are vacuous
+    (`apps/web` plus five packages' `--noCheck`, `@norish/shared-server` — this
+    phase's entire production change — among them; a real `tsc --noEmit` was run
+    by hand on five of the six and all passed, `apps/web` remains unmeasured);
+    the Docker build (unlike a local install) DOES warn on ignored build scripts
+    for `sharp`/`esbuild` — chased and found pre-existing, harmless; `norish-app`
+    has no memory limit (`HostConfig.Memory=0`), bounded only by the LXC's
+    5 000 MB; and `AI_API_KEY` being live-configured means **W3's producer is now
+    live** — live had 6 recipes, 0 with `cook_source`, at cutover, so that is the
+    minting baseline going forward.
+  - Full record, consolidated in place per this doc's own convention (superseded
+    claims annotated, never deleted, indexed in a §0 table): `27-04-SUMMARY.md`.
+
 ## Session log — 2026-07-26
 
 - **✅ PHASE 27 W3 IS NOW CODE-COMPLETE **PLUS HARDENED**: plan `27-04` (W3B — "bound the WASM parse") is **COMPLETE, all six tasks**, on `main`. NOTHING IS PUSHED AND NOTHING IS DEPLOYED — live `norish-app` still runs image **`516c52576a5f`** at DB migration **42** (verified this session with `docker inspect`, not assumed).** Commits, in landing order: `59f3a767` (T1 — the pooled child process that is the ONLY importer of `@cooklang/cooklang`) → `4bbeecc7` (T2 — the async ripple + the tsdown build gate) → `226f04a7` (T5 — `revalidateCookPayload`, the copy path's door, T-27-07) → **`cffaa5d8` (D-27-W3B-03a — THE PRIMARY GATE IS CPU TIME, NOT WALL CLOCK)** → `5cdfc8aa` (T3 — H1, the CLOSED frontmatter grammar) → `d3848c54` (T4 — H2, a 9-byte WASM panic, and H3, the serializer DELETED user text) → **`231baf91` (T6's root fix — the read-path latency alarm moved off the wall clock)** plus the record commits. Full record: `.planning/phases/27-cooklang/27-04-SUMMARY.md`, now consolidated with a **§0 table of every superseded claim** and a **§15 close-out**. Gates: real `tsc --noEmit -p` EXIT 0 for `shared` and `shared-server`; `@norish/shared-server` **546** (was 545 **with a flaky red**); `@norish/shared` **319**; `@norish/api` `cook-payload` **25**; `@norish/queue` **121**; `@norish/db` (`sg docker`) **179**; eslint 0 errors/0 warnings on every touched file; `pnpm-lock.yaml` diff EMPTY; **no migration — DB stays at 42**, `migrations/` + `meta/_journal.json` untouched. `apps/web` and `@norish/shared-react` were deliberately NOT run (another agent owned them; `apps/web` is red at 412/424 for an unrelated reason) and were not touched.

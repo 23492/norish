@@ -59,6 +59,14 @@ image `516c52576a5f` (verified: `docker inspect norish-app`) at DB migration **4
 `pnpm-lock.yaml` diff EMPTY, `packages/db/src/migrations/` and `meta/_journal.json`
 untouched throughout.
 
+**⚠ SUPERSEDED 2026-07-27 — kept verbatim as the pre-deploy record; see §0 and
+"LIVE DEPLOY RECORD" at the foot of this file for the current state.** VERIFY-4
+(the fourth independent adversarial verification) PASSED; every VERIFY-3 blocker
+and gate problem was root-fixed (see "RESOLUTION" below). The range WAS pushed
+(`faa13d8e..fbe2cfa7`, 52 commits, `main == origin/main`) and WAS deployed to live
+(new image `704aa6b6…`, previous `516c52576a5f`, migration delta 42 → 42, no
+migration in range).
+
 ---
 
 ## HOW TO READ THIS FILE
@@ -75,6 +83,10 @@ of what was measured when. Read §0 first if you only read one thing.
 | §13 | **D-27-W3B-03a — the primary gate is CPU time, not wall clock** | current |
 | §14 | Tasks 3/4 — the H1 / H2 / H3 root fixes | current |
 | **§15** | **Task 6 — the adversarial weakenings — and the WAVE CLOSE-OUT: W5's prerequisites, the corrected operational guidance, what is NOT done** | current |
+| §16 | a post-wave stale-fixture defect (`cook-tokens-isolation`) | current |
+| "VERIFY-3 — open blockers before deploy" | the third adversarial verification: six blockers, three gate problems | **HISTORICAL — every blocker and gate problem is now CLOSED**; see "RESOLUTION" at the foot of this file |
+| "RESOLUTION" (foot of file) | VERIFY-4 (fourth verification, PASS) and the close-out of every VERIFY-3 finding | current |
+| "LIVE DEPLOY RECORD" (foot of file) | the 2026-07-27 deploy | current — the final state |
 
 ---
 
@@ -92,6 +104,11 @@ time, which is why it is worth keeping visible.
 | "`pool-timeout` should be ~zero; any occurrence is a bug report" — §13.10 | **§15.3** (Task 6's contention finding) | True for a QUIET box. Above ~5.3x of contention the 8 s backstop pre-empts the 1 500 ms CPU gate, so a hostile row is legitimately refused as `pool-timeout`. **The reason alone is not the signal — read `cpuMs` beside it** |
 | "`AI_API_KEY` is empty on live, so W3's producer never fires there — the deploy is a no-op in practice" — W3's exit item 5 in `waves/W3-SUMMARY.md`, `STATE.md` and `ROADMAP.md` (all three now annotated in place) | **§15.6** | **Wrong now.** Live's `ai_config` has held a DeepSeek key since 2026-06-15 (set via the Admin UI) and it is now env-backed in `/opt/norish/.env` (untracked, `chmod 600`, verified present). **W3 will NOT be inert once deployed** |
 | "`cookParseHeapMb: 256` is 7.8x headroom over the worst accepted peak (33 MB)" (§13.3) and "size the container against ~628 MB of transient, not 512 MB" (§11, §15.6) | **VERIFY-3 §1 (below)** | **The 256 MB figure is not a memory bound at all.** `--max-old-space-size=256` caps only V8's OLD SPACE; the WASM parser allocates in **linear memory**, which that flag does not govern. A child forked exactly as `pool.ts:331` does measured **899 MB RSS** at the instant the 1 500 ms CPU gate fires (two runs) and **2 273 MB peak** before `SIGABRT`. Real worst-case transient is **~1.8 GB across two pool slots**, not 512 MB or 628 MB. Mutation-tested: `execArgv: []` (no heap flag at all) leaves **331/331** cooklang tests green; disabling the CPU gate fails **8**. The CPU gate is what actually catches every hostile family — the heap bound has no teeth in the suite and the wrong number in its rationale |
+| VERIFY-3 blocker 1's fix and `limits.ts:273`'s "3.3x over the worst legitimate peak" (the new `cookParseRssMb: 512` gate that replaced the V8 heap flag) | **VERIFY-4 §B.1** | The 3.3x figure was computed against a **fresh**-child peak (152.9 MB). Against a fully **warmed** child — the real steady state, since WASM linear memory only ever grows and is never returned, so the plateau across 1 050 heavy parses (178.9 MB) **is** the high-water mark — the worst legitimate parse peaks at **191.4 MB** (a +12.5 MB delta over the plateau). Real headroom against the 512 MB gate is **2.67x**, not 3.3x: still safe (same order as the CPU gate's own 2.96x), but the record's number was optimistic. `limits.ts:273`'s comment should read ~2.7x against a warm child |
+| `cookParseHeapMb` / `--max-old-space-size` treated as a load-bearing bound anywhere in §3/§11/§13.3/§15.6 and VERIFY-3 blocker 1 | **VERIFY-4 §B.3-B.4** | Renamed `cookParseOldSpaceMb` and confirmed **decoration in the test suite**: `execArgv: []` (no heap flag at all) leaves **339/339** cooklang tests green. The gates with teeth are RSS (**4 RED** alone) and CPU (**7 RED** alone; **9 RED** with both disabled). `cookParseOldSpaceMb` remains a defensible, but **unproven**, second line against a single allocation inside one 25 ms poll window |
+| "size the container against ~628 MB of transient" (§11, §15.6) and VERIFY-3 blocker 1's "~1.8 GB across two pool slots" | **the 2026-07-27 deploy** | Container sizing at deploy is **~1 102 MB** — supersedes both 628 MB and 512 MB (and the pre-fix reality of ~1.8 GB unbounded). `norish-app` itself carries **no memory limit** (`HostConfig.Memory=0`), bounded only by the LXC's 5 000 MB — see "Additional queued follow-ups" at the foot of this file |
+| "`packages/shared-react/src/providers/trpc-links.ts:216`... `TRPCLink<any>`... pre-existing" — VERIFY-3 "Minor, also open" (below) | **VERIFY-4 §H, FINDING H-1** | **Wrong.** Occurrence count of `TRPCLink<any>` is 4 at `origin/main` → 5 at HEAD: the widening was added **in-range** by `bba2943e fix(shared-react): resolve generic-inference errors in trpc/query plumbing`, part of the price paid for removing `--noCheck` from `shared-react`. All five instances were subsequently removed by `ff13ab6b` — see RESOLUTION below and `27-04-FIX-TYPEWIDENING.md` |
+| VERIFY-3's gate-problem #2 prescription, "root fix is a `pnpm.overrides` entry" (read as root `package.json#pnpm.overrides`) | **`27-04-FIX-GATES.md` §G2, "WHERE THE OVERRIDE GOES"** | **Wrong for this repo.** `package.json#pnpm.overrides` **replaces** `pnpm-workspace.yaml#overrides` rather than merging with it; adding the entry there silently dropped the five existing overrides (`@tanstack/react-query`, `@trpc/client`, `@trpc/server`, `@trpc/tanstack-react-query`, `zod`) from the lockfile's resolved `overrides:` block. The fix landed as a **sixth entry in `pnpm-workspace.yaml`** instead (`9cf78c18`), verified to reproduce from the frozen lockfile alone (`27-04-VERIFY-4.md` §E) |
 
 ---
 
@@ -1770,3 +1787,143 @@ protocol, re-checked), exactly **one** production importer of `@cooklang/cooklan
 - **W6 prerequisite:** revisit the 8 000 ms wall backstop before `cook_source`
   becomes NOT NULL — a refusal that costs the user nothing today becomes a hard
   import failure once W6 lands (§13.3, §15.3).
+
+---
+
+## RESOLUTION — VERIFY-3's six blockers and three gate problems, ALL CLOSED
+
+Root-fixed across three follow-up passes (`27-04-FIX-COOKLANG.md`,
+`27-04-FIX-WRITEPATH.md`, `27-04-FIX-GATES.md`, `27-04-FIX-TYPEWIDENING.md`) and
+independently re-verified by a fourth adversarial round (`27-04-VERIFY-4.md`,
+verdict **PASS — safe to deploy**). This table is the index; the evidence lives in
+those files, not here.
+
+| # | blocker / gate problem | commit | evidence |
+|---|---|---|---|
+| 1 | `cookParseHeapMb` was not a memory bound | `43b5e1b7` fix(27-04): bound the parse child's MEMORY on measured RSS, not on a V8 flag | `27-04-FIX-COOKLANG.md` "Blocker 1"; re-verified `27-04-VERIFY-4.md` §B |
+| 2 | stale unquoted `REALISTIC` fixture defeated its own recognizer | `2232d3e5` fix(27-04): mint pool.test.ts's REALISTIC fixture from the real serializer | `27-04-FIX-COOKLANG.md` "Blocker 2"; re-verified `27-04-VERIFY-4.md` §G |
+| 3 | two vacuous assertions (`limits.test.ts`, `attach-tokens.test.ts`) | `ea242ed0` test(27-04): make the two vacuous cooklang assertions assert the real outcome | `27-04-FIX-COOKLANG.md` "Blocker 3"; re-verified `27-04-VERIFY-4.md` §G (28 RED under a child-unspawnable mutation) |
+| 4 | `parseInPool` was an unenforced third door | `388650b2` fix(27-04): close the pool's third door — no public subpath, enforced preconditions | `27-04-FIX-COOKLANG.md` "Blocker 4"; re-verified `27-04-VERIFY-4.md` §A (every deep-import variant tried resolves `ERR_PACKAGE_PATH_NOT_EXPORTED`) |
+| 5 | nutrition estimation silently NULLed a freshly-minted `cook_source` | `ff289ae6` fix(27-04): make a write's effect on cook_source a STATED intent (VERIFY-3 #5, #6) | `27-04-FIX-WRITEPATH.md` §2a; re-verified `27-04-VERIFY-4.md` §D (24/24 on a real Postgres, red-then-green under targeted mutation) |
+| 6 | metric↔US switch served the wrong system's `.cook` | `ff289ae6` (same commit, §2b) | `27-04-FIX-WRITEPATH.md` §2b; re-verified `27-04-VERIFY-4.md` §C — **the CLEAR-not-remint decision is correct**, and verified forced (see the new W6 prerequisite below) |
+| G1 | `migrate-gallery-images.test.ts` flaky under contention | `bd6b3071` test(27-04): take the module load out of migrate-gallery-images' test budget | `27-04-FIX-GATES.md` §G1 |
+| G2 | `pnpm typecheck` genuinely RED (`shared-react`, `apps/mobile` duplicate installs) | `9cf78c18` fix(27-04): dedupe @tanstack/query-core and refresh the stale lockfile | `27-04-FIX-GATES.md` §G2; re-verified `27-04-VERIFY-4.md` §E (reproduces from the frozen lockfile, not the local surgery) |
+| G3 | a stray `eslint-disable-next-line no-console` | `c3a3e73e` test(27-04): report the D-27-W3-07 measurement via vitest annotate, not console | `27-04-FIX-GATES.md` §G3 |
+| G4 | `import-flow.test.ts` flaky (same class as G1) | `1af9a8ee` test(27-04): take the module load out of import-flow's test budget | `27-04-FIX-GATES.md` §G4; re-verified `27-04-VERIFY-4.md` §F (11/11 across 3x shuffled reruns) |
+
+Docs-of-record for each pass: `14776696` (blockers 1-4), `370cec55` (blockers 5-6),
+`d9c4f9c6` (G1-G4), `9100e0de` (VERIFY-3 itself), `bf1f5136` (VERIFY-4's record).
+
+**VERIFY-4 is the SECOND CONSECUTIVE round to find no bypass of T-27-01.** Round 3
+swept ~71 000 recognizer-filtered shapes plus 60 hand-built families and found
+zero; round 4 attacked the *doors* that blockers 1 and 4 moved and also found none
+— every deep-import variant of the pool module resolves
+`ERR_PACKAGE_PATH_NOT_EXPORTED`, and the single-importer property was confirmed in
+the **shipped bundle** (`dist-server/`), not just by a static assertion.
+
+VERIFY-4 also surfaced two contention-only test flakes and a mis-attributed record
+claim, all closed in the same range:
+
+- **FAIL-1** — `packages/shared-server/__tests__/cooklang/pool.test.ts:419`, a bare
+  wall-clock `toBeLessThan(50)` assertion in **this plan's own new file** (the exact
+  defect class D-27-W3B-03a/§15.3/G1/G4 were all written to cure) — fixed by
+  `9211b256` test(27-04): assert the pool-warm fixture round trip on CPU and
+  pid-identity, not wall clock.
+- **FAIL-2** — `packages/auth/__tests__/auth/workos-provider.test.ts:76`, a third,
+  previously-unflagged instance of the G1/G4 disease (pre-existing; `packages/auth`
+  is untouched by this plan's own range) — fixed by `528889d8` test(auth): hoist
+  the workos-provider subject import out of the per-test wall budget.
+- The `TRPCLink<any>` widening (§0 above, FINDING H-1) was removed entirely by
+  `ff13ab6b` fix(27-04): give the shared-react tRPC links their real router type —
+  see `27-04-FIX-TYPEWIDENING.md`.
+
+Neither FAIL-1 nor FAIL-2 ever blocked the deploy: `docker/Dockerfile`'s image
+build runs no tests and no typecheck. Record commit for VERIFY-4's findings and
+these two fixes: `fbe2cfa7` docs(27-04): record the root fixes for FAIL-1 and
+FAIL-2 (VERIFY-4).
+
+---
+
+## Additional queued follow-ups (VERIFY-4 and the 2026-07-27 deploy — nothing here is done)
+
+- **W6 prerequisite, unrecorded until VERIFY-4 (finding C-1):** once `cook_source`
+  becomes NOT NULL, `setActiveSystemForRecipe` CLEARING `cook_source` on a
+  metric↔US switch (confirmed the correct call on the code as it stands — see
+  RESOLUTION #6 above) turns a routine user action into a **hard failure**, because
+  the UPDATE would attempt to write NULL into a NOT NULL column. This is a SECOND,
+  independent W6 prerequisite, alongside the existing 8 000 ms wall-backstop item
+  a few lines above. **Clearing (rather than re-minting) was verified as FORCED,
+  not a shortcut:** `recipe_ingredients`
+  (`packages/db-schema/src/schema/recipe-ingredients.ts:9-24`) has **no
+  step-linkage column** — no `stepId`, no `stepOrder` — so per-step linkage exists
+  *only* inside the native `.cook`'s inline `@ingredient{}` tokens; a re-mint would
+  require re-parsing a stored source (against the "re-serialize, not re-parse"
+  rule) and then transplanting refs across AI-rewritten prose by name.
+- **Untested residual:** RSS-gate behaviour under **severe** host memory pressure.
+  VERIFY-4 aborted a 1 400 MB probe after 10 minutes of swap thrashing rather than
+  risk the host (processes killed, memory verified returned). The CPU gate is
+  unaffected by this axis (schedstat counts CPU actually burned, and the hostile
+  families burn 4 895-12 222 ms against a 1 500 ms budget) and the 8 000 ms wall
+  backstop remains as a second line — so the boundary does not rest on RSS alone —
+  but this is **untested, not proven**.
+- **Gate integrity — `--noCheck` is wider than the phase's own record has stated.**
+  Verified directly against the repo: **six of the seventeen** `typecheck` legs
+  turbo runs are vacuous — `apps/web` (`tsconfig.json:6`, `"noCheck": true`) plus
+  `@norish/api`, `@norish/auth`, `@norish/queue`, `@norish/shared-server` and
+  `@norish/trpc` (`--noCheck` on the CLI inside their own `typecheck` package.json
+  scripts). *(Correction: the brief this entry was written from said "eighteen" —
+  every `package.json` with a `typecheck` script, including the three `tooling/*`
+  packages, totals exactly **seventeen**, matching `27-04-VERIFY-4.md`'s own "17
+  successful, 17 total"; there is no eighteenth leg.)* This matters because
+  `@norish/shared-server` holds this phase's **entire production change** and is
+  one of the six. At deploy time a **real** `tsc --noEmit` (no `--noCheck`) was run
+  by hand on all five `--noCheck` packages and all were **EXIT 0, 0 errors**; only
+  `apps/web` remains unmeasured by a real `tsc` run. Also record: this commit range
+  **removed** `--noCheck` from `apps/mobile` and `@norish/shared-react`
+  (`cadfcaac`) — the opposite direction from the six above.
+- **Correction to `27-04-VERIFY-4.md` §E:** its claim that `pnpm install` emits no
+  ignored-build-scripts warning is true **locally** but **false inside the Docker
+  build** — both the `deps` and the `pnpm deploy` stages warn, naming
+  `sharp@0.34.5` and `esbuild`. Chased to a conclusion at deploy time: `sharp`
+  works at runtime (a real PNG encode/decode through the prebuilt
+  `@img/sharp-linuxmusl-x64`, libvips 8.17.3) and `esbuild` is build-time only,
+  absent from the runtime image. **The previous live image shows the identical
+  picture** — pre-existing, not a regression introduced by this plan.
+- **Operational (a follow-up to consider, not a defect):** `norish-app` carries
+  **no memory limit** (`HostConfig.Memory=0`), bounded only by the LXC's
+  5 000 MB, against a ~1 102 MB adversarial two-pool-slot transient.
+- **W3's producer is now LIVE, confirmed in production.** `AI_API_KEY` is set in
+  `norish-app`'s environment (§15.6's correction, now confirmed post-deploy, not
+  just pre-deploy). Live carried **6 recipes, 0 with `cook_source`** at cutover —
+  that is the baseline; minting starts from this deploy forward. Whoever watches
+  next should track `pool-*` reasons **alongside their `cpuMs`/`rssMb` values**
+  (§15.3: the reason alone is not the signal — e.g. `pool-timeout` with `cpuMs`
+  near zero is a bug report, `pool-timeout` with `cpuMs` in the hundreds is a
+  hostile row on a saturated box, i.e. the bound working as designed).
+- **Still open, unchanged since VERIFY-3/VERIFY-4:** `@a{1/0%g}` / `@a{0/0%g}` pass
+  the recognizer and panic the WASM (`RuntimeError: unreachable`) — contained,
+  child discarded, parent unaffected, ~0 ms cost — a gap in the H2 fix, which
+  closed the whitespace-shaped traps but not a zero-denominator fraction.
+
+---
+
+## LIVE DEPLOY RECORD — 2026-07-27
+
+Plan 27-04 (bounding the Cooklang WASM parse) shipped to live, after VERIFY-3's six
+blockers, four gate problems and VERIFY-4's two follow-ups were all root-fixed (see
+RESOLUTION above).
+
+| fact | value |
+|---|---|
+| new live image | `sha256:704aa6b60b3365dde1894e94a52204f7e8b33c5350b8cd141ce97d61e42c465e` |
+| previous live image | `sha256:516c52576a5f…` |
+| rollback tag | `norish:rollback-20260727-pre-27-04` |
+| migration delta | 42 → 42 (no migration in range) |
+| push | `faa13d8e..fbe2cfa7 main -> main`, 52 commits; `main == origin/main` |
+| backup | `/home/claude/norish-backups/norish-live-20260727-020830-pre-27-04.dump`, verified inside `norish-db` at **231 TOC objects** |
+| health at cutover | `Migrations complete`; container healthy, **0 restarts**; local + public `/api/v1/health` → `{status:ok, db:ok}`; local `/` 307; public `https://norish.knoppsmart.com/` 307; zero `level>=40` logs; zero `pool-*` bound reasons in ~10 min |
+| memory | `norish-app` settled **374 → 395 MiB** (old image baseline 226 MiB) |
+
+See `.planning/STATE.md`'s 2026-07-27 session-log entry for the same facts in that
+file's own convention, and "Additional queued follow-ups" above for what a fresh
+session should track next.
