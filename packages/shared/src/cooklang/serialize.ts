@@ -434,6 +434,17 @@ function findNameSpan(text: string, name: string): NameSpan | null {
 }
 
 /**
+ * Whether `name` has a textual anchor in `text` — the SAME word-boundary,
+ * case-insensitive match `serializeStepLine` uses to decide `inline` vs
+ * `appended` (Phase 27 W5, D-27-W5-03/D-27-W5-06). The legacy-recipe seeder
+ * reuses this rather than a second matcher of its own: a second implementation
+ * would drift from the serializer's and silently move a token to the wrong step.
+ */
+export function hasNameAnchor(text: string, name: string): boolean {
+  return findNameSpan(text, name) !== null;
+}
+
+/**
  * A step line under construction, as an alternating sequence of untrusted PROSE
  * runs and norish-authored TOKENS.
  *

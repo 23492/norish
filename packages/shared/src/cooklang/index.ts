@@ -23,6 +23,7 @@ export {
   escapeCookText,
   formatCooklangIngredient,
   formatCooklangTimer,
+  hasNameAnchor,
   serializeWithReport,
   structuredToCooklang,
 } from "./serialize";
