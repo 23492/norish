@@ -3,6 +3,7 @@
 import type { CookRenderIngredientToken, CookRenderStep } from "@norish/shared/cooklang";
 import type { IngredientLinkCandidate } from "@norish/shared-react/text";
 
+import { useTranslations } from "next-intl";
 import { cookStepTimers, cookStepToMarkdown } from "@norish/shared/cooklang";
 import { normalizeIngredientLinkName } from "@norish/shared-react/text";
 
@@ -68,17 +69,24 @@ export function SmartInstruction({
   const { timersEnabled } = useTimersEnabledQuery();
   const { timerKeywords } = useTimerKeywordsQuery();
   const { formatAmountUnit } = useUnitFormatter();
+  const t = useTranslations("common");
 
   const keywords = {
     hours: timerKeywords.hours,
     minutes: timerKeywords.minutes,
     seconds: timerKeywords.seconds,
   };
+  // The same i18n key T3 added to smart-markdown-renderer.tsx
+  // (common.timer.step_fallback_label) — the last hard-coded English timer
+  // label ("Timer") in the tree lived here, as the `cookStepToMarkdown`
+  // fallback shown when an unnamed timer token's chip can't resolve (timers
+  // disabled / link mode disabled).
+  const timerFallbackLabel = t("timer.step_fallback_label", { step: stepIndex + 1 });
 
   const resolvedText = cookStep
     ? cookStepToMarkdown(cookStep, {
         ingredientAmountLabel: (token) => formatAmountUnit(token.amount, token.unit),
-        timerLabel: (timer) => timer.name ?? "Timer",
+        timerLabel: (timer) => timer.name ?? timerFallbackLabel,
       })
     : text;
   // Per-token candidate resolution (D-27-W4-09): mirrors the

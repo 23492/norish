@@ -177,7 +177,15 @@ describe("SmartInstruction — Cooklang token branch (Phase 27 W4, T2)", () => {
     expect(screen.getByText("TIMER:sauce:600000")).toBeInTheDocument();
   });
 
-  it("falls back to a plain label and stays inert when timers are disabled", () => {
+  // Fix (declared separately from the mobile T4 work): the fallback label
+  // for an unnamed timer token used to be the hard-coded English literal
+  // "Timer" (smart-instruction.tsx:81). It now goes through the same
+  // `common.timer.step_fallback_label` i18n key T3 added to
+  // smart-markdown-renderer.tsx, via `useTranslations("common")` — this
+  // file's `next-intl` mock reproduces the real `en` string
+  // ("Step {step} Timer") by interpolation, so the assertion below fails
+  // against the pre-fix hard-coded "Timer" string.
+  it("falls back to the translated step-fallback label and stays inert when timers are disabled", () => {
     timersEnabledMock.mockReturnValue({ timersEnabled: false });
 
     const step: CookRenderStep = {
@@ -198,7 +206,8 @@ describe("SmartInstruction — Cooklang token branch (Phase 27 W4, T2)", () => {
       />
     );
 
-    expect(screen.getByText("Timer")).toBeInTheDocument();
+    expect(screen.getByText("Step 1 Timer")).toBeInTheDocument();
+    expect(screen.queryByText("Timer")).toBeNull();
     expect(screen.queryByText(/^TIMER:/)).toBeNull();
   });
 
