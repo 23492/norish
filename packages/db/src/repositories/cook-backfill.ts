@@ -1,10 +1,10 @@
 import type { UnitsMap } from "@norish/config/zod/server-config";
 import type { CookTokensDTO, MeasurementSystem } from "@norish/shared/contracts/dto/recipe";
 
-import { eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import { db, withTransaction } from "../drizzle";
-import { groceries, recipeIngredients, recipes } from "../schema";
+import { groceries, recipeIngredients, recipes, steps as stepsTable } from "../schema";
 
 import { deriveProjectionTx, type DeriveProjectionReport } from "./cook-projection";
 
@@ -34,6 +34,19 @@ import { deriveProjectionTx, type DeriveProjectionReport } from "./cook-projecti
  *   ORDERING RULE: snapshot the at-risk ids BEFORE deriving, re-check them AFTER —
  *   reversing this order, or downgrading the throw to a log, is a data-loss defect,
  *   not a style choice.
+ * - THE STEP-LOSS GUARD (post-verification fix, same shape as D-27-W5-06).
+ *   `syncProjectedStepsTx` matches existing `steps` rows POSITIONALLY and
+ *   tail-trims any surplus — if the derive collapses more source steps than it
+ *   produces (a trailing `#` heading with no body, two consecutive headings,
+ *   or a whitespace-only step all do this), the trimmed rows are DELETED and
+ *   `step_images.step_id` is `ON DELETE CASCADE`, so their images vanish with
+ *   them, silently, inside a transaction that then commits. Same ordering
+ *   rule: snapshot every native `steps.id` for this recipe BEFORE deriving,
+ *   re-check them AFTER, and throw to roll the WHOLE transaction back if any
+ *   is gone. This guard belongs HERE, on the backfill path — it must not
+ *   weaken `syncProjectedStepsTx` itself, which every other recipe edit also
+ *   calls and where a genuine, user-authored step deletion is exactly the
+ *   intended behaviour.
  */
 
 /** The natural-key contract `deriveProjectionTx` already takes — no re-parsing here. */
@@ -56,6 +69,19 @@ export class GroceryLinkWouldBreakError extends Error {
   constructor(recipeId: string, lostLinkCount: number) {
     super(`recipe ${recipeId}: backfill would break ${lostLinkCount} shopping-list link(s)`);
     this.name = "GroceryLinkWouldBreakError";
+  }
+}
+
+/**
+ * Thrown when re-deriving a recipe's projection would delete one or more of its
+ * existing native `steps` rows (and, by cascade, any `step_images` attached to
+ * them). The message carries the recipe id and the COUNT of steps at risk —
+ * never step prose (T-27-05).
+ */
+export class StepWouldBeLostError extends Error {
+  constructor(recipeId: string, lostStepCount: number) {
+    super(`recipe ${recipeId}: backfill would lose ${lostStepCount} step row(s)`);
+    this.name = "StepWouldBeLostError";
   }
 }
 
@@ -92,6 +118,16 @@ export async function applyCookBackfill(write: CookBackfillWrite): Promise<Deriv
       .where(eq(recipeIngredients.recipeId, recipeId));
     const atRiskIds = atRisk.map((row) => row.id);
 
+    // 1b. Snapshot the native step ids at risk BEFORE deriving (step-loss
+    // guard). `syncProjectedStepsTx` positionally matches existing rows and
+    // tail-trims any surplus, so a collapse (see the module docblock) deletes
+    // rows here and cascades their `step_images`.
+    const stepsAtRisk = await tx
+      .select({ id: stepsTable.id })
+      .from(stepsTable)
+      .where(and(eq(stepsTable.recipeId, recipeId), eq(stepsTable.systemUsed, systemUsed)));
+    const stepsAtRiskIds = stepsAtRisk.map((row) => row.id);
+
     // 2. Derive the projection through the REAL projection writer.
     const report = await deriveProjectionTx(tx, { recipeId, systemUsed, cookTokens, units });
 
@@ -109,6 +145,25 @@ export async function applyCookBackfill(write: CookBackfillWrite): Promise<Deriv
 
       if (lost.length > 0) {
         throw new GroceryLinkWouldBreakError(recipeId, lost.length);
+      }
+    }
+
+    // 3b. Step-loss guard: re-check every native step id survived the derive.
+    // A missing id means `syncProjectedStepsTx` tail-trimmed a row that existed
+    // before this call — that row's `step_images` cascaded with it. Same
+    // ordering rule as (3): throw here to roll the WHOLE transaction back;
+    // reversing this with step 2, or downgrading it to a log, is a data-loss
+    // defect.
+    if (stepsAtRiskIds.length > 0) {
+      const survivingSteps = await tx
+        .select({ id: stepsTable.id })
+        .from(stepsTable)
+        .where(inArray(stepsTable.id, stepsAtRiskIds));
+      const survivingStepIds = new Set(survivingSteps.map((row) => row.id));
+      const lostSteps = stepsAtRiskIds.filter((id) => !survivingStepIds.has(id));
+
+      if (lostSteps.length > 0) {
+        throw new StepWouldBeLostError(recipeId, lostSteps.length);
       }
     }
 

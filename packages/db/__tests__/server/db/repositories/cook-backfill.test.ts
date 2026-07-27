@@ -26,8 +26,9 @@ import {
   getOrCreateIngredientByName,
   GroceryLinkWouldBreakError,
   setConfig,
+  StepWouldBeLostError,
 } from "@norish/db";
-import { groceries, recipeIngredients, recipes, steps } from "@norish/db/schema";
+import { groceries, recipeIngredients, recipes, stepImages, steps } from "@norish/db/schema";
 
 import { createTestUser, getTestDb } from "../../../helpers/db-test-helpers";
 import { RepositoryTestBase } from "../../../helpers/repository-test-base";
@@ -366,6 +367,162 @@ describe("applyCookBackfill (Phase 27 W5, COOK-01)", () => {
     expect(groceryAfter!.recipeIngredientId).toBe(strayRow!.id);
     expect(groceryAfter!.recipeIngredientId).not.toBeNull();
     expect(strayAfter).toBeDefined();
+  });
+
+  describe("the step-loss guard (G2 fix)", () => {
+    /**
+     * `syncProjectedStepsTx` matches existing `steps` rows POSITIONALLY and
+     * tail-trims any surplus. The verifier drove the REAL seeder -> serializer
+     * -> WASM parser -> `computeCookProjection` chain and found three legacy
+     * step shapes that collapse 3 source steps into 2 derived ones: a trailing
+     * `#` heading with no body, two consecutive headings (which also loses the
+     * FIRST heading's text), and a whitespace-only step. `@norish/db` cannot
+     * import the parser, so each `cookTokens` fixture below is hand-built to be
+     * EXACTLY the collapsed (2-entry) shape the real chain produces for that
+     * legacy input — proven independently, against the real chain, by
+     * `packages/api/__tests__/startup/backfill-cook-source.test.ts`.
+     *
+     * Every case seeds a FRESH recipe (independent of the outer `beforeEach`'s
+     * `recipeA`, which already carries one native step and would collide with
+     * a hand-seeded `order: "0"` row under the `unique_recipe_step_system`
+     * index) with 3 native `steps` rows, and attaches a `step_images` row to
+     * the one the positional tail-trim would actually delete (always the LAST
+     * pre-existing row once the derive shrinks to 2), so the assertion that
+     * follows proves the image survives the rollback too.
+     */
+    async function seedRecipeWithThreeNativeSteps(texts: [string, string, string]) {
+      const testDb = getTestDb();
+      const [recipe] = await testDb
+        .insert(recipes)
+        .values({
+          userId: userU,
+          householdId: householdA,
+          name: "Step-loss guard fixture",
+          systemUsed: "metric",
+        })
+        .returning({ id: recipes.id });
+      const recipeId = recipe!.id;
+      const inserted = await testDb
+        .insert(steps)
+        .values(
+          texts.map((text, index) => ({
+            recipeId,
+            step: text,
+            order: String(index),
+            systemUsed: "metric" as const,
+          }))
+        )
+        .returning({ id: steps.id });
+      const ids = inserted.map((row) => row.id);
+      const [image] = await testDb
+        .insert(stepImages)
+        .values({ stepId: ids[2]!, image: "steps/original-third-step.jpg" })
+        .returning({ id: stepImages.id });
+
+      return { recipeId, ids, imageId: image!.id };
+    }
+
+    async function expectRollback(recipeId: string, ids: string[], imageId: string) {
+      const testDb = getTestDb();
+      const [recipeAfter] = await testDb.select().from(recipes).where(eq(recipes.id, recipeId));
+      const stepsAfter = await testDb
+        .select({ id: steps.id })
+        .from(steps)
+        .where(eq(steps.recipeId, recipeId))
+        .orderBy(steps.order);
+      const [imageAfter] = await testDb.select().from(stepImages).where(eq(stepImages.id, imageId));
+
+      expect(recipeAfter!.cookSource).toBeNull();
+      expect(stepsAfter.map((r) => r.id)).toEqual(ids);
+      expect(imageAfter).toBeDefined();
+    }
+
+    it("aborts the whole recipe rather than lose a step (trailing heading with no body)", async () => {
+      const { recipeId, ids, imageId } = await seedRecipeWithThreeNativeSteps([
+        "Whisk the flour and milk.",
+        "Bake it.",
+        "# Notes",
+      ]);
+
+      // Mirrors the real chain's output: the trailing heading's section has no
+      // step content, so the parser never emits a token entry for it at all.
+      const collapsedTokens: CookTokensDTO = [
+        { order: 0, section: null, tokens: [{ type: "text", value: "Whisk the flour and milk." }] },
+        { order: 1, section: null, tokens: [{ type: "text", value: "Bake it." }] },
+      ];
+
+      await expect(
+        applyCookBackfill({
+          recipeId,
+          systemUsed: "metric",
+          cookSource: "Whisk the flour and milk.\n\nBake it.\n",
+          cookTokens: collapsedTokens,
+          cookConfidence: 1,
+          reviewNeeded: false,
+          units,
+        })
+      ).rejects.toThrow(StepWouldBeLostError);
+
+      await expectRollback(recipeId, ids, imageId);
+    });
+
+    it("aborts the whole recipe rather than lose a step (two consecutive headings)", async () => {
+      const { recipeId, ids, imageId } = await seedRecipeWithThreeNativeSteps([
+        "# Prep",
+        "# Cook",
+        "Do the thing.",
+      ]);
+
+      // Mirrors the real chain's output: two headings with nothing between them
+      // collapse into ONE section (the second), so the first heading's text
+      // disappears entirely and only one token entry survives.
+      const collapsedTokens: CookTokensDTO = [
+        { order: 0, section: "Cook", tokens: [{ type: "text", value: "Do the thing." }] },
+      ];
+
+      await expect(
+        applyCookBackfill({
+          recipeId,
+          systemUsed: "metric",
+          cookSource: "== Cook ==\n\nDo the thing.\n",
+          cookTokens: collapsedTokens,
+          cookConfidence: 1,
+          reviewNeeded: false,
+          units,
+        })
+      ).rejects.toThrow(StepWouldBeLostError);
+
+      await expectRollback(recipeId, ids, imageId);
+    });
+
+    it("aborts the whole recipe rather than lose a step (whitespace-only step)", async () => {
+      const { recipeId, ids, imageId } = await seedRecipeWithThreeNativeSteps([
+        "Whisk the flour.",
+        "   ",
+        "Bake it.",
+      ]);
+
+      // Mirrors the real chain's output: a whitespace-only step trims to an
+      // empty line, which the parser folds away rather than emitting as a step.
+      const collapsedTokens: CookTokensDTO = [
+        { order: 0, section: null, tokens: [{ type: "text", value: "Whisk the flour." }] },
+        { order: 1, section: null, tokens: [{ type: "text", value: "Bake it." }] },
+      ];
+
+      await expect(
+        applyCookBackfill({
+          recipeId,
+          systemUsed: "metric",
+          cookSource: "Whisk the flour.\n\nBake it.\n",
+          cookTokens: collapsedTokens,
+          cookConfidence: 1,
+          reviewNeeded: false,
+          units,
+        })
+      ).rejects.toThrow(StepWouldBeLostError);
+
+      await expectRollback(recipeId, ids, imageId);
+    });
   });
 
   it("applyCookBackfill takes no user id and no household id", () => {

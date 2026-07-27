@@ -6,6 +6,7 @@ import {
   applyCookBackfill,
   GroceryLinkWouldBreakError,
   listRecipeIdsWithoutCookSource,
+  StepWouldBeLostError,
 } from "@norish/db/repositories/cook-backfill";
 import { getRecipeFull } from "@norish/db/repositories/recipes";
 import { getUnits } from "@norish/shared-server/config/server-config-loader";
@@ -236,6 +237,12 @@ export async function backfillCookSource(): Promise<CookBackfillOutcome> {
         dbLogger.warn(
           { module: "cooklang", reason: "grocery-link-would-break", recipeId },
           "Cooklang backfill: grocery link would break"
+        );
+        outcome.refused += 1;
+      } else if (err instanceof StepWouldBeLostError) {
+        dbLogger.warn(
+          { module: "cooklang", reason: "step-would-be-lost", recipeId },
+          "Cooklang backfill: step would be lost"
         );
         outcome.refused += 1;
       } else {

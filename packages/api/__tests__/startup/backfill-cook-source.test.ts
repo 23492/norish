@@ -73,7 +73,11 @@ const {
   cookConfidenceFromLinks,
   COOK_REVIEW_CONFIDENCE_THRESHOLD,
 } = await import("@norish/api/startup/backfill-cook-source");
-const { GroceryLinkWouldBreakError } = await import("@norish/db/repositories/cook-backfill");
+const { GroceryLinkWouldBreakError, StepWouldBeLostError } = await import(
+  "@norish/db/repositories/cook-backfill"
+);
+const { computeCookProjection } = await import("@norish/db/repositories/cook-projection");
+const { buildCookPayload } = await import("@norish/shared-server/cooklang/build-payload");
 
 // --------------------------------------------------------------------------
 // fixture builders
@@ -575,6 +579,121 @@ describe("backfillCookSource", () => {
     // the static grep in the plan's acceptance criteria. This test exists so the
     // behaviour bullet has a corresponding assertion in the suite.
     expect(mockGetUnits).toHaveBeenCalledTimes(1);
+  });
+
+  // --------------------------------------------------------------------------
+  // G2 fix — the step-loss guard's `StepWouldBeLostError` is handled the same
+  // way `GroceryLinkWouldBreakError` already is: counted `refused`, logged with
+  // reason `step-would-be-lost`, never escapes the loop.
+  // --------------------------------------------------------------------------
+
+  it("counts a StepWouldBeLostError as refused and logs step-would-be-lost, never throwing", async () => {
+    const recipe = makeRecipe({
+      id: "step-loss",
+      steps: [makeStep({ step: "Whisk the flour.", systemUsed: "metric", order: 0 })],
+      recipeIngredients: [makeIngredient({ ingredientName: "flour", systemUsed: "metric" })],
+    });
+
+    mockListRecipeIdsWithoutCookSource.mockResolvedValue(["step-loss"]);
+    mockGetRecipeFull.mockResolvedValue(recipe);
+    mockApplyCookBackfill.mockRejectedValue(new StepWouldBeLostError("step-loss", 1));
+
+    await expect(backfillCookSource()).resolves.toEqual({
+      candidates: 1,
+      derived: 0,
+      flagged: 0,
+      refused: 1,
+      failed: 0,
+    });
+
+    const warnCalls = logSpy.warn.mock.calls.filter(
+      (call) => (call[0] as { reason?: string }).reason === "step-would-be-lost"
+    );
+
+    expect(warnCalls).toHaveLength(1);
+    expect(warnCalls[0]![0]).toMatchObject({ module: "cooklang", recipeId: "step-loss" });
+  });
+
+  // --------------------------------------------------------------------------
+  // G2 fix — proof, against the REAL chain, that the three degenerate legacy
+  // step shapes the verifier found really do collapse the derived step count.
+  // `computeCookProjection` is `@norish/db`'s parser-free projection function
+  // (imported here because `@norish/api` already depends on `@norish/db`,
+  // unlike `@norish/db` itself, which cannot import the parser); feeding it the
+  // REAL `cookTokens` `buildCookPayload` mints proves the collapse happens on
+  // the real chain, not just in a hand-built fixture. The db-level guard test
+  // (`cook-backfill.test.ts`) proves the ABORT; this proves the TRIGGER.
+  // --------------------------------------------------------------------------
+
+  describe("G2: the real chain collapses these three legacy step shapes", () => {
+    async function derivedStepCount(recipe: FullRecipeDTO): Promise<{ derived: number; native: number }> {
+      const built = buildStructuredRecipeFromLegacy(recipe);
+
+      if (!("structured" in built)) throw new Error(`expected structured, got refusal: ${JSON.stringify(built)}`);
+
+      const payload = await buildCookPayload(built.structured, units);
+
+      if (!payload) throw new Error("expected a payload");
+
+      const projection = computeCookProjection({
+        systemUsed: built.structured.systemUsed,
+        cookTokens: payload.cookTokens,
+        units,
+      });
+
+      return { derived: projection.steps.length, native: built.structured.steps.length };
+    }
+
+    it("a trailing `#` heading with no body loses its own row", async () => {
+      const recipe = makeRecipe({
+        systemUsed: "metric",
+        steps: [
+          makeStep({ step: "Whisk the flour.", systemUsed: "metric", order: 0 }),
+          makeStep({ step: "Bake it.", systemUsed: "metric", order: 1 }),
+          makeStep({ step: "# Notes", systemUsed: "metric", order: 2 }),
+        ],
+        recipeIngredients: [makeIngredient({ ingredientName: "flour", systemUsed: "metric" })],
+      });
+
+      const { derived, native } = await derivedStepCount(recipe);
+
+      expect(native).toBe(3);
+      expect(derived).toBeLessThan(native);
+    });
+
+    it("two consecutive headings collapse into one, losing the first heading's text", async () => {
+      const recipe = makeRecipe({
+        systemUsed: "metric",
+        steps: [
+          makeStep({ step: "# Prep", systemUsed: "metric", order: 0 }),
+          makeStep({ step: "# Cook", systemUsed: "metric", order: 1 }),
+          makeStep({ step: "Do the thing.", systemUsed: "metric", order: 2 }),
+        ],
+        recipeIngredients: [],
+      });
+
+      const { derived, native } = await derivedStepCount(recipe);
+
+      expect(native).toBe(3);
+      expect(derived).toBeLessThan(native);
+    });
+
+    it("a whitespace-only step vanishes entirely", async () => {
+      const recipe = makeRecipe({
+        systemUsed: "metric",
+        steps: [
+          makeStep({ step: "Whisk the flour.", systemUsed: "metric", order: 0 }),
+          makeStep({ step: "   ", systemUsed: "metric", order: 1 }),
+          makeStep({ step: "Bake it.", systemUsed: "metric", order: 2 }),
+        ],
+        recipeIngredients: [makeIngredient({ ingredientName: "flour", systemUsed: "metric" })],
+      });
+
+      const { derived, native } = await derivedStepCount(recipe);
+
+      expect(native).toBe(3);
+      expect(derived).toBeLessThan(native);
+    });
   });
 
   // --------------------------------------------------------------------------
