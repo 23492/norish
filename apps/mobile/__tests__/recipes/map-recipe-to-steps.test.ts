@@ -130,6 +130,31 @@ describe("mapRecipeToSteps (Phase 27 W4, T4)", () => {
     expect(ingredientToken).toMatchObject({ amount: 400, unit: "gram" });
   });
 
+  it("filters out the OPPOSITE system's steps before mapping (W3 — verifier warning)", () => {
+    // `recipe.steps` carries rows for both measurement systems — dual-authored
+    // legacy prose, or the opposite system's preserved steps alongside a
+    // cook-projection recipe's native-system rows (D-27-W2-05). Web filters
+    // by `systemUsed` (readonly-steps-list.tsx:120); mobile must too, or a
+    // recipe with steps in both systems doubles its visible step count.
+    const recipe = baseRecipe({
+      systemUsed: "metric",
+      steps: [
+        legacyStep("Preheat the oven to 200C.", 1),
+        { ...legacyStep("Preheat the oven to 400F.", 1), systemUsed: "us" as const },
+        legacyStep("Mix the batter.", 2),
+        { ...legacyStep("Mix the batter (US).", 2), systemUsed: "us" as const },
+      ],
+    });
+
+    const result = mapRecipeToSteps(recipe, null);
+
+    expect(result).toHaveLength(2);
+    expect(result.map((s) => s.text)).toEqual([
+      "Preheat the oven to 200C.",
+      "Mix the batter.",
+    ]);
+  });
+
   it("resolves image URLs the same way regardless of which branch a step takes", () => {
     const cookTokens: CookTokensDTO = [
       { order: 1, section: null, tokens: [{ type: "text", value: "Bake." }] },

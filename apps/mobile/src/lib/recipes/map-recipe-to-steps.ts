@@ -62,7 +62,19 @@ export function mapRecipeToSteps(
   backendBaseUrl: string | null,
   servings?: number | null
 ): MappedStep[] {
-  const sorted = [...(recipe.steps ?? [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  // `recipe.steps` carries rows for BOTH measurement systems (dual-authored
+  // legacy recipes, and the opposite system's preserved prose alongside a
+  // cook-projection recipe's native-system derived rows, D-27-W2-05) — the
+  // same reason web's `readonly-steps-list.tsx` filters by `systemUsed`
+  // before rendering. Without this filter every recipe with steps authored
+  // in both systems would double its visible step count on mobile; it was
+  // masked here only because the resulting (wrong) count almost never
+  // equalled `cookTokens`'s single-system length, so the D-27-W4-13 mismatch
+  // guard fell back to the (still unfiltered, still doubled) legacy branch.
+  const stepsForSystem = (recipe.steps ?? []).filter(
+    (step) => step.systemUsed === recipe.systemUsed
+  );
+  const sorted = [...stepsForSystem].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
   const cookSteps = resolveCookRenderSteps(recipe.cookTokens, {
     baseServings: recipe.servings,
