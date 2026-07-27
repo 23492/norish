@@ -234,12 +234,13 @@ describe("useTimerStore", () => {
     const { addTimer, startTimer, tick } = useTimerStore.getState();
 
     // Two named timers from the SAME step, ids shaped exactly like
-    // `resolveCookRenderSteps`/`cookStepTimers` produce them
-    // (`${recipeId}-s${stepIndex}-t${tokenIndex}`).
-    addTimer("recipe-1-s0-t0", "recipe-1", "pasta", 1000);
-    addTimer("recipe-1-s0-t1", "recipe-1", "sauce", 1000);
-    startTimer("recipe-1-s0-t0");
-    startTimer("recipe-1-s0-t1");
+    // `buildTokenTimerMap` (smart-markdown-renderer.tsx) and mobile's
+    // `inline-token-renderer.tsx` actually emit them:
+    // (`${recipeId}-s${stepIndex}-${tokenIndex}` — no `-t` infix).
+    addTimer("recipe-1-s0-0", "recipe-1", "pasta", 1000);
+    addTimer("recipe-1-s0-1", "recipe-1", "sauce", 1000);
+    startTimer("recipe-1-s0-0");
+    startTimer("recipe-1-s0-1");
 
     const { timers } = useTimerStore.getState();
 
@@ -266,7 +267,7 @@ describe("useTimerStore", () => {
     // replace the first with the second, collapsing "pasta done" and "sauce
     // done" into a single OS notification (the collapse D-27-W4-07 fixes).
     expect(new Set(tags).size).toBe(2);
-    expect(tags).toEqual(expect.arrayContaining(["recipe-1-s0-t0", "recipe-1-s0-t1"]));
+    expect(tags).toEqual(expect.arrayContaining(["recipe-1-s0-0", "recipe-1-s0-1"]));
 
     const titles = showNotification.mock.calls.map(([title]) => title);
 

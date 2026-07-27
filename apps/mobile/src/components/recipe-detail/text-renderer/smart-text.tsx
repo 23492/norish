@@ -52,7 +52,8 @@ export function SmartText({
   // token branch. Ingredient tokens render as styled text (mobile has no
   // ingredient-highlight target, D-27-W4-04); timer tokens resolve against
   // `cookStepTimers` and render as the SAME `TimerChipInline` the keyword
-  // branch uses, with id `${recipeId}-s${stepIndex}-t${tokenIndex}`
+  // branch uses, with id `${recipeId}-s${stepIndex}-${tokenIndex}` (no
+  // `-t` infix — matches `inline-token-renderer.tsx`'s actual scheme)
   // (D-27-W4-06) so two timers in one step coexist as distinct store
   // entries. These hooks run UNCONDITIONALLY every render (see the note at
   // the branch point below) so the hook-call count never varies with props.
