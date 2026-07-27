@@ -29,7 +29,9 @@ describe("same-dimension conversion (via `convert`)", () => {
     if (!r.ok) return;
     expect(r.via).toBe("same-dimension");
     expect(r.unit).toBe("ounce");
-    expect(r.quantity).toBeCloseTo(3.5274, 3);
+    // D-27-W5P-03: presentation-rounded to 3 significant digits (was an
+    // absolute `toBeCloseTo(3.5274, 3)` before `roundQuantity` landed).
+    expect(r.quantity).toBe(3.53);
   });
 
   it("ml → cup (236.588 ml ≈ 1 cup)", () => {
@@ -45,7 +47,8 @@ describe("same-dimension conversion (via `convert`)", () => {
 
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(r.quantity).toBeCloseTo(4.9289, 3);
+    // D-27-W5P-03: presentation-rounded to 3 significant digits.
+    expect(r.quantity).toBe(4.93);
   });
 
   it("°C → °F (100 °C = 212 °F)", () => {
@@ -61,7 +64,8 @@ describe("same-dimension conversion (via `convert`)", () => {
 
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(r.quantity).toBeCloseTo(3.5274, 3);
+    // D-27-W5P-03: presentation-rounded to 3 significant digits.
+    expect(r.quantity).toBe(3.53);
   });
 });
 
@@ -185,7 +189,7 @@ describe("flag-on-unknown — NEVER fabricate a density", () => {
 });
 
 describe("canonical-unit round-trips", () => {
-  it("gram → ounce → gram preserves the value", () => {
+  it("gram → ounce → gram preserves the value within 1% (roundQuantity is lossy by design, D-27-W5P-03)", () => {
     const there = convertToUnit(500, "gram", "ounce");
 
     expect(there.ok).toBe(true);
@@ -194,7 +198,10 @@ describe("canonical-unit round-trips", () => {
 
     expect(back.ok).toBe(true);
     if (!back.ok) return;
-    expect(back.quantity).toBeCloseTo(500, 3);
+    // Presentation rounding to 3 significant digits is lossy — worst case
+    // ~0.5% per hop, so a two-hop round trip is bounded at ~1% relative error
+    // (`500 g` → `17.6 oz` → `499 g`, not an exact `500`).
+    expect(Math.abs(back.quantity - 500) / 500).toBeLessThan(0.01);
   });
 
   it("cup → milliliter → cup preserves the value", () => {
@@ -242,7 +249,8 @@ describe("convertToSystem (metric ↔ US projection, same-dimension)", () => {
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.unit).toBe("milliliter");
-    expect(r.quantity).toBeCloseTo(473.18, 1);
+    // D-27-W5P-03: presentation-rounded to 3 significant digits.
+    expect(r.quantity).toBe(473);
   });
 
   it("5 cups → metric picks liter (≥ 1 L)", () => {
@@ -269,12 +277,29 @@ describe("convertToSystem (metric ↔ US projection, same-dimension)", () => {
     expect(r.unit).toBe("centimeter");
   });
 
-  it("does NOT auto cross-convert volume↔weight (stays within dimension)", () => {
+  it("does NOT auto cross-convert volume↔weight from metric — metric never crosses", () => {
     const r = convertToSystem(1, "cup", "metric", { ingredient: "flour" });
 
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(dimensionOf(r.unit)).toBe("volume"); // milliliter, not gram
+  });
+
+  it("crosses mass -> US VOLUME when a density exists, and only in that direction", () => {
+    const usMass = convertToSystem(250, "gram", "us", { ingredient: "flour" });
+
+    expect(usMass.ok).toBe(true);
+    if (usMass.ok) expect(dimensionOf(usMass.unit)).toBe("volume");
+
+    const metricVolume = convertToSystem(1, "cup", "metric", { ingredient: "flour" });
+
+    expect(metricVolume.ok).toBe(true);
+    if (metricVolume.ok) expect(dimensionOf(metricVolume.unit)).toBe("volume");
+
+    const usNoDensity = convertToSystem(500, "gram", "us", { ingredient: "chicken breast" });
+
+    expect(usNoDensity.ok).toBe(true);
+    if (usNoDensity.ok) expect(dimensionOf(usNoDensity.unit)).toBe("mass");
   });
 });
 
