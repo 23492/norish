@@ -35,7 +35,14 @@ async function main() {
   await migrateGalleryImages();
   log.info("-".repeat(50));
 
-  await backfillCookSource();
+  // Defense in depth for G3: `backfillCookSource()` is itself guaranteed never
+  // to throw (D-27-W5-04 / R4), but the call site does not rely on that alone —
+  // a backfill failure of any kind must never cost the boot.
+  try {
+    await backfillCookSource();
+  } catch (err) {
+    log.error({ err }, "Cooklang backfill threw unexpectedly; continuing boot on the legacy projection");
+  }
   log.info("-".repeat(50));
 
   await initializeVideoProcessing();

@@ -576,4 +576,52 @@ describe("backfillCookSource", () => {
     // behaviour bullet has a corresponding assertion in the suite.
     expect(mockGetUnits).toHaveBeenCalledTimes(1);
   });
+
+  // --------------------------------------------------------------------------
+  // G3 fix — `getUnits()` and `listRecipeIdsWithoutCookSource()` are setup
+  // calls OUTSIDE the per-recipe loop; they must be guarded exactly as
+  // thoroughly as anything inside it, or the "NEVER THROWS" contract is false.
+  // --------------------------------------------------------------------------
+
+  describe("G3: the setup calls can never escape backfillCookSource", () => {
+    it("resolves with zeroed counts when getUnits() rejects", async () => {
+      mockGetUnits.mockRejectedValueOnce(new Error("units config unreachable"));
+
+      await expect(backfillCookSource()).resolves.toEqual({
+        candidates: 0,
+        derived: 0,
+        flagged: 0,
+        refused: 0,
+        failed: 0,
+      });
+
+      expect(mockGetRecipeFull).not.toHaveBeenCalled();
+
+      const errorCalls = logSpy.error.mock.calls.filter(
+        (call) => (call[0] as { reason?: string }).reason === "setup-failed"
+      );
+
+      expect(errorCalls).toHaveLength(1);
+    });
+
+    it("resolves with zeroed counts when listRecipeIdsWithoutCookSource() rejects", async () => {
+      mockListRecipeIdsWithoutCookSource.mockRejectedValueOnce(new Error("db pool exhausted"));
+
+      await expect(backfillCookSource()).resolves.toEqual({
+        candidates: 0,
+        derived: 0,
+        flagged: 0,
+        refused: 0,
+        failed: 0,
+      });
+
+      expect(mockGetRecipeFull).not.toHaveBeenCalled();
+
+      const errorCalls = logSpy.error.mock.calls.filter(
+        (call) => (call[0] as { reason?: string }).reason === "setup-failed"
+      );
+
+      expect(errorCalls).toHaveLength(1);
+    });
+  });
 });

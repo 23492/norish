@@ -131,18 +131,38 @@ export function buildStructuredRecipeFromLegacy(
  * a boot-time backfill failure must never cost the boot. Every log line carries
  * ids, counts and reasons only — never a recipe name, an ingredient name or step
  * prose (T-27-05).
+ *
+ * POST-VERIFICATION FIX (G3): `getUnits()` and `listRecipeIdsWithoutCookSource()`
+ * are setup calls that can reject exactly like anything inside the per-recipe
+ * loop (a cold DB pool, a missing units config), so they run INSIDE the same
+ * guard rather than before it — this function must genuinely never reject, not
+ * just never reject once the loop starts.
  */
 export async function backfillCookSource(): Promise<CookBackfillOutcome> {
-  const units: UnitsMap = await getUnits();
-  const ids = await listRecipeIdsWithoutCookSource();
-
   const outcome: CookBackfillOutcome = {
-    candidates: ids.length,
+    candidates: 0,
     derived: 0,
     flagged: 0,
     refused: 0,
     failed: 0,
   };
+
+  let units: UnitsMap;
+  let ids: string[];
+
+  try {
+    units = await getUnits();
+    ids = await listRecipeIdsWithoutCookSource();
+  } catch (err) {
+    dbLogger.error(
+      { module: "cooklang", reason: "setup-failed", err },
+      "Cooklang backfill: setup failed, skipping this run"
+    );
+
+    return outcome;
+  }
+
+  outcome.candidates = ids.length;
 
   if (ids.length === 0) {
     dbLogger.info({ module: "cooklang" }, "Cooklang backfill: nothing to do");
