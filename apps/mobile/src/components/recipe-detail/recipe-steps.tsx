@@ -62,7 +62,11 @@ export function RecipeSteps({ steps, recipeId, recipeName }: RecipeStepsProps) {
       </Text>
 
       {steps.map((step, index) => {
-        const isHeading = step.text.trim().startsWith("#");
+        // Phase 27 W4 (D-27-W4-05): on the cook-token branch a heading comes
+        // from the paired step's own `section`/`isSectionStart` — the legacy
+        // `#`-sniff below only ever fires for a step with no `cookStep`
+        // (the common case until W5's backfill).
+        const isHeading = !step.cookStep && step.text.trim().startsWith("#");
 
         if (isHeading) {
           const headingText = step.text.trim().replace(/^#+\s*/, "");
@@ -78,10 +82,12 @@ export function RecipeSteps({ steps, recipeId, recipeName }: RecipeStepsProps) {
         const stepImages = step.images ?? [];
         const imageUris = stepImages.map((si) => si.image);
         const isDone = doneSteps.has(index);
+        const sectionHeading =
+          step.cookStep?.isSectionStart && step.cookStep.section ? step.cookStep.section : null;
 
-        return (
+        const stepRow = (
           <Pressable
-            key={index}
+            key="row"
             onPress={() => toggleStep(index)}
             style={({ pressed }) => [styles.stepRow, pressed && styles.stepRowPressed]}
           >
@@ -115,6 +121,7 @@ export function RecipeSteps({ steps, recipeId, recipeName }: RecipeStepsProps) {
                 </Text>
               ) : (
                 <SmartText
+                  cookStep={step.cookStep}
                   style={[styles.stepText, { color: foregroundColor }]}
                   highlightTimers
                   timerContext={{
@@ -163,6 +170,21 @@ export function RecipeSteps({ steps, recipeId, recipeName }: RecipeStepsProps) {
             </View>
           </Pressable>
         );
+
+        if (sectionHeading) {
+          return (
+            <React.Fragment key={index}>
+              <View style={styles.headingRow}>
+                <Text style={[styles.headingText, { color: foregroundColor }]}>
+                  {sectionHeading}
+                </Text>
+              </View>
+              {stepRow}
+            </React.Fragment>
+          );
+        }
+
+        return <React.Fragment key={index}>{stepRow}</React.Fragment>;
       })}
 
       {/* Full-screen carousel for step images */}

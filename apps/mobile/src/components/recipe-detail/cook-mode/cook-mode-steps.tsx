@@ -14,6 +14,8 @@ import * as Haptics from "expo-haptics";
 import { useThemeColor } from "heroui-native";
 import { useIntl } from "react-intl";
 
+import type { CookRenderStep } from "@norish/shared/cooklang";
+
 import { SmartText } from "../text-renderer";
 
 const SLIDE_DISTANCE = 40;
@@ -39,6 +41,8 @@ type ResolvedStep = {
   text: string;
   heading?: string;
   images?: MappedStep["images"];
+  /** Cooklang token step for this row (Phase 27 W4). See `SmartText`. */
+  cookStep?: CookRenderStep;
 };
 
 function resolveSteps(steps: MappedStep[]): ResolvedStep[] {
@@ -48,17 +52,26 @@ function resolveSteps(steps: MappedStep[]): ResolvedStep[] {
 
   for (let i = 0; i < steps.length; i++) {
     const step = steps[i]!;
-    if (step.text.trim().startsWith("#")) {
+
+    // Phase 27 W4 (D-27-W4-05): a cook-token step never carries a legacy
+    // `#` heading row — `mapRecipeToSteps` excludes those from the pairing
+    // entirely — so the `#`-sniff below only ever fires on the legacy
+    // branch (no `cookStep`); the token branch reads its heading from the
+    // step's own `cookStep.section` instead, "sticky" across every step in
+    // the section exactly like the legacy `currentHeading` carry-forward.
+    if (!step.cookStep && step.text.trim().startsWith("#")) {
       currentHeading = step.text.trim().replace(/^#+\s*/, "");
       continue;
     }
+
     stepNumber++;
     resolved.push({
       originalIndex: i,
       stepNumber,
       text: step.text,
-      heading: currentHeading,
+      heading: step.cookStep ? (step.cookStep.section ?? undefined) : currentHeading,
       images: step.images,
+      cookStep: step.cookStep,
     });
   }
   return resolved;
@@ -185,6 +198,7 @@ export function CookModeSteps({
 
             {/* Step text with SmartText */}
             <SmartText
+              cookStep={step.cookStep}
               style={[styles.stepText, { color: foregroundColor }]}
               highlightTimers
               timerContext={{

@@ -1,4 +1,5 @@
 import type { StyleProp, TextProps, TextStyle } from "react-native";
+import type { CookRenderStep, CookRenderTimer } from "@norish/shared/cooklang";
 
 // ─── Inline token types ──────────────────────────────────────────────────────
 
@@ -32,6 +33,15 @@ export type RichTextSegment = {
 
 export type TopSegment = RichTextSegment | TimerSegment;
 
+// ─── Cook-token render context (Phase 27 W4, D-27-W4-02/06/10) ──────────────
+
+/** Recipe context threaded down to a resolved timer chip's store entry. */
+export type TimerRenderContext = {
+  recipeId: string;
+  recipeName?: string;
+  stepIndex: number;
+};
+
 // ─── SmartText props ─────────────────────────────────────────────────────────
 
 export type SmartTextProps = {
@@ -47,11 +57,20 @@ export type SmartTextProps = {
    * Recipe context for timer IDs. Required when highlightTimers is true
    * to generate unique timer identifiers.
    */
-  timerContext?: {
-    recipeId: string;
-    recipeName?: string;
-    stepIndex: number;
-  };
+  timerContext?: TimerRenderContext;
   /** Extra props forwarded to the root <Text> (only when no timers present) */
   textProps?: TextProps;
+  /**
+   * Cooklang token step for this row (Phase 27 W4, D-27-W4-01/10/11). When
+   * present, `children` is IGNORED — the markup is built from the token via
+   * `cookStepToMarkdown`/`cookStepTimers` instead of scanning prose for
+   * ingredients/timers, and the keyword-scanning branch below never runs.
+   * `null`/`undefined` (the common case until W5's backfill) keeps the
+   * existing keyword-scan render, byte-for-byte.
+   */
+  cookStep?: CookRenderStep;
 };
+
+// Re-exported so `inline-token-renderer.tsx` can name the timer list's
+// element type without reaching into `@norish/shared/cooklang` itself.
+export type { CookRenderTimer };

@@ -65,9 +65,11 @@ export function RecipeDetailView({ ctx, recipeId }: RecipeDetailViewProps) {
   );
 
   // --- Steps ---
+  // D-27-W4-03: pass the CURRENT servings, not a pre-divided ratio —
+  // `mapRecipeToSteps` reads the recipe's own `servings` as the base.
   const mappedSteps = useMemo(
-    () => mapRecipeToSteps(recipe!, backendBaseUrl),
-    [recipe, backendBaseUrl]
+    () => mapRecipeToSteps(recipe!, backendBaseUrl, currentServings),
+    [recipe, backendBaseUrl, currentServings]
   );
 
   // --- Tags (FullRecipeDTO.tags is { name: string }[], need plain strings) ---
