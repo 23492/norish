@@ -182,7 +182,9 @@ describe("ReadonlyStepsList — Cooklang token branch (Phase 27 W4, T2)", () => 
     // prose has no `@name{amount}` markers for `applyIngredientLinkMarkup`
     // to match, so the chip disappears entirely on a done token step even
     // though the legacy (non-token) done step keeps its chip.
-    const [firstStepButton] = screen.getAllByRole("button");
+    const firstStepButton = screen.getAllByRole("button")[0];
+
+    if (!firstStepButton) throw new Error("expected at least one step button");
 
     fireEvent.click(firstStepButton);
 
