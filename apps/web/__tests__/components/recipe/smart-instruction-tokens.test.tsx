@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import "@testing-library/jest-dom";
@@ -95,7 +95,40 @@ describe("SmartInstruction — Cooklang token branch (Phase 27 W4, T2)", () => {
     // never runs (there is no createIngredientLinkCandidates call at this
     // layer to begin with — ReadonlyStepsList owns that proof).
     expect(screen.getByText("brown sugar (200 g)")).toBeInTheDocument();
-    expect(screen.queryAllByRole("button")).toHaveLength(0);
+  });
+
+  // T2b (Phase 27 W4 gap-closure): T2 shipped this branch with
+  // `ingredientCandidates={undefined}`, so the chip rendered as a
+  // non-interactive `<span>` and `onIngredientPress` never fired — it only
+  // satisfied D-27-W4-09's literal `<action>` text, not its `<behavior>`
+  // (chips reuse the existing highlight-key contract). This test FAILS
+  // against that code: there is no `button` role and `onIngredientPress` is
+  // never called.
+  it("renders the token ingredient chip as interactive and fires onIngredientPress with the legacy-compatible key", () => {
+    const onIngredientPress = vi.fn();
+
+    render(
+      <SmartInstruction
+        cookStep={ingredientStep()}
+        recipeId="r1"
+        recipeName="R"
+        stepIndex={0}
+        text="Add sugar and stir in the sugar."
+        onIngredientPress={onIngredientPress}
+      />
+    );
+
+    const chip = screen.getByRole("button", { name: "brown sugar (200 g)" });
+
+    fireEvent.click(chip);
+
+    // Same `"metric:brown sugar"` form the legacy `createIngredientLinkCandidates`
+    // path and `readonly-ingredients-list.tsx`'s `data-ingredient-link-key`
+    // anchors use (D-27-W4-09) — token and legacy branches must agree.
+    expect(onIngredientPress).toHaveBeenCalledTimes(1);
+    expect(onIngredientPress).toHaveBeenCalledWith(
+      expect.objectContaining({ key: "metric:brown sugar", ingredientName: "brown sugar" })
+    );
   });
 
   it("resolves a named timer token to a real duration via cookStepTimers, bypassing the prose scan", () => {

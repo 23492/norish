@@ -1,13 +1,43 @@
 "use client";
 
-import type { CookRenderStep } from "@norish/shared/cooklang";
+import type { CookRenderIngredientToken, CookRenderStep } from "@norish/shared/cooklang";
 import type { IngredientLinkCandidate } from "@norish/shared-react/text";
 
 import { cookStepTimers, cookStepToMarkdown } from "@norish/shared/cooklang";
+import { normalizeIngredientLinkName } from "@norish/shared-react/text";
 
 import SmartMarkdownRenderer from "@/components/shared/smart-markdown-renderer";
 import { useTimerKeywordsQuery, useTimersEnabledQuery } from "@/hooks/config";
 import { useUnitFormatter } from "@/hooks/use-unit-formatter";
+
+/**
+ * Builds the SAME `IngredientLinkCandidate` shape `createIngredientLinkCandidates`
+ * produces, resolved DIRECTLY from the step's own ingredient tokens instead of
+ * scanning the ingredient list — the per-token counterpart to `cookStepTimers`
+ * (D-27-W4-09). Each token already carries the precomputed `key`
+ * (`getIngredientLinkCandidateKey`, T1's `resolveCookRenderSteps`), so the
+ * chip's press event and `readonly-ingredients-list.tsx`'s
+ * `data-ingredient-link-key` anchors resolve to the exact same key the legacy
+ * heuristic path would have produced for the same ingredient.
+ */
+function cookStepIngredientCandidates(cookStep: CookRenderStep): IngredientLinkCandidate[] {
+  return cookStep.tokens
+    .filter((token): token is CookRenderIngredientToken => token.type === "ingredient")
+    .map((token, order) => {
+      const colonIndex = token.key.indexOf(":");
+      const systemUsed = colonIndex === -1 ? "" : token.key.slice(0, colonIndex);
+
+      return {
+        key: token.key,
+        ingredientName: token.name,
+        amount: token.amount,
+        unit: token.unit,
+        normalizedName: normalizeIngredientLinkName(token.name),
+        systemUsed,
+        order,
+      };
+    });
+}
 
 interface SmartInstructionProps {
   text: string;
@@ -51,10 +81,17 @@ export function SmartInstruction({
         timerLabel: (timer) => timer.name ?? "Timer",
       })
     : text;
+  // Per-token candidate resolution (D-27-W4-09): mirrors the
+  // `timerConfig.tokens` escape hatch above — resolve the chip against the
+  // step's own tokens instead of a name scan, so the chip stays interactive
+  // and keyed exactly like the legacy branch.
+  const resolvedIngredientCandidates = cookStep
+    ? cookStepIngredientCandidates(cookStep)
+    : ingredientCandidates;
 
   return (
     <SmartMarkdownRenderer
-      ingredientCandidates={cookStep ? undefined : ingredientCandidates}
+      ingredientCandidates={resolvedIngredientCandidates}
       text={resolvedText}
       timerConfig={{
         enabled: timersEnabled && timerKeywords.enabled,

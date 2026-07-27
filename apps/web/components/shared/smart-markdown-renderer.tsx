@@ -87,13 +87,17 @@ export default function SmartMarkdownRenderer({
         ])
       );
   // On the token branch `text` was already built by `cookStepToMarkdown` and
-  // carries `norish-ingredient:`/`norish-timer:` markup — never re-run the
-  // timer prose scan against it (D-27-W4-11). `applyIngredientLinkMarkup`
-  // still runs but is a no-op whenever the caller passes no candidates
-  // (ingredient-links.ts:104), which the token branch always does.
+  // carries `norish-ingredient:`/`norish-timer:` markup for BOTH ingredients
+  // and timers — never re-run either prose scan against it (D-27-W4-11).
+  // `ingredientCandidates` is still real on this branch (T2b, D-27-W4-09):
+  // `candidateByKey` below resolves the embedded `norish-ingredient:<key>`
+  // hrefs to a clickable chip. Only the SCAN (`applyIngredientLinkMarkup`,
+  // which looks for literal `@name{amount}` markers in raw prose) is
+  // skipped — running it against already-built markdown risks mis-parsing a
+  // literal `@` the step's own prose happens to contain.
   const markedUpText = isTokenTimerBranch ? text : applyTimerMarkup(text, timerMatches);
   const processedText = preprocessText(
-    applyIngredientLinkMarkup(markedUpText, ingredientCandidates),
+    isTokenTimerBranch ? markedUpText : applyIngredientLinkMarkup(markedUpText, ingredientCandidates),
     resolvedLinkMode
   );
 
