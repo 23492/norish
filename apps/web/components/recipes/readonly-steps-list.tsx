@@ -1,14 +1,16 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import type { CookRenderStep } from "@norish/shared/cooklang";
+import type { IngredientLinkCandidate } from "@norish/shared-react/text";
+
+import React, { Fragment, useMemo, useState } from "react";
 import Image from "next/image";
+import { CheckIcon } from "@heroicons/react/16/solid";
+import { createIngredientLinkCandidates } from "@norish/shared-react/text";
+
 import { SmartInstruction } from "@/components/recipe/smart-instruction";
 import ImageLightbox from "@/components/shared/image-lightbox";
 import SmartMarkdownRenderer from "@/components/shared/smart-markdown-renderer";
-import { CheckIcon } from "@heroicons/react/16/solid";
-
-import type { IngredientLinkCandidate } from "@norish/shared-react/text";
-import { createIngredientLinkCandidates } from "@norish/shared-react/text";
 
 type StepLike = {
   step: string;
@@ -24,6 +26,8 @@ type SmartInstructionLike = React.ComponentType<{
   recipeName?: string;
   stepIndex: number;
   ingredientCandidates?: IngredientLinkCandidate[];
+  /** Cooklang token step for this row (Phase 27 W4). See `SmartInstruction`. */
+  cookStep?: CookRenderStep;
   onIngredientPress?: (candidate: IngredientLinkCandidate) => void;
 }>;
 
@@ -47,6 +51,14 @@ export type ReadonlyStepsListProps = {
   onIngredientPress?: (candidate: IngredientLinkCandidate) => void;
   /** Override the timer-aware instruction renderer (e.g. for public share pages). */
   InstructionComponent?: SmartInstructionLike;
+  /**
+   * Cooklang token render steps (Phase 27 W4, D-27-W4-01/13). `null`/`undefined`
+   * (the common case until W5's backfill) keeps the existing `#`-sniffing
+   * heuristic render, byte-for-byte. When non-null it is paired 1:1 with the
+   * Nth non-heading legacy step; a count mismatch falls back to the legacy
+   * branch in full, never a half-token render.
+   */
+  cookSteps?: CookRenderStep[] | null;
 };
 
 export function ReadonlyStepsList({
@@ -60,6 +72,7 @@ export function ReadonlyStepsList({
   ingredients = [],
   onIngredientPress,
   InstructionComponent = SmartInstruction,
+  cookSteps,
 }: ReadonlyStepsListProps) {
   const [done, setDone] = useState<Set<number>>(() => new Set());
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -106,22 +119,37 @@ export function ReadonlyStepsList({
   const filteredSteps = steps
     .filter((s) => s.systemUsed === systemUsed)
     .sort((a, b) => a.order - b.order);
+  // D-27-W4-13: the Nth non-heading legacy row pairs with the Nth token
+  // step. A count mismatch means a stale projection — fall back to the
+  // legacy branch in FULL rather than a half-token render.
+  const nonHeadingStepCount = filteredSteps.filter(
+    (s) => !s.step.trim().startsWith("#")
+  ).length;
+  const useCookBranch = cookSteps != null && cookSteps.length === nonHeadingStepCount;
   const ingredientCandidates = useMemo(
-    () => createIngredientLinkCandidates(ingredients, systemUsed),
-    [ingredients, systemUsed]
+    () => (useCookBranch ? undefined : createIngredientLinkCandidates(ingredients, systemUsed)),
+    [ingredients, systemUsed, useCookBranch]
   );
 
   let stepNumber = 0;
+  let cookStepCursor = 0;
 
   return (
     <>
       <ol className="space-y-3">
         {filteredSteps.map((s, i) => {
-          const isHeading = s.step.trim().startsWith("#");
-          const isDone = done.has(i);
-          const stepImages = s.images || [];
+          const legacyIsHeading = s.step.trim().startsWith("#");
 
-          if (isHeading) {
+          // On the token branch the legacy `# Heading` projection row is
+          // superseded by the paired cook step's own `section` (D-27-W4-05)
+          // — it never consumed a step number and renders nothing here.
+          if (useCookBranch && legacyIsHeading) return null;
+
+          const cookStep = useCookBranch ? (cookSteps ?? [])[cookStepCursor] : undefined;
+
+          if (useCookBranch) cookStepCursor += 1;
+
+          if (!useCookBranch && legacyIsHeading) {
             const headingText = s.step.trim().replace(/^#+\s*/, "");
 
             return (
@@ -133,11 +161,18 @@ export function ReadonlyStepsList({
             );
           }
 
+          const isDone = done.has(i);
+          const stepImages = s.images || [];
+
           stepNumber += 1;
           const currentStepNumber = stepNumber;
+          const sectionHeading =
+            useCookBranch && cookStep?.isSectionStart && cookStep.section
+              ? cookStep.section
+              : null;
 
-          return (
-            <li key={i}>
+          const stepRow = (
+            <li>
               <div
                 aria-pressed={interactive ? isDone : undefined}
                 className={`flex gap-4 rounded-xl p-3 transition-all duration-200 select-none ${
@@ -173,12 +208,13 @@ export function ReadonlyStepsList({
                   >
                     {interactive && !isDone && enableTimers ? (
                       <InstructionComponent
+                        cookStep={cookStep}
+                        ingredientCandidates={ingredientCandidates}
                         recipeId={recipeId || ""}
                         recipeName={recipeName}
                         stepIndex={currentStepNumber - 1}
                         text={s.step}
                         token={token}
-                        ingredientCandidates={ingredientCandidates}
                         onIngredientPress={onIngredientPress}
                       />
                     ) : (
@@ -229,6 +265,21 @@ export function ReadonlyStepsList({
               </div>
             </li>
           );
+
+          if (sectionHeading) {
+            return (
+              <Fragment key={i}>
+                <li className="list-none">
+                  <div className="px-3 py-2">
+                    <h3 className="text-foreground text-base font-semibold">{sectionHeading}</h3>
+                  </div>
+                </li>
+                {stepRow}
+              </Fragment>
+            );
+          }
+
+          return <Fragment key={i}>{stepRow}</Fragment>;
         })}
       </ol>
 

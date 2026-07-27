@@ -16,6 +16,16 @@ vi.mock("@/hooks/config", () => ({
   }),
 }));
 
+// SmartInstruction gained the Cooklang token branch (Phase 27 W4, T2), which
+// unconditionally calls useUnitFormatter() to have formatAmountUnit ready
+// for a cookStep — this suite renders without a next-intl provider, so the
+// hook needs a mock the same way @/hooks/config already has one above.
+vi.mock("@/hooks/use-unit-formatter", () => ({
+  useUnitFormatter: () => ({
+    formatAmountUnit: () => "",
+  }),
+}));
+
 // Replace the TimerChip with a simple marker to detect it if rendered
 vi.mock("@/components/recipe/timer-chip", () => ({
   TimerChip: ({ _children }: any) => <span>TIMER_CHIP</span>,

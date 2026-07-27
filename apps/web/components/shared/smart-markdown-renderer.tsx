@@ -1,11 +1,11 @@
 "use client";
 
-import Link from "next/link";
-import { TimerChip } from "@/components/recipe/timer-chip";
-import ReactMarkdown from "react-markdown";
-
+import type { CookRenderTimer } from "@norish/shared/cooklang";
 import type { IngredientLinkCandidate } from "@norish/shared-react/text";
 import type { TimerKeywords, TimerMatch } from "@norish/shared/lib/timer-parser";
+
+import ReactMarkdown from "react-markdown";
+import Link from "next/link";
 import {
   applyIngredientLinkMarkup,
   isIngredientLinkHref,
@@ -13,6 +13,8 @@ import {
 } from "@norish/shared-react/text";
 import { createClientLogger } from "@norish/shared/lib/logger";
 import { parseTimerDurations } from "@norish/shared/lib/timer-parser";
+
+import { TimerChip } from "@/components/recipe/timer-chip";
 
 const logger = createClientLogger("smart-markdown-renderer");
 const TIMER_HREF_PREFIX = "norish-timer:";
@@ -26,6 +28,14 @@ export type SmartMarkdownTimerConfig = {
   recipeName?: string;
   stepIndex: number;
   keywords?: TimerKeywords;
+  /**
+   * Cooklang token timers for this step (Phase 27 W4, D-27-W4-02/09). When
+   * present, `text` was built by `cookStepToMarkdown` and already carries
+   * `norish-timer:<i>` links for every timer token — the prose scan
+   * (`parseTimerDurations`/`applyTimerMarkup`) is skipped entirely and
+   * `<i>` is resolved directly against `tokens[i]` instead (D-27-W4-11).
+   */
+  tokens?: CookRenderTimer[];
 };
 
 export interface SmartMarkdownRendererProps {
@@ -60,27 +70,36 @@ export default function SmartMarkdownRenderer({
   const candidateByKey = new Map(
     ingredientCandidates.map((candidate) => [candidate.key, candidate])
   );
-  const timerMatches = parseTimerMatches(text, timerConfig);
-  const timerByHrefKey = new Map(
-    timerMatches.map((match, index) => [
-      String(index),
-      {
-        durationMs: match.durationSeconds * 1000,
-        id: `${timerConfig?.recipeId ?? "recipe"}-s${timerConfig?.stepIndex ?? 0}-${index}`,
-        label: `Step ${(timerConfig?.stepIndex ?? 0) + 1} Timer`,
-        originalText: match.originalText,
-      },
-    ])
-  );
+  const timerFallbackLabel = `Step ${(timerConfig?.stepIndex ?? 0) + 1} Timer`;
+  const isTokenTimerBranch = timerConfig?.tokens !== undefined;
+  const timerMatches = isTokenTimerBranch ? [] : parseTimerMatches(text, timerConfig);
+  const timerByHrefKey = isTokenTimerBranch
+    ? buildTokenTimerMap(timerConfig, timerFallbackLabel)
+    : new Map(
+        timerMatches.map((match, index) => [
+          String(index),
+          {
+            durationMs: match.durationSeconds * 1000,
+            id: `${timerConfig?.recipeId ?? "recipe"}-s${timerConfig?.stepIndex ?? 0}-${index}`,
+            label: timerFallbackLabel,
+            originalText: match.originalText,
+          },
+        ])
+      );
+  // On the token branch `text` was already built by `cookStepToMarkdown` and
+  // carries `norish-ingredient:`/`norish-timer:` markup — never re-run the
+  // timer prose scan against it (D-27-W4-11). `applyIngredientLinkMarkup`
+  // still runs but is a no-op whenever the caller passes no candidates
+  // (ingredient-links.ts:104), which the token branch always does.
+  const markedUpText = isTokenTimerBranch ? text : applyTimerMarkup(text, timerMatches);
   const processedText = preprocessText(
-    applyIngredientLinkMarkup(applyTimerMarkup(text, timerMatches), ingredientCandidates),
+    applyIngredientLinkMarkup(markedUpText, ingredientCandidates),
     resolvedLinkMode
   );
 
   return (
     <span className={className}>
       <ReactMarkdown
-        urlTransform={transformMarkdownUrl}
         components={{
           // Style headings distinctly (matching card headers)
           h1: ({ children }) => (
@@ -186,6 +205,7 @@ export default function SmartMarkdownRenderer({
 
           p: ({ children }) => <span>{children}</span>,
         }}
+        urlTransform={transformMarkdownUrl}
       >
         {processedText}
       </ReactMarkdown>
@@ -236,8 +256,44 @@ function parseTimerMatches(
     return parseTimerDurations(text, timerConfig.keywords);
   } catch (error) {
     logger.warn({ error }, "Timer parsing failed");
+
     return [];
   }
+}
+
+/**
+ * Resolves `norish-timer:<i>` hrefs against Cooklang timer tokens instead of
+ * a prose scan (D-27-W4-11). Mirrors the disabled/legacy gating exactly:
+ * when timers are disabled nothing resolves, so the `a` handler falls back
+ * to its existing plain-span rendering. A token with a `null` `durationMs`
+ * (unrecognized/missing amount) is likewise left unresolved — it renders as
+ * plain text, never a chip showing `NaN` (D-27-W4-02 behaviour contract).
+ */
+function buildTokenTimerMap(
+  timerConfig: SmartMarkdownTimerConfig,
+  fallbackLabel: string
+): Map<string, { durationMs: number; id: string; label: string; originalText: string }> {
+  const timerByHrefKey = new Map<
+    string,
+    { durationMs: number; id: string; label: string; originalText: string }
+  >();
+
+  if (!timerConfig.enabled) return timerByHrefKey;
+
+  (timerConfig.tokens ?? []).forEach((timer, index) => {
+    if (timer.durationMs == null) return;
+
+    const label = timer.name ?? fallbackLabel;
+
+    timerByHrefKey.set(String(index), {
+      durationMs: timer.durationMs,
+      id: `${timerConfig.recipeId}-s${timerConfig.stepIndex}-${index}`,
+      label,
+      originalText: label,
+    });
+  });
+
+  return timerByHrefKey;
 }
 
 function applyTimerMarkup(text: string, timerMatches: TimerMatch[]): string {
