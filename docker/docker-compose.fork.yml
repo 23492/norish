@@ -1,0 +1,135 @@
+# norish FORK production compose — repo-tracked mirror of /opt/norish/docker-compose.fork.yml,
+# the file that actually runs live (norish.knoppsmart.com). Until plan 27.1-04 (IMPORT-REL-05)
+# this file existed NOWHERE under version control.
+#
+# THE DEFECT THIS FIXES (D-27.1-08): live shipped with NO `camofox` service at all. `norish-app`
+# runs on the docker network `norish_default`; the only Camoufox container actually reachable,
+# `norishp2-camofox-1`, runs on the UNRELATED network `norishp2_default` and cannot be reached
+# from `norish_default`. Live worked ONLY because `CAMOFOX_URL` pointed OFF-STACK at LXC 105
+# (http://192.168.2.26:9377) — an undocumented single point of failure with no in-stack fallback.
+# The Camoufox SERVICE itself was HEALTHY throughout: a full open -> act -> evaluate -> close
+# probe against http://192.168.2.26:9377 returned 200s and rendered a real recipe page
+# (hasRecipeLd: true). This is a TOPOLOGY / architecture fix, not a repair of a broken browser.
+#
+# CAMOFOX_URL REMAINS AN EXPLICIT OVERRIDE. The in-stack `camofox` service below is the DEFAULT
+# (${CAMOFOX_URL:-http://camofox:9377}), so an operator can still point at an external Camoufox
+# (e.g. LXC 105) by setting the variable — exactly the behaviour CLAUDE.md describes and that
+# packages/config/src/env-config-server.ts:249-252 already defaults to.
+#
+# ADOPTION, THE REACHABILITY PROOF, AND ROLLBACK: see tooling/fork-stack/README.md.
+# APPLYING THIS FILE TO THE LIVE HOST IS A SEPARATE, DELIBERATE STEP — NOTHING in phase 27.1 ran
+# `docker compose up/down/restart`, `docker run`, or `pct exec` against live. This file and its
+# runbook are repo artifacts only.
+#
+# SECRETS: every credential below is a `${VAR}` reference resolved from the untracked
+# `/opt/norish/.env` via `docker compose --env-file /opt/norish/.env ...` (the same convention
+# `docker-compose.beta.yml` already uses with `/opt/norish/beta.env`) — NEVER inlined here.
+# `AI_API_KEY` and `WORKOS_API_KEY` are intentionally OMITTED from the `environment:` block
+# below (they are live-only, admin-configurable, optional credentials); the adoption runbook's
+# diff-and-reconcile step is where an operator re-adds them from the file already on the host,
+# by hand, rather than this mirror guessing their shape.
+#
+# NETWORK: the live file has NO explicit `networks:` block, so compose auto-names the default
+# network from the project directory (`/opt/norish` -> `norish_default`). READ-ONLY-CONFIRMED
+# against the running host on 2026-07-28 via `docker network ls` / `docker inspect norish-app`
+# (not read out of the live compose file itself, which does not declare it) — see the SUMMARY.
+# Naming it explicitly below means adopting this file REUSES the existing network rather than
+# recreating it under a new name and detaching every running container.
+
+services:
+  norish:
+    image: norish:live
+    container_name: norish-app
+    restart: always
+    ports:
+      - "3000:3000"
+    volumes:
+      - norish_data:/app/uploads
+    environment:
+      AUTH_URL: ${AUTH_URL:-https://norish.knoppsmart.com}
+      TRUSTED_ORIGINS: ${TRUSTED_ORIGINS:-https://norish.knoppsmart.com}
+      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:norish@db:5432/norish}
+      MASTER_KEY: ${MASTER_KEY}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      UPLOADS_DIR: /app/uploads
+      PASSWORD_AUTH_ENABLED: ${PASSWORD_AUTH_ENABLED:-false}
+      DEFAULT_LOCALE: ${DEFAULT_LOCALE:-nl}
+      ENABLED_LOCALES: ${ENABLED_LOCALES:-nl,en}
+      ENABLE_REGISTRATION: ${ENABLE_REGISTRATION:-true}
+      AI_ENABLED: ${AI_ENABLED:-true}
+      AI_PROVIDER: ${AI_PROVIDER:-deepseek}
+      AI_MODEL: ${AI_MODEL:-deepseek-v4-pro}
+      WORKOS_CLIENT_ID: ${WORKOS_CLIENT_ID:-}
+      CAMOFOX_URL: ${CAMOFOX_URL:-http://camofox:9377}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "require(''http'').get(''http://localhost:3000/api/v1/health'', r => process.exit(r.statusCode===200?0:1))"',
+        ]
+      interval: 1m
+      timeout: 15s
+      retries: 3
+      start_period: 1m
+    depends_on:
+      db:
+        condition: service_started
+      redis:
+        condition: service_started
+      camofox:
+        condition: service_healthy
+
+  # PostgreSQL Database
+  db:
+    image: postgres:17-alpine
+    container_name: norish-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: norish
+      POSTGRES_DB: norish
+    volumes:
+      - norish_db_data:/var/lib/postgresql/data
+
+  # Camoufox browser for recipe scraping — IN-STACK, closing D-27.1-08.
+  camofox:
+    build:
+      context: ./camofox
+      # Dockerfile defaults pin Camoufox 135.0.1/beta.24 (SETUP-04: vendored source, no
+      # registry pull — the published 1.8-1.11 images regressed on Akamai / AH.nl).
+    container_name: norish-camofox
+    restart: unless-stopped
+    environment:
+      CAMOFOX_PORT: "9377"
+      # CAMOFOX_API_KEY: <key>  # optional, only needed for per-site cookie/login injection
+    shm_size: "1gb" # Firefox needs shared memory
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "require(''http'').get(''http://localhost:9377/health'', r => process.exit(r.statusCode===200?0:1))"',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Redis for real-time events
+  redis:
+    image: redis:8.6.2
+    container_name: norish-redis
+    restart: unless-stopped
+    volumes:
+      - norish_redis_data:/data
+
+networks:
+  default:
+    name: norish_default
+    # READ-ONLY-CONFIRMED against the live host 2026-07-28 (docker network ls / docker inspect
+    # norish-app): this is the pre-existing auto-named default network. Naming it here reuses
+    # it rather than recreating a differently-named network out from under running containers.
+
+volumes:
+  norish_data:
+  norish_db_data:
+  norish_redis_data:

@@ -19,6 +19,14 @@
 #     bash tooling/beta/clone-beta-db.sh [/path/to/dump]  (see tooling/beta/README.md)
 #
 # DO NOT start this file until the director has built the beta image (see tooling/beta/README.md).
+#
+# CAMOFOX (F-3 / D-27.1-08, plan 27.1-04): this file used to default CAMOFOX_URL to the
+# off-stack LXC-105 address (http://192.168.2.26:9377) — the same undocumented single point of
+# failure the live compose had. The default is now the beta-local in-stack `camofox` service
+# below, built from the same vendored source as docker/docker-compose.fork.yml, on beta's own
+# `norish-beta` network (preserving this file's isolation invariant: beta never reaches live's
+# network). CAMOFOX_URL remains an explicit override — set it to the LXC-105 address in
+# beta.env to reuse the shared external instance instead.
 
 services:
   norish-beta:
@@ -35,7 +43,9 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       MASTER_KEY: ${MASTER_KEY}
       REDIS_URL: ${REDIS_URL:-redis://norish-beta-redis:6379}
-      CAMOFOX_URL: ${CAMOFOX_URL:-http://192.168.2.26:9377}
+      # In-stack default (F-3); override to http://192.168.2.26:9377 in beta.env to reuse the
+      # shared external Camoufox on LXC 105 instead.
+      CAMOFOX_URL: ${CAMOFOX_URL:-http://camofox:9377}
       UPLOADS_DIR: /app/uploads
       PASSWORD_AUTH_ENABLED: ${PASSWORD_AUTH_ENABLED:-false}
       DEFAULT_LOCALE: ${DEFAULT_LOCALE:-nl}
@@ -57,6 +67,31 @@ services:
     depends_on:
       - norish-beta-db
       - norish-beta-redis
+      - camofox
+    networks:
+      - norish-beta
+
+  # Camoufox browser for recipe scraping — beta-local, in-stack (F-3 / D-27.1-08). Built from
+  # the same vendored source as docker/docker-compose.fork.yml; kept on the norish-beta network
+  # only, so beta's isolation from live is unaffected.
+  camofox:
+    build:
+      context: ./camofox
+    container_name: norish-beta-camofox
+    restart: unless-stopped
+    environment:
+      CAMOFOX_PORT: "9377"
+    shm_size: "1gb"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "require(''http'').get(''http://localhost:9377/health'', r => process.exit(r.statusCode===200?0:1))"',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     networks:
       - norish-beta
 
