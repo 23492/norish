@@ -520,8 +520,27 @@ backfill ran at boot: `candidates:6, derived:1, flagged:5, refused:0, failed:0`,
 data loss). **NEXT: W6** — `cook_source` NOT NULL (migration `0043`), unscoped beyond
 `27-ARCHITECTURE.md` §7; it is the only remaining wave of the phase.
 
-### Phase 27.1: Import reliability: AI extraction resilience, JSON-LD fallback, failure surfacing, in-stack Camoufox (INSERTED)
+### Phase 27.1: Import reliability: AI extraction resilience, JSON-LD fallback, failure surfacing, in-stack Camoufox (INSERTED) — DEPLOYED 2026-07-28
 **Goal:** Recipe import works end-to-end, and when it does not, the failure is VISIBLE instead of silent.
+**DEPLOYED 2026-07-28.** New live image `sha256:919a5e950735…`, previous `sha256:f1b6664ea600…`,
+rollback tag `norish:rollback-20260728-pre-27.1`, migration UNCHANGED (43 → 43, no migration this
+phase), backup `/home/claude/norish-backups/norish-live-20260728-114136-pre-27.1.dump` verified
+restorable at 231 TOC objects. Health: container healthy, 0 restarts, both `/api/v1/health`
+endpoints `{status:ok,db:ok}`, both `/` → 307, `backfillCookSource` clean at boot
+(`candidates:1, derived:0, flagged:1`), one disclosed non-recurring `level:50` cold-boot line
+(a pre-existing 27-04 Cooklang-pool graceful-degradation path, not a new defect). **Post-deploy
+empirical gate (Success Criterion 7): 24/24 live imports succeeded** — the mandated bonensalade
+URL, 16/16 `ah.nl` across 8 categories, 7/7 `lekkerensimpel.com` — and the failure-UX bar also
+passed (`example.com` failed cleanly, `failed` emitted, no eternal skeleton). **Caveat: all 24
+took `parserPath: "structured"`** (every source page shipped valid JSON-LD, which runs before
+AI), so the AI extraction path, its one-shot retry, and the JSON-LD-after-AI-failure fallback
+remain unit-tested but NOT yet exercised live. **Open risk for W6:** the structured path mints
+no `cook_source` (D-27-W3-08), and all 24 gate imports took it — Phase 27's W6 (`cook_source`
+NOT NULL) would turn every ordinary import into a hard failure unless resolved first; unscoped.
+In-stack camofox (this phase's `docker/docker-compose.fork.yml`) remains adopted in the repo but
+UNVERIFIED live — `CAMOFOX_URL` still points at the off-stack LXC 105 instance deliberately, so
+the import fix would not be confounded by a scrape-topology change. Full record: the 2026-07-28
+session-log entry in `STATE.md` and `27.1-CONTEXT.md`.
 **Requirements**: IMPORT-REL-01, IMPORT-REL-02, IMPORT-REL-03, IMPORT-REL-04, IMPORT-REL-05, PENDING-ISO-01 (+ SETUP-04, HOUSE-06)
 **Depends on:** Phase 27 (W0-W5 deployed; W6 is NOT a prerequisite and NOT in scope)
 **Plans:** 6 plans in 3 waves
@@ -554,7 +573,7 @@ Plans:
 - [x] 27.1-02-PLAN.md — JSON-LD fallback after FINAL AI failure, minting a scored `.cook` through the sanctioned minter; `parserPath` observability markers (wave 2, depends on 01) — DONE 2026-07-28, see `27.1-02-SUMMARY.md`
 - [x] 27.1-03-PLAN.md — Failure surfacing: unconditional fail-closed `failed` emit + a rendered dismissible error card in 12 locales (wave 1) — DONE 2026-07-28, see `27.1-03-SUMMARY.md`
 - [x] 27.1-04-PLAN.md — In-stack Camoufox: repo-tracked `docker/docker-compose.fork.yml` + operator runbook; live untouched (wave 1) — DONE 2026-07-28, see `27.1-04-SUMMARY.md`
-- [ ] 27.1-05-PLAN.md — POST-DEPLOY EMPIRICAL GATE: the import harness, the three bars, and the browser proof that a failure is visible (wave 3, blocking checkpoints)
+- [x] 27.1-05-PLAN.md — POST-DEPLOY EMPIRICAL GATE: the import harness, the three bars, and the browser proof that a failure is visible (wave 3, blocking checkpoints) — RAN 2026-07-28, 24/24 imports passed (bonensalade + 16/16 ah.nl + 7/7 lekkerensimpel), failure-UX bar passed; CAVEAT: every import took `parserPath: "structured"`, so the AI/retry/JSON-LD-fallback paths were not exercised live. No `27.1-05-SUMMARY.md` written yet — see the STATE.md 2026-07-28 session-log deploy entry for the record in the meantime.
 - [x] 27.1-06-PLAN.md — PENDING-ISO-01: fold `everyone` into the cookbook clamp in `recipes.getPending`, with the RED-first two-household suite (wave 1) — DONE 2026-07-28, see `27.1-06-SUMMARY.md`
 
 **Findings raised while planning, NOT in scope** (full detail in `27.1-CONTEXT.md`):
@@ -573,6 +592,23 @@ Plans:
   - **F-2** `defaults.ts` still defaults `maxTokens: 10000` (inert on live; tight for a fresh install).
   - **F-3** `docker/docker-compose.beta.yml:38` hardcoded the off-stack Camoufox as a default (fixed in 27.1-04).
   - **F-4** `packages/api/src/parser/fetch.ts:8-10` documented a plain-HTTP fallback that does not exist (fixed in 27.1-02).
+
+**Findings raised during the 2026-07-28 deploy + empirical gate, NOT in scope:**
+  - **F-6 (the sharpest open risk).** Phase 27's W6 (`cook_source` NOT NULL) assumed ordinary
+    imports would carry a `cook_source` by then; per D-27-W3-08 the STRUCTURED parser path mints
+    none, and the empirical gate showed ALL 24 live imports take that path (every source page
+    ships valid JSON-LD). W6 would need its own fix (a structured-path seeder, or a relaxed
+    contract) before it can land — otherwise it turns every ordinary import into a hard failure.
+  - **F-7.** In-stack camofox (`docker/docker-compose.fork.yml` from 27.1-04) is repo-tracked but
+    was deliberately NOT adopted live this deploy (`CAMOFOX_URL` still points at off-stack LXC
+    105) — still unverified against real traffic.
+  - **F-8 (minor).** `yt-dlp` throws `EACCES` when attaching an embedded video on import; the
+    recipe itself imports fine, only the secondary video asset fails.
+  - **F-9 (pre-existing, unrelated to this phase).** The 68-key Norwegian (`no`) locale backlog,
+    proven pre-existing by reconstructing base state from `a1e51a7c` (0 keys introduced here).
+  - **F-10.** `tooling/import-gate/` (the empirical-gate harness: `README.md`,
+    `run-import-gate.mjs`, `urls.ah.txt`, `urls.lekkerensimpel.txt`) is untracked — needs a
+    decision whether to commit it as a repo-tracked tool or delete it.
 
 ### Phase 28: Cost-per-recipe badge (MAJOR)
 **Goal**: Each recipe carries a € / €€ / €€€ per-serving cost badge, computed asynchronously from a real Dutch price index.
