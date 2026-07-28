@@ -6,32 +6,39 @@ Fork upstream norish and evolve it in feature phases — native Camoufox scrapin
 
 ## Phases
 
+> **Marker legend** (added 2026-07-28 — `[ ]` had come to mean three different things):
+> - `[x]` — shipped **and** deployed to live, nothing outstanding.
+> - `[~]` — **code-complete and deployed, but a gate is still outstanding.** For Phases 2–18 that
+>   gate is the per-phase **Chrome e2e UAT** against live (the build/deploy half is DONE — see the
+>   two DEPLOYED banners below). For Phase 21 it is the deferred UI pieces named in its own entry.
+> - `[ ]` — **not done: work remains.** Phase 27 (W6 outstanding), 27.2–27.6, and 28–31.
+
 > **DEPLOYED 2026-06-26:** Phases 1–19 are LIVE — `main` (`690623377`) built to image `8f6d14ba902e` and swapped onto `norish-app` (tagged `norish:live`; old image preserved as `norish:rollback-20260625-pre`), container healthy, DB at migration 39 (no new migrations). The "human-verify (docker:build + redeploy)" half of each phase's gate below is therefore DONE; the **remaining** gate is the per-phase **Chrome e2e UAT** against live `https://norish.knoppsmart.com`. Details: STATE.md `## Session log` (2026-06-26) + vault `Norish push-to-live DEPLOYED (2026-06-26)`.
 >
 > **DEPLOYED 2026-07-21:** Phase 20 (upstream `v0.19.0-beta` incorporation, PR #468) + Phase 20.1 (free-component HeroUI Pro replacement) are LIVE — `main` fast-forwarded to `edf16de2` (then `e10e77fa` for docs) built token-free and swapped onto `norish-app` (tagged `norish:live`, image `e96d46f5c084`; old image preserved as `norish:rollback-20260721-pre` = `8f6d14ba902e`), container healthy, 0 restarts, `/api/v1/health` → `{status:ok, db:ok}`, DB still at migration 39 (no new migrations). Live is now `0.19.0-beta` (was `0.18.3-beta`). As with the 2026-06-26 deploy, the "human-verify (docker:build + redeploy)" half of the gate is DONE for Phase 20/20.1; the **remaining** gate — the per-phase **Chrome e2e UAT** against live `https://norish.knoppsmart.com` — is still OUTSTANDING for the new v0.19.0 surface and the 20.1-swapped UI (Drawer/Carousel/DropZone), same as it remains outstanding for Phases 2–18.
 
 - [x] **Phase 0: Fork & tooling setup** - Fork, gsd-core, dev env on LXC 110, stock self-build de-risk
 - [x] **Phase 1: Native Camoufox scraping** - Replace headless Chrome with the Camoufox REST client in source
-- [ ] **Phase 2: Multi-household cookbooks** - Multiple households per user + per-cookbook recipe scoping
-- [ ] **Phase 3: Per-cookbook permission policies** - Each cookbook sets its own view/edit/delete; admin-edits-any/members-edit-own (POLICY-01) — code-complete 2026-06-14, human-verify pending
-- [ ] **Phase 4: Recipe sharing** - Per-recipe visibility private/household/public on the existing recipe_shares; public = no-auth read-only view by share token (SHARE-01); recipe ratings show average+count + a per-user named-rater list on the authenticated detail view (RATE-01, public-view ratings deferred RATE-02) — code-complete 2026-06-14, human-verify pending
-- [ ] **Phase 5: AssemblyAI transcription** - Native AssemblyAI provider for video imports (renumbered from Phase 4); 04-01 code-complete 2026-06-14, human-verify (real key + e2e) pending
-- [ ] **Phase 6: DeepSeek V4 AI/LLM provider** - DeepSeek selectable for recipe-extraction with `deepseek-v4-pro` + `deepseek-v4-flash` (AI-01); provider already upstream, V4 model ids surfaced in the admin picker + unit-tested; 06-01 code-complete 2026-06-14, human-verify pending
-- [ ] **Phase 7: Locale-aware extraction** - AI recipe-extraction preserves the source content's language instead of defaulting to English (LOCALE-01); a language-preservation directive + the source/default locale threaded through all three extraction prompt builders; 07-01 code-complete 2026-06-14, human-verify pending
-- [ ] **Phase 8: WorkOS AuthKit login provider** - WorkOS AuthKit added as an ADDITIONAL better-auth login provider via the genericOAuth plugin (explicit authorize URL + custom getToken/getUserInfo against the WorkOS authenticate endpoint), admin-configured Client ID + API Key at runtime; additive + reversible (existing email/password, Google, GitHub, OIDC untouched) (WORKOS-01); 08-01 code-complete 2026-06-14, human-verify (lead docker:build + Kiran WorkOS dashboard/keys) pending
-- [ ] **Phase 9: WorkOS env config (config-as-code)** - WorkOS Client ID + API Key read from env (WORKOS_CLIENT_ID + WORKOS_API_KEY, seeding the DB at boot like OIDC/Google/GitHub; env takes precedence over a non-overridden row) instead of the admin UI, and the WorkOS card removed from the admin Auth Providers UI (WORKOS-ENV-01); 09-01 code-complete 2026-06-14, human-verify (lead docker:build + set WORKOS_CLIENT_ID in the live compose + redeploy; owner sets WORKOS_API_KEY) pending
-- [ ] **Phase 10: WorkOS-only auth** - WorkOS becomes the SOLE sign-in/sign-up path: with password auth off + WorkOS the only provider, the unauthenticated login page auto-redirects straight to the WorkOS AuthKit hosted page (norish login UI never shown) and the norish-only email/password login + signup are gone; conditional + recoverable (a `?sso=0` escape and re-enabling password / unsetting WorkOS both restore the normal login page; no redirect loop) (WORKOS-ONLY-01); 10-01 code-complete 2026-06-14, human-verify (lead sets PASSWORD_AUTH_ENABLED=false + WorkOS env in the live compose + docker:build + Chrome e2e) pending
-- [ ] **Phase 11: WorkOS OIDC fix** - Fix the broken WorkOS login by switching genericOAuth to standard OIDC via AuthKit discovery (WORKOS-OIDC-01); code-complete 2026-06-14, **superseded by Phase 12** (the OIDC-discovery surface was reverted there). Human-verify pending.
-- [ ] **Phase 12: WorkOS AuthKit flow (Option A)** - The actual working WorkOS login: first-party AuthKit flow, reverting Phase 11's OIDC-discovery surface; code-complete 2026-06-14, human-verify (lead docker:build + WorkOS keys + Chrome e2e) pending
-- [ ] **Phase 13: Mobile nav — hide name** - Avatar-only profile item in the mobile bottom-nav (drop the name label); code-complete 2026-06-14, human-verify pending
-- [ ] **Phase 14: Operator config via env (R1)** - AI provider + transcription configured as config-as-code: `syncAIConfigFromEnv`/`syncVideoConfigFromEnv` re-seed the DB every boot, env wins, fixing env↔DB drift; code-complete 2026-06-15, human-verify pending
-- [ ] **Phase 15: Single admin via env (R2)** - Operator/admin account configured from env (config-as-code), same env-wins re-seed pattern; code-complete 2026-06-15, human-verify pending
-- [ ] **Phase 16: Rating undo** - Allow removing/undoing a recipe rating; code-complete 2026-06-15, human-verify pending
-- [ ] **Phase 18: Open registration via env (R4)** - `registration_enabled` + `password_auth_enabled` as config-as-code (re-seeded every boot, env wins, survives a clean DB), removing the manual `UPDATE server_config` for the commercial WorkOS-only launch (OPEN-REGISTRATION-ENV-01); code-complete 2026-06-15, human-verify (lead sets the toggles in the live env + docker:build + redeploy) pending. *(Phase 17 number was skipped — never created.)*
+- [~] **Phase 2: Multi-household cookbooks** - Multiple households per user + per-cookbook recipe scoping
+- [~] **Phase 3: Per-cookbook permission policies** - Each cookbook sets its own view/edit/delete; admin-edits-any/members-edit-own (POLICY-01) — code-complete 2026-06-14, human-verify pending
+- [~] **Phase 4: Recipe sharing** - Per-recipe visibility private/household/public on the existing recipe_shares; public = no-auth read-only view by share token (SHARE-01); recipe ratings show average+count + a per-user named-rater list on the authenticated detail view (RATE-01, public-view ratings deferred RATE-02) — code-complete 2026-06-14, human-verify pending
+- [~] **Phase 5: AssemblyAI transcription** - Native AssemblyAI provider for video imports (renumbered from Phase 4); 04-01 code-complete 2026-06-14, human-verify (real key + e2e) pending
+- [~] **Phase 6: DeepSeek V4 AI/LLM provider** - DeepSeek selectable for recipe-extraction with `deepseek-v4-pro` + `deepseek-v4-flash` (AI-01); provider already upstream, V4 model ids surfaced in the admin picker + unit-tested; 06-01 code-complete 2026-06-14, human-verify pending
+- [~] **Phase 7: Locale-aware extraction** - AI recipe-extraction preserves the source content's language instead of defaulting to English (LOCALE-01); a language-preservation directive + the source/default locale threaded through all three extraction prompt builders; 07-01 code-complete 2026-06-14, human-verify pending
+- [~] **Phase 8: WorkOS AuthKit login provider** - WorkOS AuthKit added as an ADDITIONAL better-auth login provider via the genericOAuth plugin (explicit authorize URL + custom getToken/getUserInfo against the WorkOS authenticate endpoint), admin-configured Client ID + API Key at runtime; additive + reversible (existing email/password, Google, GitHub, OIDC untouched) (WORKOS-01); 08-01 code-complete 2026-06-14, human-verify (lead docker:build + Kiran WorkOS dashboard/keys) pending
+- [~] **Phase 9: WorkOS env config (config-as-code)** - WorkOS Client ID + API Key read from env (WORKOS_CLIENT_ID + WORKOS_API_KEY, seeding the DB at boot like OIDC/Google/GitHub; env takes precedence over a non-overridden row) instead of the admin UI, and the WorkOS card removed from the admin Auth Providers UI (WORKOS-ENV-01); 09-01 code-complete 2026-06-14, human-verify (lead docker:build + set WORKOS_CLIENT_ID in the live compose + redeploy; owner sets WORKOS_API_KEY) pending
+- [~] **Phase 10: WorkOS-only auth** - WorkOS becomes the SOLE sign-in/sign-up path: with password auth off + WorkOS the only provider, the unauthenticated login page auto-redirects straight to the WorkOS AuthKit hosted page (norish login UI never shown) and the norish-only email/password login + signup are gone; conditional + recoverable (a `?sso=0` escape and re-enabling password / unsetting WorkOS both restore the normal login page; no redirect loop) (WORKOS-ONLY-01); 10-01 code-complete 2026-06-14, human-verify (lead sets PASSWORD_AUTH_ENABLED=false + WorkOS env in the live compose + docker:build + Chrome e2e) pending
+- [~] **Phase 11: WorkOS OIDC fix** - Fix the broken WorkOS login by switching genericOAuth to standard OIDC via AuthKit discovery (WORKOS-OIDC-01); code-complete 2026-06-14, **superseded by Phase 12** (the OIDC-discovery surface was reverted there). Human-verify pending.
+- [~] **Phase 12: WorkOS AuthKit flow (Option A)** - The actual working WorkOS login: first-party AuthKit flow, reverting Phase 11's OIDC-discovery surface; code-complete 2026-06-14, human-verify (lead docker:build + WorkOS keys + Chrome e2e) pending
+- [~] **Phase 13: Mobile nav — hide name** - Avatar-only profile item in the mobile bottom-nav (drop the name label); code-complete 2026-06-14, human-verify pending
+- [~] **Phase 14: Operator config via env (R1)** - AI provider + transcription configured as config-as-code: `syncAIConfigFromEnv`/`syncVideoConfigFromEnv` re-seed the DB every boot, env wins, fixing env↔DB drift; code-complete 2026-06-15, human-verify pending
+- [~] **Phase 15: Single admin via env (R2)** - Operator/admin account configured from env (config-as-code), same env-wins re-seed pattern; code-complete 2026-06-15, human-verify pending
+- [~] **Phase 16: Rating undo** - Allow removing/undoing a recipe rating; code-complete 2026-06-15, human-verify pending
+- [~] **Phase 18: Open registration via env (R4)** - `registration_enabled` + `password_auth_enabled` as config-as-code (re-seeded every boot, env wins, survives a clean DB), removing the manual `UPDATE server_config` for the commercial WorkOS-only launch (OPEN-REGISTRATION-ENV-01); code-complete 2026-06-15, human-verify (lead sets the toggles in the live env + docker:build + redeploy) pending. *(Phase 17 number was skipped — never created.)*
 - [x] **Phase 19: Ingredient unit normalization (update path)** - The recipe UPDATE path normalizes locale-specific unit terms to canonical IDs identically to the CREATE path (UNIT-NORM-01); **COMPLETE & verified green 2026-06-25** (db testcontainer suite 8/8 under `sg docker`, adversarially confirmed). First plan executed end-to-end through the cross-AI Antigravity/Gemini worker under native Opus review.
 - [x] **Phase 20: Incorporate upstream v0.19.0-beta** - Merge upstream's `v0.19.0-beta` (PR #468) into the fork on a dedicated integration branch (UPSTREAM-019-01). LARGE + high-overlap (~996 files, ~110 overlapping ours): re-assert the fork's hard constraints at each conflict (Camoufox-not-Chrome in `parser/fetch.ts`/no `playwright.ts`; per-cookbook isolation suites stay green; config-as-code env sync), and reconcile our `packages/db/src/schema` against upstream's NEW `packages/db-schema/` package split. Gate on the isolation + db testcontainer suites (`sg docker`) + `pnpm docker:build`. **COMPLETE:** merged on `integ/upstream-0.19.0`, built token-free, deployed to live 2026-07-21 — live now `0.19.0-beta`. Full assessment: vault `norish-upstream-0.19.0-incorporation-assessment`.
 - [x] **Phase 20.1: Replace @heroui-pro/react with free components (INSERTED 2026-07-15)** - Unblock phase 20's `pnpm docker:build` gate WITHOUT buying the HeroUI Pro license (Kiran's decision 2026-07-15): replace all 6 pro usages (Segment→`ToggleButtonGroup`; Sheet→free `Drawer` in Panel.tsx; Carousel×3→local embla compound `apps/web/components/ui/carousel.tsx` from 21st.dev @shadcn/carousel; DropZone→react-aria-components DropZone+FileTrigger in `apps/web/components/ui/drop-zone.tsx`) with zero NEW npm deps, then purge the dep + `HEROUI_AUTH_TOKEN` plumbing from Dockerfile/CI. **COMPLETE & SHIPPED 2026-07-21:** `pnpm --filter @norish/web build` green token-free; `@heroui-pro/react` dependency and all `HEROUI_AUTH_TOKEN` plumbing (Dockerfile secret mount + 5 GitHub workflows) removed. 3 plans on `integ/upstream-0.19.0`. Vault: `norish-heroui-pro-replacement`.
-- [ ] **Phase 21: UI polish & media-viewing UX (from the 2026-07-21 UAT)** - Subtractive polish pass — *"every pixel must earn its place; most should lose"* (Kiran, 2026-07-21). Two strands: **(a) MEDIA-UX-01 — media viewing is broken-by-design**: tapping a photo opens a lightbox that only ever receives `items.filter(type === "image")` (`media-carousel.tsx`), so a recipe with 1 photo + N videos yields a single-image lightbox with **no counter, no arrows, no thumbnails** — you lose the media set you were just swiping. Also: lightbox thumbnails render the **full-size original** into a 64px slot (`unoptimized` in `components/ui/carousel.tsx`), and Kiran reports the same image being fetched at several sizes (needs a network trace to confirm). **(b) Chrome reduction** — strip settings to essentials (it currently reads as self-hostable software, not a polished app), replace the wonky mobile-nav avatar, and rework the calendar into tappable rows of 7 that expand to a single day, hiding empty past days. Inputs: UAT sections A3 + D in vault `norish-uat-v0.19.0`. **Plannable slice CODE-COMPLETE 2026-07-23, and DEPLOYED (plannable slice) 2026-07-23** (lightbox media-awareness + mobile-nav circle + hide-empty-past-days + settings recommended-default reduction; commits `c63532aa`→`69ca3f62` on `main`, gates green; live image `9659fecfc478`, healthy, migration 40→40 no-op, health verified independently). **Still checkbox-open — DEFERRED pieces remain outstanding**: A2 `unoptimized`/image-sizing (needs a network trace), calendar rows-of-7 (own phase), the A1 grid/list toggle animation (unreproduced), settings 2nd pass. See the Plans block below + `21-01-SUMMARY.md`.
+- [~] **Phase 21: UI polish & media-viewing UX (from the 2026-07-21 UAT)** - Subtractive polish pass — *"every pixel must earn its place; most should lose"* (Kiran, 2026-07-21). Two strands: **(a) MEDIA-UX-01 — media viewing is broken-by-design**: tapping a photo opens a lightbox that only ever receives `items.filter(type === "image")` (`media-carousel.tsx`), so a recipe with 1 photo + N videos yields a single-image lightbox with **no counter, no arrows, no thumbnails** — you lose the media set you were just swiping. Also: lightbox thumbnails render the **full-size original** into a 64px slot (`unoptimized` in `components/ui/carousel.tsx`), and Kiran reports the same image being fetched at several sizes (needs a network trace to confirm). **(b) Chrome reduction** — strip settings to essentials (it currently reads as self-hostable software, not a polished app), replace the wonky mobile-nav avatar, and rework the calendar into tappable rows of 7 that expand to a single day, hiding empty past days. Inputs: UAT sections A3 + D in vault `norish-uat-v0.19.0`. **Plannable slice CODE-COMPLETE 2026-07-23, and DEPLOYED (plannable slice) 2026-07-23** (lightbox media-awareness + mobile-nav circle + hide-empty-past-days + settings recommended-default reduction; commits `c63532aa`→`69ca3f62` on `main`, gates green; live image `9659fecfc478`, healthy, migration 40→40 no-op, health verified independently). **Still checkbox-open — DEFERRED pieces remain outstanding**: A2 `unoptimized`/image-sizing (needs a network trace), calendar rows-of-7 (own phase), the A1 grid/list toggle animation (unreproduced), settings 2nd pass. See the Plans block below + `21-01-SUMMARY.md`.
 - [x] **Phase 22: Realtime fan-out isolation (BUG — cross-cookbook leak) — FIXED 2026-07-21** - The realtime layer does NOT honour the per-cookbook isolation the tRPC layer enforces. All 54 `emitByPolicy()` sites take a `viewPolicy`, and **all 54 read the SERVER-WIDE `getRecipePermissionPolicy()`** instead of the recipe's own cookbook policy (the "34" first recorded here was an undercount — corrected by the 22-01 audit; all 54 also target the ACTOR's cookbook key, a second vector). Live `server_config.recipe_permission_policy` is `{"view":"everyone",...}` (verified against the live DB 2026-07-21), so `emitByPolicy` takes its `case "everyone"` branch → `emitter.broadcast()` → **every connected client receives the full dashboard recipe DTO of every import, update, rating and share, regardless of cookbook**. This directly contradicts HOUSE-06, which Phase 3 adversarially proved on the REST/tRPC path only. Fix in code (resolve the policy from the recipe's OWN household, as `canAccessResource` already does) — NOT by flipping the live config, which would only mask it. **Sequenced first**: every later phase adds emit sites, and building on a leaky bus multiplies the fix. **COMPLETE + DEPLOYED 2026-07-21** — 3 plans, code-only, live config untouched; the rule is now written into `AGENTS.md`. Shipped to live as image `d44715015f1d` (healthy, 0 restarts, no migrations; rollback `norish:rollback-20260721-v0200`), image verified empirically to contain zero executable `emitter.broadcast(` calls in the policy path. (REALTIME-ISO-01)
 - [x] **Phase 22.1: Import dedup isolation (INSERTED 2026-07-21) — FIXED + DEPLOYED** - Follow-up found while fixing Phase 22, and it was **three** defects, not one, all active under the live `view:"everyone"`: (a) `recipeExistsByUrlForPolicy`'s `everyone` branch was `eq(recipes.url, url)` with **no cookbook predicate**, so an import into cookbook B was deduped against — and handed back — a recipe in cookbook A; (b) the producer resolved that scope from the server-wide policy; (c) **`generateJobId("everyone")` produced a GLOBAL job id**, so two cookbooks importing the same URL collided on one BullMQ job and the second was rejected as "duplicate" — one household silently blocking another's import. Also closed a gap Phase 22 itself left (`worker.ts` reused the *realtime* view policy for the *dedup* decision; a personal import fell back to the server default `everyone`). Fix **removes the `everyone` scope from this path entirely** (params narrowed to `"household" | "owner"`; unreachable `default` fails closed) rather than just avoiding it at call sites. A pre-existing test **asserted the leaky behaviour** and was rewritten. Deployed as image `07d4520eb513`. (IMPORT-DEDUP-ISO-01)
 - [x] **Phase 22.2: Recipe-list personal-view isolation (INSERTED 2026-07-21) — FIXED + DEPLOYED** - The item Phase 22.1 flagged but did not chase, confirmed real. `buildViewPolicyCondition`'s personal-view branch (no active cookbook) answered `view: "everyone"` with **no where-clause at all**, so `listRecipes` returned **every recipe on the server**, including other users' personal recipes. Reachable with no privilege by any authenticated user — `households.switchActive` accepts `{ householdId: null }` and the personal view falls back to the server-wide policy, which is live-set to `everyone`. `everyone` now clamps to the viewer's own recipes + orphans; **no unfiltered branch remains**. Third instance of the same root cause after 22 and 22.1, and all three hid behind an isolation suite that seeded `view: "household"` instead of the live policy — the rule that follows is now in `AGENTS.md`. Deployed as image `c5fb0e897946`. (LIST-ISO-01)
@@ -41,7 +48,33 @@ Fork upstream norish and evolve it in feature phases — native Camoufox scrapin
 - [x] **Phase 24: Import at scale & visible progress — DEPLOYED 2026-07-23, image `7fed8a7ba89a`** - Two halves of the same queue-UX story: **BULK-01** — accept many URLs (or a pasted blog index) in one submission, fanned out over the existing Camoufox import queue (one job per URL via the SAME `addImportJob` path, so Phase-22.1 per-cookbook dedup + job-id scoping hold) with per-item outcome reporting (queued/exists/duplicate); **IMPORT-UX-01** — a real progress indicator for a running import (single AND bulk), an honest `fetching → saving` stage on the pending skeleton card (indeterminate spinner, no fake bar), riding the cookbook-scoped realtime bus (the reason **Phase 22 landed first**). Commits `21cccba8` (backend + adversarial isolation suites) + `5854844d` (frontend + i18n) + `fba2052e` (docs), on `main`, pushed. **NO migration** (DB stays at 40). Cap = 25 URLs/submission (D-24-01); no crawl — URLs are extracted from text, never spidered (D-24-02). Security: `emitImportProgress` is the only new emit site, cookbook-scoped via `emitByPolicy` (never broadcast); progress + bulk-fan-out isolation suites seed the LIVE `everyone` sibling; the core-guard revert-check went RED-then-reverted byte-identical (`24-VALIDATION.md`), and independently adversarially re-verified PASS by a second agent immediately before deploy. Gates green (typecheck 17/17, queue 88, trpc 294, web 424, shared-react 37, shared-server realtime 27, lint 0-errors, web build EXIT 0; `i18n:check` exit 1 SOLELY on the pre-existing `no` gap — zero new gaps). **DEPLOYED 2026-07-23** — live image `7fed8a7ba89a` (built from `main@fba2052e`), container `norish-app` healthy, 0 restarts, migration 40→40 no-op, health verified independently (deploy agent + a separate check agent, both PASS: local+public `/api/v1/health` ok, local+public `/` → 307, no level-50/60 logs). Empirical image verification confirmed `importFromUrls` + `emitImportProgress`/`importProgress` present in the built bundle and all prior isolation fixes intact. Rollback tag `norish:rollback-20260723-pre-phase24` = image `6106a50f6ad0` (outgoing Phase-23 image). Backup: `/home/claude/norish-backups/norish-live-20260723-220438-pre-phase24.dump` (222 TOC, verified restorable). Session was a resume of an interrupted (session-limit) prior run — see STATE.md 2026-07-23 session log. **Remaining gate:** Chrome e2e UAT of the bulk modal + live progress. (BULK-01, IMPORT-UX-01)
 - [x] **Phase 25: Shopping list — household-shared + aisle grouping — DEPLOYED 2026-07-23, image `8895dec71f5f`, migration 0040 (DB 40→41)** - Two requirements in ONE migration. **SHOP-02** — the shopping list (`groceries`/`stores`/`ingredient_store_preferences`/`recurring_groceries`) is re-keyed from `user_id` to `household_id`, so members of a shared cookbook share ONE list (Kiran's 2026-07-21 decision). **SHOP-01** — a built-in default aisle set (8 aisles, 172 curated EN+NL ingredient keywords) is seeded per household so the (already store-grouped) list is grouped with zero config; extends the existing `stores`/`ingredient_store_preferences` pattern (NOT open-tandoor-data). **Migration `0040_shopping_list_household` — DB 40→41**: adds `household_id` (NOT NULL, FK), backfills each row to its user's OWN household (earliest-admin, fallback earliest-membership — injective per user ⇒ no cross-user merge, no unique collision), swaps the aisle-map unique to `(household_id, normalized_name)`, and seeds default aisles into existing store-less households. **DRY-RUN-VERIFIED against a RESTORE of the live backup in a throwaway scratch db** (groceries 10→10, 0 null/orphans, every row → its own household, 2 households seeded, unique holds). Isolation (HOUSE-06) enforced server-side + adversarially revert-checked (RED→reverted). Gates green (typecheck 17/17, `@norish/db` incl. 6 new isolation tests, trpc 294, lint 0-err, web build EXIT 0; i18n exit 1 only on the pre-existing `no` gap). Commits on `main`. **DEPLOYED 2026-07-23** — live image `8895dec71f5f` (built from `main@13958cf8`), migration `0040` applied at boot, DB 40→41; data-effect verified on the live DB (0 null/orphan `household_id` across all four re-keyed tables, pre-existing rows preserved, 0 household-membership mismatches) and the migration was independently re-verified via a second dry-run restore. See the ROADMAP "### Phase 25" detail section + STATE.md session log 2026-07-23. (SHOP-01, SHOP-02)
 - [x] **Phase 26: What's-for-dinner suggester — DEPLOYED 2026-07-24, image `082924a3d0a5`** - Suggest tonight's recipe from season + recent ratings, presented with the rater's avatar, stars and a thought-bubble. Builds entirely on the shipped `recipe_ratings` + tags surface — no new data source, no new provider. The cheapest "feels like a product" win on the list. **Shipped in code:** `recipes.dinnerSuggestion` (candidate query `getDinnerSuggestionCandidates` reuses `buildViewPolicyCondition` WHOLESALE → HOUSE-06 scoping INHERITED; ranking is a pure, deterministic fn in `@norish/shared-server/recipes/dinner-suggester` weighing SEASON — a bilingual EN+NL lexicon matched against each recipe's OWN tags, current season from the date — and RECENT RATINGS — household-scoped avg + count + last-rated recency, date-seeded jitter, no `Math.random()`); a `DinnerSuggestion` dashboard card (under Today's meals, desktop + mobile) with season chip + stars + a rater thought-bubble sourced from the ALREADY-gated `ratings.getRaters` (RATE-01 — suggester never fetches names); i18n in all 12 locales. Placement = dashboard/home (D-26-06). **NO migration, NO new provider/table** (DB stays 41); season degrades gracefully to rating-only when tags carry no seasonal signal (D-26-02). Commits `34a4ee03` (backend + adversarial isolation suite) → `b592a76c` (UI + i18n) → `f792cc1e` (docs), on `main`, pushed. Gates green (typecheck 17/17, shared-server dinner-suggester 11, db dinner-isolation 6, trpc 294, shared-react 37, web 424, lint 0-err, web build EXIT 0; `i18n:check` exit 1 SOLELY on the pre-existing `no` gap — zero new gaps). Security: cross-cookbook attack proven blocked incl. under live `view:"everyone"`; core-guard revert-check RED-then-reverted byte-identical (`26-VALIDATION.md`); independently adversarially re-verified PASS by a second agent immediately before deploy; rater path stays RATE-01-gated. **DEPLOYED 2026-07-24** — live image `082924a3d0a5` (built from `main@f792cc1e`), container `norish-app` healthy, 0 restarts, migration 41→41 no-op ("Migrations complete"). Health verified independently (deploy agent + a separate check agent, both PASS): local + public `/api/v1/health` ok, local + public `/` → 307, zero level-50/60 logs. Empirical image verification confirmed `getDinnerSuggestionCandidates`/`selectDinnerSuggestions` present in the built bundle and all prior isolation fixes (22–22.4) intact. Rollback tag `norish:rollback-20260724-pre-phase26` = image `8895dec71f5f` (outgoing Phase-25 image); backup `/home/claude/norish-backups/norish-live-20260724-003747-pre-phase26.dump` (230 TOC, verified restorable). **Remaining gate:** Chrome e2e UAT of the suggestion card against live. (DINNER-01)
-- [ ] **Phase 27: Cooklang migration (MAJOR)** - Migrate recipe step/ingredient representation to Cooklang, delivering the long-wanted **in-step ingredient quantities** and **multi-timer cooking mode**. **UNBLOCKED 2026-07-24 (Kiran): fork-independent, NO #470 gating** — the fork has progressed past the original and makes its own design calls, so the serializer lives **fork-local** rather than being contributed upstream. Parser `@cooklang/cooklang` (MIT, WASM — NOT the archived `cooklang-ts`). **FULL-NATIVE, NO bandaids (Kiran, 2026-07-24)** — reversed from additive-dual-store: `.cook` is the **single source of truth**, `steps`/`recipe_ingredients` demote to a **derived projection**, the heuristic `SmartInstruction`/`applyIngredientLinkMarkup` layer is **deleted**, and metric↔US uses a **deterministic OSS converter** (`convert`, MIT) + USDA density table instead of the AI `unit-converter.ts`. Master plan **`.planning/phases/27-cooklang/27-ARCHITECTURE.md`**; reversals in `27-DECISIONS.md`; de-risked by the committed spike (`structuredToCooklang` vs the REAL WASM parser, `27-EXTRACTION-PROMPT.md`, `27-EXPERIMENT.md`). Migrations `0041` expand · `0042` backfill (data-mutating) · `0043` NOT-NULL; shopping-list FK kept safe via UPSERT-stable projection; low-confidence backfill tail goes to a **review queue** (no permanent fallback). 7 waves (W0–W6) — **W0 (deterministic units subsystem) CODE-COMPLETE + pushed `a4f9c2a5`**; **W1 (serializer + parser read-model) CODE-COMPLETE + pushed** (`40ad343e` → `58cabd9f`): `structuredToCooklang` productionized into **`@norish/shared/cooklang`** on the REAL `normalizeUnit`, **`@cooklang/cooklang@^0.18.7` (MIT, `cooklang/cooklang-rs`) is now a real pnpm workspace dependency of `@norish/shared-server`** in `pnpm-lock.yaml`, a `parse → cookTokens` server util that dereferences every parser index and returns `null` rather than throwing, and nullable `cookSource`/`cookTokens` (defaulting to `null`) on `FullRecipeSchema` — additive and un-wired. **W2 (write path + `0041`) CODE-COMPLETE + pushed** (`9f548b96` → `a896dae1`, base `8d541fb4`), the SERVER half only: migration **`0041`** (expand-only on `recipes`: `cook_source`, `cook_confidence`, `cook_review_needed`; plus the `(recipe_id, system_used, ingredient_id)` UNIQUE index, whose de-dup **re-points every `groceries.recipe_ingredient_id` onto the survivor BEFORE deleting**, sums only on a lossless merge and otherwise flags `cook_review_needed`) — hand-written per D-27-W2-08, **NOT applied to live**, with a read-only `checks/0041-precheck.sql` for the pre-deploy dry-run against a restored dump; **`deriveProjectionTx`** in `@norish/db`, UPSERT-stable on that natural key so `recipe_ingredients.id` and its grocery FK survive an edit and `steps.id`/`step_images` survive a re-derive, materializing both systems' ingredient rows (opposite via W0's converter, flag-and-preserve) and the native system's steps, importing **no parser** (`@norish/db` gained no dependency); **`buildCookPayload`** + **`withCookTokens`** in `@norish/shared-server`, the former validating its own output so a non-NULL `cook_source` always parses cleanly and a failed derive never fails the user's write; and `cookSource`/`cookTokens` on `recipes.get`/`getEditable` **strictly after the access check**, with list/search/dashboard byte-for-byte unchanged. **Nothing user-visible changed — no `.cook` producer exists until W3, so every recipe still has `cook_source IS NULL`.** Gates green (typecheck 17/17; db 164/1 pre-existing; trpc 322; shared 295; shared-server 275; web 424; mobile 132; lint 0 errors at baseline; `build:server` EXIT 0; **+139 tests**), with four adversarial weakenings each turning an isolation suite RED and reverted byte-identical. **W3 (extraction native + T-27-01 input limits) CODE-COMPLETE — 5 of 5 tasks** (`f29254b9` → `65815ec4` → `527a852d` → `49f03139` → **`f7bcecb8`** the T-27-01 root-cause fix → **`be72cc9b`** the queue-side isolation suite; base `faa13d8e`, nothing pushed). **THIS IS THE WAVE THAT SWITCHES THE FEATURE ON: a newly AI-extracted recipe can now have a non-NULL `recipes.cook_source`, the first time that is true in this codebase.** Everything else is byte-identical — a string-shaped model response, JSON-LD, the python scraper, structured paste, a Mealie archive and the manual editor all pass **no** `cook` (D-27-W3-08). **What shipped:** a linkage prompt fragment appended by all three extraction builders as CODE, never a `.txt` edit (D-27-W3-01 — `loadPrompt` reads SERVER CONFIG, so a `.txt` edit is a silent no-op on an existing install; proven closed by a per-builder test with `loadPrompt` mocked to an unrelated base prompt); `recipeExtractionSchema.recipeInstructions` accepting a per-step OBJECT **or** a plain STRING (object first, D-27-W3-03) with a TOTAL never-throwing normalizer, so no import that succeeds today can fail (the **R1** mitigation); `buildCookFromExtraction`, the only new minting call site, refusing in four ways that each cost the user NOTHING (`no-step-linkage` debug, `incomplete-ingredient-coverage` error, `input-too-large` error, `did-not-parse-cleanly` error — counts only, never prose, T-27-05); the **coverage gate** (D-27-W3-04) that stops `deriveProjectionTx` silently dropping ingredients a model failed to link (8-of-11 ⇒ no `.cook`, **11** ingredient rows, `cook_source IS NULL`); `ExtractedRecipe { recipe, cook }` threading the payload from the three AI extractors to `createRecipeWithRefs(..., cook)` **alongside** the DTO, never inside it (D-27-W3-02); the opposite system's authored step prose still written in the cook branch (D-27-W3-05); and `cook_source = NULL` on an ordinary no-`cook` update so a stored `.cook` can never go stale (D-27-W3-06). **T-27-01 IS DISCHARGED — and by the ROOT CAUSE, after a false start that a verifier caught.** The plan's nine caps could not satisfy the plan's own <2 000 ms criterion: the parser emits a diagnostic per malformed token quoting the token's whole LINE, so report construction is O(malformed × line length) and adversarial input INSIDE 64 KiB measured up to **18.8 s / ~250 MB** (a 4 KiB `#` run alone costs 4.5 s), non-monotonically in the cap. A tenth cap (`maxCookMalformedTokens: 8`) was added, and then an **independent adversarial verifier REFUTED it with working repros** — a brace-closed `@a{1%}` flood scored 0 malformed and took **11 118 ms / 150 MB**, while an ordinary US-shorthand pot roast (“Preheat the oven @ 325”) was **wrongly refused** though the real parser handles it in 13 ms with an empty report. **The real defect: `.cook` is a syntax-bearing format and the serializer emitted step prose VERBATIM, so model-shaped text was being INJECTED into that syntax** (structurally SQL/HTML injection). Fixed in `f7bcecb8` by escaping every metacharacter in every piece of text norish did not author as a token (`escapeCookText`; `\X` is a general, losslessly-reversible escape, and `sanitizeTokenName`'s silent STRIP is gone), `extensions = 0` on the parser (which also stopped the read model rewriting prose numbers: `180°C` → `180 °C`, `1.50 kg` → `1.5 kg`), quoting frontmatter and deciding quoting by KEY (a newline in a model-supplied recipe NAME could inject arbitrary `.cook` body), and **`findCookSourceDefect` — an output-integrity assertion, not an input heuristic** — at the same two doors. **`COOK_LIMITS` is back to the NINE originally planned caps at their planned values; `maxCookMalformedTokens` is DELETED.** Worst timing across 25 hostile families: **648.8 ms** (a 3.1× margin); the verifier's bypass refused in 1.3 ms; the pot roast now earns a `cook_source`. Proven by a new 45-test round-trip-fidelity suite with an EXHAUSTIVE sweep of all 32 ASCII punctuation characters in 9 positions, all 100 adjacent metacharacter pairs, and 40 hostile strings in 7 positions each. **Lesson: do not predict a parser — constrain what you hand it and assert your own output.** **FOUR INCIDENTAL never-broken defects fixed at the root:** `computeCookProjection` dropped the AMOUNT of a split-amount ingredient (bare mention first, quantified later) in BOTH systems; `findNameIndex` spun forever on a blank ingredient name; a timer with an empty amount/unit emitted `~{%min}`; and the two frontmatter injection/typing defects. **ISOLATION IS PROVEN AT THE WRITE AND EMIT END** (`be72cc9b`): a new 33-test `packages/queue/__tests__/recipe-import/cook-source-isolation.test.ts` drives the REAL `processImportJob` against the REAL `resolveHouseholdRealtimeScope`/`resolveRecipeRealtimeScope`/`emitByPolicy` with a `.cook` minted by the REAL `buildCookPayload` and the REAL `RecipeDashboardSchema` — cross-cookbook write and emit, the dedup-hit emit, the PERSONAL (`household_id IS NULL`) import, the `userId: null` orphan branch, the `imported` payload and the list DTO, **each with a `view: "everyone"` sibling** (AGENTS.md). **No real leak was found.** ONE file, no production change. The read-side `NOT_FOUND` half stays in W2's `cook-tokens-isolation.test.ts` because `@norish/auth` (where `canAccessResource` lives) is a FORBIDDEN import edge for `@norish/queue`; re-implementing the predicate would have been mocking the boundary. **ALL FIVE PLANNED ADVERSARIAL WEAKENINGS EXECUTED (plus one self-directed), each RED, each reverted byte-identical, none committed:** W3-W1 (7 red, incl. both `calls parse 0 times` assertions), W3-W1b (11 red), W3-W4 weakening the ESCAPER (14 red), W3-W5 weakening the RECOGNIZER (25 red, with the time budget blown on exactly the families the deleted heuristic let through), W3-W2 (2 red, exactly as the plan predicted), W3-W3 adding `cookSource` to the `imported` payload (**4 red**, both the cookbook and the PERSONAL case, under both policies). **D-27-W3-07 IS NOW MEASURED and CONFIRMED — the director's open decision item can be closed: the derived US output IS worse than the AI's, 18 of 35 ingredients differ** across the five fixtures, on two independent axes — (1) every dry good the model measures in `cup` becomes `ounce` (11 of 18; `2 cup flour` → `8.81849 ounce`) and `fl oz`/`pint` are never produced at all; (2) all conversions are unrounded 6-decimal values (`14 ounce` → `14.109585 ounce`), which would SURVIVE a vocabulary fix. The HARD assertion held for all five: same ingredient names, same count, no ingredient lost. **W5 PREREQUISITES (both, not either): the W0 `kilogram`/`fl oz`/`pint` vocabulary AND a rounding/presentation rule.** Dual-system extraction is KEPT; single-system extraction stays deferred to W5. **Gates:** typecheck 17/17 (and a REAL `tsc --noEmit` clean in api/queue/shared/shared-server — the repo's own script passes `--noCheck` in 6 of 17 packages and does NOT type-check `packages/api`, proven adversarially); api **408**; queue **121**; shared-server **389**; db (docker) **178 passed / 0 failed** (the long-standing “pre-existing” red was a stale-`node_modules` artefact); trpc 335; shared 295; web 424; mobile 132; auth 133; lint 0 errors with warnings at baseline; `check-workspace-imports.mjs` EXIT 0; `build:server` EXIT 0; `i18n:check` EXIT 1 on the `no` locale ONLY (68 keys, zero new); `pnpm-lock.yaml` diff EMPTY; isolation suites queue 44 / trpc 46 / db 25; **+192 net-new tests**. **NO MIGRATION** — `packages/db/src/migrations/` and `meta/_journal.json` untouched, DB stays at **42**, the `0042` (W5) / `0043` (W6) sequence unchanged (D-27-W3-10). **No file under `apps/`; the renderer is W4.** **W3 director exit items:** `docker:build` + deploy-image sanity (first deploy where the parser runs on the WRITE path); decide D-27-W3-07 as above; watch `incomplete-ingredient-coverage` / `did-not-parse-cleanly` / `not-serializer-shaped` (the last should be ZERO); a verified-restorable backup before the W3 deploy; **`AI_API_KEY` IS set on live — env-backed in `/opt/norish/.env` (untracked, `chmod 600`), on top of the DeepSeek key the Admin UI wrote to `ai_config` on 2026-06-15 — so W3's producer WILL fire and the deploy is NOT a no-op** (an earlier note claiming the opposite was corrected on 2026-07-26; see `27-04-SUMMARY.md` §15.6); and a small plan for the `--noCheck` typecheck hole. **UPDATE 2026-07-27 (later same day): W4 (client token renderer + multi-timer, plan `27-05`) is now ALSO DEPLOYED** — new live image `sha256:4427ffbf…`, previous `sha256:704aa6b6…`, rollback tag `norish:rollback-20260727-pre-27-05`, no migration (DB stays at 42) — see the "Status of the phase" line and the `27-05 (W4)` bullet below for the full record. **UPDATE 2026-07-27 (later still): 27-06 (W5-PREP) is now CODE-COMPLETE** — the units vocabulary (`kilogram`/`fluid_ounce`/`pint`) and the rounding rule both land, closing 2 of W5's 3 hard prerequisites; NOT deployed (pure offline code); see the `27-06 (W5-PREP)` bullet below for the full record. **UPDATE 2026-07-27 (later still again): W5 (plan `27-07`, migration `0042` live-data backfill) is now ALSO DEPLOYED** — the phase's first IRREVERSIBLE wave. New live image `sha256:f1b6664ea600…`, previous `sha256:e216d3303bc2…`, rollback tag `norish:rollback-20260727-pre-27-07`, **migration 42 → 43** (`0042_backfill_cook_source` is journal-only, D-27-W5-02; the mutation ran at boot as `backfillCookSource()`). Backfill outcome `candidates:6, derived:1, flagged:5, refused:0, failed:0` — all 6 recipes now carry a `cook_source`, only `Gnocchi in tomatensaus` (0.917) cleared the review threshold, the other five (0.000–0.333) are flagged `cook_review_needed`. Zero data loss confirmed by two independent agents (steps 80→80, recipe_ingredients 136→136, grocery links 10→10, 0 orphaned/silently-nulled FKs). Root cause of the mixed derive quality is a newly-surfaced but pre-existing data-quality issue — duplicated bilingual `steps` rows — flagged as a follow-up, not introduced by this wave. See the `27-07 (W5)` bullet below and the "Status of the phase" line for the full record. **NEXT: W6** (`cook_source` NOT NULL, migration `0043`) — the only remaining wave of the phase; unscoped beyond `27-ARCHITECTURE.md` §7. See `.planning/phases/27-cooklang/waves/W3-SUMMARY.md`, `waves/W4-SUMMARY.md` and `27-06-SUMMARY.md`. Director exit items for `0041`/W3B (docker:build + in-image WASM confirmation, the `0041` precheck against a restored dump, and a verified-restorable backup before `0041` reached live) are all closed by prior deploys. See `.planning/phases/27-cooklang/waves/W2-SUMMARY.md`. (COOK-01)
+- [ ] **Phase 27: Cooklang migration (MAJOR)** - Migrate recipe step/ingredient representation to Cooklang, delivering the long-wanted **in-step ingredient quantities** and **multi-timer cooking mode**. **UNBLOCKED 2026-07-24 (Kiran): fork-independent, NO #470 gating** — the fork has progressed past the original and makes its own design calls, so the serializer lives **fork-local** rather than being contributed upstream. Parser `@cooklang/cooklang` (MIT, WASM — NOT the archived `cooklang-ts`). **FULL-NATIVE, NO bandaids (Kiran, 2026-07-24)** — reversed from additive-dual-store: `.cook` is the **single source of truth**, `steps`/`recipe_ingredients` demote to a **derived projection**, the heuristic `SmartInstruction`/`applyIngredientLinkMarkup` layer is **deleted**, and metric↔US uses a **deterministic OSS converter** (`convert`, MIT) + USDA density table instead of the AI `unit-converter.ts`. Master plan **`.planning/phases/27-cooklang/27-ARCHITECTURE.md`**; reversals in `27-DECISIONS.md`; de-risked by the committed spike (`structuredToCooklang` vs the REAL WASM parser, `27-EXTRACTION-PROMPT.md`, `27-EXPERIMENT.md`). Migrations `0041` expand · `0042` backfill (data-mutating) · `0043` NOT-NULL; shopping-list FK kept safe via UPSERT-stable projection; low-confidence backfill tail goes to a **review queue** (no permanent fallback). 7 waves (W0–W6) — wave by wave:
+
+  **Wave status (chronological; each wave's full record is in its SUMMARY):**
+
+  - **W0 (deterministic units subsystem) CODE-COMPLETE + pushed `a4f9c2a5`**;
+
+  - **W1 (serializer + parser read-model) CODE-COMPLETE + pushed** (`40ad343e` → `58cabd9f`): `structuredToCooklang` productionized into **`@norish/shared/cooklang`** on the REAL `normalizeUnit`, **`@cooklang/cooklang@^0.18.7` (MIT, `cooklang/cooklang-rs`) is now a real pnpm workspace dependency of `@norish/shared-server`** in `pnpm-lock.yaml`, a `parse → cookTokens` server util that dereferences every parser index and returns `null` rather than throwing, and nullable `cookSource`/`cookTokens` (defaulting to `null`) on `FullRecipeSchema` — additive and un-wired.
+
+  - **W2 (write path + `0041`) CODE-COMPLETE + pushed** (`9f548b96` → `a896dae1`, base `8d541fb4`), the SERVER half only: migration **`0041`** (expand-only on `recipes`: `cook_source`, `cook_confidence`, `cook_review_needed`; plus the `(recipe_id, system_used, ingredient_id)` UNIQUE index, whose de-dup **re-points every `groceries.recipe_ingredient_id` onto the survivor BEFORE deleting**, sums only on a lossless merge and otherwise flags `cook_review_needed`) — hand-written per D-27-W2-08, **NOT applied to live**, with a read-only `checks/0041-precheck.sql` for the pre-deploy dry-run against a restored dump; **`deriveProjectionTx`** in `@norish/db`, UPSERT-stable on that natural key so `recipe_ingredients.id` and its grocery FK survive an edit and `steps.id`/`step_images` survive a re-derive, materializing both systems' ingredient rows (opposite via W0's converter, flag-and-preserve) and the native system's steps, importing **no parser** (`@norish/db` gained no dependency); **`buildCookPayload`** + **`withCookTokens`** in `@norish/shared-server`, the former validating its own output so a non-NULL `cook_source` always parses cleanly and a failed derive never fails the user's write; and `cookSource`/`cookTokens` on `recipes.get`/`getEditable` **strictly after the access check**, with list/search/dashboard byte-for-byte unchanged. **Nothing user-visible changed — no `.cook` producer exists until W3, so every recipe still has `cook_source IS NULL`.** Gates green (typecheck 17/17; db 164/1 pre-existing; trpc 322; shared 295; shared-server 275; web 424; mobile 132; lint 0 errors at baseline; `build:server` EXIT 0; **+139 tests**), with four adversarial weakenings each turning an isolation suite RED and reverted byte-identical.
+
+  - **W3 (extraction native + T-27-01 input limits) CODE-COMPLETE — 5 of 5 tasks** (`f29254b9` → `65815ec4` → `527a852d` → `49f03139` → **`f7bcecb8`** the T-27-01 root-cause fix → **`be72cc9b`** the queue-side isolation suite; base `faa13d8e`, nothing pushed). **THIS IS THE WAVE THAT SWITCHES THE FEATURE ON: a newly AI-extracted recipe can now have a non-NULL `recipes.cook_source`, the first time that is true in this codebase.** Everything else is byte-identical — a string-shaped model response, JSON-LD, the python scraper, structured paste, a Mealie archive and the manual editor all pass **no** `cook` (D-27-W3-08). **What shipped:** a linkage prompt fragment appended by all three extraction builders as CODE, never a `.txt` edit (D-27-W3-01 — `loadPrompt` reads SERVER CONFIG, so a `.txt` edit is a silent no-op on an existing install; proven closed by a per-builder test with `loadPrompt` mocked to an unrelated base prompt); `recipeExtractionSchema.recipeInstructions` accepting a per-step OBJECT **or** a plain STRING (object first, D-27-W3-03) with a TOTAL never-throwing normalizer, so no import that succeeds today can fail (the **R1** mitigation); `buildCookFromExtraction`, the only new minting call site, refusing in four ways that each cost the user NOTHING (`no-step-linkage` debug, `incomplete-ingredient-coverage` error, `input-too-large` error, `did-not-parse-cleanly` error — counts only, never prose, T-27-05); the **coverage gate** (D-27-W3-04) that stops `deriveProjectionTx` silently dropping ingredients a model failed to link (8-of-11 ⇒ no `.cook`, **11** ingredient rows, `cook_source IS NULL`); `ExtractedRecipe { recipe, cook }` threading the payload from the three AI extractors to `createRecipeWithRefs(..., cook)` **alongside** the DTO, never inside it (D-27-W3-02); the opposite system's authored step prose still written in the cook branch (D-27-W3-05); and `cook_source = NULL` on an ordinary no-`cook` update so a stored `.cook` can never go stale (D-27-W3-06). **T-27-01 IS DISCHARGED — and by the ROOT CAUSE, after a false start that a verifier caught.** The plan's nine caps could not satisfy the plan's own <2 000 ms criterion: the parser emits a diagnostic per malformed token quoting the token's whole LINE, so report construction is O(malformed × line length) and adversarial input INSIDE 64 KiB measured up to **18.8 s / ~250 MB** (a 4 KiB `#` run alone costs 4.5 s), non-monotonically in the cap. A tenth cap (`maxCookMalformedTokens: 8`) was added, and then an **independent adversarial verifier REFUTED it with working repros** — a brace-closed `@a{1%}` flood scored 0 malformed and took **11 118 ms / 150 MB**, while an ordinary US-shorthand pot roast (“Preheat the oven @ 325”) was **wrongly refused** though the real parser handles it in 13 ms with an empty report. **The real defect: `.cook` is a syntax-bearing format and the serializer emitted step prose VERBATIM, so model-shaped text was being INJECTED into that syntax** (structurally SQL/HTML injection). Fixed in `f7bcecb8` by escaping every metacharacter in every piece of text norish did not author as a token (`escapeCookText`; `\X` is a general, losslessly-reversible escape, and `sanitizeTokenName`'s silent STRIP is gone), `extensions = 0` on the parser (which also stopped the read model rewriting prose numbers: `180°C` → `180 °C`, `1.50 kg` → `1.5 kg`), quoting frontmatter and deciding quoting by KEY (a newline in a model-supplied recipe NAME could inject arbitrary `.cook` body), and **`findCookSourceDefect` — an output-integrity assertion, not an input heuristic** — at the same two doors. **`COOK_LIMITS` is back to the NINE originally planned caps at their planned values; `maxCookMalformedTokens` is DELETED.** Worst timing across 25 hostile families: **648.8 ms** (a 3.1× margin); the verifier's bypass refused in 1.3 ms; the pot roast now earns a `cook_source`. Proven by a new 45-test round-trip-fidelity suite with an EXHAUSTIVE sweep of all 32 ASCII punctuation characters in 9 positions, all 100 adjacent metacharacter pairs, and 40 hostile strings in 7 positions each. **Lesson: do not predict a parser — constrain what you hand it and assert your own output.** **FOUR INCIDENTAL never-broken defects fixed at the root:** `computeCookProjection` dropped the AMOUNT of a split-amount ingredient (bare mention first, quantified later) in BOTH systems; `findNameIndex` spun forever on a blank ingredient name; a timer with an empty amount/unit emitted `~{%min}`; and the two frontmatter injection/typing defects. **ISOLATION IS PROVEN AT THE WRITE AND EMIT END** (`be72cc9b`): a new 33-test `packages/queue/__tests__/recipe-import/cook-source-isolation.test.ts` drives the REAL `processImportJob` against the REAL `resolveHouseholdRealtimeScope`/`resolveRecipeRealtimeScope`/`emitByPolicy` with a `.cook` minted by the REAL `buildCookPayload` and the REAL `RecipeDashboardSchema` — cross-cookbook write and emit, the dedup-hit emit, the PERSONAL (`household_id IS NULL`) import, the `userId: null` orphan branch, the `imported` payload and the list DTO, **each with a `view: "everyone"` sibling** (AGENTS.md). **No real leak was found.** ONE file, no production change. The read-side `NOT_FOUND` half stays in W2's `cook-tokens-isolation.test.ts` because `@norish/auth` (where `canAccessResource` lives) is a FORBIDDEN import edge for `@norish/queue`; re-implementing the predicate would have been mocking the boundary. **ALL FIVE PLANNED ADVERSARIAL WEAKENINGS EXECUTED (plus one self-directed), each RED, each reverted byte-identical, none committed:** W3-W1 (7 red, incl. both `calls parse 0 times` assertions), W3-W1b (11 red), W3-W4 weakening the ESCAPER (14 red), W3-W5 weakening the RECOGNIZER (25 red, with the time budget blown on exactly the families the deleted heuristic let through), W3-W2 (2 red, exactly as the plan predicted), W3-W3 adding `cookSource` to the `imported` payload (**4 red**, both the cookbook and the PERSONAL case, under both policies). **D-27-W3-07 IS NOW MEASURED and CONFIRMED — the director's open decision item can be closed: the derived US output IS worse than the AI's, 18 of 35 ingredients differ** across the five fixtures, on two independent axes — (1) every dry good the model measures in `cup` becomes `ounce` (11 of 18; `2 cup flour` → `8.81849 ounce`) and `fl oz`/`pint` are never produced at all; (2) all conversions are unrounded 6-decimal values (`14 ounce` → `14.109585 ounce`), which would SURVIVE a vocabulary fix. The HARD assertion held for all five: same ingredient names, same count, no ingredient lost. **W5 PREREQUISITES (both, not either): the W0 `kilogram`/`fl oz`/`pint` vocabulary AND a rounding/presentation rule.** Dual-system extraction is KEPT; single-system extraction stays deferred to W5. **Gates:** typecheck 17/17 (and a REAL `tsc --noEmit` clean in api/queue/shared/shared-server — the repo's own script passes `--noCheck` in 6 of 17 packages and does NOT type-check `packages/api`, proven adversarially); api **408**; queue **121**; shared-server **389**; db (docker) **178 passed / 0 failed** (the long-standing “pre-existing” red was a stale-`node_modules` artefact); trpc 335; shared 295; web 424; mobile 132; auth 133; lint 0 errors with warnings at baseline; `check-workspace-imports.mjs` EXIT 0; `build:server` EXIT 0; `i18n:check` EXIT 1 on the `no` locale ONLY (68 keys, zero new); `pnpm-lock.yaml` diff EMPTY; isolation suites queue 44 / trpc 46 / db 25; **+192 net-new tests**. **NO MIGRATION** — `packages/db/src/migrations/` and `meta/_journal.json` untouched, DB stays at **42**, the `0042` (W5) / `0043` (W6) sequence unchanged (D-27-W3-10). **No file under `apps/`; the renderer is W4.**
+
+  - **W3 director exit items:** `docker:build` + deploy-image sanity (first deploy where the parser runs on the WRITE path); decide D-27-W3-07 as above; watch `incomplete-ingredient-coverage` / `did-not-parse-cleanly` / `not-serializer-shaped` (the last should be ZERO); a verified-restorable backup before the W3 deploy; **`AI_API_KEY` IS set on live — env-backed in `/opt/norish/.env` (untracked, `chmod 600`), on top of the DeepSeek key the Admin UI wrote to `ai_config` on 2026-06-15 — so W3's producer WILL fire and the deploy is NOT a no-op** (an earlier note claiming the opposite was corrected on 2026-07-26; see `27-04-SUMMARY.md` §15.6); and a small plan for the `--noCheck` typecheck hole.
+
+  - **UPDATE 2026-07-27 (later same day): W4 (client token renderer + multi-timer, plan `27-05`) is now ALSO DEPLOYED** — new live image `sha256:4427ffbf…`, previous `sha256:704aa6b6…`, rollback tag `norish:rollback-20260727-pre-27-05`, no migration (DB stays at 42) — see the "Status of the phase" line and the `27-05 (W4)` bullet below for the full record.
+
+  - **UPDATE 2026-07-27 (later still): 27-06 (W5-PREP) is now CODE-COMPLETE** — the units vocabulary (`kilogram`/`fluid_ounce`/`pint`) and the rounding rule both land, closing 2 of W5's 3 hard prerequisites; NOT deployed (pure offline code); see the `27-06 (W5-PREP)` bullet below for the full record.
+
+  - **UPDATE 2026-07-27 (later still again): W5 (plan `27-07`, migration `0042` live-data backfill) is now ALSO DEPLOYED** — the phase's first IRREVERSIBLE wave. New live image `sha256:f1b6664ea600…`, previous `sha256:e216d3303bc2…`, rollback tag `norish:rollback-20260727-pre-27-07`, **migration 42 → 43** (`0042_backfill_cook_source` is journal-only, D-27-W5-02; the mutation ran at boot as `backfillCookSource()`). Backfill outcome `candidates:6, derived:1, flagged:5, refused:0, failed:0` — all 6 recipes now carry a `cook_source`, only `Gnocchi in tomatensaus` (0.917) cleared the review threshold, the other five (0.000–0.333) are flagged `cook_review_needed`. Zero data loss confirmed by two independent agents (steps 80→80, recipe_ingredients 136→136, grocery links 10→10, 0 orphaned/silently-nulled FKs). Root cause of the mixed derive quality is a newly-surfaced but pre-existing data-quality issue — duplicated bilingual `steps` rows — flagged as a follow-up, not introduced by this wave. See the `27-07 (W5)` bullet below and the "Status of the phase" line for the full record.
+
+  - **NEXT: W6** (`cook_source` NOT NULL, migration `0043`) — the only remaining wave of the phase. **RE-SCOPED 2026-07-28 as its own phase, 27.6** — the `27-ARCHITECTURE.md` §7 form is NOT executable (its justification "Safe because W5 guaranteed 100% coverage" is FALSE; see Phase 27.6 below for the evidence and the hard prerequisites). See `.planning/phases/27-cooklang/waves/W3-SUMMARY.md`, `waves/W4-SUMMARY.md` and `27-06-SUMMARY.md`. Director exit items for `0041`/W3B (docker:build + in-image WASM confirmation, the `0041` precheck against a restored dump, and a verified-restorable backup before `0041` reached live) are all closed by prior deploys. See `.planning/phases/27-cooklang/waves/W2-SUMMARY.md`. (COOK-01)
+- [x] **Phase 27.1: Import reliability (INSERTED 2026-07-28) — DEPLOYED, but its premise was WRONG** - Shipped five things (mirror-the-absent-measurement-half, one retry at raised token headroom, JSON-LD-after-AI-failure fallback, visible failure surfacing, in-stack Camoufox compose) plus the PENDING-ISO-01 leak fix, on live image `sha256:919a5e950735…`. **CORRECTED 2026-07-28 (later, by five diagnostic agents): the recorded root cause was wrong and this phase fixed mostly the wrong thing.** The relaxed normalizer sits on an **unreachable path** (`Output.object` validates inside `generateText` and throws before `mirrorMeasurementSystems`/`validateExtractionOutput` run — live logs only ever show "AI response did not match expected format.", never "Recipe extraction failed - missing required fields"), and the retry raises a token budget that was never the constraint (the same starved page at 100 000 tokens still returns `{}` in 3 s, `finish_reason: stop`). What 27.1 DID genuinely fix: reasoning-exhaustion, which is **1 of 25** live AI failures (wiswijzer/erwtensoep, the one demonstrated win), plus the real, live cross-household `getPending` leak and the failure-UX defects. **Its 24/24 empirical gate certified the `structured` parser path — which 27.1 did not modify**; every one of the 24 logged `parserPath:"structured"`, `usedAI:false`, so the AI path was never exercised. The real root cause is the upstream sanitizer — see Phase 27.2. (IMPORT-REL-01..05, PENDING-ISO-01)
+- [ ] **Phase 27.2: Imports actually work — the sanitizer (INSERTED 2026-07-28)** - **THE headline fix.** `extractSanitizedBody` (`packages/shared-server/src/ai/helpers.ts:93`) harvests page text only from `h2,h3,h4,h5,h6,p,li,dt,dd,figcaption`. Classic Blogger pages put the whole recipe as bare text nodes separated by `<br>` inside `div.post-body` — zero `<p>`, zero `<li>` — so the sanitizer hands the model 86–585 characters of navigation chrome, the DB base prompt's "Return {} if data cannot be extracted" fires correctly, DeepSeek returns the two-character string `{}`, the strict Zod schema rejects it, and the user sees "AI response did not match expected format." **24 of the 25 live AI failures are this.** Fix the selector pass (`<br>`-separated text nodes + table cells, prefer a real article-body container over `<main>`, fall back to whole-root text when the selector pass yields implausibly little), raise the live `ai_config.maxTokens` above the measured ~11k floor (a DB row, not a deploy), and add the observability that would have caught it in an hour instead of a week. **`helpers.ts` is byte-identical to upstream/main — this is an UPSTREAM defect and a good upstreaming candidate.** (IMPORT-SANITIZE-01, IMPORT-OBS-01)
+- [ ] **Phase 27.3: Gates that don't lie (INSERTED 2026-07-28)** - **6 of 17 packages do not typecheck.** Five carry a script-level `--noCheck`; the sixth and worst is `apps/web`, whose script reads as an honest `tsc --noEmit` while `apps/web/tsconfig.json:6` sets `"noCheck": true` — a real typecheck yields **285 errors**, including a modal importing three non-existent `@heroui/react` members (would throw on render) and an authorization path reading `user.isServerAdmin` off a type that does not declare it. Plus 17 broken `@norish/shared/contracts` type imports hidden by `skipLibCheck` (so `Slot` is `any` at four live call sites) and `pnpm i18n:check` exiting 1 on 68 missing `no` keys — which `pr-quality.yml:46` has been running red on every PR and every push to main. Restore honest typechecking, fix what surfaces, and add a build-time assertion that covers the **Next.js server bundle** rather than only the tsdown bundle. (GATE-01, I18N-01)
+- [ ] **Phase 27.4: Close the live defects (INSERTED 2026-07-28)** - Everything found today that is broken on live right now: the **Cooklang parse pool's child resolution** (broken in the Next.js/Turbopack server chunks since `59f3a767`, costing every recipe its ingredient chips, per-step scaling, section headings and concurrent timers — RENDER only, not import); **two more `pending.ts` isolation leaks** plus four unowned `is*` job probes (SECURITY-CRITICAL, same family as 27.1-06); **`deleteAccount` orphaning recipes** into a permanently invisible, undeletable state; **service-worker recipe-media caching** that bypasses `requireRecipeMediaAccess` forever, with no sign-out purge and a `update-sw-version.js` that has been a no-op since it was written; the bypassable `clone-beta-db.sh` live-DB guard; and the DeepSeek key rotation. (COOKPOOL-01, PENDING-ISO-02, ACCT-DEL-01, SW-CACHE-01, OPS-01)
+- [ ] **Phase 27.5: Delete the dead weight (INSERTED 2026-07-28)** - Execute the three adversarial dead-code reviews written 2026-07-28 (`27.1-REVIEW-A-import-surface.md` ~2 115 deletable lines, `-REVIEW-B-data-server.md` ~1 150, `-REVIEW-C-apps-tooling.md` 42 findings). Deletion-only, no behaviour change. **Trap:** `packages/api/src/parser/jsonld.ts:2` carries a FALSE `@deprecated` comment — 27.1 put that file on the live path in four places; it is NOT dead. (DEADCODE-01)
+- [ ] **Phase 27.6: Cooklang as the only source of truth (the real W6) (INSERTED 2026-07-28)** - Kiran, 2026-07-28: *"Ik wil cooklang als de enige source of truth hebben. de rest mag er allemaal uitgesloopt worden."* This is the destination — the legacy render fork, `unit-converter.ts`, the heuristic ingredient-link markup and the timer-keyword scan all go. But `27-ARCHITECTURE.md:320`'s W6 is **NOT executable as written**: its stated justification ("Safe because W5 guaranteed 100% coverage") is **FALSE** — W5 covered *existing rows* (`candidates:6, derived:1, flagged:5`), said nothing about future inserts, and nothing at all about the read path. Shipping it today would break the structured URL-import, paste-import, Mealie-archive and manual-create write paths **and** render zero steps on 100% of recipes. Re-scoped with its prerequisites as hard gates. (COOK-02)
 - [ ] **Phase 28: Cost-per-recipe badge (MAJOR)** - € / €€ / €€€ per serving. Daily `supermarkt/checkjebon` (MIT, 12 NL chains) pull → Postgres price index; the existing Camoufox AH scraper as cache-miss enrichment; LLM ingredient→product parse (strong for Dutch) + fuzzy match; computed async, badged on the recipe card. Legal: prices aren't personal data and homelab use is fine, but **do not redistribute** scraped AH data — lean on checkjebon (MIT) and Open Prices (ODbL). (COST-01)
 - [ ] **Phase 29: "What can I make now?" (MAJOR)** - Photograph what's on the counter → AI vision recognises ingredients → suggest makeable recipes and what's missing. Explicitly **image-based, no pantry/inventory** (pantry was dropped as a concept). Uses the existing AI provider's vision path. Per Kiran, the competitive research (incl. Albert Heijn's GenAI direction) is deliberately **deferred to build time** rather than done now. (MAKE-01)
 - [ ] **Phase 30: Shared-recipe versions & lineage (MAJOR)** - Saving a shared recipe creates a **version in a shared lineage bucket** rather than an unrelated copy; users explore the versions others made; reviews aggregate across the lineage but stay attributed to the version they were left on. **Now unblocked** — SHARE-02 (save-to-account) shipped 2026-07-21. Phase 2's recipe↔cookbook model stays forward-compatible via a `lineage_id`/`parent_recipe_id`. (VERSION-01)
@@ -403,7 +436,7 @@ Canonical refs: `.planning/phases/26-whats-for-dinner-suggester/` (CONTEXT, 26-0
   3. The `.cook` carries ONE native unit system (D-2 revised); the other system + volume↔weight are **derived deterministically** (`convert` + density table, flag-on-unknown); canonical unit IDs round-trip as the `%unit` literal (D-8, confirmed).
   4. Cooking mode + recipe detail render from parser tokens (`cookTokens` DTO projection); heuristic runtime deleted; concurrent named timers from timer tokens.
   5. Shopping-list FK (`groceries.recipe_ingredient_id`) + search keep working via the UPSERT-stable projection (natural key `recipe_id,system_used,ingredient_id`); existing recipes AI-relinked to a best-effort `.cook` with a **review queue** for the low-confidence tail (no permanent fallback).
-**Waves** (see 27-ARCHITECTURE.md §7): W0 units · W1 serializer+parser read-model · W2 write-path + `0041` expand · W3 extraction native · W4 token renderer + multi-timer · W5 backfill `0042` + review tool · W6 contract. ~6 waves / ~6–8 plans.
+**Waves** (see 27-ARCHITECTURE.md §7): W0 units · W1 serializer+parser read-model · W2 write-path + `0041` expand · W3 extraction native · W4 token renderer + multi-timer · W5 backfill `0042` + review tool · W6 contract (**re-scoped 2026-07-28 as Phase 27.6** — `27-ARCHITECTURE.md` §7's W6 row is superseded). ~6 waves / ~6–8 plans.
 **Plans**:
   - **27-01 (W1) COMPLETE** — serializer + parser read-model, additive. `58cabd9f`. **Deployed.**
   - **27-02 (W2) COMPLETE** — write path + migration `0041` (expand-only), `deriveProjectionTx`, `buildCookPayload`, read path. `a746f00d`. **Deployed** (live image `516c52576a5f`, DB 41 → **42**).
@@ -506,8 +539,10 @@ Canonical refs: `.planning/phases/26-whats-for-dinner-suggester/` (CONTEXT, 26-0
     contention-flaky parse bound had to be fixed rather than tuned — **with TWO
     prerequisites recorded**: the 8 000 ms wall backstop, and
     `setActiveSystemForRecipe` clearing `cook_source` on a metric↔US switch, which becomes
-    a hard failure once the column is NOT NULL. Unscoped beyond `27-ARCHITECTURE.md` §7 —
-    the only remaining wave of the phase.
+    a hard failure once the column is NOT NULL. **RE-SCOPED 2026-07-28 as its own phase,
+    27.6** — and the two prerequisites recorded here turned out to be a subset: five write
+    paths mint no `cook_source`, and the read path itself is broken (F-11). See the Phase
+    27.6 entry below; `27-ARCHITECTURE.md` §7's W6 row is superseded by it.
 **Status of the phase**: **6 of 7 waves DEPLOYED (W0–W5); only W6 remains.** W5 (plan
 `27-07`, migration `0042` live-data backfill) is CODE-COMPLETE AND DEPLOYED 2026-07-27 —
 the phase's first IRREVERSIBLE wave. VERIFY-3's six blockers and three gate problems are
@@ -517,8 +552,12 @@ pass closed all 3 blocker gaps before its live run. Live now runs image
 `sha256:f1b6664ea600…` (previous `sha256:e216d3303bc2…`), rollback tag
 `norish:rollback-20260727-pre-27-07`, **DB now at migration 43** (`0042` applied,
 backfill ran at boot: `candidates:6, derived:1, flagged:5, refused:0, failed:0`, zero
-data loss). **NEXT: W6** — `cook_source` NOT NULL (migration `0043`), unscoped beyond
-`27-ARCHITECTURE.md` §7; it is the only remaining wave of the phase.
+data loss). **NEXT: W6** — `cook_source` NOT NULL (migration `0043`); it is the only
+remaining wave of the phase. **RE-SCOPED 2026-07-28 as Phase 27.6**, because
+`27-ARCHITECTURE.md:320`'s justification for it ("Safe because W5 guaranteed 100%
+coverage") is **FALSE** — W5 covered existing rows, not future inserts, and said nothing
+about the read path (which is itself broken, F-11). W6 is blocked on Phases 27.2/27.3/27.4
+and on the hard prerequisites listed in the Phase 27.6 entry below.
 
 ### Phase 27.1: Import reliability: AI extraction resilience, JSON-LD fallback, failure surfacing, in-stack Camoufox (INSERTED) — DEPLOYED 2026-07-28
 **Goal:** Recipe import works end-to-end, and when it does not, the failure is VISIBLE instead of silent.
@@ -541,6 +580,34 @@ In-stack camofox (this phase's `docker/docker-compose.fork.yml`) remains adopted
 UNVERIFIED live — `CAMOFOX_URL` still points at the off-stack LXC 105 instance deliberately, so
 the import fix would not be confounded by a scrape-topology change. Full record: the 2026-07-28
 session-log entry in `STATE.md` and `27.1-CONTEXT.md`.
+
+**CORRECTION 2026-07-28 (later the same day, by five independent diagnostic agents) — THIS PHASE'S
+RECORDED ROOT CAUSE WAS WRONG, AND IT FIXED MOSTLY THE WRONG THING.** Recorded honestly here rather
+than quietly overwritten; the text above is preserved as it stood.
+  1. **The relaxed normalizer is on an UNREACHABLE path.** `Output.object` validates inside
+     `generateText` and throws *before* `mirrorMeasurementSystems` / `validateExtractionOutput` ever
+     run. The live logs prove it: the error string is always "AI response did not match expected
+     format." and NEVER "Recipe extraction failed - missing required fields". IMPORT-REL-01 is
+     correct code on a path no live failure reaches.
+  2. **The retry raises a token budget that was never the constraint.** The same starved page at
+     100 000 output tokens still returns `{}` in 3 seconds with `finish_reason: stop`. The retry
+     DOES genuinely fix reasoning-token exhaustion — that is **1 of the 25** live AI failures
+     (wiswijzer/erwtensoep, the one demonstrated win). IMPORT-REL-02 is real, and small.
+  3. **The 24/24 empirical gate certified the `structured` parser path — which this phase did not
+     modify.** Every one of the 24 imports logged `parserPath:"structured"`, `usedAI:false`. The
+     gate never exercised the AI path, the retry, or the JSON-LD fallback. **Any future import gate
+     MUST include non-JSON-LD pages** (see Phase 27.2's acceptance gate).
+  4. **The real root cause is upstream's sanitizer** — `extractSanitizedBody`
+     (`packages/shared-server/src/ai/helpers.ts:93`) starves the model of the recipe text on
+     `<br>`-separated Blogger pages. **24 of the 25 live AI failures are this.** Scheduled as
+     **Phase 27.2**. `helpers.ts` is byte-identical to `upstream/main` — an UPSTREAM defect, not a
+     fork regression, and an upstreaming candidate.
+
+  **What 27.1 did unambiguously deliver, and keeps:** PENDING-ISO-01 (a real, live cross-household
+  leak — see 27.4 for the two siblings it missed), IMPORT-REL-04's visible failure card, the
+  reasoning-exhaustion retry, the repo-tracked in-stack Camoufox compose, and the import-gate
+  harness (now committed, F-10 closed).
+
 **Requirements**: IMPORT-REL-01, IMPORT-REL-02, IMPORT-REL-03, IMPORT-REL-04, IMPORT-REL-05, PENDING-ISO-01 (+ SETUP-04, HOUSE-06)
 **Depends on:** Phase 27 (W0-W5 deployed; W6 is NOT a prerequisite and NOT in scope)
 **Plans:** 6 plans in 3 waves
@@ -593,23 +660,393 @@ Plans:
   - **F-3** `docker/docker-compose.beta.yml:38` hardcoded the off-stack Camoufox as a default (fixed in 27.1-04).
   - **F-4** `packages/api/src/parser/fetch.ts:8-10` documented a plain-HTTP fallback that does not exist (fixed in 27.1-02).
 
-**Findings raised during the 2026-07-28 deploy + empirical gate, NOT in scope:**
-  - **F-6 (the sharpest open risk).** Phase 27's W6 (`cook_source` NOT NULL) assumed ordinary
-    imports would carry a `cook_source` by then; per D-27-W3-08 the STRUCTURED parser path mints
-    none, and the empirical gate showed ALL 24 live imports take that path (every source page
-    ships valid JSON-LD). W6 would need its own fix (a structured-path seeder, or a relaxed
-    contract) before it can land — otherwise it turns every ordinary import into a hard failure.
-  - **F-7.** In-stack camofox (`docker/docker-compose.fork.yml` from 27.1-04) is repo-tracked but
-    was deliberately NOT adopted live this deploy (`CAMOFOX_URL` still points at off-stack LXC
-    105) — still unverified against real traffic.
-  - **F-8 (minor).** `yt-dlp` throws `EACCES` when attaching an embedded video on import; the
-    recipe itself imports fine, only the secondary video asset fails.
-  - **F-9 (pre-existing, unrelated to this phase).** The 68-key Norwegian (`no`) locale backlog,
-    proven pre-existing by reconstructing base state from `a1e51a7c` (0 keys introduced here).
-  - **F-10.** `tooling/import-gate/` (the empirical-gate harness: `README.md`,
-    `run-import-gate.mjs`, `urls.ah.txt`, `urls.lekkerensimpel.txt`) is untracked — needs a
-    decision whether to commit it as a repo-tracked tool or delete it.
+**Follow-ups register — raised during the 2026-07-28 deploy, empirical gate, and the five-agent
+diagnostic sweep that followed.** Each item is either CLOSED, or carries the phase that now owns it.
+Items with no owning phase need a decision.
+  - **F-6 (was "the sharpest open risk"; CONFIRMED and BROADER than recorded — now owned by Phase
+    27.6).** Original wording: W6 (`cook_source` NOT NULL) assumed ordinary imports would carry a
+    `cook_source`; per D-27-W3-08 the STRUCTURED parser path mints none, and all 24 gate imports
+    took that path. **That is confirmed, and it is only one of five write paths.** The complete set
+    that mints no `cook_source` today: structured URL import (`packages/api/src/parser/index.ts:420-427`,
+    which deliberately returns `cook: null`), paste-import (`packages/queue/src/…/worker.ts:136`),
+    Mealie archive import (`packages/shared-server/src/archive/parser.ts:364`), manual recipe
+    creation (`packages/trpc/src/routers/recipes/recipes.ts:222`), and recipe copy. **And the risk
+    is not confined to the write side:** `setActiveSystemForRecipe`
+    (`packages/db/src/repositories/recipes.ts:1150-1156`) deliberately NULLs `cook_source` on a
+    metric↔US switch, which a NOT NULL column makes an outright constraint violation, and the READ
+    path is currently broken outright (F-11). W6 as written in `27-ARCHITECTURE.md:320` would break
+    all five write paths, the unit-system toggle, and render zero steps on 100% of recipes. **Owned
+    by Phase 27.6, whose prerequisites are exactly this list.**
+  - **F-7 (OPEN, unchanged — no owning phase; needs a decision).** In-stack camofox
+    (`docker/docker-compose.fork.yml` from 27.1-04) is repo-tracked but was deliberately NOT adopted
+    live (`CAMOFOX_URL` still points at the off-stack LXC 105 instance, `192.168.2.26`) — still
+    unverified against real traffic. **Note for anyone reading this next to the import work:
+    Camoufox itself is VERIFIED HEALTHY** — 200 OK from inside the app container — and is **NOT
+    implicated in any of the 25 import failures. Do not chase it.**
+  - **F-8 (minor, OPEN — no owning phase).** `yt-dlp` throws `EACCES` when attaching an embedded
+    video on import; the recipe itself imports fine, only the secondary video asset fails.
+  - **F-9 (FOLDED INTO PHASE 27.3).** The 68-key Norwegian (`no`) locale backlog, proven
+    pre-existing by reconstructing base state from `a1e51a7c` (0 keys introduced by 27.1). Now
+    known to be worse than a backlog: `pnpm i18n:check` exits 1, and `pr-quality.yml:46` runs it on
+    every PR and every push to `main`, so that CI job has been **red continuously**. Separately,
+    136 orphan `settings.admin.*` leaf keys × 12 locales were left behind when the fork deleted
+    upstream's admin forms.
+  - **F-10 — CLOSED 2026-07-28.** `tooling/import-gate/` (`README.md`, `run-import-gate.mjs`,
+    `urls.ah.txt`, `urls.lekkerensimpel.txt`) is now repo-tracked — committed as `efb9e3ca`
+    *"chore(27.1): track the import-gate regression harness"*. Phase 27.2's acceptance gate extends
+    it with the non-JSON-LD blogspot set.
+  - **F-2 (OWNED BY PHASE 27.2).** `packages/shared-server/src/config/defaults.ts` still defaults
+    `maxTokens: 10000`. **Correction to the earlier "inert on live" note: the LIVE value comes from
+    the DB `ai_config` row, and it is also 10000.** Measured 2026-07-28: `deepseek-v4-pro` spends
+    9 000–10 000 tokens on reasoning before emitting any output, so a 10–11-ingredient recipe does
+    not fit (`finish_reason:"length"`, empty content) while a 6-ingredient one does. **Even after
+    the sanitizer fix, every medium recipe loses its first attempt at 10000.** 27.2 raises the DB
+    row above the measured ~11k floor and aligns `defaults.ts` for fresh installs.
+  - **F-5 (SECURITY, minor; RE-SCOPED AND OWNED BY PHASE 27.4).** The four `is*` job probes in
+    `packages/trpc/src/routers/recipes/pending.ts` answer
+    `jobs.some(j => j.data.recipeId === input.recipeId)` with **no ownership check** — a boolean
+    oracle over any recipe UUID. Line numbers moved when 27.1-06 edited the file; they are now
+    `:50-66` (`isNutritionEstimating`), `:94-110` (`isAutoTagging`), `:112-128`
+    (`isAutoCategorizing`), `:158-174` (`isAllergyDetecting`). The register's earlier `:58-74`
+    etc. are stale.
+  - **F-11 (NEW, LIVE — owned by Phase 27.4). The Cooklang parse pool is broken on the READ path.**
+    `packages/shared-server/src/cooklang/pool.ts:320-328` resolves its child as "sibling of this
+    module, with this module's extension" — correct for the tsdown bundle
+    (`/app/dist-server/parse-worker.mjs`, verified healthy, 12/12 forks OK), but the pool is ALSO
+    compiled into three Next.js/Turbopack server chunks, and Turbopack polyfills `import.meta.url`
+    to the original SOURCE path. It therefore forks
+    `node_modules/@norish/shared-server/src/cooklang/parse-worker.ts`, which exists nowhere in the
+    image: `fork()` succeeds (real pid), the child exits 1 after ~80 ms, and
+    `stdio:["ignore","ignore","ignore","ipc"]` (`pool.ts:420`) **discards the `Cannot find module`
+    stderr**, leaving only "never reported ready". Broken on every image since `59f3a767
+    feat(27-04)`; became visible only when W5's boot backfill minted the first-ever `cook_source`
+    at 09:58:41 on 2026-07-28. **Blast radius is RENDER ONLY, not import** — the mint path runs in
+    `dist-server`, where resolution is correct. Cost to the user: no inline ingredient chips, no
+    per-step scaling, no section headings, no concurrent timers, on every recipe open. The stored
+    `cook_source` for the live recipe **is valid** (parses `ok:true`, 10 ingredients, through the
+    working worker) — `"stored-source-did-not-parse"` is a misnomer for "the pool did not start".
+    The build gate written to prevent exactly this (`apps/web/tsdown.config.ts:44-55`) only checks
+    the tsdown bundle and has been green throughout.
+  - **F-12 (NEW, SECURITY, LIVE — owned by Phase 27.4).** Two more `pending.ts` isolation leaks of
+    the REALTIME-ISO-01 / IMPORT-DEDUP-ISO-01 / LIST-ISO-01 / PENDING-ISO-01 family, missed when
+    27.1-06 fixed `getPending`: `getPendingAutoTagging` (`:79-84`) and `getPendingAllergyDetection`
+    (`:141-145`) filter with `job.data.userId === ctx.user.id || job.data.householdKey ===
+    ctx.householdKey`. That **OR** ignores the `view:"owner"` policy clamp that `getPending:31-34`
+    applies, leaking household-mates' recipe IDs under an owner-only policy.
+  - **F-13 (NEW, DATA LOSS, LIVE — owned by Phase 27.4).** `deleteAccount`
+    (`packages/trpc/src/routers/user/user.ts:279-318` → `deleteUser`,
+    `packages/db/src/repositories/users.ts:347-349`) is a live, user-reachable mutation and leaves
+    the account's personal recipes with **both `user_id` and `household_id` NULL** — permanently
+    invisible, undeletable, media retained on disk. Root cause: `recipes.household_id` /
+    `recipes.user_id` are `ON DELETE SET NULL`, not cascade. Related: `deleteHousehold`
+    (`packages/db/src/repositories/households.ts:126`) is dead code **and** hazardous — a bare
+    delete against the same SET NULL FK. **Delete it; do not give it a caller.**
+  - **F-14 (NEW, SECURITY — owned by Phase 27.4).** Service worker: recipe media at
+    `/recipes/{id}/{filename}` is not under `/api/`, so `apps/web/public/sw.js:65` serves it
+    `cacheFirst` from CacheStorage forever, never revalidated, **bypassing
+    `requireRecipeMediaAccess`**. All GET `/api/**` responses are also persisted unconditionally,
+    and there is no cache purge on sign-out. Compounding it, `apps/web/scripts/update-sw-version.js`
+    is a **no-op** — it replaces `__CACHE_VERSION__`, a token that exists nowhere; `sw.js:1`
+    hardcodes `norish-cache-v0.3.0-beta`, so the cache name has never changed across releases and
+    the eviction branch has never fired.
+  - **F-15 (NEW, OPS — owned by Phase 27.4).** `tooling/beta/clone-beta-db.sh`'s live-DB guard is
+    bypassable: the `*"norish-beta"*` match also matches the **password** in the URL, so a live
+    connection string passes the guard and reaches `pg_restore --clean`.
+  - **F-16 (NEW, OPS — no owning phase; needs a decision).** `pnpm docker:test` tests the WRONG
+    image — `docker/docker-compose.test.yml:10` pulls `norishapp/norish:rc-v0.18.3-beta` from the
+    registry instead of the image `pnpm docker:build` just produced.
+  - **F-17 (NEW, minor — no owning phase; needs a decision).** The mobile dashboard renders
+    `TODAYS_MEALS_MOCK` as real data (`apps/mobile/src/app/(tabs)/dashboard/index.tsx:138`).
+    Mobile is out of scope per PROJECT.md, so this is recorded, not scheduled.
+  - **F-18 (NEW, SECURITY CHORE — owned by Phase 27.4). The DeepSeek API key must be rotated.** It
+    was exposed in a session transcript earlier and was briefly written to `/tmp` on 2026-07-28.
+    Confirmed NOT in the git tree.
 
+## Sequencing rationale (Phases 27.2–27.6, inserted 2026-07-28)
+
+Five decimal phases sit between 27.1 and 28 so the 28/29/30/31 numbering is untouched. The order is
+deliberate, and the dependency is real in every case:
+
+1. **27.2 first, because the product is broken for users right now.** 24 of 25 live AI import
+   failures are one sanitizer defect. Nothing else on this list changes what a user experiences
+   today. It is also the smallest of the five.
+2. **27.3 second, because every later phase's verification depends on it.** 6 of 17 packages do not
+   typecheck and `i18n:check` has been red on `main` continuously. Until the gates are honest, a
+   green run from 27.4/27.5/27.6 means nothing — 27.1's own 24/24 gate certifying a path it never
+   touched is exactly the failure mode being designed out. 27.2 restores the two packages that are
+   already clean (`api`, `queue`) as a free down-payment; 27.3 does the rest.
+3. **27.4 third, because it closes what is live and wrong** — a security leak family, a data-loss
+   path, and the render regression that has silently disabled the entire Cooklang read path since
+   `59f3a767`. It must precede 27.6, which cannot verify anything about the read path until the
+   parse pool actually starts.
+4. **27.5 fourth, because deleting ~3 300 lines is far safer once the typechecker is honest** (27.3)
+   and once nothing on the deletion list is in flight for a live fix (27.4).
+5. **27.6 last, because it is the contract.** Making `cook_source` NOT NULL is irreversible and only
+   safe once every write path mints one, the unit-system toggle stops NULLing it, and the read path
+   provably works. Four of those five prerequisites are other phases' output.
+
+### Phase 27.2: Imports actually work — the sanitizer (INSERTED 2026-07-28)
+**Goal**: A recipe page that has no JSON-LD and no `<p>`/`<li>` markup — the classic Blogger shape —
+imports through AI extraction instead of failing with "AI response did not match expected format."
+
+**Status**: NOT STARTED. Plan via `gsd:plan-phase` when it starts.
+**Depends on**: nothing. Phase 27.1 is deployed; this corrects its premise.
+**Requirements**: IMPORT-SANITIZE-01, IMPORT-OBS-01 (+ F-2)
+
+**The defect, established empirically 2026-07-28 (do not re-derive it):**
+`extractSanitizedBody` (`packages/shared-server/src/ai/helpers.ts:93`) harvests page text only from
+`h2,h3,h4,h5,h6,p,li,dt,dd,figcaption`. Classic Blogger pages put the entire recipe as **bare text
+nodes separated by `<br>`** inside `div.post-body` — zero `<p>`, zero `<li>`. The sanitizer therefore
+hands the model **86–585 characters of navigation chrome** instead of the recipe. The DB base prompt
+says *"Return {} if data cannot be extracted"*, so DeepSeek **correctly** returns the two-character
+string `{}`, which fails the strict Zod schema → `AI_NoObjectGeneratedError` → `VALIDATION_ERROR` →
+the user-visible "AI response did not match expected format."
+  - **Evidence:** susannekookt/kwarkbol — the sanitizer yields **107 chars**; the real recipe is
+    **2 760 chars**. Restoring the post-body text and re-running the *identical* prompt produced a
+    valid 11-ingredient extraction.
+  - **7/7 correlation:** the only two pages that succeeded live are the only two whose post-body
+    contains `<li>`.
+  - **24 of the 25 live AI failures are this.** The 25th is reasoning-token exhaustion, which 27.1's
+    retry already fixed.
+  - **`helpers.ts` is byte-identical to `upstream/main` — an UPSTREAM defect, not a fork regression.
+    Flag the sanitizer fix as an UPSTREAMING CANDIDATE** (CLAUDE.md: "consider upstreaming
+    features"); keep the diff minimal and isolated so the PR is offerable as-is.
+
+**Scope:**
+  1. **Fix `extractSanitizedBody`** — capture `<br>`-separated text nodes and table cells; prefer a
+     real article-body container (`.post-body`, `[itemprop=articleBody]`, `article`) over `<main>`;
+     and **fall back to whole-root text when the selector pass yields implausibly little relative to
+     the root's own text length**. That last clause is the general fix — the selector list will
+     always miss some site.
+  2. **Raise `ai_config.maxTokens` above the measured ~11k floor.** This is a **DB row, not a
+     deploy**. Measured: `deepseek-v4-pro` burns 9 000–10 000 tokens on reasoning before emitting
+     output; a 10–11-ingredient recipe does not fit in 10 000 (`finish_reason:"length"`, empty
+     content), a 6-ingredient one does. **Even after the sanitizer fix, every medium recipe loses
+     its first attempt at 10 000.** Align `defaults.ts` for fresh installs (F-2).
+  3. **Observability — the reason this cost a week instead of an hour.** Log the sanitized content
+     length at `info` alongside "Starting AI recipe extraction", and **warn loudly when a large page
+     yields a tiny sanitized body**: that is a *parser-bug* signature, not a "no recipe here"
+     signature, and nothing in the logs distinguished the two.
+  4. **Fix the lying log marker** at `packages/api/src/parser/index.ts:353`. It fires from the call
+     site at `:454` even when AI was never invoked, because the guard at `:432` is
+     `aiEnabled && await isPageLikelyRecipe(html)` — so a page that never reached the model still
+     logs "AI extraction failed; attempting the JSON-LD fallback". Fix the false `reason` default at
+     `:458` (`structured-and-ai-failed`) in the same pass.
+  5. **Restore honest typecheck on `packages/api` and `packages/queue`** — both are ALREADY clean
+     under a real `tsc` (director-verified 2026-07-28, exit 0). Removing their `--noCheck`
+     (`packages/api/package.json:15`, `packages/queue/package.json:17`) is free, and it is the two
+     packages this phase edits. The other four are 27.3's job.
+
+**ACCEPTANCE GATE (hard):**
+  - The gate **MUST exercise the AI path on non-JSON-LD pages**. The blogspot set, all five:
+    susannekookt/kwarkbol, kokenzonderkennis/soto-soep, doorboerstra/soto-ajam,
+    kokenmetaly/shoarma-soep, taartenzoet/boterkoek.
+  - Record **`parserPath` and `usedAI` per URL** in the evidence.
+  - **A gate that only passes JSON-LD pages is EXPLICITLY INSUFFICIENT and does not close this
+    phase.** 27.1's 24/24 gate was exactly that gate: every import logged `parserPath:"structured"`,
+    `usedAI:false`, certifying a path 27.1 never modified. Extend `tooling/import-gate/`
+    (repo-tracked since `efb9e3ca`) rather than writing a second harness.
+
+### Phase 27.3: Gates that don't lie (INSERTED 2026-07-28)
+**Goal**: `pnpm typecheck`, `pnpm i18n:check` and the build assertions tell the truth, so a green run
+is evidence rather than decoration.
+
+**Status**: NOT STARTED. Plan via `gsd:plan-phase` when it starts.
+**Depends on**: Phase 27.2 (which restores `api` + `queue` as its own down-payment).
+**Requirements**: GATE-01, I18N-01 (closes F-9)
+
+**What is actually hidden — 6 of 17 packages do not typecheck:**
+  - Script-level `--noCheck`: `packages/api/package.json:15`, `packages/auth:16`,
+    `packages/queue:17`, `packages/shared-server:57`, `packages/trpc:49`. **trpc's is not even
+    `--noEmit`** — it is byte-identical to its own `build` script (`rm -rf dist .cache && tsc -p
+    tsconfig.json --noCheck`), so `pnpm typecheck` deletes trpc's build output as a side effect and
+    checks nothing.
+  - **The sixth and worst:** `apps/web/tsconfig.json:6` sets `"noCheck": true` while the script at
+    `apps/web/package.json:18` reads as an honest `tsc --noEmit`. A real typecheck yields **285
+    errors**. (The tsconfig line carries an upstream issue link, `norish-recipes/norish#333`, and
+    the comment "This needs to be fixed" — it has been true since `bb003e9a` "Disable typecheck for
+    now in CI", 2026-03-11.)
+  - **VERIFIED FREE (director, 2026-07-28):** a real `tsc` on `packages/api` and `packages/queue` is
+    **exit 0, clean** — 27.2 takes those two.
+  - Prior art: `.planning/quick/typecheck-gate-restore.md` already restored `packages/shared-react`
+    and `apps/mobile` the same way and records the method. Follow it.
+
+**What apps/web's `noCheck` is hiding (a sample, not the list):**
+  - `create-or-join-cookbook-modal.tsx` imports **three non-existent `@heroui/react` members** —
+    that would throw on render.
+  - `lib/recipe-media.ts:180` reads `user.isServerAdmin` off a type that **does not declare it** —
+    on an **authorization** path.
+
+**Also in scope:**
+  - **`@norish/shared/contracts` ships 17 broken type imports**, hidden by `skipLibCheck`. The
+    consequence is not cosmetic: **`Slot` resolves to `any` at four live call sites.**
+  - **`pnpm i18n:check` exits 1** — locale `no` is missing 68 keys. `pr-quality.yml:46` runs it on
+    every PR *and* every push to `main`, so that job has been **red continuously**. Get it to exit
+    0. Separately, 136 orphan `settings.admin.*` leaf keys × 12 locales remain from when the fork
+    deleted upstream's admin forms — remove them in the same pass.
+  - **Add a build-time assertion that covers the Next.js server bundle, not only the tsdown
+    bundle.** `apps/web/tsdown.config.ts:44-55` already asserts `parse-worker.mjs` was emitted —
+    and it was green throughout the entire period the Cooklang pool was broken in the Turbopack
+    chunks (F-11). An assertion that only covers one of two bundlers is the same class of lie as
+    `--noCheck`.
+
+**Success Criteria** (what must be TRUE):
+  1. No `--noCheck` in any `typecheck` script; no `noCheck` in any `tsconfig.json`; `pnpm typecheck`
+     is 17/17 green **and** a deliberately planted type error turns it RED (prove it, then revert).
+  2. `pnpm i18n:check` exits 0.
+  3. `Slot` is a real type at all four call sites.
+  4. A build assertion fails if the **Next.js server bundle** cannot resolve the Cooklang parse
+     worker.
+
+### Phase 27.4: Close the live defects (INSERTED 2026-07-28)
+**Goal**: Everything found on 2026-07-28 that is broken on the live stack is fixed, with the
+isolation items adversarially proven.
+
+**Status**: NOT STARTED. Plan via `gsd:plan-phase` when it starts.
+**Depends on**: Phase 27.3 (honest gates — several of these are exactly the class `--noCheck` hides).
+**Requirements**: COOKPOOL-01, PENDING-ISO-02, ACCT-DEL-01, SW-CACHE-01, OPS-01
+(closes F-5, F-11, F-12, F-13, F-14, F-15, F-18)
+
+**Scope, in descending user impact:**
+  1. **COOKPOOL-01 — the parse pool's child resolution, across BOTH bundlers** (F-11 above has the
+     full diagnosis). `packages/shared-server/src/cooklang/pool.ts:320-328` is correct for tsdown
+     and wrong for Turbopack. Two things to note going in: the **documented escape hatch
+     `NORISH_COOK_PARSE_WORKER_PATH` (`pool.ts:321`) would work today** as an operational
+     stop-gap, and **the pool discards the child's stderr**
+     (`stdio:["ignore","ignore","ignore","ipc"]`, `pool.ts:420`) — which is why an ordinary
+     `Cannot find module` surfaced as "never reported ready". **Stop discarding it.** The comment
+     there justifies the discard by T-27-05 (a WASM panic must not leak into a shared log stream);
+     the fix is to capture and log it under the module's own logger, not to keep it dark.
+  2. **PENDING-ISO-02 — SECURITY-CRITICAL.** The two remaining `pending.ts` leaks (F-12:
+     `getPendingAutoTagging:79-84`, `getPendingAllergyDetection:141-145` — the `||` that ignores the
+     `view:"owner"` clamp `getPending:31-34` applies) **plus** the four unowned `is*` probes (F-5:
+     `:50-66`, `:94-110`, `:112-128`, `:158-174`). Same family as REALTIME-ISO-01 /
+     IMPORT-DEDUP-ISO-01 / LIST-ISO-01 / PENDING-ISO-01. **Per CLAUDE.md this requires the
+     adversarial revert-check:** after the isolation suites pass, temporarily weaken the boundary,
+     confirm the suites go RED, revert byte-identically, and never commit the weakening. RED-first,
+     with a `view:"everyone"` sibling for every case.
+  3. **ACCT-DEL-01 — data loss (F-13).** `deleteAccount` orphans personal recipes into a
+     permanently invisible, undeletable state because the FKs are `ON DELETE SET NULL`. Decide the
+     behaviour (cascade the personal rows, or refuse the delete until they are moved) and implement
+     it. **Delete `deleteHousehold` (`households.ts:126`) — it is dead code AND hazardous; do not
+     give it a caller.**
+  4. **SW-CACHE-01 — security (F-14).** Recipe media at `/recipes/{id}/{filename}` is served
+     `cacheFirst` from CacheStorage forever (`sw.js:65`), never revalidated, bypassing
+     `requireRecipeMediaAccess`. Fix the media rule, stop persisting all GET `/api/**` responses
+     unconditionally, purge the cache on sign-out, and fix the `update-sw-version.js` no-op so the
+     cache name actually changes across releases and the eviction branch can fire.
+  5. **OPS-01 — the operator hazards.** `tooling/beta/clone-beta-db.sh`'s guard (F-15: the
+     `*"norish-beta"*` match hits the password, so a live URL passes into `pg_restore --clean`), and
+     **the DeepSeek API key rotation (F-18)** — exposed in a session transcript and briefly written
+     to `/tmp` on 2026-07-28.
+
+**Success Criteria** (what must be TRUE):
+  1. A recipe with a `cook_source` renders ingredient chips, per-step scaling, section headings and
+     concurrent timers **in the deployed image**, not just in a unit test — the pool starts under
+     both bundlers.
+  2. Under `view:"owner"`, no `pending.ts` procedure returns a recipe id the caller cannot access;
+     the four `is*` probes answer only for recipes the caller can access. Adversarially proven.
+  3. Deleting an account leaves no recipe row with both `user_id` and `household_id` NULL.
+  4. Recipe media is not served from CacheStorage to a session that cannot access it; signing out
+     purges the cache; the SW cache name changes when the release does.
+  5. The DeepSeek key in use on live is a new one.
+
+### Phase 27.5: Delete the dead weight (INSERTED 2026-07-28)
+**Goal**: The ~3 300 lines of provably unreachable code found by the three adversarial reviews are
+gone, with no behaviour change.
+
+**Status**: NOT STARTED. Plan via `gsd:plan-phase` when it starts.
+**Depends on**: Phase 27.3 (an honest typechecker is what makes a large deletion safe) and Phase 27.4
+(nothing on the deletion list should be in flight for a live fix).
+**Requirements**: DEADCODE-01
+
+**The work is already written down — execute the reports, do not re-derive them.** Each was produced
+2026-07-28 by an independent adversarial sweep with hand-built reachability graphs (no `knip`/
+`ts-prune` in this repo), and each documents its own method so any claim can be falsified:
+  - `.planning/phases/27.1-…/27.1-REVIEW-A-import-surface.md` — `packages/api`, `packages/queue`,
+    `apps/parser-api`; 41 files; 23 findings; **~2 115 lines deletable at HIGH confidence**
+    (the `packages/queue/src/redis/` island of byte-identical `shared-server` duplicates, the
+    `packages/api/src/ai/` barrel + `core/executor.ts` + `core/guards.ts`, the superseded
+    `video/instagram.ts`, the test-only `lib/domain-matcher.ts`).
+  - `…/27.1-REVIEW-B-data-server.md` — db, db-schema, trpc, auth, shared-server, shared; 309 files;
+    22 findings; **~1 150 lines**.
+  - `…/27.1-REVIEW-C-apps-tooling.md` — apps/web, apps/mobile, ui, shared-react, i18n, config,
+    tooling, docker, root config; 1 169 files; **42 findings**.
+
+**Traps recorded in those reports — read them before deleting anything:**
+  - **`packages/api/src/parser/jsonld.ts:2` carries a FALSE `@deprecated` comment** ("kept only for
+    `LEGACY_RECIPE_PARSER_ROLLBACK`"). **27.1 put this file on the LIVE path in four places.** It is
+    not dead. Do not delete it; fix the comment.
+  - **`LEGACY_RECIPE_PARSER_ROLLBACK` is set nowhere**, and enabling it is *actively worse* than the
+    default.
+  - **`db-schema/relations.ts` looks orphaned but is LIVE** — consumed via drizzle relational
+    queries, which no import graph will show you.
+
+**Success Criteria** (what must be TRUE):
+  1. Every deletion is justified by a HIGH-confidence finding in one of the three reports, cited by
+     section.
+  2. Full `pnpm test` / `typecheck` / `lint` green **after** 27.3 made those gates real.
+  3. No file on a live path is deleted — the three traps above are each explicitly re-checked.
+
+### Phase 27.6: Cooklang as the only source of truth — the real W6 (INSERTED 2026-07-28)
+**Goal**: `.cook` is the single representation. `cook_source` is NOT NULL, and the legacy render
+fork, `unit-converter.ts`, the heuristic ingredient-link markup and the timer-keyword scan are gone.
+
+**Status**: NOT STARTED — and NOT plannable until its prerequisites are discharged. Plan via
+`gsd:plan-phase` when they are.
+**Depends on**: Phases 27.2, 27.3, 27.4 (hard — see prerequisites), 27.5 (soft — deleting dead code
+first keeps this diff readable).
+**Requirements**: COOK-02 (completes COOK-01)
+
+**Kiran, 2026-07-28 (binding):** *"Ik wil cooklang als de enige source of truth hebben. de rest mag
+er allemaal uitgesloopt worden."* Cooklang-only IS the destination. This phase is not a question of
+whether, only of order.
+
+**THE RECORDED JUSTIFICATION FOR W6 IS FALSE — correcting it, not overwriting it.**
+`27-ARCHITECTURE.md:320` states W6 is *"Safe because W5 guaranteed 100% coverage."* It is not:
+  - W5 covered **existing rows** — `candidates:6, derived:1, flagged:5, refused:0, failed:0` — and
+    says **nothing about future inserts**.
+  - W5 says **nothing about the read path**, which has in fact been broken in the Next.js server
+    bundle since `59f3a767` (F-11).
+  - Five write paths mint no `cook_source` today, and the unit-system toggle actively NULLs one.
+  Shipping W6 as written would break structured/paste/Mealie/manual/copy write paths **and** render
+  zero steps on 100% of recipes.
+
+**HARD PREREQUISITES (gates, not preferences — every one must be TRUE before `0043` is written):**
+  1. **27.4's parse-pool fix holds in BOTH bundles** — tsdown *and* the Next.js/Turbopack server
+     chunks — proven against the deployed image, not a unit test.
+  2. **EVERY write path mints a `cook_source`:**
+     - structured URL import — `packages/api/src/parser/index.ts:420-427`, which today deliberately
+       returns `cook: null` per D-27-W3-08;
+     - paste-import — `packages/queue/src/…/worker.ts:136`;
+     - Mealie archive import — `packages/shared-server/src/archive/parser.ts:364`;
+     - manual create — `packages/trpc/src/routers/recipes/recipes.ts:222`;
+     - recipe copy.
+  3. **`setActiveSystemForRecipe` (`packages/db/src/repositories/recipes.ts:1150-1156`) stops
+     NULLing `cook_source` on a metric↔US switch.** Its current `CASE WHEN … ELSE NULL` is correct
+     under a nullable column and a constraint violation under a NOT NULL one; it needs to re-mint or
+     translate, not clear.
+  4. **The 8 000 ms wall backstop** (27-04's `cookParseCpuMs: 1_500` CPU gate plus the wall
+     backstop) still holds on the mint path once every write path runs it.
+
+**Only then, in this order:**
+  5. Migration **`0043` — `cook_source` NOT NULL.** Irreversible; requires a verified-restorable
+     backup and Kiran's explicit sign-off, per the Phase 22.4 / 25 / 27-07 migration discipline.
+  6. Delete `unit-converter.ts`, the heuristic ingredient-link markup, the timer-keyword scan, and
+     the transitional read-fork. (W4 proved the heuristic runtime path is **UNCALLED** on the token
+     branch — `createIngredientLinkCandidates`/`parseTimerDurations` spied at 0 invocations,
+     D-27-W4-01 — but deliberately left the symbols in place. This is where they go.)
+
+**Success Criteria** (what must be TRUE):
+  1. Every write path — URL import (structured *and* AI), paste, Mealie archive, manual create,
+     copy — produces a recipe with a non-NULL `cook_source`, proven live.
+  2. A metric↔US toggle on any recipe leaves `cook_source` non-NULL and correct.
+  3. Recipe detail and cooking mode render from tokens for **100%** of recipes; no code path remains
+     that reads the legacy projection for rendering.
+  4. `0043` applies to live with zero data loss, evidenced the way `0042` was (row counts and FK
+     integrity confirmed by two independent agents).
+  5. `unit-converter.ts`, `applyIngredientLinkMarkup`, the timer-keyword scan and the transitional
+     fork are deleted, and the suite is green without them.
 ### Phase 28: Cost-per-recipe badge (MAJOR)
 **Goal**: Each recipe carries a € / €€ / €€€ per-serving cost badge, computed asynchronously from a real Dutch price index.
 **Depends on**: Phase 1 (Camoufox, reused as cache-miss enrichment) + a decided AI provider (ingredient parsing). Independent of Phase 27.
