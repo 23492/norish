@@ -23,23 +23,15 @@ const getPending = authedProcedure.query(async ({ ctx }) => {
 
   const jobs = await queues.recipeImport.getJobs(["waiting", "active", "delayed"]);
 
-  const filteredJobs = jobs.filter((job) => {
-    const data = job.data;
-
-    switch (policy.view) {
-      case "everyone":
-        // Everyone can see all pending imports
-        return true;
-      case "household":
-        // User can only see jobs from their household
-        return data.householdKey === ctx.householdKey;
-      case "owner":
-        // User can only see their own jobs
-        return data.userId === ctx.user.id;
-    }
-
-    return false;
-  });
+  // PENDING-ISO-01 (D-27.1-12): `everyone` folds into the household clamp — it
+  // means "fetch WITHIN this cookbook", never "list every cookbook" (the
+  // url-disclosing mistake REALTIME/IMPORT-DEDUP/LIST-ISO-01 each made). A
+  // no-cookbook viewer has `householdKey === user.id` (middleware), clamping a
+  // personal job for free. No admin exemption: household/owner never had one.
+  const isOwnerScoped = policy.view === "owner";
+  const filteredJobs = jobs.filter((job) =>
+    isOwnerScoped ? job.data.userId === ctx.user.id : job.data.householdKey === ctx.householdKey
+  );
 
   const pendingRecipes: PendingRecipeDTO[] = filteredJobs.map((job) => ({
     recipeId: job.data.recipeId,
