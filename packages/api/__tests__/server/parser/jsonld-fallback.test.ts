@@ -69,13 +69,54 @@ vi.mock("@norish/shared-server/logger", async (importOriginal) => {
 
 const mockGetUnits = vi.fn(async () => units);
 
+// The Task 2 integration `describe` below (`parseRecipeFromUrl`) drives
+// `parseRecipeFromUrl`'s NON-forceAI branches, which read `isAIEnabled` /
+// `getContentIndicators` (and, when NOT forcing AI via the `forceAI` argument,
+// `shouldAlwaysUseAI` / `isVideoParsingEnabled`) — all of which hit a real DB
+// in the unmocked implementation. Every other export (including `getUnits`,
+// above) still falls through to the real module.
+const mockIsAIEnabled = vi.fn();
+const mockShouldAlwaysUseAI = vi.fn();
+const mockIsVideoParsingEnabled = vi.fn();
+const mockGetContentIndicators = vi.fn();
+
 vi.mock("@norish/shared-server/config/server-config-loader", async (importOriginal) => {
   const actual = await importOriginal<
     typeof import("@norish/shared-server/config/server-config-loader")
   >();
 
-  return { ...actual, getUnits: () => mockGetUnits() };
+  return {
+    ...actual,
+    getUnits: () => mockGetUnits(),
+    isAIEnabled: () => mockIsAIEnabled(),
+    shouldAlwaysUseAI: () => mockShouldAlwaysUseAI(),
+    isVideoParsingEnabled: () => mockIsVideoParsingEnabled(),
+    getContentIndicators: () => mockGetContentIndicators(),
+  };
 });
+
+// `parseRecipeFromUrl`'s other seams (Task 2 integration only — every test
+// above this point runs against `tryJsonLdFallback` directly and never
+// touches these).
+const mockIsVideoUrl = vi.fn(() => false);
+const mockFetchViaPlaywright = vi.fn();
+const mockExtractRecipeWithAI = vi.fn();
+const mockCallRecipeScrapersParser = vi.fn();
+const mockAdaptRecipeScrapersResponse = vi.fn();
+const mockTryLegacyStructuredRecipeParsing = vi.fn();
+
+vi.mock("@norish/api/helpers", () => ({ isVideoUrl: mockIsVideoUrl }));
+vi.mock("@norish/api/parser/fetch", () => ({ fetchViaPlaywright: mockFetchViaPlaywright }));
+vi.mock("@norish/api/ai/recipe-parser", () => ({ extractRecipeWithAI: mockExtractRecipeWithAI }));
+vi.mock("@norish/api/parser/python/client", () => ({
+  callRecipeScrapersParser: mockCallRecipeScrapersParser,
+}));
+vi.mock("@norish/api/parser/python/adapter", () => ({
+  adaptRecipeScrapersResponse: mockAdaptRecipeScrapersResponse,
+}));
+vi.mock("@norish/api/parser/legacy", () => ({
+  tryLegacyStructuredRecipeParsing: mockTryLegacyStructuredRecipeParsing,
+}));
 
 /** Flipped by the "mint-refused" case only — same seam `cook-payload.test.ts` uses. */
 let forceParseCookSourceNull = false;
@@ -91,6 +132,7 @@ vi.mock("@norish/shared-server/cooklang/parse", async (importOriginal) => {
 });
 
 const { tryJsonLdFallback } = await import("@norish/api/parser/jsonld-fallback");
+const { parseRecipeFromUrl } = await import("@norish/api/parser");
 
 const RECIPE_ID = "recipe-jsonld-fallback";
 const URL = "https://example.com/recipe";
@@ -299,5 +341,194 @@ describe("tryJsonLdFallback", () => {
     expect(ownLogPayloads).not.toContain("Anchored Pancakes");
     expect(ownLogPayloads).not.toContain("flour");
     expect(ownLogPayloads).not.toContain("Whisk the flour");
+  });
+});
+
+// ============================================================================
+// Task 2: `parseRecipeFromUrl` integration — the fallback is wired at BOTH
+// AI-failure exits, and only there. `mockTryExtractRecipeFromJsonLd` (defined
+// above, defaulting to the REAL extractor) doubles as "the fallback spy": it
+// is the first thing `tryJsonLdFallback` calls, so its call count is exactly
+// `tryJsonLdFallback`'s call count. AI STAYS PRIMARY is the thing under test —
+// every case where AI succeeds must show ZERO fallback calls.
+// ============================================================================
+
+const AI_RECIPE = {
+  id: RECIPE_ID,
+  name: "AI Recipe",
+  url: URL,
+  description: undefined,
+  notes: undefined,
+  image: undefined,
+  servings: 2,
+  prepMinutes: undefined,
+  cookMinutes: undefined,
+  totalMinutes: undefined,
+  calories: null,
+  fat: null,
+  carbs: null,
+  protein: null,
+  systemUsed: "metric",
+  recipeIngredients: [
+    { ingredientId: null, ingredientName: "egg", amount: 1, unit: null, systemUsed: "metric", order: 0 },
+  ],
+  steps: [{ step: "Cook it", systemUsed: "metric", order: 1 }],
+  tags: [],
+  categories: [],
+  images: [],
+  videos: [],
+};
+
+const STRUCTURED_RECIPE = { ...AI_RECIPE, name: "Structured Recipe" };
+
+const NO_JSONLD_HTML = "<html><body>plain content, no schema here</body></html>";
+const RECIPE_LIKE_NO_JSONLD_HTML =
+  "<html><body>a lovely recipe with ingredient and instructions but no ld+json here</body></html>";
+
+/**
+ * The ONE terminal `parseRecipeFromUrl` marker per invocation ("Recipe import:
+ * parse path taken", logged by `parser/index.ts` itself) — NOT
+ * `jsonld-fallback.ts`'s own separate `parserPath`-tagged outcome log (e.g.
+ * "minted" / "below-confidence-gate"), which fires on the SAME invocation
+ * whenever the fallback runs and would otherwise double-count.
+ */
+function infoLogsWithParserPath(): { parserPath?: string; usedAI?: boolean; jsonLdNodeCount?: number }[] {
+  return logSpy.info.mock.calls
+    .filter((call) => call[1] === "Recipe import: parse path taken")
+    .map((call) => call[0] as { parserPath?: string; usedAI?: boolean; jsonLdNodeCount?: number });
+}
+
+describe("parseRecipeFromUrl integration — the fallback is wired at both AI-failure exits", () => {
+  beforeEach(() => {
+    mockIsVideoUrl.mockReturnValue(false);
+    mockIsAIEnabled.mockResolvedValue(true);
+    mockShouldAlwaysUseAI.mockResolvedValue(false);
+    mockIsVideoParsingEnabled.mockResolvedValue(false);
+    mockGetContentIndicators.mockResolvedValue({
+      schemaIndicators: ["recipe"],
+      contentIndicators: ["ingredient", "instructions"],
+    });
+    mockFetchViaPlaywright.mockResolvedValue(RECIPE_LIKE_NO_JSONLD_HTML);
+    mockCallRecipeScrapersParser.mockResolvedValue({
+      ok: true,
+      canonicalUrl: URL,
+      parser: {
+        mode: "supported",
+        scraper: "Example",
+        host: "example.com",
+        siteName: "Example",
+        version: "1.0.0",
+      },
+      recipe: {},
+      media: { images: [], videos: [] },
+    });
+    mockAdaptRecipeScrapersResponse.mockResolvedValue(STRUCTURED_RECIPE);
+    mockTryLegacyStructuredRecipeParsing.mockResolvedValue(null);
+    mockExtractRecipeWithAI.mockResolvedValue({ success: true, data: { recipe: AI_RECIPE, cook: null } });
+  });
+
+  it('AI succeeds on the first input shape: the fallback is never called; parserPath is "ai"', async () => {
+    const result = await parseRecipeFromUrl(URL, RECIPE_ID, [], true);
+
+    expect(result).toEqual({ recipe: AI_RECIPE, usedAI: true, cook: null });
+    expect(mockTryExtractRecipeFromJsonLd).not.toHaveBeenCalled();
+
+    const markers = infoLogsWithParserPath();
+
+    expect(markers).toHaveLength(1);
+    expect(markers[0]!.parserPath).toBe("ai");
+    expect(markers[0]!.jsonLdNodeCount).toBe(0);
+  });
+
+  it("useAIOnly, every AI attempt fails, page HAS JSON-LD: resolves via the fallback instead of throwing", async () => {
+    mockExtractRecipeWithAI.mockResolvedValue({
+      success: false,
+      code: "PROVIDER_ERROR",
+      error: "provider down",
+    });
+    mockFetchViaPlaywright.mockResolvedValue(htmlWithJsonLd(FULLY_ANCHORED_RECIPE));
+
+    const result = await parseRecipeFromUrl(URL, RECIPE_ID, [], true);
+
+    expect(result.usedAI).toBe(false);
+    expect(result.recipe.name).toBe("Anchored Pancakes");
+    expect(mockTryExtractRecipeFromJsonLd).toHaveBeenCalledTimes(1);
+
+    const markers = infoLogsWithParserPath();
+
+    expect(markers).toHaveLength(1);
+    expect(markers[0]).toMatchObject({ parserPath: "jsonld-fallback", usedAI: false });
+    expect(markers[0]!.jsonLdNodeCount).toBeGreaterThanOrEqual(1);
+  });
+
+  it("useAIOnly, every AI attempt fails, page has NO JSON-LD: still throws AI extraction failed", async () => {
+    mockExtractRecipeWithAI.mockResolvedValue({
+      success: false,
+      code: "PROVIDER_ERROR",
+      error: "provider down",
+    });
+    mockFetchViaPlaywright.mockResolvedValue(NO_JSONLD_HTML);
+
+    await expect(parseRecipeFromUrl(URL, RECIPE_ID, [], true)).rejects.toThrow("AI extraction failed");
+
+    // The fallback was still ATTEMPTED (once) — it just had nothing to work with.
+    expect(mockTryExtractRecipeFromJsonLd).toHaveBeenCalledTimes(1);
+  });
+
+  it('structured parser succeeds: the fallback is never called; parserPath is "structured"', async () => {
+    const result = await parseRecipeFromUrl(URL, RECIPE_ID);
+
+    expect(result).toEqual({ recipe: STRUCTURED_RECIPE, usedAI: false, cook: null });
+    expect(mockTryExtractRecipeFromJsonLd).not.toHaveBeenCalled();
+    expect(mockExtractRecipeWithAI).not.toHaveBeenCalled();
+
+    const markers = infoLogsWithParserPath();
+
+    expect(markers).toHaveLength(1);
+    expect(markers[0]!.parserPath).toBe("structured");
+    expect(markers[0]!.jsonLdNodeCount).toBe(0);
+  });
+
+  it("structured parser fails, AI fallback fails, page HAS JSON-LD: resolves via the fallback rather than throwing", async () => {
+    mockCallRecipeScrapersParser.mockResolvedValue({
+      ok: false,
+      error: "WebsiteNotImplementedError",
+      message: "unsupported",
+      parser: { mode: "supported", scraper: "unknown", version: "1.0.0" },
+    });
+    mockExtractRecipeWithAI.mockResolvedValue({
+      success: false,
+      code: "PROVIDER_ERROR",
+      error: "provider down",
+    });
+    mockFetchViaPlaywright.mockResolvedValue(htmlWithJsonLd(FULLY_ANCHORED_RECIPE));
+
+    const result = await parseRecipeFromUrl(URL, RECIPE_ID);
+
+    expect(result.usedAI).toBe(false);
+    expect(result.recipe.name).toBe("Anchored Pancakes");
+    expect(mockTryExtractRecipeFromJsonLd).toHaveBeenCalledTimes(1);
+
+    const markers = infoLogsWithParserPath();
+
+    expect(markers).toHaveLength(1);
+    expect(markers[0]).toMatchObject({ parserPath: "jsonld-fallback" });
+  });
+
+  it("everything fails and there is no JSON-LD: the existing hard failure is unchanged (fallback attempted first, at most once)", async () => {
+    mockCallRecipeScrapersParser.mockResolvedValue({
+      ok: false,
+      error: "NoSchemaFoundInWildMode",
+      message: "no schema",
+      parser: { mode: "wild", scraper: "unknown", version: "1.0.0" },
+    });
+    mockFetchViaPlaywright.mockResolvedValue(NO_JSONLD_HTML);
+
+    await expect(parseRecipeFromUrl(URL, RECIPE_ID)).rejects.toThrow(
+      "Page does not appear to contain a recipe."
+    );
+
+    expect(mockTryExtractRecipeFromJsonLd).toHaveBeenCalledTimes(1);
+    expect(mockExtractRecipeWithAI).not.toHaveBeenCalled();
   });
 });

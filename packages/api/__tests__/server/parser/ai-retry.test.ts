@@ -31,6 +31,12 @@ const mockServerConfig = {
   MAX_IMAGE_FILE_SIZE: 10 * 1024 * 1024,
   YT_DLP_BIN_DIR: "/tmp/bin",
   YT_DLP_VERSION: "2025.11.12",
+  // 27.1-02: `parser/index.ts` now imports the JSON-LD fallback, which pulls
+  // in `@norish/db/repositories/recipes` -> `./server-config` ->
+  // `@norish/config/src/crypto.ts`, which derives its module-scope key
+  // constants from `SERVER_CONFIG.MASTER_KEY` at IMPORT time. Same fixture
+  // value already used by `migrate-gallery-images.test.ts`.
+  MASTER_KEY: "QmFzZTY0RW5jb2RlZE1hc3RlcktleU1pbjMyQ2hhcnM=",
 };
 
 vi.mock("@norish/api/ai/recipe-parser", () => ({

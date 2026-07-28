@@ -8,6 +8,7 @@ import { extractRecipeWithAI } from "@norish/api/ai/recipe-parser";
 import { isVideoUrl } from "@norish/api/helpers";
 import { fetchViaPlaywright } from "@norish/api/parser/fetch";
 import { extractRecipeNodesFromJsonLd } from "@norish/api/parser/jsonld";
+import { tryJsonLdFallback } from "@norish/api/parser/jsonld-fallback";
 import { tryLegacyStructuredRecipeParsing } from "@norish/api/parser/legacy";
 import { adaptRecipeScrapersResponse } from "@norish/api/parser/python/adapter";
 import { callRecipeScrapersParser } from "@norish/api/parser/python/client";
@@ -33,13 +34,19 @@ export interface ParseRecipeResult {
   /**
    * The server-authored `.cook`, when the extraction earned one (D-27-W3-02).
    *
-   * `null` for every non-AI branch: JSON-LD, the python scraper, the legacy
-   * parser and structured paste all give a flat step list with NO linkage, and the
-   * only way to invent linkage from those is the heuristic name-matcher that D-6 /
-   * D-7 ban from every runtime path (D-27-W3-08). Those recipes would be W5
-   * backfill territory — but W5 is not started and pauses for explicit sign-off,
-   * so today they simply stay on the legacy render path with `cook_source` NULL.
-   * One code path, one shape, no special case.
+   * `null` for the python scraper and the legacy parser: both give a flat step
+   * list with NO linkage, and the only way to invent linkage from those is the
+   * heuristic name-matcher that D-6 / D-7 ban from every runtime path
+   * (D-27-W3-08). Those recipes would be W5 backfill territory — but W5 is not
+   * started and pauses for explicit sign-off, so today they simply stay on the
+   * legacy render path with `cook_source` NULL.
+   *
+   * The JSON-LD FALLBACK (D-27.1-05) is the one exception: it reuses W5's own
+   * deterministic seeder (`buildStructuredRecipeFromLegacy` +
+   * `cookConfidenceFromLinks`), so it DOES carry a non-null `cook` when the
+   * linkage confidence clears `COOK_REVIEW_CONFIDENCE_THRESHOLD` — below that
+   * gate it degrades to exactly the same `cook_source` NULL every other
+   * non-AI path produces. One code path, one shape, no special case.
    */
   cook: CookPayload | null;
 }
@@ -321,6 +328,38 @@ async function tryHandleVideoUrl(
   }
 }
 
+/**
+ * The JSON-LD fallback (D-27.1-04 / D-27.1-05): called ONLY after every AI
+ * attempt has FINALLY failed — `parseRecipeFromUrl` wires this at exactly its
+ * two AI-failure exits, and its own `if`/`return` control flow guarantees at
+ * most one of those exits is ever reached per invocation (the `useAIOnly`
+ * branch always returns before the non-`useAIOnly` structured/AI path can
+ * run), so this helper cannot run twice in one call.
+ *
+ * `usedAI: false` on a non-null result is load-bearing:
+ * `packages/queue/src/recipe-import/worker.ts:174-200` reads it to decide
+ * whether to enqueue auto-tagging, allergy detection and auto-categorization
+ * — a fallback-sourced recipe must get the same enrichment a python-scraper
+ * recipe gets, never silently less.
+ */
+async function finishWithJsonLdFallback(
+  url: string,
+  html: string,
+  recipeId: string,
+  reason: string
+): Promise<ParseRecipeResult | null> {
+  log.warn(
+    { url, reason, parserPath: "jsonld-fallback" },
+    "AI extraction failed; attempting the JSON-LD fallback"
+  );
+
+  const fallback = await tryJsonLdFallback(url, html, recipeId);
+
+  if (!fallback) return null;
+
+  return { recipe: fallback.recipe, usedAI: false, cook: fallback.cook };
+}
+
 export async function parseRecipeFromUrl(
   url: string,
   recipeId: string,
@@ -336,20 +375,57 @@ export async function parseRecipeFromUrl(
 
   if (!html) throw new Error("Cannot fetch recipe page.");
 
+  // Observability (D-27.1-02, T-27.1-02-04): computed ONCE, right after fetch
+  // succeeds, so every terminal `parserPath` marker below can carry it —
+  // 27.1-05's post-deploy gate greps this to report whether JSON-LD was even
+  // present on a page, independent of which path actually served the import.
+  const jsonLdNodeCount = extractRecipeNodesFromJsonLd(html).length;
+
   const useAIOnly = Boolean(forceAI || (await shouldAlwaysUseAI()));
 
   if (useAIOnly) {
     const extracted = await extractWithAIPreference(html, recipeId, url, allergies, true);
 
-    if (!extracted) throw new Error("AI extraction failed");
+    if (extracted) {
+      log.info(
+        { url, parserPath: "ai", usedAI: true, cookMinted: Boolean(extracted.cook), jsonLdNodeCount },
+        "Recipe import: parse path taken"
+      );
 
-    return { recipe: extracted.recipe, usedAI: true, cook: extracted.cook };
+      return { recipe: extracted.recipe, usedAI: true, cook: extracted.cook };
+    }
+
+    const fallback = await finishWithJsonLdFallback(url, html, recipeId, "ai-only-extraction-failed");
+
+    if (fallback) {
+      log.info(
+        {
+          url,
+          parserPath: "jsonld-fallback",
+          usedAI: fallback.usedAI,
+          cookMinted: Boolean(fallback.cook),
+          jsonLdNodeCount,
+        },
+        "Recipe import: parse path taken"
+      );
+
+      return fallback;
+    }
+
+    throw new Error("AI extraction failed");
   }
 
   const structured = await tryStructuredParser(url, html, recipeId);
 
   // D-27-W3-08: the structured paths produce NO linkage, so no `.cook`.
-  if (structured.recipe) return { recipe: structured.recipe, usedAI: false, cook: null };
+  if (structured.recipe) {
+    log.info(
+      { url, parserPath: "structured", usedAI: false, cookMinted: false, jsonLdNodeCount },
+      "Recipe import: parse path taken"
+    );
+
+    return { recipe: structured.recipe, usedAI: false, cook: null };
+  }
 
   const aiEnabled = await isAIEnabled();
 
@@ -365,7 +441,36 @@ export async function parseRecipeFromUrl(
 
     const extracted = await extractWithAIPreference(html, recipeId, url, allergies, false);
 
-    if (extracted) return { recipe: extracted.recipe, usedAI: true, cook: extracted.cook };
+    if (extracted) {
+      log.info(
+        { url, parserPath: "ai", usedAI: true, cookMinted: Boolean(extracted.cook), jsonLdNodeCount },
+        "Recipe import: parse path taken"
+      );
+
+      return { recipe: extracted.recipe, usedAI: true, cook: extracted.cook };
+    }
+  }
+
+  const fallback = await finishWithJsonLdFallback(
+    url,
+    html,
+    recipeId,
+    structured.failure?.code ?? "structured-and-ai-failed"
+  );
+
+  if (fallback) {
+    log.info(
+      {
+        url,
+        parserPath: "jsonld-fallback",
+        usedAI: fallback.usedAI,
+        cookMinted: Boolean(fallback.cook),
+        jsonLdNodeCount,
+      },
+      "Recipe import: parse path taken"
+    );
+
+    return fallback;
   }
 
   if (structured.failure) {
