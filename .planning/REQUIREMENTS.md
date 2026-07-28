@@ -85,7 +85,8 @@ _(renumbered from Phase 3/4 to make room for the Sharing phase.)_
 | SHOP-02 | Phase 25 | Pending — DECIDED 2026-07-21 (household-scoped lists) |
 | DINNER-01 | Phase 26 | Pending — promoted from backlog 2026-07-21 |
 | COOK-01 | Phase 27 | Pending — externally blocked on upstream #470 design |
-| IMPORT-REL-01..05 | Phase 27.1 | Pending — planned 2026-07-28 from live evidence (5 plans, 3 waves) |
+| IMPORT-REL-01..05 | Phase 27.1 | Pending — planned 2026-07-28 from live evidence (6 plans, 3 waves) |
+| PENDING-ISO-01 | Phase 27.1 | Pending — BUG, confirmed live 2026-07-28; promoted into scope by director override, plan 27.1-06 |
 | COST-01 | Phase 28 | Pending — promoted from backlog 2026-07-21 |
 | MAKE-01 | Phase 29 | Pending — promoted from backlog 2026-07-21 |
 | VERSION-01 | Phase 30 | Pending — unblocked by SHARE-02 shipping 2026-07-21 |
@@ -166,15 +167,29 @@ two UX defects that make a failure look like nothing happened.
 further ah.nl recipes across >= 6 categories, then >= 5 lekkerensimpel recipes, each evidenced with
 fetch, JSON-LD, path taken, per-system ingredient counts, `cook_source` and any failure VERBATIM.
 
-- **PENDING-ISO-01** (raised 2026-07-28 while planning 27.1, **NOT scheduled**) — **SECURITY, live
-  today.** `recipes.getPending` (`packages/trpc/src/routers/recipes/pending.ts:29-32`) returns `true`
+- [ ] **PENDING-ISO-01** (Phase 27.1, plan **27.1-06**) — **SECURITY, live today.** `recipes.getPending` (`packages/trpc/src/routers/recipes/pending.ts:29-32`) returns `true`
   for EVERY queued import job when `policy.view === "everyone"` — the live server-wide value — so every
   authenticated user is served every household's pending imports, `recipeId` **and** source `url`
   included. This is the fourth member of the family AGENTS.md documents (REALTIME-ISO-01,
   IMPORT-DEDUP-ISO-01, LIST-ISO-01): a code path reading `everyone` as *unscoped* rather than clamping
   it to the cookbook. Pre-existing and independent of 27.1, whose new `failed` event travels the
-  cookbook-clamped `emitByPolicy` path. Deliberately left out of 27.1's locked five-item scope; needs a
-  scheduling decision.
+  cookbook-clamped `emitByPolicy` path. The planner deferred it as outside the briefed five-item scope;
+  **the director OVERRODE that deferral on 2026-07-28** — per-cookbook isolation is a CLAUDE.md hard
+  constraint that outranks a scope preference, and shipping 27.1 with a known import-surface leak would
+  be indefensible. Fix: `everyone` loses its branch entirely and falls through to the same
+  `job.data.householdKey === ctx.householdKey` clamp `household` uses, mirroring `emitByPolicy` (D-22-01)
+  and `buildViewPolicyCondition` (LIST-ISO-01) rather than inventing a fourth shape. No server-admin
+  exemption is introduced. Proven by a two-household suite written RED first, asserting on the disclosive
+  `url` rather than a count, running every case under `household` / `everyone` / `owner`, and
+  re-verified adversarially.
+
+- **F-5** (raised 2026-07-28 while planning 27.1-06, **NOT scheduled**) — the four `is*` job probes in
+  the same file (`isNutritionEstimating` :58-74, `isAutoTagging` :102-118, `isAutoCategorizing` :120-136,
+  `isAllergyDetecting` :166-182) answer `jobs.some(j => j.data.recipeId === input.recipeId)` with NO
+  ownership check, so any authenticated caller can probe an arbitrary recipe id. The
+  "Authenticating is not authorizing" pattern from AGENTS.md. Materially lower severity than
+  PENDING-ISO-01 — a boolean about an id the caller must already hold — and both sources that handed out
+  other cookbooks' ids (`getPending`, the pre-D-22-01 broadcast) are now closed. Needs its own decision.
 
 ### Correctness / fork-maintenance fixes
 

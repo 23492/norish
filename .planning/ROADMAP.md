@@ -522,9 +522,9 @@ data loss). **NEXT: W6** — `cook_source` NOT NULL (migration `0043`), unscoped
 
 ### Phase 27.1: Import reliability: AI extraction resilience, JSON-LD fallback, failure surfacing, in-stack Camoufox (INSERTED)
 **Goal:** Recipe import works end-to-end, and when it does not, the failure is VISIBLE instead of silent.
-**Requirements**: IMPORT-REL-01, IMPORT-REL-02, IMPORT-REL-03, IMPORT-REL-04, IMPORT-REL-05 (+ SETUP-04)
+**Requirements**: IMPORT-REL-01, IMPORT-REL-02, IMPORT-REL-03, IMPORT-REL-04, IMPORT-REL-05, PENDING-ISO-01 (+ SETUP-04, HOUSE-06)
 **Depends on:** Phase 27 (W0-W5 deployed; W6 is NOT a prerequisite and NOT in scope)
-**Plans:** 5 plans in 3 waves
+**Plans:** 6 plans in 3 waves
 **Planned:** 2026-07-28. Root cause established empirically against the LIVE stack by three independent
 agents; recorded as locked decisions in `27.1-CONTEXT.md`. No RESEARCH.md — the evidence is the research.
 **The defect, in one line:** import failures are INTERMITTENT, from three sub-causes — a strict
@@ -538,10 +538,12 @@ retry — compounded by two UX defects that make a failure look like nothing hap
   4. A failure ALWAYS reaches the user as a rendered, dismissible error card — never an eternal skeleton —
      and never crosses a cookbook boundary (proven under the live `view: "everyone"`, adversarially).
   5. Camoufox is defined in-stack in a repo-tracked fork compose; `CAMOFOX_URL` remains an explicit override.
-  6. **A non-skippable POST-DEPLOY EMPIRICAL GATE passes**: the mandated ah.nl URL, then >= 10 further
+  6. **`recipes.getPending` no longer serves every user every household's queued imports** under the live
+     `view: "everyone"` — PENDING-ISO-01, added by director override 2026-07-28 (D-27.1-12).
+  7. **A non-skippable POST-DEPLOY EMPIRICAL GATE passes**: the mandated ah.nl URL, then >= 10 further
      ah.nl recipes across >= 6 categories, then >= 5 lekkerensimpel recipes — each evidenced with fetch,
      JSON-LD, path taken, per-system ingredient counts, `cook_source`, and any failure VERBATIM.
-**Waves:** W1 = plans 01, 03, 04 (independent, zero file overlap) -> W2 = plan 02 (shares
+**Waves:** W1 = plans 01, 03, 04, 06 (independent, zero file overlap) -> W2 = plan 02 (shares
 `parser/index.ts` with 01) -> W3 = plan 05 (the gate, after build + deploy).
 **Execution:** one plan at a time (`use_worktrees: false`), native (`cross_ai: false` — the agy worker
 stalls on vitest).
@@ -553,13 +555,21 @@ Plans:
 - [ ] 27.1-03-PLAN.md — Failure surfacing: unconditional fail-closed `failed` emit + a rendered dismissible error card in 12 locales (wave 1)
 - [ ] 27.1-04-PLAN.md — In-stack Camoufox: repo-tracked `docker/docker-compose.fork.yml` + operator runbook; live untouched (wave 1)
 - [ ] 27.1-05-PLAN.md — POST-DEPLOY EMPIRICAL GATE: the import harness, the three bars, and the browser proof that a failure is visible (wave 3, blocking checkpoints)
+- [ ] 27.1-06-PLAN.md — PENDING-ISO-01: fold `everyone` into the cookbook clamp in `recipes.getPending`, with the RED-first two-household suite (wave 1)
 
 **Findings raised while planning, NOT in scope** (full detail in `27.1-CONTEXT.md`):
-  - **F-1 / proposed PENDING-ISO-01 (SECURITY, live today).** `recipes.getPending`
-    (`packages/trpc/src/routers/recipes/pending.ts:29-32`) returns `true` for EVERY queued job when
-    `policy.view === "everyone"` — the live value — so every user is served every household's pending
-    imports, `recipeId` and source `url` included. Fourth member of the REALTIME-ISO-01 /
-    IMPORT-DEDUP-ISO-01 / LIST-ISO-01 family. Pre-existing and untouched by 27.1; needs its own decision.
+  - ~~**F-1 / proposed PENDING-ISO-01**~~ — **PROMOTED INTO SCOPE 2026-07-28 by director override; now
+    plan 27.1-06.** `recipes.getPending` (`packages/trpc/src/routers/recipes/pending.ts:29-32`) returned
+    `true` for EVERY queued job when `policy.view === "everyone"` — the live value — so every user was
+    served every household's pending imports, `recipeId` and source `url` included. Fourth member of the
+    REALTIME-ISO-01 / IMPORT-DEDUP-ISO-01 / LIST-ISO-01 family. The planner deferred it as out of the
+    briefed five-item scope; the director overrode that because per-cookbook isolation is a CLAUDE.md
+    hard constraint and the leak is live. See D-27.1-12.
+  - **F-5 (SECURITY, minor; raised while planning 27.1-06, NOT scheduled).** The four `is*` probes in the
+    same file — `isNutritionEstimating` (:58-74), `isAutoTagging` (:102-118), `isAutoCategorizing`
+    (:120-136), `isAllergyDetecting` (:166-182) — answer `jobs.some(j => j.data.recipeId === input.recipeId)`
+    with NO ownership check. Lower severity than F-1 (a boolean about an id the caller must already hold),
+    and both sources of other cookbooks' ids are now closed. Needs its own decision.
   - **F-2** `defaults.ts` still defaults `maxTokens: 10000` (inert on live; tight for a fresh install).
   - **F-3** `docker/docker-compose.beta.yml:38` hardcoded the off-stack Camoufox as a default (fixed in 27.1-04).
   - **F-4** `packages/api/src/parser/fetch.ts:8-10` documented a plain-HTTP fallback that does not exist (fixed in 27.1-02).
