@@ -85,6 +85,7 @@ _(renumbered from Phase 3/4 to make room for the Sharing phase.)_
 | SHOP-02 | Phase 25 | Pending — DECIDED 2026-07-21 (household-scoped lists) |
 | DINNER-01 | Phase 26 | Pending — promoted from backlog 2026-07-21 |
 | COOK-01 | Phase 27 | Pending — externally blocked on upstream #470 design |
+| IMPORT-REL-01..05 | Phase 27.1 | Pending — planned 2026-07-28 from live evidence (5 plans, 3 waves) |
 | COST-01 | Phase 28 | Pending — promoted from backlog 2026-07-21 |
 | MAKE-01 | Phase 29 | Pending — promoted from backlog 2026-07-21 |
 | VERSION-01 | Phase 30 | Pending — unblocked by SHARE-02 shipping 2026-07-21 |
@@ -121,6 +122,59 @@ Locked from the product backlog + brainstorm (2026-06-12). All **Backlog/v2** un
 - **BULK-01**: Bulk import (multiple URLs, or a whole blog).
 - **REC-01** (v2): Recommendations ("recipes others liked, similar to this") — content-based first, collaborative as ratings grow.
 - **DISCOVER-01** (v2 / potential): Public cookbook discovery.
+
+### Import reliability — Phase 27.1 (from the 2026-07-28 live investigation)
+
+Root cause established empirically against the LIVE stack by three independent agents and recorded as
+locked decisions in `.planning/phases/27.1-.../27.1-CONTEXT.md`. Import failures are **INTERMITTENT** —
+six over ~72 h, interleaved with successes on the very same URLs — from three sub-causes, compounded by
+two UX defects that make a failure look like nothing happened.
+
+- [ ] **IMPORT-REL-01** (Phase 27.1) — AI extraction output is accepted on `name` + metric ingredients +
+  metric instructions; a missing measurement half is MIRRORED, never a rejection.
+  `validateExtractionOutput` (`packages/api/src/ai/features/recipe-extraction/normalizer.ts:180-191`)
+  hard-rejects when the model emits no US half, so a logged failure carrying
+  `metricIngredients: 10, usIngredients: 0` — a complete, correct metric recipe — was thrown away as
+  `VALIDATION_ERROR`.
+- [ ] **IMPORT-REL-02** (Phase 27.1) — A transient AI extraction failure is retried EXACTLY ONCE, and the
+  retry runs with raised output-token headroom. `packages/api/src/parser/index.ts:245` throws on the
+  first failure. Raising the `defaults.ts` budget is INERT on live — `getGenerationSettings` reads
+  `maxOutputTokens` from the DB `ai_config` row — and an unconditional floor could exceed a low-cap
+  provider's limit, so headroom is applied only to a retry that already follows a real failure.
+- [ ] **IMPORT-REL-03** (Phase 27.1) — After AI extraction has FINALLY failed, a page carrying valid
+  schema.org Recipe JSON-LD still imports, through the same normalizer / `createRecipeWithRefs` /
+  cook-projection path, minting a scored `.cook` through the sanctioned `buildCookPayload`. **AI stays
+  PRIMARY** — this is a fallback, not a bypass, so Cooklang linkage quality and bilingual output are
+  preserved. A working extractor (`tryExtractRecipeFromJsonLd`) already existed in the tree but was
+  reachable only behind `LEGACY_RECIPE_PARSER_ROLLBACK`, which is UNSET in the container; the flag's
+  semantics are NOT resurrected.
+- [ ] **IMPORT-REL-04** (Phase 27.1) — An import failure ALWAYS reaches the user as a visible, rendered,
+  dismissible error card — never an eternal skeleton — and never crosses a cookbook boundary.
+  `packages/queue/src/recipe-import/worker.ts:231-238` ran `deleteRecipeImagesDir` and
+  `resolveHouseholdRealtimeScope` unguarded BEFORE the `failed` emit, and a throw there is only logged
+  (`lazy-worker-manager.ts:259-263`). Security-critical: proven under the live `view: "everyone"`
+  policy with an `everyone` sibling case, adversarially verified.
+- [ ] **IMPORT-REL-05** (Phase 27.1) — Camoufox is defined as an IN-STACK service in a repo-tracked fork
+  compose, built from the vendored `docker/camofox` source (SETUP-04), with `CAMOFOX_URL` retained as an
+  explicit override. Live had NO camofox service: `norish-app` on `norish_default`,
+  `norishp2-camofox-1` on `norishp2_default` and unreachable from it, working only because
+  `CAMOFOX_URL` pointed off-stack at LXC 105 — an undocumented single point of failure. The Camoufox
+  service itself was HEALTHY; the defect is topology. **The live compose is outside the repo tree**, so
+  27.1 ships the repo artifact plus an operator runbook and does NOT mutate live.
+
+**Gate:** a non-skippable POST-DEPLOY EMPIRICAL GATE (plan 27.1-05) — the mandated ah.nl URL, then >= 10
+further ah.nl recipes across >= 6 categories, then >= 5 lekkerensimpel recipes, each evidenced with
+fetch, JSON-LD, path taken, per-system ingredient counts, `cook_source` and any failure VERBATIM.
+
+- **PENDING-ISO-01** (raised 2026-07-28 while planning 27.1, **NOT scheduled**) — **SECURITY, live
+  today.** `recipes.getPending` (`packages/trpc/src/routers/recipes/pending.ts:29-32`) returns `true`
+  for EVERY queued import job when `policy.view === "everyone"` — the live server-wide value — so every
+  authenticated user is served every household's pending imports, `recipeId` **and** source `url`
+  included. This is the fourth member of the family AGENTS.md documents (REALTIME-ISO-01,
+  IMPORT-DEDUP-ISO-01, LIST-ISO-01): a code path reading `everyone` as *unscoped* rather than clamping
+  it to the cookbook. Pre-existing and independent of 27.1, whose new `failed` event travels the
+  cookbook-clamped `emitByPolicy` path. Deliberately left out of 27.1's locked five-item scope; needs a
+  scheduling decision.
 
 ### Correctness / fork-maintenance fixes
 

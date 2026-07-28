@@ -520,6 +520,50 @@ backfill ran at boot: `candidates:6, derived:1, flagged:5, refused:0, failed:0`,
 data loss). **NEXT: W6** — `cook_source` NOT NULL (migration `0043`), unscoped beyond
 `27-ARCHITECTURE.md` §7; it is the only remaining wave of the phase.
 
+### Phase 27.1: Import reliability: AI extraction resilience, JSON-LD fallback, failure surfacing, in-stack Camoufox (INSERTED)
+**Goal:** Recipe import works end-to-end, and when it does not, the failure is VISIBLE instead of silent.
+**Requirements**: IMPORT-REL-01, IMPORT-REL-02, IMPORT-REL-03, IMPORT-REL-04, IMPORT-REL-05 (+ SETUP-04)
+**Depends on:** Phase 27 (W0-W5 deployed; W6 is NOT a prerequisite and NOT in scope)
+**Plans:** 5 plans in 3 waves
+**Planned:** 2026-07-28. Root cause established empirically against the LIVE stack by three independent
+agents; recorded as locked decisions in `27.1-CONTEXT.md`. No RESEARCH.md — the evidence is the research.
+**The defect, in one line:** import failures are INTERMITTENT, from three sub-causes — a strict
+validator that discards complete metric-only recipes, reasoning-token exhaustion on large HTML, and no
+retry — compounded by two UX defects that make a failure look like nothing happened.
+**Success Criteria:**
+  1. A complete single-system extraction imports (the absent measurement half is mirrored, never a rejection).
+  2. A transient AI failure gets exactly one retry, at raised output-token headroom; a deterministic one gets none.
+  3. AI stays PRIMARY; a page shipping valid schema.org Recipe still imports after AI has FINALLY failed,
+     through the same normalizer / `createRecipeWithRefs` / cook-projection path.
+  4. A failure ALWAYS reaches the user as a rendered, dismissible error card — never an eternal skeleton —
+     and never crosses a cookbook boundary (proven under the live `view: "everyone"`, adversarially).
+  5. Camoufox is defined in-stack in a repo-tracked fork compose; `CAMOFOX_URL` remains an explicit override.
+  6. **A non-skippable POST-DEPLOY EMPIRICAL GATE passes**: the mandated ah.nl URL, then >= 10 further
+     ah.nl recipes across >= 6 categories, then >= 5 lekkerensimpel recipes — each evidenced with fetch,
+     JSON-LD, path taken, per-system ingredient counts, `cook_source`, and any failure VERBATIM.
+**Waves:** W1 = plans 01, 03, 04 (independent, zero file overlap) -> W2 = plan 02 (shares
+`parser/index.ts` with 01) -> W3 = plan 05 (the gate, after build + deploy).
+**Execution:** one plan at a time (`use_worktrees: false`), native (`cross_ai: false` — the agy worker
+stalls on vitest).
+
+Plans:
+
+- [ ] 27.1-01-PLAN.md — AI extraction resilience: mirror the absent measurement half, relax the validator to name + metric, one retry at raised output headroom (wave 1)
+- [ ] 27.1-02-PLAN.md — JSON-LD fallback after FINAL AI failure, minting a scored `.cook` through the sanctioned minter; `parserPath` observability markers (wave 2, depends on 01)
+- [ ] 27.1-03-PLAN.md — Failure surfacing: unconditional fail-closed `failed` emit + a rendered dismissible error card in 12 locales (wave 1)
+- [ ] 27.1-04-PLAN.md — In-stack Camoufox: repo-tracked `docker/docker-compose.fork.yml` + operator runbook; live untouched (wave 1)
+- [ ] 27.1-05-PLAN.md — POST-DEPLOY EMPIRICAL GATE: the import harness, the three bars, and the browser proof that a failure is visible (wave 3, blocking checkpoints)
+
+**Findings raised while planning, NOT in scope** (full detail in `27.1-CONTEXT.md`):
+  - **F-1 / proposed PENDING-ISO-01 (SECURITY, live today).** `recipes.getPending`
+    (`packages/trpc/src/routers/recipes/pending.ts:29-32`) returns `true` for EVERY queued job when
+    `policy.view === "everyone"` — the live value — so every user is served every household's pending
+    imports, `recipeId` and source `url` included. Fourth member of the REALTIME-ISO-01 /
+    IMPORT-DEDUP-ISO-01 / LIST-ISO-01 family. Pre-existing and untouched by 27.1; needs its own decision.
+  - **F-2** `defaults.ts` still defaults `maxTokens: 10000` (inert on live; tight for a fresh install).
+  - **F-3** `docker/docker-compose.beta.yml:38` hardcoded the off-stack Camoufox as a default (fixed in 27.1-04).
+  - **F-4** `packages/api/src/parser/fetch.ts:8-10` documented a plain-HTTP fallback that does not exist (fixed in 27.1-02).
+
 ### Phase 28: Cost-per-recipe badge (MAJOR)
 **Goal**: Each recipe carries a € / €€ / €€€ per-serving cost badge, computed asynchronously from a real Dutch price index.
 **Depends on**: Phase 1 (Camoufox, reused as cache-miss enrichment) + a decided AI provider (ingredient parsing). Independent of Phase 27.
