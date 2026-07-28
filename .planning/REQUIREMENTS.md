@@ -85,7 +85,7 @@ _(renumbered from Phase 3/4 to make room for the Sharing phase.)_
 | SHOP-02 | Phase 25 | Pending — DECIDED 2026-07-21 (household-scoped lists) |
 | DINNER-01 | Phase 26 | Pending — promoted from backlog 2026-07-21 |
 | COOK-01 | Phase 27 | Pending — externally blocked on upstream #470 design |
-| IMPORT-REL-01..05 | Phase 27.1 | Pending — planned 2026-07-28 from live evidence (6 plans, 3 waves) |
+| IMPORT-REL-01..05 | Phase 27.1 | IMPORT-REL-01/02 DONE 2026-07-28 (plan 27.1-01); 03/04/05 pending (6 plans, 3 waves) |
 | PENDING-ISO-01 | Phase 27.1 | Pending — BUG, confirmed live 2026-07-28; promoted into scope by director override, plan 27.1-06 |
 | COST-01 | Phase 28 | Pending — promoted from backlog 2026-07-21 |
 | MAKE-01 | Phase 29 | Pending — promoted from backlog 2026-07-21 |
@@ -131,17 +131,21 @@ locked decisions in `.planning/phases/27.1-.../27.1-CONTEXT.md`. Import failures
 six over ~72 h, interleaved with successes on the very same URLs — from three sub-causes, compounded by
 two UX defects that make a failure look like nothing happened.
 
-- [ ] **IMPORT-REL-01** (Phase 27.1) — AI extraction output is accepted on `name` + metric ingredients +
-  metric instructions; a missing measurement half is MIRRORED, never a rejection.
-  `validateExtractionOutput` (`packages/api/src/ai/features/recipe-extraction/normalizer.ts:180-191`)
-  hard-rejects when the model emits no US half, so a logged failure carrying
-  `metricIngredients: 10, usIngredients: 0` — a complete, correct metric recipe — was thrown away as
-  `VALIDATION_ERROR`.
-- [ ] **IMPORT-REL-02** (Phase 27.1) — A transient AI extraction failure is retried EXACTLY ONCE, and the
-  retry runs with raised output-token headroom. `packages/api/src/parser/index.ts:245` throws on the
-  first failure. Raising the `defaults.ts` budget is INERT on live — `getGenerationSettings` reads
-  `maxOutputTokens` from the DB `ai_config` row — and an unconditional floor could exceed a low-cap
-  provider's limit, so headroom is applied only to a retry that already follows a real failure.
+- [x] **IMPORT-REL-01** (Phase 27.1, plan 27.1-01) — DONE 2026-07-28: AI extraction output is accepted on
+  `name` + metric ingredients + metric instructions; a missing measurement half is MIRRORED, never a
+  rejection. `validateExtractionOutput` (`packages/api/src/ai/features/recipe-extraction/normalizer.ts`)
+  no longer hard-rejects when the model emits no US half — `mirrorMeasurementSystems` mirrors the absent
+  half at all three extraction call sites (recipe-parser, image-recipe-parser, video/normalizer) before
+  validate/normalize/buildCookFromExtraction. A logged failure carrying `metricIngredients: 10,
+  usIngredients: 0` now imports instead of being thrown away as `VALIDATION_ERROR`.
+- [x] **IMPORT-REL-02** (Phase 27.1, plan 27.1-01) — DONE 2026-07-28: A transient AI extraction failure is
+  retried EXACTLY ONCE, and the retry runs with raised output-token headroom.
+  `packages/api/src/parser/index.ts`'s `tryExtractWithAI` now makes at most two attempts, gated on a
+  closed `RETRYABLE_AI_EXTRACTION_CODES` set (excludes `AI_DISABLED`/`AUTH_ERROR`/`INVALID_INPUT`).
+  `defaults.ts` stays untouched (inert on live); the retry passes `extractRecipeWithAI` an
+  `outputTokenFloor` of `AI_RETRY_OUTPUT_TOKEN_FLOOR = Math.min(100_000, 393_216) = 100_000` (measured
+  DeepSeek ceiling), which the callee applies as `Math.max(configured, floor)` — never lowering a
+  configured value, never touching the first attempt.
 - [ ] **IMPORT-REL-03** (Phase 27.1) — After AI extraction has FINALLY failed, a page carrying valid
   schema.org Recipe JSON-LD still imports, through the same normalizer / `createRecipeWithRefs` /
   cook-projection path, minting a scored `.cook` through the sanctioned `buildCookPayload`. **AI stays
