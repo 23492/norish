@@ -163,6 +163,12 @@
     "progress": {
       "fetching": "Henter…",
       "saving": "Lagrer…"
+    },
+    "failure": {
+      "title": "Import mislyktes",
+      "fallbackReason": "Denne oppskriften kunne ikke importeres.",
+      "source": "Kilde: {host}",
+      "dismiss": "Avvis"
     }
   },
   "formatting": {

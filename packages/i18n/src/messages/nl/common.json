@@ -164,6 +164,12 @@
     "progress": {
       "fetching": "Ophalen…",
       "saving": "Opslaan…"
+    },
+    "failure": {
+      "title": "Importeren mislukt",
+      "fallbackReason": "Dit recept kon niet worden geïmporteerd.",
+      "source": "Bron: {host}",
+      "dismiss": "Sluiten"
     }
   },
   "formatting": {

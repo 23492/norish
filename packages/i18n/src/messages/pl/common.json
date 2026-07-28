@@ -164,6 +164,12 @@
     "progress": {
       "fetching": "Pobieranie…",
       "saving": "Zapisywanie…"
+    },
+    "failure": {
+      "title": "Import nie powiódł się",
+      "fallbackReason": "Nie udało się zaimportować tego przepisu.",
+      "source": "Źródło: {host}",
+      "dismiss": "Odrzuć"
     }
   },
   "formatting": {

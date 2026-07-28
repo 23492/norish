@@ -159,6 +159,12 @@
     "progress": {
       "fetching": "Obteniendo…",
       "saving": "Guardando…"
+    },
+    "failure": {
+      "title": "Error al importar",
+      "fallbackReason": "No se pudo importar esta receta.",
+      "source": "Fuente: {host}",
+      "dismiss": "Descartar"
     }
   },
   "formatting": {

@@ -164,6 +164,12 @@
     "progress": {
       "fetching": "가져오는 중…",
       "saving": "저장 중…"
+    },
+    "failure": {
+      "title": "가져오기 실패",
+      "fallbackReason": "이 레시피를 가져올 수 없습니다.",
+      "source": "출처: {host}",
+      "dismiss": "닫기"
     }
   },
   "formatting": {

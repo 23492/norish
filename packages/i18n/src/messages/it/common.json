@@ -164,6 +164,12 @@
     "progress": {
       "fetching": "Recupero…",
       "saving": "Salvataggio…"
+    },
+    "failure": {
+      "title": "Importazione non riuscita",
+      "fallbackReason": "Non è stato possibile importare questa ricetta.",
+      "source": "Fonte: {host}",
+      "dismiss": "Ignora"
     }
   },
   "formatting": {

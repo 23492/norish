@@ -164,6 +164,12 @@
     "progress": {
       "fetching": "Wird abgerufen…",
       "saving": "Wird gespeichert…"
+    },
+    "failure": {
+      "title": "Import fehlgeschlagen",
+      "fallbackReason": "Dieses Rezept konnte nicht importiert werden. Bitte versuchen Sie es erneut.",
+      "source": "Quelle: {host}",
+      "dismiss": "Schließen"
     }
   },
   "formatting": {

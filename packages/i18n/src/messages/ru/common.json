@@ -159,6 +159,12 @@
     "progress": {
       "fetching": "Загрузка…",
       "saving": "Сохранение…"
+    },
+    "failure": {
+      "title": "Не удалось импортировать",
+      "fallbackReason": "Этот рецепт не удалось импортировать.",
+      "source": "Источник: {host}",
+      "dismiss": "Скрыть"
     }
   },
   "formatting": {

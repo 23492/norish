@@ -164,6 +164,12 @@
     "progress": {
       "fetching": "Fetching…",
       "saving": "Saving…"
+    },
+    "failure": {
+      "title": "Import failed",
+      "fallbackReason": "This recipe could not be imported.",
+      "source": "Source: {host}",
+      "dismiss": "Dismiss"
     }
   },
   "formatting": {
