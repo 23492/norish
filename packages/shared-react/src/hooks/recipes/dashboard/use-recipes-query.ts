@@ -10,7 +10,7 @@ import type {
 } from "@norish/shared/contracts";
 
 import type { CreateRecipeHooksOptions } from "../types";
-import type { RecipesCacheHelpers } from "./use-recipes-cache";
+import type { FailedImport, RecipesCacheHelpers } from "./use-recipes-cache";
 
 export type RecipeFilters = {
   limit?: number;
@@ -40,11 +40,13 @@ export type RecipesQueryResult = {
   queryKey: QueryKey;
   pendingRecipeIds: Set<string>;
   importStages: Map<string, RecipeImportStage>;
+  failedImports: Map<string, FailedImport>;
   autoTaggingRecipeIds: Set<string>;
   allergyDetectionRecipeIds: Set<string>;
   loadMore: () => void;
   addPendingRecipe: (id: string) => void;
   removePendingRecipe: (id: string) => void;
+  dismissFailedImport: (id: string) => void;
   addAutoTaggingRecipe: (id: string) => void;
   removeAutoTaggingRecipe: (id: string) => void;
   addAllergyDetectionRecipe: (id: string) => void;
@@ -62,6 +64,7 @@ export interface RecipesQueryDependencies {
   usePendingRecipesQuery: () => {
     pendingRecipeIds: Set<string>;
     importStages: Map<string, RecipeImportStage>;
+    failedImports: Map<string, FailedImport>;
   };
   useAutoTaggingQuery: () => { autoTaggingRecipeIds: Set<string> };
   useAllergyDetectionQuery: () => { allergyDetectionRecipeIds: Set<string> };
@@ -93,13 +96,14 @@ export function createUseRecipesQuery(
       maxCookingTime,
     } = filters;
 
-    const { pendingRecipeIds, importStages } = usePendingRecipesQuery();
+    const { pendingRecipeIds, importStages, failedImports } = usePendingRecipesQuery();
     const { autoTaggingRecipeIds } = useAutoTaggingQuery();
     const { allergyDetectionRecipeIds } = useAllergyDetectionQuery();
 
     const {
       addPendingRecipe,
       removePendingRecipe,
+      dismissFailedImport,
       addAutoTaggingRecipe,
       removeAutoTaggingRecipe,
       addAllergyDetectionRecipe,
@@ -179,11 +183,13 @@ export function createUseRecipesQuery(
       queryKey,
       pendingRecipeIds,
       importStages,
+      failedImports,
       autoTaggingRecipeIds,
       allergyDetectionRecipeIds,
       loadMore,
       addPendingRecipe,
       removePendingRecipe,
+      dismissFailedImport,
       addAutoTaggingRecipe,
       removeAutoTaggingRecipe,
       addAllergyDetectionRecipe,

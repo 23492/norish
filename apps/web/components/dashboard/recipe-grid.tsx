@@ -13,6 +13,7 @@ import { RecipeDashboardDTO } from "@norish/shared/contracts";
 
 import RecipeCardSkeleton from "../skeleton/recipe-card-skeleton";
 import RecipeGridSkeleton from "../skeleton/recipe-grid-skeleton";
+import FailedImportCard from "./failed-import-card";
 import NoRecipeResults from "./no-recipe-results";
 import NoRecipesText from "./no-recipes-text";
 import RecipeCard from "./recipe-card";
@@ -34,6 +35,8 @@ export default function RecipeGrid() {
     loadMore,
     pendingRecipeIds,
     importStages,
+    failedImports,
+    dismissFailedImport,
     hasAppliedFilters,
     clearFilters,
     filterKey,
@@ -70,16 +73,25 @@ export default function RecipeGrid() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [_windowHeight]); // Recalculate when window resizes
 
-  // Merge pending skeletons with actual recipes
+  // Merge pending skeletons, failed-import cards and actual recipes. An id present in
+  // failedImports is excluded from the pending-skeleton list — onFailed already removed
+  // it from pendingRecipeIds, so the two can never overlap for the same id (D-27.1-07).
   const displayData = useMemo(() => {
     const pendingSkeletons = Array.from(pendingRecipeIds).map((id) => ({
       id,
-      isLoading: true,
+      isLoading: true as const,
       stage: importStages.get(id),
     }));
 
-    return [...pendingSkeletons, ...recipes];
-  }, [pendingRecipeIds, importStages, recipes]);
+    const failedCards = Array.from(failedImports.entries()).map(([id, failure]) => ({
+      id,
+      isFailed: true as const,
+      reason: failure.reason,
+      url: failure.url,
+    }));
+
+    return [...pendingSkeletons, ...failedCards, ...recipes];
+  }, [pendingRecipeIds, importStages, failedImports, recipes]);
 
   // Calculate row count for virtualization
   const rowCount = useMemo(() => {
@@ -160,6 +172,19 @@ export default function RecipeGrid() {
   // Render a single item (skeleton or card)
   const renderItem = useCallback(
     (item: (typeof displayData)[number]) => {
+      if ("isFailed" in item && item.isFailed) {
+        return (
+          <FailedImportCard
+            key={`failed-${item.id}`}
+            recipeId={item.id}
+            reason={item.reason}
+            url={item.url}
+            variant={viewMode}
+            onDismiss={dismissFailedImport}
+          />
+        );
+      }
+
       if ("isLoading" in item && item.isLoading) {
         return (
           <RecipeCardSkeleton
@@ -184,7 +209,7 @@ export default function RecipeGrid() {
         />
       );
     },
-    [allergies, isFavorite, deleteRecipe, toggleFavorite, viewMode]
+    [allergies, isFavorite, deleteRecipe, toggleFavorite, viewMode, dismissFailedImport]
   );
 
   // Show skeleton during initial load

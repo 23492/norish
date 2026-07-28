@@ -8,6 +8,7 @@ import type {
 
 import type {
   BulkImportResult,
+  FailedImport,
   FavoritesMutationResult,
   FavoritesQueryResult,
   RatingsSubscriptionCallbacks,
@@ -38,6 +39,8 @@ export type SharedRecipesContextValue = {
   hasMore: boolean;
   pendingRecipeIds: Set<string>;
   importStages: Map<string, RecipeImportStage>;
+  failedImports: Map<string, FailedImport>;
+  dismissFailedImport: (id: string) => void;
   autoTaggingRecipeIds: Set<string>;
   favoriteIds: string[];
   isFavorite: (recipeId: string) => boolean;
@@ -126,6 +129,8 @@ export function createRecipesContext({
       hasMore,
       pendingRecipeIds,
       importStages,
+      failedImports,
+      dismissFailedImport,
       autoTaggingRecipeIds,
       loadMore,
       invalidate,
@@ -215,6 +220,8 @@ export function createRecipesContext({
         hasMore,
         pendingRecipeIds,
         importStages,
+        failedImports,
+        dismissFailedImport,
         autoTaggingRecipeIds,
         hasAppliedFilters,
         clearFilters,
@@ -244,6 +251,8 @@ export function createRecipesContext({
         hasMore,
         pendingRecipeIds,
         importStages,
+        failedImports,
+        dismissFailedImport,
         autoTaggingRecipeIds,
         hasAppliedFilters,
         clearFilters,

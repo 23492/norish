@@ -17,7 +17,10 @@ import type {
   RecipeDashboardDTO,
   RecipeImportStage,
 } from "@norish/shared/contracts";
-import type { BulkImportResult } from "@norish/shared-react/hooks/recipes/dashboard";
+import type {
+  BulkImportResult,
+  FailedImport,
+} from "@norish/shared-react/hooks/recipes/dashboard";
 import { createScopedMessageTranslator } from "@norish/i18n";
 import { createRecipesContext } from "@norish/shared-react/contexts";
 
@@ -29,6 +32,8 @@ type Ctx = {
   hasMore: boolean;
   pendingRecipeIds: Set<string>;
   importStages: Map<string, RecipeImportStage>;
+  failedImports: Map<string, FailedImport>;
+  dismissFailedImport: (id: string) => void;
   autoTaggingRecipeIds: Set<string>;
   favoriteIds: string[];
   isFavorite: (recipeId: string) => boolean;

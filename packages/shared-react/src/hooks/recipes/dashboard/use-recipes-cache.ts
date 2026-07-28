@@ -21,6 +21,20 @@ export const IMPORT_STAGES_QUERY_KEY = ["recipes", "importStages"] as const;
 
 export type ImportStagesMap = Record<string, RecipeImportStage>;
 
+/**
+ * D-27.1-07 — client-only cache of imports that have FINALLY failed, fed by the
+ * cookbook-scoped `failed` realtime event. A `failed` job is removed from Redis
+ * (`recipeImportJobOptions.removeOnFail = true`, `packages/queue/src/config.ts`), so the
+ * realtime event is the ONLY carrier of the failure — there is nothing to re-fetch, exactly
+ * like `IMPORT_STAGES_QUERY_KEY` above. An entry is cleared on dismiss, or when the same id
+ * later lands via `onImported` / `onCreated` (a successful retry must not leave a stale card).
+ */
+export const FAILED_IMPORTS_QUERY_KEY = ["recipes", "failedImports"] as const;
+
+export type FailedImport = { reason: string; url?: string; at: number };
+
+export type FailedImportsMap = Record<string, FailedImport>;
+
 function isOptimisticPendingRecipeId(recipeId: string): boolean {
   return recipeId.startsWith(OPTIMISTIC_PENDING_RECIPE_PREFIX);
 }
@@ -42,6 +56,8 @@ export type RecipesCacheHelpers = {
   removePendingRecipe: (id: string) => void;
   setImportStage: (id: string, stage: RecipeImportStage) => void;
   clearImportStage: (id: string) => void;
+  addFailedImport: (id: string, failure: FailedImport) => void;
+  dismissFailedImport: (id: string) => void;
   addAutoTaggingRecipe: (id: string) => void;
   removeAutoTaggingRecipe: (id: string) => void;
   addAllergyDetectionRecipe: (id: string) => void;
@@ -162,6 +178,31 @@ export function createUseRecipesCacheHelpers({ useTRPC }: CreateRecipeHooksOptio
       [queryClient]
     );
 
+    const addFailedImport = useCallback(
+      (recipeId: string, failure: FailedImport) => {
+        queryClient.setQueryData<FailedImportsMap>(FAILED_IMPORTS_QUERY_KEY, (prev) => ({
+          ...(prev ?? {}),
+          [recipeId]: failure,
+        }));
+      },
+      [queryClient]
+    );
+
+    const dismissFailedImport = useCallback(
+      (recipeId: string) => {
+        queryClient.setQueryData<FailedImportsMap>(FAILED_IMPORTS_QUERY_KEY, (prev) => {
+          if (!prev || !(recipeId in prev)) return prev;
+
+          const next = { ...prev };
+
+          delete next[recipeId];
+
+          return next;
+        });
+      },
+      [queryClient]
+    );
+
     const removePendingRecipe = useCallback(
       (recipeId: string) => {
         queryClient.setQueryData<PendingRecipeDTO[]>(pendingKey, (prev) => {
@@ -232,6 +273,8 @@ export function createUseRecipesCacheHelpers({ useTRPC }: CreateRecipeHooksOptio
       removePendingRecipe,
       setImportStage,
       clearImportStage,
+      addFailedImport,
+      dismissFailedImport,
       addAutoTaggingRecipe,
       removeAutoTaggingRecipe,
       addAllergyDetectionRecipe,

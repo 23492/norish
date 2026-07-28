@@ -349,5 +349,113 @@ describe("useRecipesSubscription", () => {
         })
       );
     });
+
+    // D-27.1-07 / IMPORT-REL-04: the failed-imports client cache, so a failed import
+    // renders a real error card instead of an eternal skeleton.
+    it("records the failure in failedImports and removes the id from pendingRecipeIds, never both", async () => {
+      const pendingKey = [["recipes", "getPending"], { type: "query" }];
+
+      queryClient.setQueryData(["recipes", "list", {}], createMockInfiniteData());
+      queryClient.setQueryData(pendingKey, [
+        { recipeId: "recipe-1", url: "https://example.com/x", addedAt: Date.now() },
+      ]);
+
+      const { useRecipesSubscription } = await import("@/hooks/recipes/use-recipes-subscription");
+
+      renderHook(() => useRecipesSubscription(), {
+        wrapper: createTestWrapper(queryClient),
+      });
+
+      subscriptionCallbacks.onFailed?.(
+        emitPayload({
+          recipeId: "recipe-1",
+          reason: "AI extraction failed",
+          url: "https://example.com/x",
+        })
+      );
+
+      const pending = queryClient.getQueryData<{ recipeId: string }[]>(pendingKey);
+      const failed =
+        queryClient.getQueryData<Record<string, { reason: string; url?: string }>>([
+          "recipes",
+          "failedImports",
+        ]);
+
+      expect(pending?.some((p) => p.recipeId === "recipe-1")).toBe(false);
+      expect(failed?.["recipe-1"]).toMatchObject({
+        reason: "AI extraction failed",
+        url: "https://example.com/x",
+      });
+    });
+
+    it("does nothing to failedImports when the payload carries no recipeId", async () => {
+      queryClient.setQueryData(["recipes", "list", {}], createMockInfiniteData());
+      queryClient.setQueryData([["recipes", "getPending"], { type: "query" }], []);
+
+      const { useRecipesSubscription } = await import("@/hooks/recipes/use-recipes-subscription");
+
+      renderHook(() => useRecipesSubscription(), {
+        wrapper: createTestWrapper(queryClient),
+      });
+
+      subscriptionCallbacks.onFailed?.(emitPayload({ reason: "generic failure" }));
+
+      const failed = queryClient.getQueryData<Record<string, unknown>>([
+        "recipes",
+        "failedImports",
+      ]);
+
+      expect(failed ?? {}).toEqual({});
+    });
+  });
+
+  describe("onImported / onCreated clear a previously-failed id (D-27.1-07)", () => {
+    it("onImported removes the failedImports entry for the landing id — a successful retry clears a stale card", async () => {
+      queryClient.setQueryData(["recipes", "list", {}], createMockInfiniteData());
+      queryClient.setQueryData(["recipes", "failedImports"], {
+        "recipe-1": { reason: "boom", at: Date.now() },
+      });
+      queryClient.setQueryData([["recipes", "getPending"], { type: "query" }], []);
+
+      const { useRecipesSubscription } = await import("@/hooks/recipes/use-recipes-subscription");
+
+      renderHook(() => useRecipesSubscription(), {
+        wrapper: createTestWrapper(queryClient),
+      });
+
+      subscriptionCallbacks.onImported?.(
+        emitPayload({ recipe: { id: "recipe-1" }, pendingRecipeId: "recipe-1" })
+      );
+
+      const failed = queryClient.getQueryData<Record<string, unknown>>([
+        "recipes",
+        "failedImports",
+      ]);
+
+      expect(failed?.["recipe-1"]).toBeUndefined();
+    });
+
+    it("onCreated removes the failedImports entry for the landing id", async () => {
+      queryClient.setQueryData(["recipes", "list", {}], createMockInfiniteData());
+      queryClient.setQueryData(["recipes", "failedImports"], {
+        "recipe-2": { reason: "boom", at: Date.now() },
+      });
+      queryClient.setQueryData([["recipes", "getPending"], { type: "query" }], []);
+
+      const { useRecipesSubscription } = await import("@/hooks/recipes/use-recipes-subscription");
+
+      renderHook(() => useRecipesSubscription(), {
+        wrapper: createTestWrapper(queryClient),
+      });
+
+      subscriptionCallbacks.onCreated?.(emitPayload({ recipe: { id: "recipe-2" } }));
+
+      const failed = queryClient.getQueryData<Record<string, unknown>>([
+        "recipes",
+        "failedImports",
+      ]);
+
+      expect(failed?.["recipe-2"]).toBeUndefined();
+    });
   });
 });

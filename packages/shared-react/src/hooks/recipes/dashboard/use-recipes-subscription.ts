@@ -29,6 +29,8 @@ export function createUseRecipesSubscription(
       replaceOldestOptimisticPendingRecipe,
       removePendingRecipe,
       setImportStage,
+      addFailedImport,
+      dismissFailedImport,
       addAutoTaggingRecipe,
       removeAutoTaggingRecipe,
       addAllergyDetectionRecipe,
@@ -120,6 +122,7 @@ export function createUseRecipesSubscription(
         trpc.recipes.onCreated.subscriptionOptions(undefined, {
           onData: ({ payload }: any) => {
             removePendingRecipe(payload.recipe.id);
+            dismissFailedImport(payload.recipe.id);
             addRecipeToList(payload.recipe);
           },
         })
@@ -156,6 +159,7 @@ export function createUseRecipesSubscription(
 
             replaceOldestOptimisticPendingRecipe(pendingId);
             removePendingRecipe(pendingId);
+            dismissFailedImport(pendingId);
             addRecipeToList(payload.recipe);
             callbacks.onImported?.(payload);
           },
@@ -209,6 +213,14 @@ export function createUseRecipesSubscription(
         trpc.recipes.onFailed.subscriptionOptions(undefined, {
           onData: ({ payload }: any) => {
             if (payload.recipeId) {
+              // D-27.1-07: record the failure BEFORE removing the pending entry —
+              // recording after removal would race the grid into showing neither a
+              // skeleton nor an error card for one render.
+              addFailedImport(payload.recipeId, {
+                reason: payload.reason,
+                url: payload.url,
+                at: Date.now(),
+              });
               replaceOldestOptimisticPendingRecipe(payload.recipeId);
               removePendingRecipe(payload.recipeId);
               removeAutoTaggingRecipe(payload.recipeId);

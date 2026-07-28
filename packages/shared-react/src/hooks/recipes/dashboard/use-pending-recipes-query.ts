@@ -4,8 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import type { RecipeImportStage } from "@norish/shared/contracts";
 
 import type { CreateRecipeHooksOptions } from "../types";
-import type { ImportStagesMap } from "./use-recipes-cache";
-import { IMPORT_STAGES_QUERY_KEY } from "./use-recipes-cache";
+import type { FailedImportsMap, ImportStagesMap } from "./use-recipes-cache";
+import { FAILED_IMPORTS_QUERY_KEY, IMPORT_STAGES_QUERY_KEY } from "./use-recipes-cache";
 
 export function createUsePendingRecipesQuery({ useTRPC }: CreateRecipeHooksOptions) {
   return function usePendingRecipesQuery() {
@@ -31,6 +31,19 @@ export function createUsePendingRecipesQuery({ useTRPC }: CreateRecipeHooksOptio
       refetchOnReconnect: false,
     });
 
+    // D-27.1-07: client-only cache, written by the `failed` subscription. Same shape as
+    // `stageData` above — no server queryFn, refetch disabled, cleared only via
+    // `dismissFailedImport` / a subsequent `onImported`/`onCreated` for the same id.
+    const { data: failedData } = useQuery<FailedImportsMap>({
+      queryKey: FAILED_IMPORTS_QUERY_KEY,
+      queryFn: () => ({}),
+      staleTime: Infinity,
+      gcTime: Infinity,
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+    });
+
     const pendingRecipeIds = useMemo(() => {
       return new Set((data ?? []).map((p) => p.recipeId));
     }, [data]);
@@ -39,9 +52,14 @@ export function createUsePendingRecipesQuery({ useTRPC }: CreateRecipeHooksOptio
       return new Map<string, RecipeImportStage>(Object.entries(stageData ?? {}));
     }, [stageData]);
 
+    const failedImports = useMemo(() => {
+      return new Map<string, FailedImportsMap[string]>(Object.entries(failedData ?? {}));
+    }, [failedData]);
+
     return {
       pendingRecipeIds,
       importStages,
+      failedImports,
       isLoading,
       error,
     };

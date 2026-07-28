@@ -11,7 +11,12 @@ import { createUseRecipesMutations } from "./use-recipes-mutations";
 import { createUseRecipesQuery } from "./use-recipes-query";
 import { createUseRecipesSubscription } from "./use-recipes-subscription";
 
-export type { InfiniteRecipeData, RecipesCacheHelpers } from "./use-recipes-cache";
+export type {
+  InfiniteRecipeData,
+  RecipesCacheHelpers,
+  FailedImport,
+  FailedImportsMap,
+} from "./use-recipes-cache";
 export type {
   RecipeFilters,
   RecipesQueryResult,
