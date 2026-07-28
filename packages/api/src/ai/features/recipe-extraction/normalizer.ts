@@ -162,7 +162,69 @@ export interface ValidationResult {
 }
 
 /**
+ * Mirror the absent measurement half onto a metric-or-US-only extraction
+ * (D-27.1-03, D-27.1-01 sub-cause 1).
+ *
+ * A real logged failure carried `metricIngredients: 10, usIngredients: 0` — a
+ * complete, correct metric recipe, rejected by `validateExtractionOutput` for
+ * omitting a US half the model never emitted. The recipe was correct and
+ * complete IN ONE SYSTEM; the dual-system DTO downstream (`recipeIngredients`,
+ * `steps`, both carrying `systemUsed`) only needs BOTH halves to be
+ * *populated*, not to *differ* — a metric recipe with its US half mirrored
+ * from the metric one satisfies that contract exactly as well as a genuinely
+ * bilingual extraction, and costs the user nothing today's rejection did not
+ * already cost them (a thrown-away recipe). Rejecting a complete recipe over
+ * a translation the model chose not to do is strictly worse than serving the
+ * one measurement system it did provide, mirrored onto the other slot.
+ *
+ * PURE and NON-MUTATING: returns a new object (with new `recipeIngredient` /
+ * `recipeInstructions` objects) so callers' own logging
+ * (`getExtractionLogContext`) and the raw model output they may hold onto
+ * keep reading the untouched original. `recipeIngredient` and
+ * `recipeInstructions` are mirrored INDEPENDENTLY of each other — a real
+ * extraction can have both ingredient systems but only one instructions
+ * system, or vice versa.
+ */
+export function mirrorMeasurementSystems(
+  output: RecipeExtractionOutput | null
+): RecipeExtractionOutput | null {
+  if (!output) return null;
+
+  const metricIngredients = output.recipeIngredient?.metric ?? [];
+  const usIngredients = output.recipeIngredient?.us ?? [];
+
+  const recipeIngredient =
+    metricIngredients.length > 0 && usIngredients.length === 0
+      ? { metric: metricIngredients, us: [...metricIngredients] }
+      : usIngredients.length > 0 && metricIngredients.length === 0
+        ? { metric: [...usIngredients], us: usIngredients }
+        : output.recipeIngredient;
+
+  const metricInstructions = output.recipeInstructions?.metric ?? [];
+  const usInstructions = output.recipeInstructions?.us ?? [];
+
+  const recipeInstructions =
+    metricInstructions.length > 0 && usInstructions.length === 0
+      ? { metric: metricInstructions, us: [...metricInstructions] }
+      : usInstructions.length > 0 && metricInstructions.length === 0
+        ? { metric: [...usInstructions], us: usInstructions }
+        : output.recipeInstructions;
+
+  return { ...output, recipeIngredient, recipeInstructions };
+}
+
+/**
  * Validate that AI extraction output has all required fields.
+ *
+ * Relaxed to `name` + `recipeIngredient.metric` + `recipeInstructions.metric`
+ * (D-27.1-03): the two `us` clauses this validator used to require are gone.
+ * The absent `us` half is supplied by `mirrorMeasurementSystems`, which runs
+ * BEFORE this at every extraction call site, so by the time a mirrored output
+ * reaches here both halves are already populated for a single-system
+ * extraction — but the rule itself only requires the metric half, so an
+ * UNMIRRORED metric-only output is equally `valid: true`. `usIngredients` /
+ * `usSteps` stay in `details` as observability; they are no longer part of
+ * the pass/fail decision.
  */
 export function validateExtractionOutput(output: RecipeExtractionOutput | null): ValidationResult {
   if (!output || Object.keys(output).length === 0) {
@@ -180,9 +242,7 @@ export function validateExtractionOutput(output: RecipeExtractionOutput | null):
   if (
     !output.name ||
     !output.recipeIngredient?.metric?.length ||
-    !output.recipeIngredient?.us?.length ||
-    !output.recipeInstructions?.metric?.length ||
-    !output.recipeInstructions?.us?.length
+    !output.recipeInstructions?.metric?.length
   ) {
     return {
       valid: false,

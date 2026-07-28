@@ -5,6 +5,7 @@ import type { AIResult } from "@norish/shared-server/ai/types/result";
 import {
   buildCookFromExtraction,
   getExtractionLogContext,
+  mirrorMeasurementSystems,
   normalizeExtractionOutput,
   validateExtractionOutput,
 } from "@norish/api/ai/features/recipe-extraction/normalizer";
@@ -92,7 +93,9 @@ export async function extractRecipeFromVideo(
       ...settings,
     });
 
-    const jsonLd = result.output;
+    // D-27.1-03: mirror the absent measurement half ONCE, here, so validate,
+    // normalize AND buildCookFromExtraction below all read the SAME object.
+    const jsonLd = mirrorMeasurementSystems(result.output);
 
     videoLogger.debug(jsonLd, "Response");
 

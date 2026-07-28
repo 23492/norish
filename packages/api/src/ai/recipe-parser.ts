@@ -22,6 +22,7 @@ import { extractImageCandidates } from "../parser/parsers";
 import {
   buildCookFromExtraction,
   getExtractionLogContext,
+  mirrorMeasurementSystems,
   normalizeExtractionOutput,
   validateExtractionOutput,
 } from "./features/recipe-extraction/normalizer";
@@ -91,7 +92,9 @@ export async function extractRecipeWithAI(
       ...settings,
     });
 
-    const jsonLd = result.output;
+    // D-27.1-03: mirror the absent measurement half ONCE, here, so validate,
+    // normalize AND buildCookFromExtraction below all read the SAME object.
+    const jsonLd = mirrorMeasurementSystems(result.output);
 
     // Validate extraction output
     const validation = validateExtractionOutput(jsonLd);

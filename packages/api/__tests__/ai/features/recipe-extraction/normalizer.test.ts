@@ -11,6 +11,7 @@ import { recipeExtractionSchema } from "@norish/api/ai/schemas/recipe.schema";
 import {
   coerceExtractionSteps,
   getExtractionLogContext,
+  mirrorMeasurementSystems,
   normalizeExtractionOutput,
   validateExtractionOutput,
 } from "@norish/api/ai/features/recipe-extraction/normalizer";
@@ -62,13 +63,18 @@ describe("validateExtractionOutput", () => {
       expect(result.details?.usIngredients).toBe(1);
     });
 
-    it("returns invalid when US ingredients are missing", () => {
+    // D-27.1-03: `validateExtractionOutput` no longer requires a `us` half — the
+    // absent half is MIRRORED by `mirrorMeasurementSystems`, never a rejection.
+    // A metric-only output is therefore `valid: true`; see the
+    // "relaxed to metric-only (D-27.1-03)" describe block below for the full
+    // symmetric coverage (US-only, mirrored vs. unmirrored, still-invalid cases).
+    it("returns valid when US ingredients are missing (metric-only; D-27.1-03)", () => {
       const output = createPartialOutput({
         recipeIngredient: { metric: ["100g flour"], us: [] },
       });
       const result = validateExtractionOutput(output);
 
-      expect(result.valid).toBe(false);
+      expect(result.valid).toBe(true);
       expect(result.details?.metricIngredients).toBe(1);
       expect(result.details?.usIngredients).toBe(0);
     });
@@ -84,13 +90,13 @@ describe("validateExtractionOutput", () => {
       expect(result.details?.usSteps).toBe(1);
     });
 
-    it("returns invalid when US steps are missing", () => {
+    it("returns valid when US steps are missing (metric-only; D-27.1-03)", () => {
       const output = createPartialOutput({
         recipeInstructions: { metric: ["Mix well"], us: [] },
       });
       const result = validateExtractionOutput(output);
 
-      expect(result.valid).toBe(false);
+      expect(result.valid).toBe(true);
       expect(result.details?.metricSteps).toBe(1);
       expect(result.details?.usSteps).toBe(0);
     });
@@ -125,6 +131,153 @@ describe("validateExtractionOutput", () => {
       expect(result.details?.metricSteps).toBe(1);
       expect(result.details?.usSteps).toBe(1);
     });
+  });
+
+  describe("relaxed to metric-only (D-27.1-03)", () => {
+    it("is valid: true for the LIVE failure shape — 10 metric ingredients, 0 US, AFTER mirroring", () => {
+      const metricOnly = createPartialOutput({
+        recipeIngredient: {
+          metric: Array.from({ length: 10 }, (_, i) => `ingredient ${i}`),
+          us: [],
+        },
+        recipeInstructions: { metric: ["Mix well"], us: [] },
+      });
+      const mirrored = mirrorMeasurementSystems(metricOnly);
+      const result = validateExtractionOutput(mirrored);
+
+      expect(result.valid).toBe(true);
+      expect(result.details?.metricIngredients).toBe(10);
+    });
+
+    it("is valid: true for the LIVE failure shape WITHOUT mirroring too — the rule is metric-only, nothing more", () => {
+      const metricOnly = createPartialOutput({
+        recipeIngredient: {
+          metric: Array.from({ length: 10 }, (_, i) => `ingredient ${i}`),
+          us: [],
+        },
+        recipeInstructions: { metric: ["Mix well"], us: [] },
+      });
+      const result = validateExtractionOutput(metricOnly);
+
+      expect(result.valid).toBe(true);
+      expect(result.details?.metricIngredients).toBe(10);
+      expect(result.details?.usIngredients).toBe(0);
+    });
+
+    it("still rejects a nameless output with the unchanged error string", () => {
+      const output = createPartialOutput({ name: undefined as unknown as string });
+      const result = validateExtractionOutput(output);
+
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe("Recipe extraction failed - missing required fields");
+    });
+
+    it("still rejects zero metric ingredients with the unchanged error string", () => {
+      const output = createPartialOutput({
+        recipeIngredient: { metric: [], us: [] },
+      });
+      const result = validateExtractionOutput(output);
+
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe("Recipe extraction failed - missing required fields");
+    });
+
+    it("still rejects zero metric instructions with the unchanged error string", () => {
+      const output = createPartialOutput({
+        recipeInstructions: { metric: [], us: [] },
+      });
+      const result = validateExtractionOutput(output);
+
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe("Recipe extraction failed - missing required fields");
+    });
+
+    it("still rejects null with the unchanged empty-response error string", () => {
+      const result = validateExtractionOutput(null);
+
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe("AI returned empty response");
+    });
+
+    it("still rejects an empty object with the unchanged empty-response error string", () => {
+      const result = validateExtractionOutput({} as RecipeExtractionOutput);
+
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe("AI returned empty response");
+    });
+  });
+});
+
+describe("mirrorMeasurementSystems", () => {
+  it("mirrors a metric-only output: recipeIngredient.us and recipeInstructions.us deep-equal their metric counterparts", () => {
+    const output = createPartialOutput({
+      recipeIngredient: { metric: ["100g flour", "50g sugar"], us: [] },
+      recipeInstructions: { metric: ["Mix well", "Bake"], us: [] },
+    });
+
+    const mirrored = mirrorMeasurementSystems(output);
+
+    expect(mirrored?.recipeIngredient.us).toEqual(mirrored?.recipeIngredient.metric);
+    expect(mirrored?.recipeInstructions.us).toEqual(mirrored?.recipeInstructions.metric);
+    expect(mirrored?.recipeIngredient.us).toEqual(["100g flour", "50g sugar"]);
+  });
+
+  it("mirrors a US-only output the OTHER way: metric deep-equals us, symmetrically", () => {
+    const output = createPartialOutput({
+      recipeIngredient: { metric: [], us: ["1 cup flour", "1/2 cup sugar"] },
+      recipeInstructions: { metric: [], us: ["Mix well", "Bake"] },
+    });
+
+    const mirrored = mirrorMeasurementSystems(output);
+
+    expect(mirrored?.recipeIngredient.metric).toEqual(mirrored?.recipeIngredient.us);
+    expect(mirrored?.recipeInstructions.metric).toEqual(mirrored?.recipeInstructions.us);
+    expect(mirrored?.recipeIngredient.metric).toEqual(["1 cup flour", "1/2 cup sugar"]);
+  });
+
+  it("mirrors ingredients and instructions INDEPENDENTLY — one can mirror while the other is already dual-system", () => {
+    const output = createPartialOutput({
+      recipeIngredient: { metric: ["100g flour"], us: ["1 cup flour"] },
+      recipeInstructions: { metric: ["Mix well"], us: [] },
+    });
+
+    const mirrored = mirrorMeasurementSystems(output);
+
+    // Ingredients already had both systems populated — untouched.
+    expect(mirrored?.recipeIngredient).toEqual({ metric: ["100g flour"], us: ["1 cup flour"] });
+    // Instructions were metric-only — mirrored.
+    expect(mirrored?.recipeInstructions.us).toEqual(["Mix well"]);
+  });
+
+  it("returns the input unchanged (deep-equal) when both systems are already populated", () => {
+    const output = createValidOutput();
+    const mirrored = mirrorMeasurementSystems(output);
+
+    expect(mirrored).toEqual(output);
+  });
+
+  it("does not mutate its argument — the input is deep-equal to a structuredClone taken before the call", () => {
+    const output = createPartialOutput({
+      recipeIngredient: { metric: ["100g flour"], us: [] },
+      recipeInstructions: { metric: ["Mix well"], us: [] },
+    });
+    const before = structuredClone(output);
+
+    mirrorMeasurementSystems(output);
+
+    expect(output).toEqual(before);
+  });
+
+  it("returns null for null input", () => {
+    expect(mirrorMeasurementSystems(null)).toBeNull();
+  });
+
+  it("does not throw when recipeIngredient is missing entirely", () => {
+    const output = createPartialOutput({
+      recipeIngredient: undefined as unknown as RecipeExtractionOutput["recipeIngredient"],
+    });
+
+    expect(() => mirrorMeasurementSystems(output)).not.toThrow();
   });
 });
 
