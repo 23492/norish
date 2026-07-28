@@ -553,7 +553,7 @@ Plans:
 - [x] 27.1-01-PLAN.md — AI extraction resilience: mirror the absent measurement half, relax the validator to name + metric, one retry at raised output headroom (wave 1) — DONE 2026-07-28, see `27.1-01-SUMMARY.md`
 - [ ] 27.1-02-PLAN.md — JSON-LD fallback after FINAL AI failure, minting a scored `.cook` through the sanctioned minter; `parserPath` observability markers (wave 2, depends on 01)
 - [x] 27.1-03-PLAN.md — Failure surfacing: unconditional fail-closed `failed` emit + a rendered dismissible error card in 12 locales (wave 1) — DONE 2026-07-28, see `27.1-03-SUMMARY.md`
-- [ ] 27.1-04-PLAN.md — In-stack Camoufox: repo-tracked `docker/docker-compose.fork.yml` + operator runbook; live untouched (wave 1)
+- [x] 27.1-04-PLAN.md — In-stack Camoufox: repo-tracked `docker/docker-compose.fork.yml` + operator runbook; live untouched (wave 1) — DONE 2026-07-28, see `27.1-04-SUMMARY.md`
 - [ ] 27.1-05-PLAN.md — POST-DEPLOY EMPIRICAL GATE: the import harness, the three bars, and the browser proof that a failure is visible (wave 3, blocking checkpoints)
 - [ ] 27.1-06-PLAN.md — PENDING-ISO-01: fold `everyone` into the cookbook clamp in `recipes.getPending`, with the RED-first two-household suite (wave 1)
 

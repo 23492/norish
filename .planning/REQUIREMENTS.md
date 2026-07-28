@@ -46,7 +46,7 @@ _(renumbered from Phase 3/4 to make room for the Sharing phase.)_
 - [ ] **SETUP-01**: Fork builds via `pnpm docker:build` on LXC 110 and deploys to the existing stack.
 - [ ] **SETUP-02**: Diff vs upstream is minimal + isolated; upstream remote tracked.
 - [ ] **SETUP-03**: No extra runtime setup vs off-the-shelf norish (config/env only).
-- [ ] **SETUP-04**: Camoufox is bundled in the compose (self-contained) by building the **vendored camofox-browser v1.4.1** source under `docker/camofox/` (no external image/registry — the published 1.8-1.11 images regressed on Akamai); no external browser service required; `CAMOFOX_URL` can override to reuse an external one.
+- [x] **SETUP-04**: Camoufox is bundled in the compose (self-contained) by building the **vendored camofox-browser v1.4.1** source under `docker/camofox/` (no external image/registry — the published 1.8-1.11 images regressed on Akamai); no external browser service required; `CAMOFOX_URL` can override to reuse an external one. Done in `docker-compose.example.yml` since Phase 1; the fork-specific gap (the untracked LIVE compose lacked it) closed 2026-07-28 by plan 27.1-04 (`docker/docker-compose.fork.yml`, `docker/docker-compose.beta.yml`).
 - [ ] **SETUP-05**: All cloud API keys (AI provider, transcription/AssemblyAI, OAuth) are configurable via the admin UI and persisted (encrypted) in the DB — not required as environment variables.
 
 ## v2 Requirements
@@ -85,7 +85,7 @@ _(renumbered from Phase 3/4 to make room for the Sharing phase.)_
 | SHOP-02 | Phase 25 | Pending — DECIDED 2026-07-21 (household-scoped lists) |
 | DINNER-01 | Phase 26 | Pending — promoted from backlog 2026-07-21 |
 | COOK-01 | Phase 27 | Pending — externally blocked on upstream #470 design |
-| IMPORT-REL-01..05 | Phase 27.1 | IMPORT-REL-01/02 DONE 2026-07-28 (plan 27.1-01); IMPORT-REL-04 DONE 2026-07-28 (plan 27.1-03); 03/05 pending (6 plans, 3 waves) |
+| IMPORT-REL-01..05 | Phase 27.1 | IMPORT-REL-01/02 DONE 2026-07-28 (plan 27.1-01); IMPORT-REL-04 DONE 2026-07-28 (plan 27.1-03); IMPORT-REL-05 DONE 2026-07-28 (plan 27.1-04, repo artifact — live adoption deliberately deferred); IMPORT-REL-03 pending (6 plans, 3 waves) |
 | PENDING-ISO-01 | Phase 27.1 | Pending — BUG, confirmed live 2026-07-28; promoted into scope by director override, plan 27.1-06 |
 | COST-01 | Phase 28 | Pending — promoted from backlog 2026-07-21 |
 | MAKE-01 | Phase 29 | Pending — promoted from backlog 2026-07-21 |
@@ -169,13 +169,20 @@ two UX defects that make a failure look like nothing happened.
   (mirrors the existing `importStages` cache pattern); `onFailed` records the failure BEFORE removing the
   pending entry so an id is never simultaneously neither-pending-nor-failed; a successful retry clears a
   stale card via `onImported`/`onCreated`. New strings in all 12 locales.
-- [ ] **IMPORT-REL-05** (Phase 27.1) — Camoufox is defined as an IN-STACK service in a repo-tracked fork
-  compose, built from the vendored `docker/camofox` source (SETUP-04), with `CAMOFOX_URL` retained as an
-  explicit override. Live had NO camofox service: `norish-app` on `norish_default`,
-  `norishp2-camofox-1` on `norishp2_default` and unreachable from it, working only because
-  `CAMOFOX_URL` pointed off-stack at LXC 105 — an undocumented single point of failure. The Camoufox
-  service itself was HEALTHY; the defect is topology. **The live compose is outside the repo tree**, so
-  27.1 ships the repo artifact plus an operator runbook and does NOT mutate live.
+- [x] **IMPORT-REL-05** (Phase 27.1, plan 27.1-04) — DONE 2026-07-28 (repo artifact; live adoption
+  deliberately NOT performed): Camoufox is defined as an IN-STACK service in a repo-tracked fork
+  compose (`docker/docker-compose.fork.yml`, new), built from the vendored `docker/camofox` source
+  (SETUP-04), with `CAMOFOX_URL: ${CAMOFOX_URL:-http://camofox:9377}` retained as an explicit override
+  and `norish` gated on `camofox`'s healthcheck via `depends_on: condition: service_healthy`. Live had
+  NO camofox service: `norish-app` on `norish_default`, `norishp2-camofox-1` on `norishp2_default` and
+  unreachable from it, working only because `CAMOFOX_URL` pointed off-stack at LXC 105 — an
+  undocumented single point of failure. The Camoufox service itself was HEALTHY; the defect was
+  topology. Finding F-3 fixed alongside it: `docker-compose.beta.yml` no longer defaults
+  `CAMOFOX_URL` to the off-stack address either — beta gets its own in-stack `camofox` on the
+  isolated `norish-beta` network. **The live compose is outside the repo tree**; this plan shipped the
+  repo artifact plus `tooling/fork-stack/README.md` (the adoption / reachability-proof / rollback
+  runbook) and did NOT mutate live — no live container, network, or volume was touched. See
+  `27.1-04-SUMMARY.md`.
 
 **Gate:** a non-skippable POST-DEPLOY EMPIRICAL GATE (plan 27.1-05) — the mandated ah.nl URL, then >= 10
 further ah.nl recipes across >= 6 categories, then >= 5 lekkerensimpel recipes, each evidenced with
