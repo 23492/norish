@@ -85,7 +85,7 @@ _(renumbered from Phase 3/4 to make room for the Sharing phase.)_
 | SHOP-02 | Phase 25 | Pending — DECIDED 2026-07-21 (household-scoped lists) |
 | DINNER-01 | Phase 26 | Pending — promoted from backlog 2026-07-21 |
 | COOK-01 | Phase 27 | Pending — externally blocked on upstream #470 design |
-| IMPORT-REL-01..05 | Phase 27.1 | IMPORT-REL-01/02 DONE 2026-07-28 (plan 27.1-01); IMPORT-REL-04 DONE 2026-07-28 (plan 27.1-03); IMPORT-REL-05 DONE 2026-07-28 (plan 27.1-04, repo artifact — live adoption deliberately deferred); IMPORT-REL-03 pending (6 plans, 3 waves) |
+| IMPORT-REL-01..05 | Phase 27.1 | IMPORT-REL-01/02 DONE 2026-07-28 (plan 27.1-01); IMPORT-REL-03 DONE 2026-07-28 (plan 27.1-02); IMPORT-REL-04 DONE 2026-07-28 (plan 27.1-03); IMPORT-REL-05 DONE 2026-07-28 (plan 27.1-04, repo artifact — live adoption deliberately deferred); all 5 requirements now DONE; only the post-deploy empirical gate (plan 27.1-05) remains (6 plans, 3 waves) |
 | PENDING-ISO-01 | Phase 27.1 | DONE 2026-07-28 (plan 27.1-06) — `everyone` folds into the household clamp; RED-first + adversarial re-verification, see `27.1-06-SUMMARY.md` |
 | COST-01 | Phase 28 | Pending — promoted from backlog 2026-07-21 |
 | MAKE-01 | Phase 29 | Pending — promoted from backlog 2026-07-21 |
@@ -146,13 +146,17 @@ two UX defects that make a failure look like nothing happened.
   `outputTokenFloor` of `AI_RETRY_OUTPUT_TOKEN_FLOOR = Math.min(100_000, 393_216) = 100_000` (measured
   DeepSeek ceiling), which the callee applies as `Math.max(configured, floor)` — never lowering a
   configured value, never touching the first attempt.
-- [ ] **IMPORT-REL-03** (Phase 27.1) — After AI extraction has FINALLY failed, a page carrying valid
-  schema.org Recipe JSON-LD still imports, through the same normalizer / `createRecipeWithRefs` /
-  cook-projection path, minting a scored `.cook` through the sanctioned `buildCookPayload`. **AI stays
-  PRIMARY** — this is a fallback, not a bypass, so Cooklang linkage quality and bilingual output are
-  preserved. A working extractor (`tryExtractRecipeFromJsonLd`) already existed in the tree but was
-  reachable only behind `LEGACY_RECIPE_PARSER_ROLLBACK`, which is UNSET in the container; the flag's
-  semantics are NOT resurrected.
+- [x] **IMPORT-REL-03** (Phase 27.1, plan 27.1-02) — DONE 2026-07-28: After AI extraction has FINALLY
+  failed, a page carrying valid schema.org Recipe JSON-LD still imports, through the same normalizer /
+  `createRecipeWithRefs` / cook-projection path, minting a scored `.cook` through the sanctioned
+  `buildCookPayload`. **AI stays PRIMARY** — `tryJsonLdFallback` (`packages/api/src/parser/jsonld-fallback.ts`)
+  is called ONLY at `parseRecipeFromUrl`'s two AI-failure exits; proven by tests asserting zero fallback
+  calls whenever any AI attempt succeeds. Reuses W5's `buildStructuredRecipeFromLegacy` (widened to a
+  structural `LegacyProjectionSource` type) + `cookConfidenceFromLinks`, gated at
+  `COOK_REVIEW_CONFIDENCE_THRESHOLD` (0.800, strict `<`); below the gate, `cook_source` stays NULL,
+  byte-identical to today's python-scraper degradation. `LEGACY_RECIPE_PARSER_ROLLBACK`'s semantics are
+  NOT resurrected — the fallback reads no env flag. Every terminal parse path logs one `parserPath`
+  marker (`ai` / `jsonld-fallback` / `structured`) for 27.1-05's post-deploy gate.
 - [x] **IMPORT-REL-04** (Phase 27.1, plan 27.1-03) — DONE 2026-07-28: An import failure ALWAYS reaches the
   user as a visible, rendered, dismissible error card — never an eternal skeleton — and never crosses a
   cookbook boundary. `handleJobFailed` (`packages/queue/src/recipe-import/worker.ts`) rewritten:
