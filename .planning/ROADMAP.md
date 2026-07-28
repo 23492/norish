@@ -555,7 +555,7 @@ Plans:
 - [x] 27.1-03-PLAN.md — Failure surfacing: unconditional fail-closed `failed` emit + a rendered dismissible error card in 12 locales (wave 1) — DONE 2026-07-28, see `27.1-03-SUMMARY.md`
 - [x] 27.1-04-PLAN.md — In-stack Camoufox: repo-tracked `docker/docker-compose.fork.yml` + operator runbook; live untouched (wave 1) — DONE 2026-07-28, see `27.1-04-SUMMARY.md`
 - [ ] 27.1-05-PLAN.md — POST-DEPLOY EMPIRICAL GATE: the import harness, the three bars, and the browser proof that a failure is visible (wave 3, blocking checkpoints)
-- [ ] 27.1-06-PLAN.md — PENDING-ISO-01: fold `everyone` into the cookbook clamp in `recipes.getPending`, with the RED-first two-household suite (wave 1)
+- [x] 27.1-06-PLAN.md — PENDING-ISO-01: fold `everyone` into the cookbook clamp in `recipes.getPending`, with the RED-first two-household suite (wave 1) — DONE 2026-07-28, see `27.1-06-SUMMARY.md`
 
 **Findings raised while planning, NOT in scope** (full detail in `27.1-CONTEXT.md`):
   - ~~**F-1 / proposed PENDING-ISO-01**~~ — **PROMOTED INTO SCOPE 2026-07-28 by director override; now
