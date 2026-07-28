@@ -85,7 +85,7 @@ _(renumbered from Phase 3/4 to make room for the Sharing phase.)_
 | SHOP-02 | Phase 25 | Pending — DECIDED 2026-07-21 (household-scoped lists) |
 | DINNER-01 | Phase 26 | Pending — promoted from backlog 2026-07-21 |
 | COOK-01 | Phase 27 | Pending — externally blocked on upstream #470 design |
-| IMPORT-REL-01..05 | Phase 27.1 | IMPORT-REL-01/02 DONE 2026-07-28 (plan 27.1-01); 03/04/05 pending (6 plans, 3 waves) |
+| IMPORT-REL-01..05 | Phase 27.1 | IMPORT-REL-01/02 DONE 2026-07-28 (plan 27.1-01); IMPORT-REL-04 DONE 2026-07-28 (plan 27.1-03); 03/05 pending (6 plans, 3 waves) |
 | PENDING-ISO-01 | Phase 27.1 | Pending — BUG, confirmed live 2026-07-28; promoted into scope by director override, plan 27.1-06 |
 | COST-01 | Phase 28 | Pending — promoted from backlog 2026-07-21 |
 | MAKE-01 | Phase 29 | Pending — promoted from backlog 2026-07-21 |
@@ -153,12 +153,22 @@ two UX defects that make a failure look like nothing happened.
   preserved. A working extractor (`tryExtractRecipeFromJsonLd`) already existed in the tree but was
   reachable only behind `LEGACY_RECIPE_PARSER_ROLLBACK`, which is UNSET in the container; the flag's
   semantics are NOT resurrected.
-- [ ] **IMPORT-REL-04** (Phase 27.1) — An import failure ALWAYS reaches the user as a visible, rendered,
-  dismissible error card — never an eternal skeleton — and never crosses a cookbook boundary.
-  `packages/queue/src/recipe-import/worker.ts:231-238` ran `deleteRecipeImagesDir` and
-  `resolveHouseholdRealtimeScope` unguarded BEFORE the `failed` emit, and a throw there is only logged
-  (`lazy-worker-manager.ts:259-263`). Security-critical: proven under the live `view: "everyone"`
-  policy with an `everyone` sibling case, adversarially verified.
+- [x] **IMPORT-REL-04** (Phase 27.1, plan 27.1-03) — DONE 2026-07-28: An import failure ALWAYS reaches the
+  user as a visible, rendered, dismissible error card — never an eternal skeleton — and never crosses a
+  cookbook boundary. `handleJobFailed` (`packages/queue/src/recipe-import/worker.ts`) rewritten:
+  the `failed` emit now happens BEFORE `deleteRecipeImagesDir`/`resolveHouseholdRealtimeScope`, each step
+  independently guarded, and the whole handler wrapped so it can never reject
+  (`lazy-worker-manager.ts:259-263` only logs an `onFailed` rejection — exactly how the event used to be
+  swallowed). A rejecting resolver fails closed to `owner` scope against the job's own actor context,
+  never widening; a healthy resolution keeps `importStarted`'s household scope, so the event that
+  removes a shared-cookbook skeleton reaches the same audience. Security-critical: proven under the live
+  `view: "everyone"` policy with an `everyone` sibling case (`describe.each`), and adversarially verified
+  — temporarily routed `everyone` to `emitter.broadcast()`, confirmed 5 tests across 3 isolation suites
+  went RED, reverted byte-identical (sha256-confirmed). Client-side, a `FailedImportCard` (new) replaces
+  the skeleton in `recipe-grid.tsx` for a failed id, driven by a new client-only `failedImports` cache
+  (mirrors the existing `importStages` cache pattern); `onFailed` records the failure BEFORE removing the
+  pending entry so an id is never simultaneously neither-pending-nor-failed; a successful retry clears a
+  stale card via `onImported`/`onCreated`. New strings in all 12 locales.
 - [ ] **IMPORT-REL-05** (Phase 27.1) — Camoufox is defined as an IN-STACK service in a repo-tracked fork
   compose, built from the vendored `docker/camofox` source (SETUP-04), with `CAMOFOX_URL` retained as an
   explicit override. Live had NO camofox service: `norish-app` on `norish_default`,
