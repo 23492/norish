@@ -27,7 +27,11 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { RecipeImportJobData } from "@norish/queue/contracts/job-types";
+import type {
+  AllergyDetectionJobData,
+  AutoTaggingJobData,
+  RecipeImportJobData,
+} from "@norish/queue/contracts/job-types";
 
 /** Minimal BullMQ `Job` shape — only `.data` and `.timestamp` are read by `pending.ts`. */
 interface FakeJob<T> {
@@ -37,6 +41,8 @@ interface FakeJob<T> {
 
 const getRecipePermissionPolicyMock = vi.hoisted(() => vi.fn());
 const recipeImportGetJobsMock = vi.hoisted(() => vi.fn());
+const autoTaggingGetJobsMock = vi.hoisted(() => vi.fn());
+const allergyDetectionGetJobsMock = vi.hoisted(() => vi.fn());
 
 // publicProcedure carries the logger middleware, which writes api_logs; without a
 // DB that throws (caught, but noisy).
@@ -58,6 +64,8 @@ vi.mock("@norish/shared-server/config/server-config-loader", () => ({
 vi.mock("@norish/queue/registry", () => ({
   getQueues: () => ({
     recipeImport: { getJobs: recipeImportGetJobsMock },
+    autoTagging: { getJobs: autoTaggingGetJobsMock },
+    allergyDetection: { getJobs: allergyDetectionGetJobsMock },
   }),
 }));
 
@@ -139,6 +147,18 @@ async function callGetPending(ctx: ReturnType<typeof ctxFor>) {
   const { pendingProcedures } = await import("@norish/trpc/routers/recipes/pending");
 
   return pendingProcedures.createCaller(ctx as never).getPending();
+}
+
+async function callGetPendingAutoTagging(ctx: ReturnType<typeof ctxFor>) {
+  const { pendingProcedures } = await import("@norish/trpc/routers/recipes/pending");
+
+  return pendingProcedures.createCaller(ctx as never).getPendingAutoTagging();
+}
+
+async function callGetPendingAllergyDetection(ctx: ReturnType<typeof ctxFor>) {
+  const { pendingProcedures } = await import("@norish/trpc/routers/recipes/pending");
+
+  return pendingProcedures.createCaller(ctx as never).getPendingAllergyDetection();
 }
 
 describe("recipes.getPending never widens across households (PENDING-ISO-01)", () => {
@@ -236,4 +256,110 @@ describe("recipes.getPending never widens across households (PENDING-ISO-01)", (
 
     expect(result.map((r) => r.url)).toEqual([URL_A]);
   });
+});
+
+/**
+ * `getPendingAutoTagging` and `getPendingAllergyDetection` already clamp with
+ * `job.data.userId === ctx.user.id || job.data.householdKey === ctx.householdKey`
+ * and — unlike `getPending` — never consult `getRecipePermissionPolicy` at all,
+ * which is exactly why they escaped PENDING-ISO-01. No production behaviour
+ * changes here; these pins exist so a future edit cannot quietly reintroduce
+ * the `getPending` shape into these two procedures.
+ */
+describe("the sibling pending queries are already clamped — regression pins", () => {
+  const JOB_AUTO_TAG_OWN_USER: FakeJob<AutoTaggingJobData> = {
+    data: { recipeId: "auto-tag-own-user", userId: "user-a", householdKey: "some-other-key" },
+    timestamp: 1000,
+  };
+  const JOB_AUTO_TAG_OWN_HOUSEHOLD: FakeJob<AutoTaggingJobData> = {
+    data: { recipeId: "auto-tag-own-household", userId: "someone-else", householdKey: "cookbook-a" },
+    timestamp: 2000,
+  };
+  const JOB_AUTO_TAG_OTHER: FakeJob<AutoTaggingJobData> = {
+    data: { recipeId: "auto-tag-other", userId: "user-b", householdKey: "cookbook-b" },
+    timestamp: 3000,
+  };
+
+  const JOB_ALLERGY_OWN_USER: FakeJob<AllergyDetectionJobData> = {
+    data: { recipeId: "allergy-own-user", userId: "user-a", householdKey: "some-other-key" },
+    timestamp: 1000,
+  };
+  const JOB_ALLERGY_OWN_HOUSEHOLD: FakeJob<AllergyDetectionJobData> = {
+    data: { recipeId: "allergy-own-household", userId: "someone-else", householdKey: "cookbook-a" },
+    timestamp: 2000,
+  };
+  const JOB_ALLERGY_OTHER: FakeJob<AllergyDetectionJobData> = {
+    data: { recipeId: "allergy-other", userId: "user-b", householdKey: "cookbook-b" },
+    timestamp: 3000,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    autoTaggingGetJobsMock.mockResolvedValue([
+      JOB_AUTO_TAG_OWN_USER,
+      JOB_AUTO_TAG_OWN_HOUSEHOLD,
+      JOB_AUTO_TAG_OTHER,
+    ]);
+    allergyDetectionGetJobsMock.mockResolvedValue([
+      JOB_ALLERGY_OWN_USER,
+      JOB_ALLERGY_OWN_HOUSEHOLD,
+      JOB_ALLERGY_OTHER,
+    ]);
+  });
+
+  describe.each(["household", "everyone", "owner"] as const)(
+    "getPendingAutoTagging under policy.view=%s (unread by this procedure)",
+    (view) => {
+      beforeEach(() => {
+        getRecipePermissionPolicyMock.mockResolvedValue({
+          view,
+          edit: "household",
+          delete: "household",
+        });
+      });
+
+      it("returns the caller's own-user job and own-household job, but not another cookbook's", async () => {
+        const recipeIds = await callGetPendingAutoTagging(VIEWER_A);
+
+        expect(recipeIds).toEqual(
+          expect.arrayContaining(["auto-tag-own-user", "auto-tag-own-household"])
+        );
+        expect(recipeIds).not.toContain("auto-tag-other");
+      });
+
+      it("never reads getRecipePermissionPolicy — policy-independent by construction", async () => {
+        await callGetPendingAutoTagging(VIEWER_A);
+
+        expect(getRecipePermissionPolicyMock).not.toHaveBeenCalled();
+      });
+    }
+  );
+
+  describe.each(["household", "everyone", "owner"] as const)(
+    "getPendingAllergyDetection under policy.view=%s (unread by this procedure)",
+    (view) => {
+      beforeEach(() => {
+        getRecipePermissionPolicyMock.mockResolvedValue({
+          view,
+          edit: "household",
+          delete: "household",
+        });
+      });
+
+      it("returns the caller's own-user job and own-household job, but not another cookbook's", async () => {
+        const recipeIds = await callGetPendingAllergyDetection(VIEWER_A);
+
+        expect(recipeIds).toEqual(
+          expect.arrayContaining(["allergy-own-user", "allergy-own-household"])
+        );
+        expect(recipeIds).not.toContain("allergy-other");
+      });
+
+      it("never reads getRecipePermissionPolicy — policy-independent by construction", async () => {
+        await callGetPendingAllergyDetection(VIEWER_A);
+
+        expect(getRecipePermissionPolicyMock).not.toHaveBeenCalled();
+      });
+    }
+  );
 });
