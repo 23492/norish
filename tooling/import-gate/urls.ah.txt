@@ -1,0 +1,38 @@
+# tooling/import-gate/urls.ah.txt
+#
+# Bar 1 (mandated) + bar 2 (>=10 FURTHER, >=6 distinct categories) URLs for the
+# 27.1-05 post-deploy import gate. Every URL below was fetched from ah.nl's own
+# live category listing pages on 2026-07-28 (curl with a desktop UA, no
+# invented shapes) and HEAD-verified non-404 the same day. See 27.1-05's
+# evidence report for the verbatim status table.
+#
+# Category sources (fetched 2026-07-28):
+#   https://www.ah.nl/allerhande/recepten/soep
+#   https://www.ah.nl/allerhande/recepten/vegetarische-recepten
+#   https://www.ah.nl/allerhande/recepten/pasta
+#   https://www.ah.nl/allerhande/recepten/rundvlees        (category used for "vlees")
+#   https://www.ah.nl/allerhande/recepten/visgerechten     (category used for "vis")
+#   https://www.ah.nl/allerhande/recepten/ontbijt-recepten
+#   https://www.ah.nl/allerhande/recepten/gebak            (category used for "bakken/dessert")
+#   https://www.ah.nl/allerhande/recepten/salades
+
+# --- Bar 1: the mandated URL (Kiran's own failing case) ---
+https://www.ah.nl/allerhande/recept/R-R951540/bonensalade-met-kip-en-avocado # salade
+
+# --- Bar 2: >=10 further URLs across >=6 distinct categories ---
+https://www.ah.nl/allerhande/recept/R-R1190365/lente-preisoep # soep
+https://www.ah.nl/allerhande/recept/R-R1199147/saotosoep # soep
+https://www.ah.nl/allerhande/recept/R-R1198275/vegetarische-pasta-carbonara # vegetarisch
+https://www.ah.nl/allerhande/recept/R-R1199848/makkelijke-vegetarische-lasagne # vegetarisch
+https://www.ah.nl/allerhande/recept/R-R1193126/ragu-bolognese-met-tagliatelle # pasta
+https://www.ah.nl/allerhande/recept/R-R1193374/lasagne-met-bechamelsaus # pasta
+https://www.ah.nl/allerhande/recept/R-R1195099/entrecote-van-de-bbq-met-blauwaderkaas-jalapenoboter # vlees
+https://www.ah.nl/allerhande/recept/R-R1196116/ossenhaas-met-rucola-en-rodewijnsaus # vlees
+https://www.ah.nl/allerhande/recept/R-R1199529/kabeljauw-met-pistachekorst-en-paddenstoelen # vis
+https://www.ah.nl/allerhande/recept/R-R1199536/zalm-met-citrusvruchten-en-gremolata # vis
+https://www.ah.nl/allerhande/recept/R-R1189875/overnight-oats # ontbijt
+https://www.ah.nl/allerhande/recept/R-R1191555/eggs-benedict # ontbijt
+https://www.ah.nl/allerhande/recept/R-R1202650/crostata-met-zomerfruit # bakken/dessert
+https://www.ah.nl/allerhande/recept/R-R1186561/matchataart-met-marsepein # bakken/dessert
+https://www.ah.nl/allerhande/recept/R-R1188968/venkelsalade-met-bramen-en-pecorino # salade
+https://www.ah.nl/allerhande/recept/R-R1199909/aardappelsalade-met-zongedroogde-tomaatjes-en-parmezaan # salade

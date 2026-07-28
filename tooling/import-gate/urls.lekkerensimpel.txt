@@ -1,0 +1,15 @@
+# tooling/import-gate/urls.lekkerensimpel.txt
+#
+# Bar 3 (>=5) URLs for the 27.1-05 post-deploy import gate. Fetched from
+# https://www.lekkerensimpel.com/'s own homepage links on 2026-07-28 (curl with
+# a desktop UA, no invented shapes), and each confirmed to be an individual
+# recipe post (not a category page) carrying `application/ld+json` with
+# `"@type":"Recipe"` — HEAD-verified non-404 the same day.
+
+https://www.lekkerensimpel.com/flatbread-met-gehakt/ # vlees
+https://www.lekkerensimpel.com/griekse-moussaka-uit-de-oven/ # ovenschotel
+https://www.lekkerensimpel.com/griekse-wraps-met-kipgehakt/ # wraps
+https://www.lekkerensimpel.com/honing-cashew-kip-met-rijst/ # kip
+https://www.lekkerensimpel.com/kip-pesto-plaattaart/ # hartige-taart
+https://www.lekkerensimpel.com/courgettesoep/ # soep
+https://www.lekkerensimpel.com/romige-bloemkool-uit-de-oven/ # vegetarisch
