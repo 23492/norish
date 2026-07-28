@@ -7,6 +7,7 @@
 
 import type { Job } from "bullmq";
 
+import type { PermissionLevel } from "@norish/config/zod/server-config";
 import type { RecipeImportJobData } from "@norish/queue/contracts/job-types";
 import {
   createRecipeWithRefs,
@@ -24,6 +25,7 @@ import { getQueues } from "@norish/queue/registry";
 import { getAIConfig } from "@norish/shared-server/config/server-config-loader";
 import { createLogger } from "@norish/shared-server/logger";
 import { deleteRecipeImagesDir } from "@norish/shared-server/media/storage";
+import type { PolicyEmitContext } from "@norish/shared-server/realtime/policy";
 import { emitByPolicy, resolveHouseholdRealtimeScope } from "@norish/shared-server/realtime/policy";
 import { recipeEmitter } from "@norish/shared-server/realtime/recipes";
 
@@ -204,44 +206,92 @@ async function processImportJob(job: Job<RecipeImportJobData>): Promise<void> {
 /**
  * Handle job failure.
  * Emits failed event if this was the final attempt.
+ *
+ * D-27.1-07 / T-27.1-03-03: this function can NEVER reject. `lazy-worker-manager.ts:259-263`
+ * only LOGS a rejection from `onFailed`, so an unguarded throw anywhere below was exactly how
+ * the `failed` event used to disappear silently, leaving an eternal skeleton card. Every
+ * risky step below has its own guard, mirroring the `backfillCookSource` never-throw pattern
+ * (`packages/api/src/startup/backfill-cook-source.ts`), and the whole body is wrapped besides.
+ *
+ * Test-only export: driven directly by `failed-emit-isolation.test.ts` so the isolation suite
+ * exercises the real handler rather than a duplicated copy of its logic.
  */
-async function handleJobFailed(
+export async function handleJobFailed(
   job: Job<RecipeImportJobData> | undefined,
   error: Error
 ): Promise<void> {
   if (!job) return;
 
-  const { url, recipeId, userId, householdKey, householdId } = job.data;
-  const maxAttempts = job.opts.attempts ?? 3;
-  const isFinalFailure = job.attemptsMade >= maxAttempts;
+  try {
+    const { url, recipeId, userId, householdKey, householdId } = job.data;
+    const maxAttempts = job.opts.attempts ?? 3;
+    const isFinalFailure = job.attemptsMade >= maxAttempts;
 
-  log.error(
-    {
-      jobId: job.id,
-      url,
-      recipeId,
-      attempt: job.attemptsMade,
-      maxAttempts,
-      isFinalFailure,
-      error: error.message,
-    },
-    "Recipe import job failed"
-  );
+    log.error(
+      {
+        jobId: job.id,
+        url,
+        recipeId,
+        attempt: job.attemptsMade,
+        maxAttempts,
+        isFinalFailure,
+        error: error.message,
+      },
+      "Recipe import job failed"
+    );
 
-  await deleteRecipeImagesDir(recipeId);
+    if (isFinalFailure) {
+      // EMIT FIRST, CLEAN UP AFTER. The ORDER is the mitigation, not the try/catch below —
+      // resolving the failed emit before any cleanup means a throw in cleanup can never
+      // stand between a final failure and the only signal the client ever gets.
+      let viewPolicy: PermissionLevel;
+      let ctx: PolicyEmitContext;
 
-  if (isFinalFailure) {
-    // Emit failed event to remove skeleton
-    const { viewPolicy, ctx } = await resolveHouseholdRealtimeScope(householdId, {
-      userId,
-      householdKey,
-    });
+      try {
+        ({ viewPolicy, ctx } = await resolveHouseholdRealtimeScope(householdId, {
+          userId,
+          householdKey,
+        }));
+      } catch (scopeErr) {
+        // T-27.1-03-02: a failure to RESOLVE a policy must never WIDEN one. Fall back to
+        // the narrowest scope — `owner` against the job's own actor context — which still
+        // reaches only the importer, never a wider audience.
+        log.error(
+          { err: scopeErr, jobId: job.id, recipeId },
+          "Realtime scope resolution failed on job failure; failing closed to the importer"
+        );
+        viewPolicy = "owner";
+        ctx = { userId, householdKey };
+      }
 
-    emitByPolicy(recipeEmitter, viewPolicy, ctx, "failed", {
-      reason: error.message || "Failed to import recipe after multiple attempts",
-      recipeId,
-      url,
-    });
+      // SCOPE SYMMETRY IS DELIBERATE. `importStarted` created this skeleton at household
+      // scope, so the event that removes it must reach the SAME audience — narrowing a
+      // healthy resolution to `owner` here would leave every other member of a shared
+      // cookbook holding a skeleton nothing ever clears, the exact defect this plan closes.
+      // (`emitByPolicy` still clamps `everyone` to the cookbook boundary; D-22-01.)
+      try {
+        emitByPolicy(recipeEmitter, viewPolicy, ctx, "failed", {
+          reason: error.message || "Failed to import recipe after multiple attempts",
+          recipeId,
+          url,
+        });
+      } catch (emitErr) {
+        log.error({ err: emitErr, jobId: job.id, recipeId }, "Failed to emit `failed` event");
+      }
+    }
+
+    // Cleanup runs on every failure, final or not — exactly as before. Only its position
+    // moved, to AFTER the emit, so a throw here can never swallow the failure signal.
+    try {
+      await deleteRecipeImagesDir(recipeId);
+    } catch (cleanupErr) {
+      log.error(
+        { err: cleanupErr, jobId: job.id, recipeId },
+        "Failed to delete recipe images directory on job failure"
+      );
+    }
+  } catch (err) {
+    log.error({ err, jobId: job?.id }, "handleJobFailed threw unexpectedly");
   }
 }
 
