@@ -33,11 +33,24 @@ import { recipeExtractionSchema } from "./schemas/recipe.schema";
 export type { RecipeExtractionOutput };
 
 /**
+ * Optional per-call overrides for `extractRecipeWithAI`, used only by the
+ * one-shot retry in `packages/api/src/parser/index.ts` (D-27.1-06).
+ */
+export interface ExtractRecipeWithAIOptions {
+  /**
+   * Raise the generation's `maxOutputTokens` floor for THIS call only. Never
+   * lowers a configured value — see the `Math.max` below.
+   */
+  outputTokenFloor?: number;
+}
+
+/**
  * Extract recipe from HTML content using AI.
  *
  * @param html - The HTML content to extract recipe from.
  * @param url - Optional source URL of the recipe.
  * @param allergies - Optional list of allergens to detect.
+ * @param options - Optional per-call overrides; only the retry passes one.
  * @returns AIResult with extracted recipe or error.
  */
 export async function extractRecipeWithAI(
@@ -45,7 +58,8 @@ export async function extractRecipeWithAI(
   recipeId: string,
   url?: string,
   allergies?: string[],
-  originalHtml?: string
+  originalHtml?: string,
+  options?: ExtractRecipeWithAIOptions
 ): Promise<AIResult<ExtractedRecipe>> {
   // Guard: AI must be enabled
   const aiEnabled = await isAIEnabled();
@@ -61,6 +75,16 @@ export async function extractRecipeWithAI(
   try {
     const { model, providerName } = await getModels();
     const settings = await getGenerationSettings();
+
+    // D-27.1-06: the DB `ai_config` row (read into `settings` above) is the
+    // source of truth for `maxOutputTokens`. An unconditional floor here could
+    // exceed a provider's per-request output cap, so the raised budget is only
+    // ever applied when the CALLER explicitly asks for it — which happens only
+    // on a retry that already followed a real failure (`parser/index.ts`).
+    // `Math.max` guarantees this NEVER lowers a configured value.
+    if (options?.outputTokenFloor !== undefined) {
+      settings.maxOutputTokens = Math.max(settings.maxOutputTokens ?? 0, options.outputTokenFloor);
+    }
 
     // Sanitize and truncate HTML content
     const sanitized = extractSanitizedBody(html);

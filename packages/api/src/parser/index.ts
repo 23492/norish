@@ -2,6 +2,7 @@ import type {
   CookPayload,
   ExtractedRecipe,
 } from "@norish/api/ai/features/recipe-extraction/normalizer";
+import type { AIErrorCode } from "@norish/shared-server/ai/types/result";
 import type { SiteAuthTokenDecryptedDto } from "@norish/shared/contracts/dto/site-auth-tokens";
 import { extractRecipeWithAI } from "@norish/api/ai/recipe-parser";
 import { isVideoUrl } from "@norish/api/helpers";
@@ -64,7 +65,87 @@ function getStructuredFailureMessage(code: string): string {
 }
 
 /**
+ * The AI error codes that get a retry (D-27.1-01 sub-causes 2 and 3,
+ * D-27.1-06). Each of these is a TRANSIENT condition — a different attempt
+ * has a real chance of a different outcome:
+ *
+ * - `PROVIDER_ERROR`, `EMPTY_RESPONSE`, `UNKNOWN` — the provider returned
+ *   nothing usable, which is exactly the reasoning-token-exhaustion failure
+ *   mode this plan exists to rescue (D-27.1-01 sub-cause 2).
+ * - `TIMEOUT`, `NETWORK_ERROR`, `RATE_LIMIT` — infrastructure hiccups,
+ *   unrelated to the input.
+ * - `VALIDATION_ERROR` — after Task 1's relaxation, this fires only for
+ *   genuinely unusable output (no name, or zero metric ingredients/steps);
+ *   the observed live failures were a truncated/empty generation classified
+ *   through this same code, so it belongs in the retryable set.
+ *
+ * Deliberately EXCLUDED, because retrying them burns tokens and latency on a
+ * GUARANTEED second failure — nothing about a second attempt changes a
+ * deterministic outcome:
+ * - `AI_DISABLED` — a config state, not a transient condition.
+ * - `AUTH_ERROR` — a bad/missing API key fails identically every time.
+ * - `INVALID_INPUT` — a caller-side defect (e.g. no images provided) that a
+ *   retry cannot fix.
+ */
+export const RETRYABLE_AI_EXTRACTION_CODES = new Set<AIErrorCode>([
+  "PROVIDER_ERROR",
+  "EMPTY_RESPONSE",
+  "TIMEOUT",
+  "NETWORK_ERROR",
+  "RATE_LIMIT",
+  "VALIDATION_ERROR",
+  "UNKNOWN",
+]);
+
+// D-27.1-06: the retry's raised output-token headroom, expressed as three
+// separately-named constants so the product intent (the target) and the
+// provider-cap clamp are legible on their own, and a future provider swap
+// cannot silently inherit a DeepSeek-specific number.
+//
+// `AI_RETRY_OUTPUT_TOKEN_TARGET` is an EXPLICIT PRODUCT DECISION by Kiran
+// (2026-07-28): token cost is NOT a constraint here. It supersedes the
+// 32 000 this plan originally carried. Evidence it answers: DeepSeek spent
+// 470 reasoning tokens on a mere 104-token prompt (D-27.1-01); a dual-system
+// recipe extraction emits several thousand output tokens on top of that; and
+// the live `ai_config` budget is only 10 000 — comfortably exhausted by a
+// large-HTML reasoning run.
+export const AI_RETRY_OUTPUT_TOKEN_TARGET = 100_000;
+
+// `AI_PROVIDER_MAX_OUTPUT_TOKENS` is the CLAMP. It exists because a request
+// whose `max_tokens` exceeds the provider's per-request maximum is REJECTED
+// OUTRIGHT — which would turn the retry, the mechanism meant to RESCUE a
+// failed extraction, into a guaranteed hard failure. The figure is MEASURED,
+// not guessed: probed against the live key on 2026-07-28
+// (`api.deepseek.com/chat/completions`):
+//   - deepseek-v4-pro  at max_tokens: 100000 -> HTTP 200, finish_reason "stop"
+//   - deepseek-v4-flash at max_tokens: 100000 -> HTTP 200, finish_reason "stop"
+//   - deepseek-v4-pro  at max_tokens: 393216 -> HTTP 200
+//   - deepseek-v4-pro  at max_tokens: 393217 -> HTTP 400,
+//     {"error":{"message":"Invalid max_tokens value, the valid range of
+//     max_tokens is [1, 393216]","type":"invalid_request_error"}}
+// So the ceiling is 393 216. It is DEAD CODE against today's provider — the
+// clamp resolves to 100 000, Kiran's figure, unclamped — and is written for
+// the NEXT one: a provider swap requires RE-MEASURING this constant, never
+// assuming it.
+export const AI_PROVIDER_MAX_OUTPUT_TOKENS = 393_216;
+
+export const AI_RETRY_OUTPUT_TOKEN_FLOOR = Math.min(
+  AI_RETRY_OUTPUT_TOKEN_TARGET,
+  AI_PROVIDER_MAX_OUTPUT_TOKENS
+);
+
+/**
  * Attempt AI extraction. If requireAI = true, throws when AI is disabled.
+ *
+ * Makes at most TWO attempts (D-27.1-01 sub-cause 3, D-27.1-06). The retry
+ * lives HERE rather than at the `useAIOnly` throw site in `parseRecipeFromUrl`
+ * because this one edit covers BOTH the `useAIOnly` branch and the
+ * structured-failure AI fallback below, whereas wrapping the throw site would
+ * cover only the former and would re-run the JSON-LD-input attempt as well
+ * (see `extractWithAIPreference`, which already tries JSON-LD then full HTML
+ * — so a single job attempt now makes at most 4 model calls, and BullMQ's
+ * `attempts: 3` (`packages/queue/src/config.ts`) bounds a job at 12; the
+ * accepted cost of turning a hard failure into a retryable one).
  */
 async function tryExtractWithAI(
   input: string,
@@ -89,7 +170,25 @@ async function tryExtractWithAI(
 
   if (result.success) return result.data;
 
-  log.warn({ url, error: result.error, code: result.code }, "AI extraction failed");
+  log.warn({ url, error: result.error, code: result.code, attempt: 1 }, "AI extraction failed");
+
+  if (!RETRYABLE_AI_EXTRACTION_CODES.has(result.code)) return null;
+
+  log.info(
+    { url, attempt: 2, code: result.code },
+    "Retrying AI extraction with raised output-token headroom"
+  );
+
+  const retryResult = await extractRecipeWithAI(input, recipeId, url, allergies, originalHtml, {
+    outputTokenFloor: AI_RETRY_OUTPUT_TOKEN_FLOOR,
+  });
+
+  if (retryResult.success) return retryResult.data;
+
+  log.warn(
+    { url, error: retryResult.error, code: retryResult.code, attempt: 2 },
+    "AI extraction failed"
+  );
 
   return null;
 }
