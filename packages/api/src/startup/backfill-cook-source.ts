@@ -1,5 +1,5 @@
 import type { UnitsMap } from "@norish/config/zod/server-config";
-import type { FullRecipeDTO } from "@norish/shared/contracts/dto/recipe";
+import type { MeasurementSystem } from "@norish/shared/contracts/dto/recipe";
 import type { LinkOutcome, StructuredIngredientRef, StructuredRecipe, StructuredStep } from "@norish/shared/cooklang";
 
 import {
@@ -58,17 +58,79 @@ function isHeading(step: StructuredStep): boolean {
 }
 
 /**
- * PURE: a legacy `FullRecipeDTO` -> the `StructuredRecipe` the serializer takes,
- * or a refusal reason. No I/O.
+ * The structural shape `buildStructuredRecipeFromLegacy` actually reads — and no
+ * more. Both `FullRecipeDTO` (the read DTO, W5's original caller) and
+ * `FullRecipeInsertDTO` (`z.input<FullRecipeInsertSchema>`, the JSON-LD
+ * fallback's caller — D-27.1-05) satisfy it, but the two differ in three ways
+ * this function must handle explicitly rather than assume away:
+ *   - `order`'s z.INPUT type is `unknown` on the insert DTO (`z.coerce.number()`'s
+ *     input accepts anything coercible, so its `z.input` widens to `unknown`
+ *     rather than `number | string`), so it is coerced with `Number(...)`
+ *     before sorting rather than assumed numeric;
+ *   - `ingredientName` is OPTIONAL on the insert DTO (the read DTO always has
+ *     one), so a row with no name is skipped rather than linked as "";
+ *   - per-row `systemUsed` is OPTIONAL on the insert DTO's ingredients, so a
+ *     missing value is treated as the recipe's own native system rather than
+ *     excluded from it;
+ *   - the recipe-level `systemUsed` is ALSO optional on the insert DTO
+ *     (`recipes.system_used` carries a DB default of `"metric"`, so
+ *     drizzle-zod's insert schema makes it optional), so a missing value here
+ *     defaults to `"metric"` — the same default the column itself has;
+ *   - `steps` and `recipeIngredients` are ALSO optional on the insert DTO
+ *     (`FullRecipeInsertSchema` gives both a `.default([])`), so a missing
+ *     array defaults to empty here exactly as it does in the schema.
+ */
+export interface LegacyProjectionSource {
+  name: string;
+  servings?: number | null;
+  prepMinutes?: number | null;
+  cookMinutes?: number | null;
+  totalMinutes?: number | null;
+  url?: string | null;
+  systemUsed?: MeasurementSystem | null;
+  steps?: ReadonlyArray<{ step: string; order: unknown; systemUsed?: MeasurementSystem | null }>;
+  recipeIngredients?: ReadonlyArray<{
+    ingredientName?: string | null;
+    // z.INPUT for `amount` is `unknown` on the insert DTO too (same
+    // coerce-widens-the-input-type reason as `order`, above).
+    amount: unknown;
+    unit?: string | null;
+    order: unknown;
+    systemUsed?: MeasurementSystem | null;
+  }>;
+}
+
+/**
+ * PURE: a `LegacyProjectionSource` -> the `StructuredRecipe` the serializer
+ * takes, or a refusal reason. No I/O.
+ *
+ * D-27.1-05: this seeder now also runs on a runtime import path — the JSON-LD
+ * fallback (`packages/api/src/parser/jsonld-fallback.ts`) — which extends Phase
+ * 27's D-6 ("a one-time deterministic name-match seed is allowed as migration
+ * glue, never as a runtime renderer"). The extension is sound for two reasons:
+ * (1) no heuristic RENDERER is introduced — D-7 stands, `SmartInstruction` /
+ * `applyIngredientLinkMarkup` stay deleted, and the stored `.cook` is rendered
+ * by the parser-token renderer like any other recipe's; (2) it is
+ * forward-necessary — W6 makes `cook_source` NOT NULL, at which point a non-AI
+ * import path that yields NULL becomes a hard failure, so a fallback that can
+ * mint a real `cook_source` here closes that gap rather than adding debt.
  */
 export function buildStructuredRecipeFromLegacy(
-  recipe: FullRecipeDTO
+  recipe: LegacyProjectionSource
 ): { structured: StructuredRecipe } | { refusal: string } {
-  const native = recipe.systemUsed;
-  const nativeSteps = recipe.steps.filter((step) => step.systemUsed === native).sort((a, b) => a.order - b.order);
-  const nativeIngredients = recipe.recipeIngredients
-    .filter((ingredient) => ingredient.systemUsed === native)
-    .sort((a, b) => a.order - b.order);
+  const native: MeasurementSystem = recipe.systemUsed ?? "metric";
+  const steps = recipe.steps ?? [];
+  const recipeIngredients = recipe.recipeIngredients ?? [];
+  const nativeSteps = steps
+    .filter((step) => (step.systemUsed ?? native) === native)
+    .sort((a, b) => Number(a.order) - Number(b.order));
+  const nativeIngredients = recipeIngredients
+    .filter((ingredient) => (ingredient.systemUsed ?? native) === native)
+    // The insert DTO's `ingredientName` is optional (unlike the read DTO's
+    // required `string`) — a row with no name cannot be name-anchored to a
+    // step, so it is SKIPPED, never linked as an empty string.
+    .filter((ingredient) => Boolean(ingredient.ingredientName?.trim()))
+    .sort((a, b) => Number(a.order) - Number(b.order));
 
   if (nativeSteps.length === 0) {
     return { refusal: "no-native-steps" };
@@ -77,7 +139,7 @@ export function buildStructuredRecipeFromLegacy(
   // Deriving against an empty native ingredient list would retire every
   // opposite-system row the moment `deriveProjectionTx` runs — refuse rather
   // than silently drop the recipe's whole ingredient list.
-  if (nativeIngredients.length === 0 && recipe.recipeIngredients.length > 0) {
+  if (nativeIngredients.length === 0 && recipeIngredients.length > 0) {
     return { refusal: "no-native-ingredients" };
   }
 
@@ -89,12 +151,13 @@ export function buildStructuredRecipeFromLegacy(
 
   // Longest-name-first: "brown sugar" claims its step before "sugar" does.
   const sortedIngredients = [...nativeIngredients].sort(
-    (a, b) => b.ingredientName.length - a.ingredientName.length
+    (a, b) => (b.ingredientName as string).length - (a.ingredientName as string).length
   );
 
   for (const ingredient of sortedIngredients) {
+    const ingredientName = ingredient.ingredientName as string;
     let targetIndex = structuredSteps.findIndex(
-      (step) => !isHeading(step) && hasNameAnchor(step.text, ingredient.ingredientName)
+      (step) => !isHeading(step) && hasNameAnchor(step.text, ingredientName)
     );
 
     if (targetIndex === -1) {
@@ -104,9 +167,11 @@ export function buildStructuredRecipeFromLegacy(
     if (targetIndex === -1) targetIndex = 0;
 
     const ref: StructuredIngredientRef = {
-      name: ingredient.ingredientName,
-      amount: ingredient.amount,
-      unit: ingredient.unit,
+      name: ingredientName,
+      // Both DTOs' runtime value is always `number | null` — only the insert
+      // DTO's z.INPUT type widens to `unknown` (the coerce reason above).
+      amount: ingredient.amount as number | string | null,
+      unit: ingredient.unit ?? null,
     };
 
     structuredSteps[targetIndex]!.ingredients.push(ref);

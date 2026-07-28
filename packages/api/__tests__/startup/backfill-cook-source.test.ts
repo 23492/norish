@@ -361,6 +361,104 @@ describe("buildStructuredRecipeFromLegacy", () => {
 });
 
 // --------------------------------------------------------------------------
+// buildStructuredRecipeFromLegacy — WIDENING proof (27.1-02, D-27.1-05)
+//
+// `buildStructuredRecipeFromLegacy` now also accepts an INSERT-shaped source
+// (`FullRecipeInsertDTO` / `z.input<FullRecipeInsertSchema>`), not only the
+// read-shaped `FullRecipeDTO` every test above drives. The insert shape
+// differs in exactly the ways `LegacyProjectionSource`'s doc comment names:
+// `order` may arrive as a string, `ingredientName` may be absent, and
+// per-row / recipe-level `systemUsed` may be absent. None of the assertions
+// above are touched by this describe block — it is purely additive.
+// --------------------------------------------------------------------------
+
+describe("buildStructuredRecipeFromLegacy — widened to accept an insert-shaped source", () => {
+  it("coerces a string `order` on both steps and ingredients before sorting", () => {
+    const recipe = {
+      name: "Insert-shaped Recipe",
+      systemUsed: "metric" as const,
+      steps: [
+        { step: "Bake it.", order: "0" },
+        { step: "Whisk the flour.", order: "1" },
+      ],
+      recipeIngredients: [{ ingredientName: "flour", amount: null, unit: null, order: "0" }],
+    };
+
+    const result = buildStructuredRecipeFromLegacy(recipe);
+
+    expect("structured" in result).toBe(true);
+    if (!("structured" in result)) throw new Error("expected structured");
+
+    expect(result.structured.steps.map((s) => s.text)).toEqual(["Bake it.", "Whisk the flour."]);
+  });
+
+  it("skips an ingredient row with no ingredientName rather than crashing or linking an empty name", () => {
+    const recipe = {
+      name: "Insert-shaped Recipe",
+      systemUsed: "metric" as const,
+      steps: [{ step: "Whisk the flour.", order: 0 }],
+      recipeIngredients: [
+        { ingredientName: "flour", amount: null, unit: null, order: 0 },
+        { ingredientName: undefined, amount: null, unit: null, order: 1 },
+        { ingredientName: "", amount: null, unit: null, order: 2 },
+      ],
+    };
+
+    const result = buildStructuredRecipeFromLegacy(recipe);
+
+    expect("structured" in result).toBe(true);
+    if (!("structured" in result)) throw new Error("expected structured");
+
+    const names = result.structured.steps.flatMap((s) => s.ingredients.map((i) => i.name));
+
+    expect(names).toEqual(["flour"]);
+  });
+
+  it("treats a missing per-row systemUsed as the recipe's own native system", () => {
+    const recipe = {
+      name: "Insert-shaped Recipe",
+      systemUsed: "metric" as const,
+      steps: [{ step: "Whisk the flour.", order: 0, systemUsed: undefined }],
+      recipeIngredients: [
+        { ingredientName: "flour", amount: null, unit: null, order: 0, systemUsed: undefined },
+      ],
+    };
+
+    const result = buildStructuredRecipeFromLegacy(recipe);
+
+    expect("structured" in result).toBe(true);
+    if (!("structured" in result)) throw new Error("expected structured");
+
+    expect(result.structured.steps).toHaveLength(1);
+    expect(result.structured.steps[0]!.ingredients.map((i) => i.name)).toEqual(["flour"]);
+  });
+
+  it("defaults a missing recipe-level systemUsed to metric, matching the column's own DB default", () => {
+    const recipe = {
+      name: "Insert-shaped Recipe",
+      systemUsed: undefined,
+      steps: [{ step: "Whisk the flour.", order: 0 }],
+      recipeIngredients: [{ ingredientName: "flour", amount: null, unit: null, order: 0 }],
+    };
+
+    const result = buildStructuredRecipeFromLegacy(recipe);
+
+    expect("structured" in result).toBe(true);
+    if (!("structured" in result)) throw new Error("expected structured");
+
+    expect(result.structured.systemUsed).toBe("metric");
+  });
+
+  it("defaults missing steps/recipeIngredients arrays to empty, refusing no-native-steps rather than crashing", () => {
+    const recipe = { name: "Insert-shaped Recipe", systemUsed: "metric" as const };
+
+    const result = buildStructuredRecipeFromLegacy(recipe);
+
+    expect(result).toEqual({ refusal: "no-native-steps" });
+  });
+});
+
+// --------------------------------------------------------------------------
 // the escaping proof (T-27-01)
 // --------------------------------------------------------------------------
 
