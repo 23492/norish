@@ -51,7 +51,7 @@ Reliable recipe import & management for Kiran's groups — including bot-protect
 - **Licensing**: AGPL-3.0 (private use fine; offer source if exposed publicly).
 - **Quality**: Complete work, no placeholders. Per-cookbook isolation (Phase 2) is security-critical — enforced server-side + covered by dedicated tests.
 - **Standalone**: Camoufox is bundled in the compose by default (overridable via `CAMOFOX_URL`); all cloud API keys (AI extraction, transcription, OAuth) are set in the admin UI — never required as env.
-- **i18n**: `pnpm i18n:check` uses `en` as source of truth and fails on any missing key in any of the 11 locales (da, de-formal, de-informal, en, es, fr, it, ko, nl, pl, ru) — new UI keys must land in all 11.
+- **i18n**: `pnpm i18n:check` uses `en` as source of truth and fails on any missing key in any of the **12** locales (da, de-formal, de-informal, en, es, fr, it, ko, nl, **no**, pl, ru) — new UI keys must land in all 12. _(CORRECTED 2026-07-29: this line said "11 locales" and its list omitted `no`; `packages/i18n/src/messages/` has 12 locale directories, verified. `no` is exactly the locale F-9 / Phase 27.3 reports as missing 68 keys — which is why `pnpm i18n:check` exits 1 and `pr-quality.yml:46` has been red continuously. The "11" was not a scope decision; it was a stale count that made the failing locale invisible in this document. Older `.planning/` entries saying "all 11 locales" are historical and were accurate before `no` was added.)_
 
 ## Key Decisions
 

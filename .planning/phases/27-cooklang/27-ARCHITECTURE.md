@@ -316,8 +316,33 @@ migration substantially.
 | **W2 — Write path + `0041`** | `0041` expand migration; `deriveProjectionTx` (UPSERT-stable, both systems) wired into create/update/import; new recipes write `cook_source` + projection. Renderer reads tokens **when present, else old path** (transitional fork — allowed only until W6). | Old recipes (no `cook_source`) render via the transitional fork. |
 | **W3 — Extraction native** | 3 prompt builders + schema + serializer wiring; JSON-LD importer → per-step linkage → `.cook`. New imports fully native + single-system extraction (§4). | Import output shape validated by zod/repair. |
 | **W4 — Token renderer + multi-timer** | Cooking-mode + recipe-detail token renderer (web + mobile); delete heuristic **runtime** path where `cook_source` present; multi-timer from tokens. | Transitional fork still covers un-backfilled recipes. |
-| **W5 — Backfill `0042` + review tool** | Dry-run vs restored dump; tune gate; run `0042` live; review queue + repair tool; set flags. After this, 100% of recipes have `cook_source`. | App reads tokens for all; no recipe left on old path. |
-| **W6 — Contract** | `0043` NOT-NULL; delete `unit-converter.ts`, heuristic `ingredient-links` markup, the transitional read-fork, timer-keyword scan. Clean single-representation end state. | Safe because W5 guaranteed 100% coverage. |
+| **W5 — Backfill `0042` + review tool** | Dry-run vs restored dump; tune gate; run `0042` live; review queue + repair tool; set flags. ~~After this, 100% of recipes have `cook_source`.~~ **⚠ SUPERSEDED 2026-07-28 — see the note under this table.** True only of the rows that existed at backfill time (`candidates:6, derived:1, flagged:5`); five write paths mint no `cook_source`, so coverage decays with every new insert. | ~~App reads tokens for all; no recipe left on old path.~~ **⚠ SUPERSEDED 2026-07-28** — the READ path has been broken in the Next.js/Turbopack server chunks since `59f3a767` (F-11), so the app read tokens for **nobody**. |
+| **W6 — Contract** | `0043` NOT-NULL; delete `unit-converter.ts`, heuristic `ingredient-links` markup, the transitional read-fork, timer-keyword scan. Clean single-representation end state. | ~~Safe because W5 guaranteed 100% coverage.~~ **⚠ SUPERSEDED 2026-07-28 — THIS JUSTIFICATION IS FALSE. Do not act on it.** W6 is re-scoped as **Phase 27.6** (`COOK-02`) with hard prerequisites — see the note under this table. |
+
+> **⚠ CORRECTION 2026-07-28 — W5's coverage claim and W6's safety justification are both FALSE.**
+> Recorded here rather than quietly overwritten; the struck-through cells above are preserved as they
+> stood. **W6 is NOT safe as written and is re-scoped as Phase 27.6 (`COOK-02`)** — see
+> `.planning/ROADMAP.md` "Phase 27.6" for the binding version, which supersedes this table's W6 row.
+>
+> 1. **W5 covered EXISTING ROWS ONLY.** Its live outcome was `candidates:6, derived:1, flagged:5,
+>    refused:0, failed:0` — it says nothing about future inserts. **Five write paths mint no
+>    `cook_source` today:** structured URL import (`packages/api/src/parser/index.ts:420-427`, which
+>    deliberately returns `cook: null` per D-27-W3-08 — and all 24 of 27.1's gate imports took exactly
+>    this path), paste-import (`packages/queue/src/…/worker.ts:136`), Mealie archive import
+>    (`packages/shared-server/src/archive/parser.ts:364`), manual create
+>    (`packages/trpc/src/routers/recipes/recipes.ts:222`), and recipe copy. A NOT NULL column turns each
+>    into a hard failure.
+> 2. **W5 said nothing about the READ path, which is itself broken** — `pool.ts:320-328` resolves the
+>    Cooklang parse worker against a source path Turbopack polyfilled into `import.meta.url`, so the
+>    pool has never started in the Next.js server chunks since `59f3a767` (F-11, owned by Phase 27.4).
+>    Shipping W6 on top of that would render **zero steps on 100% of recipes**.
+> 3. **The unit-system toggle actively NULLs `cook_source`.** `setActiveSystemForRecipe`
+>    (`packages/db/src/repositories/recipes.ts:1150-1156`) clears it on a metric↔US switch — correct
+>    under a nullable column, a constraint violation under a NOT NULL one.
+> 4. **Quality, not just coverage (F-19).** Only Gnocchi (0.917) derived cleanly; the live recipe sits
+>    at **0.000** confidence with all 10 ingredient tokens clumped at the end of step 1, over
+>    pre-existing duplicate bilingual `steps` rows. A NOT NULL contract over data that bad would lock
+>    the bad derives in permanently. **F-19 is a hard prerequisite of Phase 27.6.**
 
 **Rough size: ~6 waves / ~6–8 plans** — larger than the additive spike's W1–W4
 because the projection derivation, the FK stable-key rewire, the units subsystem, and

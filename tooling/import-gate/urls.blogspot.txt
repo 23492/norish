@@ -1,0 +1,48 @@
+# tooling/import-gate/urls.blogspot.txt
+#
+# The NON-JSON-LD acceptance-gate set for Phase 27.2 (the sanitizer fix).
+#
+# WHY THIS FILE EXISTS: none of these pages ship schema.org Recipe JSON-LD, so
+# `tryStructuredParser` cannot resolve them and the import FALLS THROUGH TO THE AI
+# PATH — the path Phase 27.1's 24/24 gate never once exercised (all 24 of its imports
+# logged `parserPath:"structured"`, `usedAI:false`, certifying a path 27.1 did not
+# modify). `urls.ah.txt` and `urls.lekkerensimpel.txt` are both JSON-LD sets; a gate
+# built only from those is EXPLICITLY INSUFFICIENT to close Phase 27.2.
+#
+# These are classic Blogger pages: the recipe lives as bare text nodes separated by
+# `<br>` inside `div.post-body` — zero `<p>`, zero `<li>` — which `extractSanitizedBody`
+# (`packages/shared-server/src/ai/helpers.ts:93`) harvests nothing from, handing the
+# model 86-585 characters of navigation chrome instead of the recipe.
+#
+# EVERY URL BELOW WAS RECOVERED VERBATIM (scheme included) from the 2026-07-28 live
+# diagnostic run's own log lines — `module:"ai"` / `module:"queue:recipe-import"` /
+# `worker:recipe-import` jobId records — not reconstructed or guessed. Note the mixed
+# `http://` vs `https://`: that is how each was submitted live, and it is preserved.
+#
+# Record `parserPath` AND `usedAI` per URL in the evidence. See ROADMAP.md Phase 27.2's
+# ACCEPTANCE GATE, and F-20 (the harness's own three bugs — an unguarded infinite poll
+# loop among them) which MUST be fixed before this file is run through the harness.
+
+# NOTE ON THE INLINE `#`: `parseUrlFile` (run-import-gate.mjs:27-42) reads everything after
+# the first `#` on a URL line as that URL's CATEGORY, and `GATE_MIN_CATEGORIES` counts the
+# distinct values. Keep the inline labels short and stable; put prose in whole-line comments.
+
+# --- Expected FAIL pre-fix / MUST PASS post-fix ---
+# post-body is bare text nodes separated by <br>: zero <p>, zero <li>.
+# susannekookt/kwarkbol is the reference case: the sanitizer yields 107 chars against a
+# 2760-char recipe. kokenmetaly/shoarma-soep measured `p count: 0, br count: 71`.
+http://susannekookt.blogspot.com/2012/03/kwarkbol.html # blogspot-no-markup
+http://kokenzonderkennis.blogspot.com/2014/03/soto-soep.html # blogspot-no-markup
+http://doorboerstra.blogspot.com/2016/04/soto-ajam.html # blogspot-no-markup
+http://kokenmetaly.blogspot.com/2014/12/shoarma-soep.html # blogspot-no-markup
+http://taartenzoet.blogspot.com/2012/01/boterkoek.html # blogspot-no-markup
+
+# --- CONTROLS: expected PASS, BEFORE and AFTER the fix ---
+# These are the ONLY two of the seven whose post-body contains `<li>`, which is exactly
+# why they were the only two that succeeded on live pre-fix (the 7/7 correlation that
+# established the root cause). They must STAY green: a sanitizer change that breaks a
+# page it used to handle is a regression, and these are the regression detectors.
+# (wiswijzer/erwtensoep is additionally the ONE reasoning-token-exhaustion failure of
+# the 25 — the single demonstrated win of 27.1's retry — so it exercises the retry too.)
+https://wiswijzer.blogspot.com/2018/03/erwtensoep.html # blogspot-control-li
+https://keukenprinsessen.blogspot.com/2013/01/koolraap-met-sausje-van-oma.html # blogspot-control-li
